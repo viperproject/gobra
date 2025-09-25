@@ -10,6 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.context.Context
+import viper.gobra.util.TypeBounds.IntegerKind
 
 import scala.annotation.tailrec
 
@@ -76,8 +77,11 @@ object TypePatterns {
     }
 
     object Int {
-      def unapply(arg: in.Type): Boolean =
-        underlyingType(arg)(ctx).isInstanceOf[in.IntT]
+      def unapply(arg: in.Type): Option[IntegerKind] =
+        underlyingType(arg)(ctx) match {
+          case in.IntT(_, kind) => Some(kind)
+          case _ => None
+        }
     }
 
     object Void {

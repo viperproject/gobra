@@ -66,10 +66,10 @@ class DfltTranslatorConfig(
 
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
-      new BoolEncoding, new IntEncoding, new PermissionEncoding,
+      new BoolEncoding, new StringEncoding, new IntEncoding, new PermissionEncoding,
       new PointerEncoding, new StructEncoding, arrayEncoding, new ClosureEncoding(config), new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding, new AdtEncoding,
-      new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
+      new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding,
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
       new TerminationEncoding, new BuiltInEncoding, new OutlineEncoding, new DeferEncoding,

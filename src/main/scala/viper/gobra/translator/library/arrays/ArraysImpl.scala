@@ -8,6 +8,7 @@ package viper.gobra.translator.library.arrays
 
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
+import viper.gobra.translator.encodings.{IntEncoding, IntEncodingGenerator}
 
 /**
   * A specialized version of the array domain, where the element type is a parameter.
@@ -24,6 +25,7 @@ class ArraysImpl extends Arrays {
     */
   private lazy val (domain, locFunc, lenFunc) = genDomain
 
+  // TODO: change doc
   /**
     * Returns domain, loc function, and len function.
     *
@@ -56,12 +58,13 @@ class ArraysImpl extends Arrays {
     val i = iDecl.localVar
 
     val locFunc = vpr.DomainFunc(s"${Names.sharedArrayDomain}loc", Seq(aDecl, iDecl), typeVar)(domainName = domainName)
-    val lenFunc = vpr.DomainFunc(s"${Names.sharedArrayDomain}len", Seq(aDecl), vpr.Int)(domainName = domainName)
+    val lenFunc = vpr.DomainFunc(s"${Names.sharedArrayDomain}len", Seq(aDecl), IntEncodingGenerator.intType)(domainName = domainName)
     val firstFunc = vpr.DomainFunc(s"${Names.sharedArrayDomain}first", Seq(rDecl), domainType)(domainName = domainName)
     val secondFunc = vpr.DomainFunc(s"${Names.sharedArrayDomain}second", Seq(rDecl), vpr.Int)(domainName = domainName)
 
     val locFuncApp = vpr.DomainFuncApp(locFunc, Seq(a, i), typeVarMap)()
     val lenFuncApp = vpr.DomainFuncApp(lenFunc, Seq(a), typeVarMap)()
+    val intValLenFuncApp = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(lenFuncApp)()
 
     val injectivity = vpr.AnonymousDomainAxiom(
       vpr.Forall(
@@ -70,7 +73,7 @@ class ArraysImpl extends Arrays {
         vpr.Implies(
           vpr.And(
             vpr.LeCmp(vpr.IntLit(0)(), i)(),
-            vpr.LtCmp(i, lenFuncApp)()
+            vpr.LtCmp(i, intValLenFuncApp)()
           )(),
           vpr.And(
             vpr.EqCmp(vpr.DomainFuncApp(firstFunc, Seq(locFuncApp), typeVarMap)(), a)(),
@@ -84,7 +87,7 @@ class ArraysImpl extends Arrays {
       vpr.Forall(
         Seq(aDecl),
         Seq(vpr.Trigger(Seq(lenFuncApp))()),
-        vpr.GeCmp(lenFuncApp, vpr.IntLit(0)())()
+        vpr.GeCmp(intValLenFuncApp, vpr.IntLit(0)())()
       )()
     }(domainName = domainName)
 

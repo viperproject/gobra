@@ -71,7 +71,7 @@ class MapEncoding extends LeafTypeEncoding {
 
       case (exp: in.NilLit) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
 
-      case l@in.Length(exp :: ctx.Map(keys, values)) =>
+      case l@in.Length(exp :: ctx.Map(keys, values), _) =>
         val (pos, info, errT) = l.vprMeta
         // Encodes
         // [ len(m) ] -> [ m ] == null? 0 : | getCorrespondingMap([m]) |

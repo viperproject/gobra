@@ -66,7 +66,7 @@ class SetEncoding extends LeafTypeEncoding {
         if (lit.exprs.isEmpty) unit(vpr.EmptyMultiset(ctx.typ(t))(pos, info, errT))
         else sequence(lit.exprs map goE).map(args => vpr.ExplicitMultiset(args)(pos, info, errT))
 
-      case n@ in.Length(exp :: ctx.AnySet(_)) =>
+      case n@ in.Length(exp :: ctx.AnySet(_), _) =>
         val (pos, info, errT) = n.vprMeta
         for {
           expT <- goE(exp)

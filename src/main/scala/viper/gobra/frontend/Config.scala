@@ -158,10 +158,6 @@ case class Config(
                    checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                    shouldVerify: Boolean = true,
                    shouldChop: Boolean = ConfigDefaults.DefaultShouldChop,
-                   // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                   // 64 bit otherwise.
-                   int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                    cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
@@ -232,7 +228,6 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit,
       checkConsistency = checkConsistency || other.checkConsistency,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker || other.cacheParserAndTypeChecker,
       onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
@@ -261,12 +256,7 @@ case class Config(
     )
   }
 
-  lazy val typeBounds: TypeBounds =
-    if (int32bit) {
-      TypeBounds()
-    } else {
-      TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
-    }
+  lazy val typeBounds: TypeBounds = TypeBounds()
 
   val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
   val hyperModeOrDefault: Hyper.Mode = hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode)
@@ -365,7 +355,6 @@ trait RawConfig {
     checkConsistency = baseConfig.checkConsistency,
     shouldVerify = baseConfig.shouldVerify,
     shouldChop = baseConfig.shouldChop,
-    int32bit = baseConfig.int32bit,
     cacheParserAndTypeChecker = baseConfig.cacheParserAndTypeChecker,
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,

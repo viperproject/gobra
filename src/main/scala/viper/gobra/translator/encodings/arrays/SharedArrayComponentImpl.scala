@@ -14,9 +14,11 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.embeddings.EmbeddingComponent
 import viper.gobra.translator.Names
+import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeLevel.pure
+import viper.gobra.util.TypeBounds
 import viper.silver.plugin.standard.termination
 
 class SharedArrayComponentImpl extends SharedArrayComponent {
@@ -38,7 +40,7 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
       val src = in.DfltVal(t.arrayT(Shared))(Source.Parser.Internal)
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.variable(idx)
-      val resAccess = ctx.array.loc(vpr.Result(vResType)(), vIdx.localVar)()
+      val resAccess = ctx.array.loc(vpr.Result(vResType)(), IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.integerKind)(vIdx.localVar)())()
       val idxEq = vpr.EqCmp(resAccess, pure(ctx.expression(in.DfltVal(t.elemT)(src.info)))(ctx).res)()
       val forall = vpr.Forall(
         Seq(vIdx),
@@ -51,7 +53,13 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq(synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")),
-        posts = Vector(vpr.EqCmp(ctx.array.len(vpr.Result(vResType)())(), vpr.IntLit(1)())(), forall),
+        posts = Vector(
+          vpr.EqCmp(
+            IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.array.len(vpr.Result(vResType)())())(),
+            vpr.IntLit(1)()
+          )(),
+          forall
+        ),
         body = None
       )()
     }
@@ -61,7 +69,7 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   private val emb: EmbeddingComponent[ComponentParameter] = new EmbeddingComponent.Impl[ComponentParameter](
     p = (e: vpr.Exp, id: ComponentParameter) => (ctx: Context) =>
       vpr.Or( // len(a) == n || a == arrayNil
-        vpr.EqCmp(ctx.array.len(e)(), vpr.IntLit(id.len)())(),
+        vpr.EqCmp(IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(ctx.array.len(e)())(), vpr.IntLit(id.len)())(),
         vpr.EqCmp(e, arrayNilFunc(Vector.empty, id)()(ctx))()
       )(),
     t = (id: ComponentParameter) => (ctx: Context) => ctx.array.typ(ctx.typ(id.elemT))
@@ -71,9 +79,10 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   override def typ(t: ComponentParameter)(ctx: Context): vpr.Type = emb.typ(t)(ctx)
 
   /** Getter of shared-array domain. */
-  override def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+  override def get(base: vpr.Exp, idx: vpr.Exp, idxKind: TypeBounds.IntegerKind, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    ctx.array.loc(emb.unbox(base, t)(pos, info, errT)(ctx), idx)(pos, info, errT) // unbox(base)[idx]
+    val newIdx = IntEncodingGenerator.domainToIntFuncApp(idxKind)(idx)(idx.pos, idx.info, idx.errT)
+    ctx.array.loc(emb.unbox(base, t)(pos, info, errT)(ctx), newIdx)(pos, info, errT) // unbox(base)[idx]
   }
 
   /** Nil of shared-struct domain */

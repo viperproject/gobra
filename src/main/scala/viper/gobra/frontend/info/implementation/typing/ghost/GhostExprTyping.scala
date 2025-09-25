@@ -183,7 +183,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         })
 
       case expr : PSequenceExp => expr match {
-        case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
+        case PRangeSequence(low, high) =>
+          isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
           val highT = exprType(high)
           error(low, s"expected an integer, but got $lowT", !lowT.isInstanceOf[IntT]) ++

@@ -6,6 +6,7 @@
 
 package viper.gobra.translator.library.slices
 
+import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.library.arrays.Arrays
 import viper.silver.plugin.standard.termination
 import viper.gobra.translator.util.ViperUtil.synthesized
@@ -46,6 +47,7 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     vpr.Int
   )(domainName = domainName)
 
+  // TODO: doc
   /**
     * {{{
     * function slen(s : Slice[T]) : Int
@@ -54,7 +56,8 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   private lazy val slen_func : vpr.DomainFunc = vpr.DomainFunc(
     "slen",
     Seq(vpr.LocalVarDecl("s", domainType)()),
-    vpr.Int
+    //vpr.Int
+    IntEncodingGenerator.intType
   )(domainName = domainName)
 
   /**
@@ -65,7 +68,8 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   private lazy val scap_func : vpr.DomainFunc = vpr.DomainFunc(
     "scap",
     Seq(vpr.LocalVarDecl("s", domainType)()),
-    vpr.Int
+    //vpr.Int
+    IntEncodingGenerator.intType
   )(domainName = domainName)
 
   /**
@@ -90,7 +94,8 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     val sDecl = vpr.LocalVarDecl("s", domainType)()
     val exp = offset(sDecl.localVar)()
 
-    vpr.AnonymousDomainAxiom(
+    vpr.NamedDomainAxiom(
+      "slice_offset_nonneg",
       vpr.Forall(
         Seq(sDecl),
         Seq(vpr.Trigger(Seq(exp))()),
@@ -108,9 +113,12 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     */
   private lazy val slice_len_nonneg_axiom : vpr.DomainAxiom = {
     val sDecl = vpr.LocalVarDecl("s", domainType)()
-    val exp = len(sDecl.localVar)()
+    val exp = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      len(sDecl.localVar)()
+    )()
 
-    vpr.AnonymousDomainAxiom(
+    vpr.NamedDomainAxiom(
+      "slice_len_nonneg",
       vpr.Forall(
         Seq(sDecl),
         Seq(vpr.Trigger(Seq(exp))()),
@@ -128,10 +136,15 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     */
   private lazy val slice_len_leq_cap_axiom : vpr.DomainAxiom = {
     val sDecl = vpr.LocalVarDecl("s", domainType)()
-    val left = len(sDecl.localVar)()
-    val right = cap(sDecl.localVar)()
+    val left = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      len(sDecl.localVar)()
+    )()
+    val right = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      cap(sDecl.localVar)()
+    )()
 
-    vpr.AnonymousDomainAxiom(
+    vpr.NamedDomainAxiom(
+      "slice_len_leq_cap",
       vpr.Forall(
         Seq(sDecl),
         Seq(vpr.Trigger(Seq(left))(), vpr.Trigger(Seq(right))()),
@@ -151,10 +164,15 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   private lazy val slice_cap_leq_alen_axiom : vpr.DomainAxiom = {
     val sDecl = vpr.LocalVarDecl("s", domainType)()
     val soffset = offset(sDecl.localVar)()
-    val scap = cap(sDecl.localVar)()
-    val alen = arrays.len(array(sDecl.localVar)())()
+    val scap = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      cap(sDecl.localVar)()
+    )()
+    val alen = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      arrays.len(array(sDecl.localVar)())()
+    )()
 
-    vpr.AnonymousDomainAxiom(
+    vpr.NamedDomainAxiom(
+      "slice_cap_leq_alen",
       vpr.Forall(
         Seq(sDecl),
         Seq(vpr.Trigger(Seq(soffset, scap))(), vpr.Trigger(Seq(alen))()),
@@ -197,12 +215,12 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
       vpr.LeCmp(vpr.IntLit(0)(), off)(), vpr.And(
         vpr.LeCmp(vpr.IntLit(0)(), leh)(), vpr.And(
           vpr.LeCmp(leh, cay)(),
-          vpr.LeCmp(vpr.Add(off,cay)(), arrays.len(arr)())())())())()
+          vpr.LeCmp(vpr.Add(off,cay)(), IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(arrays.len(arr)())())())())())()
 
     val funcAppAxiom1 = array(smake)()
     val funcAppAxiom2 = offset(smake)()
-    val funcAppAxiom3 = len(smake)()
-    val funcAppAxiom4 = cap(smake)()
+    val funcAppAxiom3 = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(len(smake)())()
+    val funcAppAxiom4 = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(cap(smake)())()
     val rhsAxiom1 = vpr.EqCmp(funcAppAxiom1, arr)()
     val rhsAxiom2 = vpr.EqCmp(funcAppAxiom2, off)()
     val rhsAxiom3 = vpr.EqCmp(funcAppAxiom3, leh)()
@@ -257,10 +275,15 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
 
     val sarray = array(s)()
     val soff = offset(s)()
-    val slen = len(s)()
-    val scap = cap(s)()
+    val slen = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      len(s)()
+    )()
+    val scap = IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(
+      cap(s)()
+    )()
 
-    vpr.AnonymousDomainAxiom(
+    vpr.NamedDomainAxiom(
+      "slice_constructor_over_deconstructor",
       vpr.Forall(
         Seq(sDecl),
         Seq(vpr.Trigger(Seq(sarray))(), vpr.Trigger(Seq(soff))(), vpr.Trigger(Seq(slen))(), vpr.Trigger(Seq(scap))()),
@@ -405,7 +428,7 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   override def loc(base : vpr.Exp, index : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Exp = {
     arrays.loc(
       array(base)(pos, info, errT),
-      add(offset(base)(pos, info, errT), index)(pos, info, errT)
+      add(offset(base)(pos, info, errT), IntEncodingGenerator.domainToIntFuncApp(IntEncodingGenerator.intKind)(index)())(pos, info, errT)
     )(pos, info, errT)
   }
 

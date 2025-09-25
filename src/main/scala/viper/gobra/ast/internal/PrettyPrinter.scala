@@ -518,8 +518,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
-    case Length(exp) => "len" <> parens(showExpr(exp))
-    case Capacity(exp) => "cap" <> parens(showExpr(exp))
+    case Length(exp, _) => "len" <> parens(showExpr(exp))
+    case Capacity(exp, _) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case GhostCollectionUpdate(seq, left, right, _) =>

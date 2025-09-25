@@ -13,6 +13,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -85,7 +86,11 @@ class SequenceEncoding extends LeafTypeEncoding {
         for {
           vE <- goE(e)
           vIdx <- goE(idx)
-        } yield vpr.SeqIndex(vE, vIdx)(pos, info, errT)
+          vIdxInt = idx.typ match {
+            case in.IntT(_, k) => IntEncodingGenerator.domainToIntFuncApp(k)(vIdx)(pos, info, errT)
+            case _ => vIdx
+          }
+        } yield vpr.SeqIndex(vE, vIdxInt)(pos, info, errT)
 
       case n@ in.GhostCollectionUpdate(base :: ctx.Seq(_), left, right, _) =>
         val (pos, info, errT) = n.vprMeta
@@ -115,9 +120,11 @@ class SequenceEncoding extends LeafTypeEncoding {
         }
       }
 
-      case n@ in.Length(e :: ctx.Seq(_)) =>
+      case n@ in.Length(e :: ctx.Seq(_), _) =>
         val (pos, info, errT) = n.vprMeta
-        goE(e).map(vpr.SeqLength(_)(pos, info, errT))
+        goE(e) map { e =>
+          IntEncodingGenerator.intToDomainFuncApp(IntEncodingGenerator.integerKind)(vpr.SeqLength(e)(pos, info, errT))(pos, info, errT)
+        }
 
       case in.SequenceConversion(e :: ctx.Seq(_)) => goE(e)
 
@@ -162,14 +169,26 @@ class SequenceEncoding extends LeafTypeEncoding {
         for {
           leftT <- goE(n.left)
           rightT <- goE(n.right)
-        } yield vpr.SeqDrop(leftT, rightT)(pos, info, errT)
+          rightKind = ctx.underlyingType(n.right.typ) match {
+            case in.IntT(_, k) => k
+            case _ => ???
+          }
+          // TODO: add more precise location info
+          rightTInt = IntEncodingGenerator.domainToIntFuncApp(rightKind)(rightT)(pos, info, errT)
+        } yield vpr.SeqDrop(leftT, rightTInt)(pos, info, errT)
 
       case n: in.SequenceTake =>
         val (pos, info, errT) = n.vprMeta
         for {
           leftT <- goE(n.left)
           rightT <- goE(n.right)
-        } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
+          rightKind = ctx.underlyingType(n.right.typ) match {
+            case in.IntT(_, k) => k
+            case _ => ???
+          }
+          // TODO: add more precise location info
+          rightTInt = IntEncodingGenerator.domainToIntFuncApp(rightKind)(rightT)(pos, info, errT)
+        } yield vpr.SeqTake(leftT, rightTInt)(pos, info, errT)
     }
   }
 

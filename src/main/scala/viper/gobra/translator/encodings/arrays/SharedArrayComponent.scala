@@ -11,6 +11,7 @@ import viper.silver.{ast => vpr}
 import ArrayEncoding.ComponentParameter
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
+import viper.gobra.util.TypeBounds
 
 trait SharedArrayComponent extends Generator {
 
@@ -18,7 +19,7 @@ trait SharedArrayComponent extends Generator {
   def typ(t: ComponentParameter)(ctx: Context): vpr.Type
 
   /** Getter of shared-array domain. */
-  def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
+  def get(base: vpr.Exp, idx: vpr.Exp, idxKind: TypeBounds.IntegerKind, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
   /** Nil of shared-struct domain */
   def nil(t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp

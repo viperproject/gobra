@@ -125,6 +125,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
+      case (_: IntT, GhostIntegerT) => successProp
+      case (GhostIntegerT, _: IntT) => successProp
       case (SequenceT(l), SequenceT(r)) => assignableTo.result(l, r, mayInit) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo.result(l, r, mayInit)
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l, r, mayInit)
@@ -290,6 +292,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case typ: BoundedIntegerKind => typ.lower <= value && value <= typ.upper
         case _ => true
       }
+      case GhostIntegerT => true
 
       case _ => violation(s"Expected an integer type but instead received $typ.")
     }

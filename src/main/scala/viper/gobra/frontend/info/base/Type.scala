@@ -173,6 +173,8 @@ object Type {
 
   case class MathMapT(key : Type, elem : Type) extends PrettyType(s"mmap[$key]$elem") with GhostUnorderedCollectionType
 
+  case object GhostIntegerT extends PrettyType(s"integer") with GhostType
+
   case object PermissionT extends PrettyType(s"perm") with GhostType
 
   @tailrec

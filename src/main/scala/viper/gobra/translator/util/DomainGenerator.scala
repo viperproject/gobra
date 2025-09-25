@@ -29,3 +29,22 @@ trait DomainGenerator[T] extends Generator {
     vpr.DomainType(domain, domain.typVars.zip(args).toMap)
   }
 }
+
+trait DomainGeneratorWithoutContext[T] extends Generator {
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = generatedMember foreach addMemberFn
+
+  private var generatedMember: List[vpr.Domain] = List.empty
+  private var genMap: Map[T, vpr.Domain] = Map.empty
+
+  def genDomain(x: T): vpr.Domain
+
+  def apply(args: Vector[vpr.Type], x: T): vpr.DomainType = {
+    val domain = genMap.getOrElse(x, {
+      val newDomain = genDomain(x)
+      genMap += x -> newDomain
+      generatedMember ::= newDomain
+      newDomain
+    })
+    vpr.DomainType(domain, domain.typVars.zip(args).toMap)
+  }
+}

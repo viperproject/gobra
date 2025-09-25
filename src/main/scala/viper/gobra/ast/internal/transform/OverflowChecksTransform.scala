@@ -13,6 +13,7 @@ import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
+// TODO: drop this
 /**
   * Adds overflow checks to programs written in Gobra's internal language
   */

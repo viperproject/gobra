@@ -54,13 +54,12 @@ object TypeBounds {
   object SignedInteger16 extends BoundedIntegerKind("int16", 16) with Signed
 
   sealed abstract class AbstractSignedInteger32(override val name: String) extends BoundedIntegerKind(name, 32) with Signed
-  object DefaultInt extends AbstractSignedInteger32("int") // int definition when Gobra runs in 32-bit (i.e. default) mode
   object SignedInteger32 extends AbstractSignedInteger32("int32")
   object Rune extends AbstractSignedInteger32("rune")
 
   sealed abstract class AbstractSignedInteger64(override val name: String) extends BoundedIntegerKind(name, 64) with Signed
   object SignedInteger64 extends AbstractSignedInteger64("int64")
-  object IntWith64Bit extends AbstractSignedInteger64("int") // int definition when Gobra runs in 64-bit mode
+  // object IntWith64Bit extends AbstractSignedInteger64("int") // int definition when Gobra runs in 64-bit mode
 
   sealed abstract class AbstractUnsignedInteger8(override val name: String) extends BoundedIntegerKind(name, 8) with Unsigned
   object Byte extends AbstractUnsignedInteger8("byte") with Unsigned
@@ -70,12 +69,14 @@ object TypeBounds {
 
   sealed abstract class AbstractUnsignedInteger32(override val name: String) extends BoundedIntegerKind(name, 32) with Unsigned
   object UnsignedInteger32 extends AbstractUnsignedInteger32("uint32")
-  object DefaultUInt extends AbstractUnsignedInteger32("uint") // uint definition when Gobra runs in 32-bit mode
 
   sealed abstract class AbstractUnsignedInteger64(override val name: String) extends BoundedIntegerKind(name, 64) with Unsigned
   object UnsignedInteger64 extends AbstractUnsignedInteger64("uint64")
-  object UIntWith64Bit extends AbstractUnsignedInteger64("uint") // uint definition when Gobra runs in 64-bit mode
+  // object UIntWith64Bit extends AbstractUnsignedInteger64("uint") // uint definition when Gobra runs in 64-bit mode
   object UIntPtr extends AbstractUnsignedInteger64("uintptr")
+
+  object DefaultInt extends AbstractSignedInteger64("int")
+  object DefaultUInt extends AbstractUnsignedInteger64("uint") // uint definition when Gobra runs in 32-bit mode
 
   def merge(integerKind1: IntegerKind, integerKind2: IntegerKind): IntegerKind = (integerKind1, integerKind2) match {
     case (a, b) if a == b => a

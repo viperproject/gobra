@@ -1,0 +1,1098 @@
+[info] welcome to sbt 1.4.4 (AdoptOpenJDK Java 15.0.2)
+[info] loading settings for project gobra-build from plugins.sbt ...
+[info] loading project definition from /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/project
+[info] loading settings for project gobra from build.sbt ...
+[info] loading settings for project server from build.sbt ...
+[info] loading settings for project silicon from build.sbt ...
+[info] loading settings for project carbon from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] set current project to Gobra (in build file:/Users/herzamos/Desktop/eth/fs25/practical-work/gobra/)
+No changes detected in the antlr4 files. Skipping parser generation.
+[info] running (fork) viper.gobra.GobraRunner -p /Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/pkg/addr --norespectFunctionPrePermAmounts --backend SILICON --chop 1 -I /Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION /Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/verification/dependencies --onlyFilesWithHeader -m github.com/scionproto/scion --assumeInjectivityOnInhale --checkConsistency --mceMode=od --experimentalFriendClauses --moreJoins off -g /tmp/
+[info] Gobra 1.1-SNAPSHOT (7d79f434@(detached))
+[info] (c) Copyright ETH Zurich 2012 - 2024
+[info] Verifying package ../VerifiedSCION/pkg/addr - addr [13:07:19]
+[info] Skipping panic
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires as_.inRange()
+[info] decreases
+[info] func fmtAS(as_ AS, sep string) string {
+[info] 	if !as_.inRange() {
+[info] 		return fmt.Sprintf("%d [Illegal AS: larger than %d]", as_, MaxAS)
+[info] 	}
+[info] 	// Format BGP ASes as decimal
+[info] 	if as_ <= MaxBGPAS {
+[info] 		// (VerifiedSCION) the following property is guaranteed by the type system,
+[info] 		// but Gobra cannot infer it yet
+[info] 		assume 0 <= as_
+[info] 		return strconv.FormatUint(uint64(as_), 10)
+[info] 	}
+[info] 	// Format all other ASes as 'sep'-separated hex.
+[info] 	// (VerifiedSCION) revert this change when Gobra is fixed.
+[info] 	// const maxLen = len("ffff:ffff:ffff")
+[info] 	var maxLen = len("ffff:ffff:ffff")
+[info] 	var b @ strings.Builder
+[info] 	b.ZeroBuilderIsReadyToUse()
+[info] 	b.Grow(maxLen)
+[info] 	invariant b.Mem()
+[info] 	decreases asParts - i
+[info] 	for i := 0; i < asParts; i++ {
+[info] 		if i > 0 {
+[info] 			b.WriteString(sep)
+[info] 		}
+[info] 		shift := uint(asPartBits * (asParts - i - 1))
+[info] 		// (VerifiedSCION) the following property is guaranteed by the type system,
+[info] 		// but Gobra cannot infer it yet
+[info] 		assume 0 <= uint64(as_>>shift)&asPartMask
+[info] 		b.WriteString(strconv.FormatUint(uint64(as_>>shift)&asPartMask, asPartBase))
+[info] 	}
+[info] 	return b.String()
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires _as.inRange()
+[info] decreases
+[info] func MustIAFrom(isd ISD, _as AS) IA {
+[info] 	ia, err := IAFrom(isd, _as)
+[info] 	if err != nil {
+[info] 		panic(fmt.Sprintf("parsing ISD-AS: %s", err))
+[info] 	}
+[info] 	return ia
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires _as.inRange()
+[info] ensures err == nil
+[info] decreases
+[info] func IAFrom(isd ISD, _as AS) (ia IA, err error) {
+[info] 	if !_as.inRange() {
+[info] 		return 0, serrors.New("AS out of range", "max", MaxAS, "value", _as)
+[info] 	}
+[info] 	return IA(isd)<<ASBits | IA(_as&MaxAS), nil
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires isValidHostAddrType(htype)
+[info] decreases
+[info] func HostLen(htype HostAddrType) (uint8, error) {
+[info] 	var length uint8
+[info] 	switch htype {
+[info] 	case HostTypeNone:
+[info] 		length = HostLenNone
+[info] 	case HostTypeIPv4:
+[info] 		length = HostLenIPv4
+[info] 	case HostTypeIPv6:
+[info] 		length = HostLenIPv6
+[info] 	case HostTypeSVC:
+[info] 		length = HostLenSVC
+[info] 	default:
+[info] 		return 0, serrors.WithCtx(ErrBadHostAddrType, "type", htype)
+[info] 	}
+[info] 	return length, nil
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion len(ip) == HostLenIPv4 || len(ip) == HostLenIPv6 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires acc(ip)
+[info] requires len(ip) == HostLenIPv4 || len(ip) == HostLenIPv6
+[info] ensures res.Mem()
+[info] decreases
+[info] func HostFromIP(ip net.IP) (res HostAddr) {
+[info] 	if ip4 := ip.To4(  false  ); ip4 != nil {
+[info] 		tmp := HostIPv4(ip4)
+[info] 		fold sl.Bytes(tmp, 0, len(tmp))
+[info] 		fold tmp.Mem()
+[info] 		return tmp
+[info] 	}
+[info] 	tmp := HostIPv6(ip)
+[info] 	fold sl.Bytes(tmp, 0, len(tmp))
+[info] 	fold tmp.Mem()
+[info] 	return tmp
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires acc(b)
+[info] requires isValidHostAddrType(htype)
+[info] requires len(b) == sizeOfHostAddrType(htype)
+[info] ensures err == nil ==> res.Mem()
+[info] decreases
+[info] func HostFromRaw(b []byte, htype HostAddrType) (res HostAddr, err error) {
+[info] 	switch htype {
+[info] 	case HostTypeNone:
+[info] 		tmp := HostNone{}
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	case HostTypeIPv4:
+[info] 		if len(b) < HostLenIPv4 {
+[info] 			return nil, serrors.WithCtx(ErrMalformedHostAddrType, "type", htype)
+[info] 		}
+[info] 		assert forall i int :: { &b[:HostLenIPv4][i] } 0 <= i && i < len(b[:HostLenIPv4]) ==> &b[:HostLenIPv4][i] == &b[i]
+[info] 		tmp := HostIPv4(b[:HostLenIPv4])
+[info] 		fold sl.Bytes(tmp, 0, len(tmp))
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	case HostTypeIPv6:
+[info] 		if len(b) < HostLenIPv6 {
+[info] 			return nil, serrors.WithCtx(ErrMalformedHostAddrType, "type", htype)
+[info] 		}
+[info] 		assert forall i int :: { &b[:HostLenIPv4][i] } 0 <= i && i < len(b[:HostLenIPv4]) ==> &b[:HostLenIPv4][i] == &b[i]
+[info] 		tmp := HostIPv6(b[:HostLenIPv6])
+[info] 		fold sl.Bytes(tmp, 0, len(tmp))
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	case HostTypeSVC:
+[info] 		if len(b) < HostLenSVC {
+[info] 			return nil, serrors.WithCtx(ErrMalformedHostAddrType, "type", htype)
+[info] 		}
+[info] 		tmp := HostSVC(binary.BigEndian.Uint16(b))
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	default:
+[info] 		return nil, serrors.WithCtx(ErrBadHostAddrType, "type", htype)
+[info] 	}
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires acc(b)
+[info] requires isValidHostAddrType(htype)
+[info] requires len(b) == sizeOfHostAddrType(htype)
+[info] ensures err == nil ==> res.Mem()
+[info] decreases
+[info] func HostFromRaw(b []byte, htype HostAddrType) (res HostAddr, err error) {
+[info] 	switch htype {
+[info] 	case HostTypeNone:
+[info] 		tmp := HostNone{}
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	case HostTypeIPv4:
+[info] 		if len(b) < HostLenIPv4 {
+[info] 			return nil, serrors.WithCtx(ErrMalformedHostAddrType, "type", htype)
+[info] 		}
+[info] 		assert forall i int :: { &b[:HostLenIPv4][i] } 0 <= i && i < len(b[:HostLenIPv4]) ==> &b[:HostLenIPv4][i] == &b[i]
+[info] 		tmp := HostIPv4(b[:HostLenIPv4])
+[info] 		fold sl.Bytes(tmp, 0, len(tmp))
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	case HostTypeIPv6:
+[info] 		if len(b) < HostLenIPv6 {
+[info] 			return nil, serrors.WithCtx(ErrMalformedHostAddrType, "type", htype)
+[info] 		}
+[info] 		assert forall i int :: { &b[:HostLenIPv4][i] } 0 <= i && i < len(b[:HostLenIPv4]) ==> &b[:HostLenIPv4][i] == &b[i]
+[info] 		tmp := HostIPv6(b[:HostLenIPv6])
+[info] 		fold sl.Bytes(tmp, 0, len(tmp))
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	case HostTypeSVC:
+[info] 		if len(b) < HostLenSVC {
+[info] 			return nil, serrors.WithCtx(ErrMalformedHostAddrType, "type", htype)
+[info] 		}
+[info] 		tmp := HostSVC(binary.BigEndian.Uint16(b))
+[info] 		fold tmp.Mem()
+[info] 		return tmp, nil
+[info] 	default:
+[info] 		return nil, serrors.WithCtx(ErrBadHostAddrType, "type", htype)
+[info] 	}
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion isValidHostAddrType(htype) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion len(b) == sizeOfHostAddrType(htype) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires isValidHostAddrType(htype)
+[info] ensures htype == HostTypeNone ==> res == HostLenNone
+[info] ensures htype == HostTypeIPv4 ==> res == HostLenIPv4
+[info] ensures htype == HostTypeIPv6 ==> res == HostLenIPv6
+[info] ensures htype == HostTypeSVC ==> res == HostLenSVC
+[info] decreases
+[info] pure func sizeOfHostAddrType(htype HostAddrType) (res int) {
+[info] 	return htype == HostTypeNone ?
+[info] 		HostLenNone : htype == HostTypeIPv4 ?
+[info] 		HostLenIPv4 : htype == HostTypeIPv6 ?
+[info] 		HostLenIPv6 : HostLenSVC
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion htype == HostTypeNone ==> res == HostLenNone might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion htype == HostTypeIPv4 ==> res == HostLenIPv4 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion htype == HostTypeIPv6 ==> res == HostLenIPv6 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion htype == HostTypeSVC ==> res == HostLenSVC might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion e != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion e.IsDuplicableMem() might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 2 <= base && base <= 36
+[info] decreases
+[info] func FormatInt(i int64, base int) string fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires i >= 0
+[info] requires 2 <= base && base <= 36
+[info] decreases
+[info] func FormatUint(i uint64, base int) string fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires i >= 0
+[info] requires 2 <= base && base <= 36
+[info] decreases
+[info] func FormatUint(i uint64, base int) string fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires forall i int :: { &elems[i] } 0 <= i && i < len(elems) ==> acc(&elems[i])
+[info] ensures len(elems) == 0 ==> res == ""
+[info] ensures len(elems) == 1 ==> res == elems[0]
+[info] // (VerifiedSCION) Leads to precondition of call might not hold (permission to elems[i] might not suffice)
+[info] // ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
+[info] decreases _
+[info] pure func Join(elems []string, sep string) (res string) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion i >= 0 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 2 <= base might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion base <= 36 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires exp >= 0
+[info] decreases exp
+[info] pure func Exp(base int, exp int) (res int) {
+[info] 	return exp == 0 ? 1 : (base * Exp(base, exp - 1))
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires exp >= 10
+[info] ensures  Exp(2, exp) == 1024 * Exp(2, exp - 10)
+[info] decreases
+[info] func Exp2to10(exp int) {
+[info] 	assert Exp(2, exp) == 2 * Exp(2, exp - 1)
+[info] 	assert Exp(2, exp) == 4 * Exp(2, exp - 2)
+[info] 	assert Exp(2, exp) == 8 * Exp(2, exp - 3)
+[info] 	assert Exp(2, exp) == 16 * Exp(2, exp - 4)
+[info] 	assert Exp(2, exp) == 32 * Exp(2, exp - 5)
+[info] 	assert Exp(2, exp) == 64 * Exp(2, exp - 6)
+[info] 	assert Exp(2, exp) == 128 * Exp(2, exp - 7)
+[info] 	assert Exp(2, exp) == 256 * Exp(2, exp - 8)
+[info] 	assert Exp(2, exp) == 512 * Exp(2, exp - 9)
+[info] } fails linter check: Input Unicity
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/verification/utils/errors/errors.gobra:36:1> Comparison might panic. 
+[info] Both operands of trusted
+[info] requires e != nil
+[info] requires acc(e.ErrorMem(), _)
+[info] requires e.IsDuplicableMem()
+[info] ensures  e.ErrorMem()
+[info] decreases _
+[info] func DupErrorsCanBePromoted(e error) might not have comparable values.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion len(elems) == 0 ==> res == "" might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion len(elems) == 1 ==> res == elems[0] might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires base == 0 || (2 <= base && base <= 36)
+[info] decreases _
+[info] func ParseInt(s string, base int, bitSize int) (i int64, err error) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 2 <= base && base <= 36
+[info] requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
+[info] ensures  forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+[info] decreases
+[info] func AppendUint(dst []byte, i uint64, base int) (res []byte) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 2 <= base && base <= 36
+[info] requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
+[info] ensures  forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+[info] decreases
+[info] func AppendUint(dst []byte, i uint64, base int) (res []byte) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 2 <= base && base <= 36
+[info] requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
+[info] ensures  forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+[info] decreases
+[info] func AppendInt(dst []byte, i int64, base int) (res []byte) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 2 <= base && base <= 36
+[info] requires forall i int :: { &dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i])
+[info] ensures  forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+[info] decreases
+[info] func AppendInt(dst []byte, i int64, base int) (res []byte) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires base == 0 || (2 <= base && base <= 36)
+[info] requires bitSize > 0 && bitSize <= 64
+[info] ensures retErr == nil ==> (ret >= 0 && ret < Exp(2, bitSize))
+[info] ensures retErr != nil ==> retErr.ErrorMem()
+[info] decreases _
+[info] func ParseUint(s string, base int, bitSize int) (ret uint64, retErr error) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires base == 0 || (2 <= base && base <= 36)
+[info] requires bitSize > 0 && bitSize <= 64
+[info] ensures retErr == nil ==> (ret >= 0 && ret < Exp(2, bitSize))
+[info] ensures retErr != nil ==> retErr.ErrorMem()
+[info] decreases _
+[info] func ParseUint(s string, base int, bitSize int) (ret uint64, retErr error) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 2 <= base might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 2 <= base might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion base <= 36 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to dst[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion base <= 36 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to dst[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion base == 0 || (2 <= base && base <= 36) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion bitSize > 0 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion bitSize <= 64 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion retErr == nil ==> (ret >= 0 && ret < Exp(2, bitSize)) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to retErr.ErrorMem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Magic wand instance not found.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to err.ErrorMem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion target != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion target != nil might not hold.
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/verification/dependencies/errors/errors_spec.gobra:15:1> Comparison might panic. 
+[info] Both operands of requires  err.ErrorMem()
+[info] ensures   res.ErrorMem()
+[info] ensures   res.ErrorMem() --* err.ErrorMem()
+[info] decreases err.ErrorMem()
+[info] func Unwrap(err error) (res error) might not have comparable values.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires acc(laddr.Mem(), _)
+[info] ensures  err == nil ==> conn.Mem()
+[info] ensures  err != nil ==> err.ErrorMem()
+[info] decreases _
+[info] func ListenUDP(network string, laddr *UDPAddr) (conn *UDPConn, err error) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to conn.Mem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to err.ErrorMem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression trusted
+[info] requires sl.Bytes(a, 0, len(a))
+[info] requires sl.Bytes(b, 0, len(b))
+[info] decreases
+[info] pure func Equal(a, b []byte) bool {
+[info] 	return string(a) == string(b)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression trusted
+[info] requires sl.Bytes(a, 0, len(a))
+[info] requires sl.Bytes(b, 0, len(b))
+[info] decreases
+[info] pure func Equal(a, b []byte) bool {
+[info] 	return string(a) == string(b)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion nestedErr != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to err.ErrorMem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion err != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to err.ErrorMem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to conn.Mem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to err.ErrorMem() might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires acc(laddr.Mem(), _)
+[info] requires acc(raddr.Mem(), _)
+[info] ensures  err == nil ==> conn.Mem()
+[info] ensures  err != nil ==> err.ErrorMem()
+[info] decreases _
+[info] func DialUDP(network string, laddr, raddr *UDPAddr) (conn *UDPConn, err error) fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires acc(laddr.Mem(), _)
+[info] requires acc(raddr.Mem(), _)
+[info] ensures  err == nil ==> conn.Mem()
+[info] ensures  err != nil ==> err.ErrorMem()
+[info] decreases _
+[info] func DialUDP(network string, laddr, raddr *UDPAddr) (conn *UDPConn, err error) fails linter check: Input Unicity
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/verification/dependencies/errors/errors_spec.gobra:47:1> Comparison might panic. 
+[info] Both operands of requires  err    != nil ==> err.ErrorMem()
+[info] requires  target != nil
+[info] preserves target.Mem()
+[info] ensures   res ==> (
+[info] 	let nestedErr := target.Get() in
+[info] 	err != nil               &&
+[info] 	nestedErr != nil         &&
+[info] 	nestedErr.ErrorMem()     &&
+[info] 	target.CanSet(nestedErr) &&
+[info] 	(nestedErr.ErrorMem() --* err.ErrorMem()))
+[info] ensures   !res ==> err.ErrorMem()
+[info] decreases err.ErrorMem()
+[info] func As(err error, target ErrorCell) (res bool) might not have comparable values.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion start <= i might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion i < end might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression preserves forall i int :: { &v[i] } 0 <= i && i < len(v) ==> acc(&v[i], R55)
+[info] // TODO:
+[info] // The following precondition cannot be adequately captured in Gobra.
+[info] // preserves forall i int :: 0 <= i && i < len(v) ==> definitions.IsOfPrimitiveType(v[i])
+[info] decreases _
+[info] func Sprintf(format string, v ...interface{}) string fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion start <= idx might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion idx <= end might not hold.
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/verification/dependencies/errors/errors_spec.gobra:28:1> Comparison might panic. 
+[info] Both operands of preserves err    != nil ==> err.ErrorMem()
+[info] preserves target != nil ==> target.ErrorMem()
+[info] ensures   res && target != nil ==> err != nil
+[info] decreases err.ErrorMem()
+[info] func Is(err, target error) (res bool) might not have comparable values.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires Bytes(s, start, end)
+[info] requires start <= i && i < end
+[info] decreases
+[info] pure func GetByte(s []byte, start int, end int, i int) byte {
+[info] 	return unfolding Bytes(s, start, end) in s[i]
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires Bytes(s, start, end)
+[info] requires start <= i && i < end
+[info] decreases
+[info] pure func GetByte(s []byte, start int, end int, i int) byte {
+[info] 	return unfolding Bytes(s, start, end) in s[i]
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires Bytes(s, start, end)
+[info] requires start <= i && i < end
+[info] decreases
+[info] pure func GetByte(s []byte, start int, end int, i int) byte {
+[info] 	return unfolding Bytes(s, start, end) in s[i]
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires Bytes(s, start, end)
+[info] requires start <= i && i < end
+[info] decreases
+[info] pure func GetByte(s []byte, start int, end int, i int) byte {
+[info] 	return unfolding Bytes(s, start, end) in s[i]
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to res[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res != nil ==> len(res) == IPv4len || len(res) == IPv6len might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] requires start <= idx && idx <= end
+[info] ensures  acc(Bytes(s, start, idx), p)
+[info] ensures  acc(Bytes(s, idx, end), p)
+[info] decreases
+[info] func SplitByIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	fold   acc(Bytes(s, start, idx), p)
+[info] 	fold   acc(Bytes(s, idx, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] requires start <= idx && idx <= end
+[info] ensures  acc(Bytes(s, start, idx), p)
+[info] ensures  acc(Bytes(s, idx, end), p)
+[info] decreases
+[info] func SplitByIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	fold   acc(Bytes(s, start, idx), p)
+[info] 	fold   acc(Bytes(s, idx, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] requires start <= idx && idx <= end
+[info] ensures  acc(Bytes(s, start, idx), p)
+[info] ensures  acc(Bytes(s, idx, end), p)
+[info] decreases
+[info] func SplitByIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	fold   acc(Bytes(s, start, idx), p)
+[info] 	fold   acc(Bytes(s, idx, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] requires start <= idx && idx <= end
+[info] ensures  acc(Bytes(s, start, idx), p)
+[info] ensures  acc(Bytes(s, idx, end), p)
+[info] decreases
+[info] func SplitByIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	fold   acc(Bytes(s, start, idx), p)
+[info] 	fold   acc(Bytes(s, idx, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] requires start <= idx && idx <= end
+[info] ensures  acc(Bytes(s, start, idx), p)
+[info] ensures  acc(Bytes(s, idx, end), p)
+[info] decreases
+[info] func SplitByIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	fold   acc(Bytes(s, start, idx), p)
+[info] 	fold   acc(Bytes(s, idx, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 <= start might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion start <= end might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion end <= len(s) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 <= start might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion start <= end might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion end <= cap(s) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s, 0, len(s)), p)
+[info] ensures  acc(Bytes(s[start:end], 0, end-start), p)
+[info] ensures  acc(Bytes(s, 0, start), p)
+[info] ensures  acc(Bytes(s, end, len(s)), p)
+[info] decreases
+[info] func SplitRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	SplitByIndex_Bytes(s, 0, len(s), start, p)
+[info] 	SplitByIndex_Bytes(s, start, len(s), end, p)
+[info] 	Reslice_Bytes(s, start, end, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s, 0, len(s)), p)
+[info] ensures  acc(Bytes(s[start:end], 0, end-start), p)
+[info] ensures  acc(Bytes(s, 0, start), p)
+[info] ensures  acc(Bytes(s, end, len(s)), p)
+[info] decreases
+[info] func SplitRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	SplitByIndex_Bytes(s, 0, len(s), start, p)
+[info] 	SplitByIndex_Bytes(s, start, len(s), end, p)
+[info] 	Reslice_Bytes(s, start, end, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s, 0, len(s)), p)
+[info] ensures  acc(Bytes(s[start:end], 0, end-start), p)
+[info] ensures  acc(Bytes(s, 0, start), p)
+[info] ensures  acc(Bytes(s, end, len(s)), p)
+[info] decreases
+[info] func SplitRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	SplitByIndex_Bytes(s, 0, len(s), start, p)
+[info] 	SplitByIndex_Bytes(s, start, len(s), end, p)
+[info] 	Reslice_Bytes(s, start, end, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s, 0, len(s)), p)
+[info] ensures  acc(Bytes(s[start:end], 0, end-start), p)
+[info] ensures  acc(Bytes(s, 0, start), p)
+[info] ensures  acc(Bytes(s, end, len(s)), p)
+[info] decreases
+[info] func SplitRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	SplitByIndex_Bytes(s, 0, len(s), start, p)
+[info] 	SplitByIndex_Bytes(s, start, len(s), end, p)
+[info] 	Reslice_Bytes(s, start, end, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] // the following precondition convinces Gobra that
+[info] // the slice operation is well-formed
+[info] requires unfolding acc(Bytes(s, start, end), p) in true
+[info] ensures  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] decreases
+[info] func Reslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < (end-start) ==> &s[start:end][i] == &s[start + i]
+[info] 	fold  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] // the following precondition convinces Gobra that
+[info] // the slice operation is well-formed
+[info] requires unfolding acc(Bytes(s, start, end), p) in true
+[info] ensures  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] decreases
+[info] func Reslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < (end-start) ==> &s[start:end][i] == &s[start + i]
+[info] 	fold  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] // the following precondition convinces Gobra that
+[info] // the slice operation is well-formed
+[info] requires unfolding acc(Bytes(s, start, end), p) in true
+[info] ensures  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] decreases
+[info] func Reslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < (end-start) ==> &s[start:end][i] == &s[start + i]
+[info] 	fold  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, end), p)
+[info] // the following precondition convinces Gobra that
+[info] // the slice operation is well-formed
+[info] requires unfolding acc(Bytes(s, start, end), p) in true
+[info] ensures  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] decreases
+[info] func Reslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s, start, end), p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < (end-start) ==> &s[start:end][i] == &s[start + i]
+[info] 	fold  acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 <= start might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion start <= end might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion end <= len(s) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= cap(s)
+[info] requires len(s[start:end]) <= cap(s)
+[info] requires acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func Unslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] 	assert 0 <= start && start <= end && end <= cap(s)
+[info] 	assert forall i int :: { &s[start:end][i] } 0 <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant 0 <= j && j <= len(s[start:end])
+[info] 	invariant forall i int :: { &s[start:end][i] } j <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	invariant forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 	decreases len(s[start:end]) - j
+[info] 	for j := 0; j < len(s[start:end]); j++ {
+[info] 		assert forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 		assert &s[start:end][j] == &s[start + j]
+[info] 		assert acc(&s[start + j], p)
+[info] 		assert forall i int :: { &s[i] } start <= i && i <= start+j ==> acc(&s[i], p)
+[info] 	}
+[info] 	fold acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= cap(s)
+[info] requires len(s[start:end]) <= cap(s)
+[info] requires acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func Unslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] 	assert 0 <= start && start <= end && end <= cap(s)
+[info] 	assert forall i int :: { &s[start:end][i] } 0 <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant 0 <= j && j <= len(s[start:end])
+[info] 	invariant forall i int :: { &s[start:end][i] } j <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	invariant forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 	decreases len(s[start:end]) - j
+[info] 	for j := 0; j < len(s[start:end]); j++ {
+[info] 		assert forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 		assert &s[start:end][j] == &s[start + j]
+[info] 		assert acc(&s[start + j], p)
+[info] 		assert forall i int :: { &s[i] } start <= i && i <= start+j ==> acc(&s[i], p)
+[info] 	}
+[info] 	fold acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= cap(s)
+[info] requires len(s[start:end]) <= cap(s)
+[info] requires acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func Unslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] 	assert 0 <= start && start <= end && end <= cap(s)
+[info] 	assert forall i int :: { &s[start:end][i] } 0 <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant 0 <= j && j <= len(s[start:end])
+[info] 	invariant forall i int :: { &s[start:end][i] } j <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	invariant forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 	decreases len(s[start:end]) - j
+[info] 	for j := 0; j < len(s[start:end]); j++ {
+[info] 		assert forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 		assert &s[start:end][j] == &s[start + j]
+[info] 		assert acc(&s[start + j], p)
+[info] 		assert forall i int :: { &s[i] } start <= i && i <= start+j ==> acc(&s[i], p)
+[info] 	}
+[info] 	fold acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= cap(s)
+[info] requires len(s[start:end]) <= cap(s)
+[info] requires acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func Unslice_Bytes(s []byte, start int, end int, p perm) {
+[info] 	unfold acc(Bytes(s[start:end], 0, len(s[start:end])), p)
+[info] 	assert 0 <= start && start <= end && end <= cap(s)
+[info] 	assert forall i int :: { &s[start:end][i] } 0 <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	assert forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant 0 <= j && j <= len(s[start:end])
+[info] 	invariant forall i int :: { &s[start:end][i] } j <= i && i < len(s[start:end]) ==> acc(&s[start:end][i], p)
+[info] 	invariant forall i int :: { &s[start:end][i] }{ &s[start + i] } 0 <= i && i < len(s[start:end]) ==> &s[start:end][i] == &s[start + i]
+[info] 	invariant forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 	decreases len(s[start:end]) - j
+[info] 	for j := 0; j < len(s[start:end]); j++ {
+[info] 		assert forall i int :: { &s[i] } start <= i && i < start+j ==> acc(&s[i], p)
+[info] 		assert &s[start:end][j] == &s[start + j]
+[info] 		assert acc(&s[start + j], p)
+[info] 		assert forall i int :: { &s[i] } start <= i && i <= start+j ==> acc(&s[i], p)
+[info] 	}
+[info] 	fold acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 < p might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion len(s1) > 0 || len(s2) > 0 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 <= subStart
+[info] requires subStart <= subEnd
+[info] requires subEnd <= cap(s)
+[info] ensures  forall i int :: { &s[subStart:subEnd][i] } 0 <= i && i < len(s[subStart:subEnd]) ==>
+[info] 	&s[subStart:subEnd][i] == &s[subStart+i]
+[info] decreases
+[info] pure func AssertSliceOverlap(ghost s []byte, ghost subStart int, ghost subEnd int) Unit {
+[info] 	return Unit{}
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 <= subStart
+[info] requires subStart <= subEnd
+[info] requires subEnd <= cap(s)
+[info] ensures  forall i int :: { &s[subStart:subEnd][i] } 0 <= i && i < len(s[subStart:subEnd]) ==>
+[info] 	&s[subStart:subEnd][i] == &s[subStart+i]
+[info] decreases
+[info] pure func AssertSliceOverlap(ghost s []byte, ghost subStart int, ghost subEnd int) Unit {
+[info] 	return Unit{}
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 <= subStart
+[info] requires subStart <= subEnd
+[info] requires subEnd <= cap(s)
+[info] ensures  forall i int :: { &s[subStart:subEnd][i] } 0 <= i && i < len(s[subStart:subEnd]) ==>
+[info] 	&s[subStart:subEnd][i] == &s[subStart+i]
+[info] decreases
+[info] pure func AssertSliceOverlap(ghost s []byte, ghost subStart int, ghost subEnd int) Unit {
+[info] 	return Unit{}
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion 0 <= subStart might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion subStart <= subEnd might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion subEnd <= cap(s) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires  len(s1) > 0 || len(s2) > 0
+[info] preserves Bytes(s1, 0, len(s1))
+[info] preserves acc(Bytes(s2, 0, len(s2)), _)
+[info] ensures   s1 !== s2
+[info] decreases
+[info] func PermsImplyIneqWithWildcard(s1 []byte, s2 []byte) {
+[info] 	unfold Bytes(s1, 0, len(s1))
+[info] 	unfold acc(Bytes(s2, 0, len(s2)), _)
+[info] 	if len(s1) > 0 && len(s2) > 0 {
+[info] 		// This assertion checks that the memory addresses of the first elements
+[info] 		// in s1 and s2 are different. By doing so, we instantiate the triggers in
+[info] 		// the quantifier bodies to prove the required inequality for non-empty slices.
+[info] 		assert &s1[0] != &s2[0]
+[info] 	}
+[info] 	fold Bytes(s1, 0, len(s1))
+[info] 	fold acc(Bytes(s2, 0, len(s2)), _)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires  len(s1) > 0 || len(s2) > 0
+[info] preserves Bytes(s1, 0, len(s1))
+[info] preserves acc(Bytes(s2, 0, len(s2)), _)
+[info] ensures   s1 !== s2
+[info] decreases
+[info] func PermsImplyIneqWithWildcard(s1 []byte, s2 []byte) {
+[info] 	unfold Bytes(s1, 0, len(s1))
+[info] 	unfold acc(Bytes(s2, 0, len(s2)), _)
+[info] 	if len(s1) > 0 && len(s2) > 0 {
+[info] 		// This assertion checks that the memory addresses of the first elements
+[info] 		// in s1 and s2 are different. By doing so, we instantiate the triggers in
+[info] 		// the quantifier bodies to prove the required inequality for non-empty slices.
+[info] 		assert &s1[0] != &s2[0]
+[info] 	}
+[info] 	fold Bytes(s1, 0, len(s1))
+[info] 	fold acc(Bytes(s2, 0, len(s2)), _)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, idx), p)
+[info] requires acc(Bytes(s, idx,   end), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func CombineAtIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, idx), p)
+[info] 	unfold acc(Bytes(s, idx,   end), p)
+[info] 	fold   acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, idx), p)
+[info] requires acc(Bytes(s, idx,   end), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func CombineAtIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, idx), p)
+[info] 	unfold acc(Bytes(s, idx,   end), p)
+[info] 	fold   acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, idx), p)
+[info] requires acc(Bytes(s, idx,   end), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func CombineAtIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, idx), p)
+[info] 	unfold acc(Bytes(s, idx,   end), p)
+[info] 	fold   acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, idx), p)
+[info] requires acc(Bytes(s, idx,   end), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func CombineAtIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, idx), p)
+[info] 	unfold acc(Bytes(s, idx,   end), p)
+[info] 	fold   acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires acc(Bytes(s, start, idx), p)
+[info] requires acc(Bytes(s, idx,   end), p)
+[info] ensures  acc(Bytes(s, start, end), p)
+[info] decreases
+[info] func CombineAtIndex_Bytes(s []byte, start int, end int, idx int, p perm) {
+[info] 	unfold acc(Bytes(s, start, idx), p)
+[info] 	unfold acc(Bytes(s, idx,   end), p)
+[info] 	fold   acc(Bytes(s, start, end), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires  0 < p
+[info] requires  len(s1) > 0 || len(s2) > 0
+[info] preserves Bytes(s1, 0, len(s1))
+[info] preserves acc(Bytes(s2, 0, len(s2)), p)
+[info] ensures   s1 !== s2
+[info] decreases
+[info] func PermsImplyIneq(s1 []byte, s2 []byte, p perm) {
+[info] 	unfold Bytes(s1, 0, len(s1))
+[info] 	unfold acc(Bytes(s2, 0, len(s2)), p)
+[info] 	if len(s1) > 0 && len(s2) > 0 {
+[info] 		// This assertion checks that the memory addresses of the first elements
+[info] 		// in s1 and s2 are different. By doing so, we instantiate the triggers in
+[info] 		// the quantifier bodies to prove the required inequality for non-empty slices.
+[info] 		assert &s1[0] != &s2[0]
+[info] 	}
+[info] 	fold Bytes(s1, 0, len(s1))
+[info] 	fold acc(Bytes(s2, 0, len(s2)), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires  0 < p
+[info] requires  len(s1) > 0 || len(s2) > 0
+[info] preserves Bytes(s1, 0, len(s1))
+[info] preserves acc(Bytes(s2, 0, len(s2)), p)
+[info] ensures   s1 !== s2
+[info] decreases
+[info] func PermsImplyIneq(s1 []byte, s2 []byte, p perm) {
+[info] 	unfold Bytes(s1, 0, len(s1))
+[info] 	unfold acc(Bytes(s2, 0, len(s2)), p)
+[info] 	if len(s1) > 0 && len(s2) > 0 {
+[info] 		// This assertion checks that the memory addresses of the first elements
+[info] 		// in s1 and s2 are different. By doing so, we instantiate the triggers in
+[info] 		// the quantifier bodies to prove the required inequality for non-empty slices.
+[info] 		assert &s1[0] != &s2[0]
+[info] 	}
+[info] 	fold Bytes(s1, 0, len(s1))
+[info] 	fold acc(Bytes(s2, 0, len(s2)), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires  0 < p
+[info] requires  len(s1) > 0 || len(s2) > 0
+[info] preserves Bytes(s1, 0, len(s1))
+[info] preserves acc(Bytes(s2, 0, len(s2)), p)
+[info] ensures   s1 !== s2
+[info] decreases
+[info] func PermsImplyIneq(s1 []byte, s2 []byte, p perm) {
+[info] 	unfold Bytes(s1, 0, len(s1))
+[info] 	unfold acc(Bytes(s2, 0, len(s2)), p)
+[info] 	if len(s1) > 0 && len(s2) > 0 {
+[info] 		// This assertion checks that the memory addresses of the first elements
+[info] 		// in s1 and s2 are different. By doing so, we instantiate the triggers in
+[info] 		// the quantifier bodies to prove the required inequality for non-empty slices.
+[info] 		assert &s1[0] != &s2[0]
+[info] 	}
+[info] 	fold Bytes(s1, 0, len(s1))
+[info] 	fold acc(Bytes(s2, 0, len(s2)), p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression preserves forall i int :: { &errCtx[i] } 0 <= i && i < len(errCtx) ==> acc(&errCtx[i], R15)
+[info] ensures   res != nil && res.ErrorMem()
+[info] ensures   res.IsDuplicableMem()
+[info] // New always returns a pointer to a basicError, thus it
+[info] // only produces comparable values
+[info] ensures   isComparable(res)
+[info] decreases
+[info] func New(msg string, errCtx ...interface{}) (res error) fails linter check: Input Unicity
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/pkg/private/serrors/serrors_spec.gobra:79:1> Comparison might panic. 
+[info] Both operands of requires  cause != nil ==> cause.ErrorMem()
+[info] preserves forall i int :: { &errCtx[i] } 0 <= i && i < len(errCtx) ==> acc(&errCtx[i], R15)
+[info] // The following precondition cannot be adequately captured in Gobra.
+[info] // requires forall i int :: 0 <= i && i < len(errCtx) ==> IsOfPrimitiveType(errCtx[i])
+[info] ensures res != nil && res.ErrorMem()
+[info] ensures cause != nil ==> (res.ErrorMem() --* cause.ErrorMem())
+[info] decreases
+[info] func WrapStr(msg string, cause error, errCtx ...interface{}) (res error) might not have comparable values.
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/pkg/private/serrors/serrors_spec.gobra:46:1> Comparison might panic. 
+[info] Both operands of requires  err.ErrorMem()
+[info] // The following precondition cannot be adequately captured in Gobra.
+[info] // requires forall i int :: 0 <= i && i < len(errCtx) ==> IsOfPrimitiveType(errCtx[i])
+[info] preserves forall i int :: { &errCtx[i] } 0 <= i && i < len(errCtx) ==> acc(&errCtx[i], R15)
+[info] ensures res != nil && res.ErrorMem()
+[info] ensures res.ErrorMem() --* err.ErrorMem()
+[info] decreases
+[info] func WithCtx(err error, errCtx ...interface{}) (res error) might not have comparable values.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to errCtx[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Magic wand instance not found.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to errCtx[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Magic wand instance not found.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to errCtx[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res.IsDuplicableMem() might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion isComparable(res) might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s[start:end], 0, end-start), p)
+[info] requires acc(Bytes(s, 0, start), p)
+[info] requires acc(Bytes(s, end, len(s)), p)
+[info] ensures  acc(Bytes(s, 0, len(s)), p)
+[info] decreases
+[info] func CombineRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	Unslice_Bytes(s, start, end, p)
+[info] 	CombineAtIndex_Bytes(s, start, len(s), end, p)
+[info] 	CombineAtIndex_Bytes(s, 0, len(s), start, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s[start:end], 0, end-start), p)
+[info] requires acc(Bytes(s, 0, start), p)
+[info] requires acc(Bytes(s, end, len(s)), p)
+[info] ensures  acc(Bytes(s, 0, len(s)), p)
+[info] decreases
+[info] func CombineRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	Unslice_Bytes(s, start, end, p)
+[info] 	CombineAtIndex_Bytes(s, start, len(s), end, p)
+[info] 	CombineAtIndex_Bytes(s, 0, len(s), start, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s[start:end], 0, end-start), p)
+[info] requires acc(Bytes(s, 0, start), p)
+[info] requires acc(Bytes(s, end, len(s)), p)
+[info] ensures  acc(Bytes(s, 0, len(s)), p)
+[info] decreases
+[info] func CombineRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	Unslice_Bytes(s, start, end, p)
+[info] 	CombineAtIndex_Bytes(s, start, len(s), end, p)
+[info] 	CombineAtIndex_Bytes(s, 0, len(s), start, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires 0 < p
+[info] requires 0 <= start && start <= end && end <= len(s)
+[info] requires acc(Bytes(s[start:end], 0, end-start), p)
+[info] requires acc(Bytes(s, 0, start), p)
+[info] requires acc(Bytes(s, end, len(s)), p)
+[info] ensures  acc(Bytes(s, 0, len(s)), p)
+[info] decreases
+[info] func CombineRange_Bytes(s []byte, start int, end int, p perm) {
+[info] 	Unslice_Bytes(s, start, end, p)
+[info] 	CombineAtIndex_Bytes(s, start, len(s), end, p)
+[info] 	CombineAtIndex_Bytes(s, 0, len(s), start, p)
+[info] } fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion p > 0 might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to errCtx[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Magic wand instance not found.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Permission to errCtx[i] might not suffice.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Assertion res != nil might not hold.
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires p > 0
+[info] requires acc(loc, p)
+[info] ensures acc(loc, p)
+[info] decreases
+[info] func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location, ghost p perm) Time fails linter check: Input Unicity
+[info] Error at: <.:0:0> Assert might fail. 
+[info] Expression requires p > 0
+[info] requires acc(loc, p)
+[info] ensures acc(loc, p)
+[info] decreases
+[info] func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location, ghost p perm) Time fails linter check: Input Unicity
+[info] Error at: </Users/herzamos/Desktop/eth/fs25/practical-work/VerifiedSCION/pkg/private/serrors/serrors_spec.gobra:63:1> Comparison might panic. 
+[info] Both operands of requires  msg.ErrorMem() && cause.ErrorMem()
+[info] preserves forall i int :: { &errCtx[i] } 0 <= i && i < len(errCtx) ==> acc(&errCtx[i], R15)
+[info] // The following precondition cannot be adequately captured in Gobra.
+[info] // requires forall i int :: 0 <= i && i < len(errCtx) ==> IsOfPrimitiveType(errCtx[i])
+[info] ensures   res != nil && res.ErrorMem()
+[info] ensures   res.ErrorMem() --* (msg.ErrorMem() && cause.ErrorMem())
+[info] decreases
+[info] func Wrap(msg, cause error, errCtx ...interface{}) (res error) might not have comparable values.
+[info] Gobra found 23 errors.
+[info] Writing report to /tmp/stats.json
+[info] 
+[error] Nonzero exit code returned from runner: 1
+[error] (Compile / run) Nonzero exit code returned from runner: 1
+[error] Total time: 88 s (01:28), completed 17 Jul 2025, 13:08:22

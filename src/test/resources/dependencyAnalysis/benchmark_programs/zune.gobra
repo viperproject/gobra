@@ -7,13 +7,11 @@ pure func isLeapYear(year int) bool {
   return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
 
-const originYear = 1980
-
 ensures days <= 366
 func convertDaysFixed(totalDays int) (days, year int) {
 
   days = totalDays
-  year = originYear
+  year = 1980
 
   for (isLeapYear(year) && 366 < days) || (!isLeapYear(year) && 365 < days) {
 
@@ -33,16 +31,16 @@ func convertDaysFixed(totalDays int) (days, year int) {
 }
 
 
-ensures days + (year - originYear) * 365 <= totalDays
-ensures totalDays <= days + (year - originYear) * 366
+ensures days + (year - 1980) * 365 <= totalDays
+ensures totalDays <= days + (year - 1980) * 366
 ensures days <= 366
 func convertDaysFixedWithSomeInvariants(totalDays int) (days, year int) {
 
   days = totalDays
-  year = originYear
+  year = 1980
 
-  invariant days + (year - originYear) * 365 <= totalDays
-  invariant totalDays <= days + (year - originYear) * 366
+  invariant days + (year - 1980) * 365 <= totalDays
+  invariant totalDays <= days + (year - 1980) * 366
   for (isLeapYear(year) && 366 < days) || (!isLeapYear(year) && 365 < days) {
 
     ghost variant := days

@@ -3,7 +3,7 @@
 BASE_FLAGS=
 ANALYSIS_FLAGS="--enableAssumptionAnalysis --disableInfeasibilityChecks"
 ANALYSIS_WITH_INFEAS_FLAGS="--enableAssumptionAnalysis"
-PATH_TO_VERIFIED_SCION=C:/Users/Andrea/Documents/ETH/FS25/MasterThesis/VerifiedSCION
+PATH_TO_VERIFIED_SCION=[YOUR_PATH_TO_VERIFIED_SCION]
 
 RESULT_FILE=scion_benchmark_$(date '+%Y_%m_%d_%H_%M_%S').csv
 touch $RESULT_FILE

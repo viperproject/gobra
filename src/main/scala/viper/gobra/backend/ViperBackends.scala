@@ -65,6 +65,7 @@ object ViperBackends {
       }
       if (config.enableAssumptionAnalysis) {
         options ++= Vector("--enableAssumptionAnalysis")
+        options ++= Vector("--proverArgs", "proof=true unsat-core=true")
       }
       if (config.startAssumptionAnalysisTool) {
         options ++= Vector("--startAssumptionAnalysisTool")

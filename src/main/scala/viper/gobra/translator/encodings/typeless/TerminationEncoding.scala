@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.Member
@@ -77,7 +78,17 @@ class TerminationEncoding extends Encoding {
           for {
             c <- option(t.cond map ctx.expression)
             v <- sequence(t.tuple.map {
-              case e: in.Expr => ctx.expression(e)
+              case e: in.Expr =>
+                for {
+                  newE <- ctx.expression(e)
+                } yield e.typ match {
+                  // if we have a numeric decreases measure, we get its int value. this prevents us from having to
+                  // create a new domain per int type.
+                  case t: in.IntT =>
+                    IntEncodingGenerator.domainToIntFuncApp(t.kind)(newE)(newE.pos, newE.info, newE.errT)
+                  case _ => newE
+                }
+
               case p: in.Access => predicateInstance(p)(ctx)
               case _ => violation("invalid tuple measure argument")
             })

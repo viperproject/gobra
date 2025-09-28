@@ -355,6 +355,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case (SequenceT(_), IntT(_)) =>
               noMessages
 
+            case (SequenceT(_), GhostIntegerT) =>
+              noMessages
+
             case (_: SliceT | _: GhostSliceT, IntT(_)) =>
               noMessages
 
@@ -413,8 +416,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(base, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
-          lowT.fold(noMessages)(t => error(low, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
-            highT.fold(noMessages)(t => error(high, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
+          // println(s"PEW PEW PEW: $n")
+          lowT.fold(noMessages)(t => error(low, s"expected an integer but found $t", t != GhostIntegerT && !t.isInstanceOf[IntT])) ++
+            highT.fold(noMessages)(t => error(high, s"expected an integer but found $t", t != GhostIntegerT && !t.isInstanceOf[IntT])) ++
             error(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
         }
 
@@ -687,6 +691,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
         case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
+        case Some(GhostIntegerT) => assignableWithinBounds.errors(GhostIntegerT, exp)(exp)
+        case Some(Float32T) => noMessages
+        case Some(Float64T) => noMessages
         case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }
@@ -743,6 +750,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (ArrayT(_, elem), IntT(_)) => elem
           case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
           case (SequenceT(elem), IntT(_)) => elem
+          case (SequenceT(elem), GhostIntegerT) => elem
           case (SliceT(elem), IntT(_)) => elem
           case (GhostSliceT(elem), IntT(_)) => elem
           case (VariadicT(elem), IntT(_)) => elem
@@ -761,7 +769,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       (underlyingType(baseType), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
         case (ActualPointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
-        case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
+        case (SequenceT(_), None | Some(IntT(_) | GhostIntegerT), None | Some(IntT(_) | GhostIntegerT), None) => baseType
+        // case (SequenceT(_), None | Some(GhostIntegerT), None | Some(IntT(_)), None) => baseType
         case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
@@ -984,6 +993,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case PredT(fArgs) => fArgs.lift(index)
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
+            case Some(ap.Conversion(t, e)) =>
+              assert(expr == e)
+              Some(typeSymbType(t))
 
             case _ => None
           }
@@ -1135,7 +1147,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
       case ActualPointerT(_: ArrayT) => INT_TYPE
-      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => GhostIntegerT
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 

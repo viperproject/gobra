@@ -19,6 +19,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       // Two integer types are equal if they have the same type or they are from types which are aliased
       case (IntT(x), IntT(y)) => x == y || Set(x,y).subsetOf(Set(TypeBounds.SignedInteger32, TypeBounds.Rune)) || Set(x,y).subsetOf(Set(TypeBounds.UnsignedInteger8, TypeBounds.Byte))
+      case (GhostIntegerT, GhostIntegerT) => true
       case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
       case (StringT, StringT) => true

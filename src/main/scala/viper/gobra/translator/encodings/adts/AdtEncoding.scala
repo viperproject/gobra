@@ -341,7 +341,7 @@ class AdtEncoding extends LeafTypeEncoding {
 
       case p: in.PatternMatchExp => translatePatternMatchExp(p)(ctx)
 
-      case l@in.Length(expr :: ctx.Adt(a)) =>
+      case l@in.Length(expr :: ctx.Adt(a), _) =>
         for {
           e <- ctx.expression(expr)
           rankApp = withSrc(applyRankFunc(a.name, e), l)

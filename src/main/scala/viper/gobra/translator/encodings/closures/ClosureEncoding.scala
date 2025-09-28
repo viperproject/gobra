@@ -16,6 +16,7 @@ import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.IntEncodingGenerator
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.plugin.standard.termination
@@ -112,7 +113,7 @@ class ClosureEncoding(config: Config) extends LeafTypeEncoding {
     vpr.Method(
       Names.closureProofIterator,
       Seq.empty,
-      Seq(vpr.LocalVarDecl("res", vpr.Int)()),
+      Seq(vpr.LocalVarDecl("res", IntEncodingGenerator.integerType)()),
       Seq(termination.DecreasesTuple(Nil)()), Seq.empty, None
     )()
   }

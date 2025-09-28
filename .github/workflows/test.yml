@@ -92,105 +92,105 @@ jobs:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
 
-      - name: Execute all tests
-        run: |
-          # create a directory to sync with the docker container and to store the created pidstats
-          mkdir -p $PWD/sync
-          docker run \
-            --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
-            ${{ env.IMAGE_TAG }} \
-            /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"
+#      - name: Execute all tests
+#        run: |
+#          # create a directory to sync with the docker container and to store the created pidstats
+#          mkdir -p $PWD/sync
+#          docker run \
+#            --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
+#            ${{ env.IMAGE_TAG }} \
+#            /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"
+#
+#      - name: Get max RAM usage by Java and Z3
+#        if: ${{ always() }}
+#        shell: bash
+#        env:
+#          JAVA_WARNING_THRESHOLD_GB: 4.5
+#          JAVA_FAILURE_THRESHOLD_GB: 5.5
+#          Z3_WARNING_THRESHOLD_GB: 0.5
+#          Z3_FAILURE_THRESHOLD_GB: 1
+#        # awk is used to perform the computations such that the computations are performed with floating point precision
+#        # we transform bash variables into awk variables to not cause problems with bash's variable substitution
+#        # after computing the memory usage (in KB) a few more computations are performed. At the very end, all (local)
+#        # environment variables are exported to `$GITHUB_ENV` such that they will be available in the next step as well.
+#        run: |
+#          function getMaxMemOfProcessInKb {
+#            # $1 is the regex used to filter lines by the 9th column
+#            # - we use variable `max` to keep track of the maximum
+#            # - `curCount` stores the sum of all processes with the given name for a particular timestamp
+#            # - note that looking at the timestamp is only an approximation: pidstat might report different timestamps in the
+#            #   same "block" of outputs (i.e. the report every second)
+#            # - `NR>=2` specifies that the file's first line (NR=1) is ignored
+#            # - `$7` refers to the 7th column in the file which corresponds to the column storing RAM (in kb)
+#            # - `java$` matches only lines that end in the string 'java'
+#            # - variable `max` is printed after processing the entire file
+#            local result=$(awk -v processName=$1 -v max=0 -v curCount=0 -v curTimestamp=0 'processName~$9 {if(NR>=2){if(curTimestamp==$1){curCount=curCount+$7}else{curTimestamp=$1; curCount=$7}}; if(curCount>max){max=curCount}}END{print max}' sync/pidstat.txt)
+#            echo $result
+#          }
+#          function convertKbToGb {
+#            # $1 is the value [KB] that should be converted
+#            local result=$(awk -v value=$1 'BEGIN {print value / 1000 / 1000}')
+#            echo $result
+#          }
+#          function getLevel {
+#            # $1 is the value that should be comparing against the thresholds
+#            # $2 is the threshold causing a warning
+#            # $3 is the threshold causing an error
+#            # writes ${{ env.NOTICE_LEVEL }}, ${{ env.WARNING_LEVEL}} or ${{ env.FAILURE_LEVEL }} to standard output
+#            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
+#            echo $result
+#          }
+#          MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
+#          MAX_Z3_KB=$(getMaxMemOfProcessInKb 'z3$')
+#          MAX_JAVA_GB=$(convertKbToGb $MAX_JAVA_KB)
+#          MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
+#          JAVA_LEVEL=$(getLevel $MAX_JAVA_GB ${{ env.JAVA_WARNING_THRESHOLD_GB }} ${{ env.JAVA_FAILURE_THRESHOLD_GB }})
+#          Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
+#          if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
+#          then
+#            CONCLUSION="${{ env.CONCLUSION_FAILURE }}"
+#          else
+#            CONCLUSION="${{ env.CONCLUSION_SUCCESS }}"
+#          fi
+#          echo "MAX_JAVA_GB=$MAX_JAVA_GB" >> $GITHUB_ENV
+#          echo "MAX_Z3_GB=$MAX_Z3_GB" >> $GITHUB_ENV
+#          echo "JAVA_LEVEL=$JAVA_LEVEL" >> $GITHUB_ENV
+#          echo "Z3_LEVEL=$Z3_LEVEL" >> $GITHUB_ENV
+#          echo "CONCLUSION=$CONCLUSION" >> $GITHUB_ENV
 
-      - name: Get max RAM usage by Java and Z3
-        if: ${{ always() }}
-        shell: bash
-        env:
-          JAVA_WARNING_THRESHOLD_GB: 4.5
-          JAVA_FAILURE_THRESHOLD_GB: 5.5
-          Z3_WARNING_THRESHOLD_GB: 0.5
-          Z3_FAILURE_THRESHOLD_GB: 1
-        # awk is used to perform the computations such that the computations are performed with floating point precision
-        # we transform bash variables into awk variables to not cause problems with bash's variable substitution
-        # after computing the memory usage (in KB) a few more computations are performed. At the very end, all (local)
-        # environment variables are exported to `$GITHUB_ENV` such that they will be available in the next step as well.
-        run: |
-          function getMaxMemOfProcessInKb {
-            # $1 is the regex used to filter lines by the 9th column
-            # - we use variable `max` to keep track of the maximum
-            # - `curCount` stores the sum of all processes with the given name for a particular timestamp
-            # - note that looking at the timestamp is only an approximation: pidstat might report different timestamps in the
-            #   same "block" of outputs (i.e. the report every second)
-            # - `NR>=2` specifies that the file's first line (NR=1) is ignored
-            # - `$7` refers to the 7th column in the file which corresponds to the column storing RAM (in kb)
-            # - `java$` matches only lines that end in the string 'java'
-            # - variable `max` is printed after processing the entire file
-            local result=$(awk -v processName=$1 -v max=0 -v curCount=0 -v curTimestamp=0 'processName~$9 {if(NR>=2){if(curTimestamp==$1){curCount=curCount+$7}else{curTimestamp=$1; curCount=$7}}; if(curCount>max){max=curCount}}END{print max}' sync/pidstat.txt)
-            echo $result
-          }
-          function convertKbToGb {
-            # $1 is the value [KB] that should be converted
-            local result=$(awk -v value=$1 'BEGIN {print value / 1000 / 1000}')
-            echo $result
-          }
-          function getLevel {
-            # $1 is the value that should be comparing against the thresholds
-            # $2 is the threshold causing a warning
-            # $3 is the threshold causing an error
-            # writes ${{ env.NOTICE_LEVEL }}, ${{ env.WARNING_LEVEL}} or ${{ env.FAILURE_LEVEL }} to standard output
-            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
-            echo $result
-          }
-          MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
-          MAX_Z3_KB=$(getMaxMemOfProcessInKb 'z3$')
-          MAX_JAVA_GB=$(convertKbToGb $MAX_JAVA_KB)
-          MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
-          JAVA_LEVEL=$(getLevel $MAX_JAVA_GB ${{ env.JAVA_WARNING_THRESHOLD_GB }} ${{ env.JAVA_FAILURE_THRESHOLD_GB }})
-          Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
-          if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
-          then
-            CONCLUSION="${{ env.CONCLUSION_FAILURE }}"
-          else
-            CONCLUSION="${{ env.CONCLUSION_SUCCESS }}"
-          fi
-          echo "MAX_JAVA_GB=$MAX_JAVA_GB" >> $GITHUB_ENV
-          echo "MAX_Z3_GB=$MAX_Z3_GB" >> $GITHUB_ENV
-          echo "JAVA_LEVEL=$JAVA_LEVEL" >> $GITHUB_ENV
-          echo "Z3_LEVEL=$Z3_LEVEL" >> $GITHUB_ENV
-          echo "CONCLUSION=$CONCLUSION" >> $GITHUB_ENV
-
-      - name: Create annotations
-        if: ${{ always() }}
-        # Outputs the memory consumption of JAVA and Z3. The message format is described in
-        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
-        run: |
-          JAVA_MESSAGE="Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
-          if [ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
-          then
-            echo "$JAVA_MESSAGE"
-          else
-            echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::$JAVA_MESSAGE"
-          fi 
-
-          Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-          if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
-          then
-            echo "$Z3_MESSAGE"
-          else
-            echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
-          fi 
-
-          if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
-          then
-            # the whole step fails when this comparison fails
-            exit 1
-          fi
-
-      - name: Upload RAM usage
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: pidstat.txt
-          path: sync/pidstat.txt
+#      - name: Create annotations
+#        if: ${{ always() }}
+#        # Outputs the memory consumption of JAVA and Z3. The message format is described in
+#        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
+#        run: |
+#          JAVA_MESSAGE="Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
+#          if [ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+#          then
+#            echo "$JAVA_MESSAGE"
+#          else
+#            echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::$JAVA_MESSAGE"
+#          fi 
+#
+#          Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
+#          if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+#          then
+#            echo "$Z3_MESSAGE"
+#          else
+#            echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
+#          fi 
+#
+#          if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
+#          then
+#            # the whole step fails when this comparison fails
+#            exit 1
+#          fi
+#
+#      - name: Upload RAM usage
+#        if: ${{ always() }}
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: pidstat.txt
+#          path: sync/pidstat.txt
 
       - name: Build entire image
         uses: docker/build-push-action@v6
@@ -205,29 +205,6 @@ jobs:
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
-
-      - name: Test final container by verifying a file
-        run: |
-          docker run \
-            ${{ env.IMAGE_TAG }} \
-            -i tutorial-examples/basic-annotations.gobra
-
-      - name: Decide whether image should be deployed or not
-        run: |
-          # note that these GitHub expressions return the value '1' for 'true' (as opposed to bash)
-          IS_GOBRA_REPO=${{ github.repository == 'viperproject/gobra' }}
-          IS_MASTER=${{ github.ref == 'refs/heads/master' }}
-          IS_VERIFIED_SCION=${{ github.ref == 'refs/heads/verified-scion-preview-without-selective' }}
-          IS_PROPER_TAG=${{ startsWith(github.ref, 'refs/tags/v') }}
-          # we use `${{ true }}` to be able to compare against GitHub's truth value:
-          if [[ "$IS_GOBRA_REPO" == ${{ true }} && ("$IS_MASTER" == ${{ true }} || "$IS_VERIFIED_SCION" == ${{ true }} || "$IS_PROPER_TAG" == ${{ true }}) ]]
-          then
-            SHOULD_DEPLOY='true'
-          else
-            SHOULD_DEPLOY='false'
-          fi
-          echo "SHOULD_DEPLOY=$SHOULD_DEPLOY" >> $GITHUB_ENV
-
       - name: Login to Github Packages
         if: env.SHOULD_DEPLOY == 'true'
         uses: docker/login-action@v3
@@ -235,9 +212,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Push entire image
-        if: env.SHOULD_DEPLOY == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .

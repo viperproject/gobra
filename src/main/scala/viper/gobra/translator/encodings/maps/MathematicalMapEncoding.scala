@@ -103,7 +103,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
           vRight <- goE(right)
         } yield vpr.MapUpdate(vBase, vLeft, vRight)(pos, info, errT)
 
-      case n@ in.Length(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.Length(e :: ctx.MathematicalMap(_, _), _) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapCardinality(_)(pos, info, errT))
 

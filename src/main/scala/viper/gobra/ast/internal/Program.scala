@@ -741,16 +741,33 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
   * Denotes the length of `exp`, which is expected to be either
   * of an array type or a sequence type or a set.
   */
-case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = IntT(Addressability.rValue)
+case class Length(exp : Expr, underlyingTypeExp : Type)(val info : Source.Parser.Info) extends Expr {
+  override def typ: Type = {
+    underlyingTypeExp match {
+      case _: ArrayT | PointerT(_: ArrayT, _) | _: SliceT | _: MapT | _: ChannelT | _: StringT =>
+        // TODO: make the default type dependent on the config (or drop the option for 32 bit int)
+        IntT(Addressability.rValue, TypeBounds.DefaultInt)
+      case _ =>
+        IntT(Addressability.rValue)
+    }
+  }
 }
 
 /**
   * Represents the "cap(`exp`)" in Go, which gives
   * the capacity of `exp` according to its type.
   */
-case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = IntT(Addressability.rValue)
+case class Capacity(exp : Expr, underlyingTypeExp : Type)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = {
+    underlyingTypeExp match {
+      case _: ArrayT | PointerT(_: ArrayT, _) | _: SliceT | _: MapT | _: ChannelT | _: StringT =>
+        // TODO: make the default type dependent on the config (or drop the option for 32 bit int)
+        IntT(Addressability.rValue, TypeBounds.DefaultInt)
+      case _ =>
+        IntT(Addressability.rValue)
+    }
+  }
+
 }
 
 /**
@@ -1110,7 +1127,9 @@ case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) exte
 case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
   override val typ: Type = left.typ
 }
-case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation {
+  override val typ: Type = op.typ
+}
 
 /*
  * Convert 'expr' to non-interface type 'newType'. If 'newType' is

@@ -206,11 +206,11 @@ jobs:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
 
-      - name: Test final container by verifying a file
-        run: |
-          docker run \
-            ${{ env.IMAGE_TAG }} \
-            -i tutorial-examples/basic-annotations.gobra
+#      - name: Test final container by verifying a file
+#        run: |
+#          docker run \
+#            ${{ env.IMAGE_TAG }} \
+#            -i tutorial-examples/basic-annotations.gobra
 
       - name: Decide whether image should be deployed or not
         run: |

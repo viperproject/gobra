@@ -783,6 +783,7 @@ case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val i
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
+    case _: StringT => IntT(Addressability.Exclusive, TypeBounds.Byte)
     case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }

@@ -214,6 +214,7 @@ jobs:
 
       - name: Decide whether image should be deployed or not
         run: |
+          SHOULD_DEPLOY='true'
 #          # note that these GitHub expressions return the value '1' for 'true' (as opposed to bash)
 #          IS_GOBRA_REPO=${{ github.repository == 'viperproject/gobra' }}
 #          IS_MASTER=${{ github.ref == 'refs/heads/master' }}
@@ -222,7 +223,7 @@ jobs:
 #          # we use `${{ true }}` to be able to compare against GitHub's truth value:
 #          if [[ "$IS_GOBRA_REPO" == ${{ true }} && ("$IS_MASTER" == ${{ true }} || "$IS_VERIFIED_SCION" == ${{ true }} || "$IS_PROPER_TAG" == ${{ true }}) ]]
 #          then
-            SHOULD_DEPLOY='true'
+#            SHOULD_DEPLOY='true'
 #          else
 #            SHOULD_DEPLOY='false'
 #          fi

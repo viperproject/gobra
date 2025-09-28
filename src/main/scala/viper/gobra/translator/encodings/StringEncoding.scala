@@ -92,11 +92,15 @@ class StringEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = conv.vprMeta
         for { e <- goE(expr) } yield byteSliceToStr(e)(ctx)(pos, info, errT)
       case e@in.IndexedExp(base, index, _: in.StringT) =>
+        ???
+        /*
         val (pos, info, errT) = e.vprMeta
         for {
           baseExp <- goE(base)
           indexExp <- goE(index)
         } yield stringIndex(baseExp, indexExp)(ctx)(pos, info, errT)
+
+         */
     }
   }
 
@@ -144,6 +148,7 @@ class StringEncoding extends LeafTypeEncoding {
             in.Length(e, underlyingType(e.typ)(ctx))(conv.info),
           )(conv.info)
         )(conv.info)
+        /*
         val post3 = in.SepForall(
           vars = Vector(qtfVar),
           triggers = Vector(
@@ -162,6 +167,7 @@ class StringEncoding extends LeafTypeEncoding {
             )(conv.info)
           )(conv.info)
         )(conv.info)
+         */
 
         seqn(
           for {
@@ -170,8 +176,8 @@ class StringEncoding extends LeafTypeEncoding {
             _ <- write(vpr.Inhale(vprPost1)(pos, info, errT))
             vprPost2 <- goA(post2)
             _ <- write(vpr.Inhale(vprPost2)(pos, info, errT))
-            vprPost3 <- goA(post3)
-            _ <- write(vpr.Inhale(vprPost3)(pos, info, errT))
+            // vprPost3 <- goA(post3)
+            //_ <- write(vpr.Inhale(vprPost3)(pos, info, errT))
             ass <- ctx.assignment(in.Assignee.Var(target), slice)(conv)
           } yield ass
         )
@@ -183,7 +189,7 @@ class StringEncoding extends LeafTypeEncoding {
       addMemberFn(genDomain())
       if (strSliceIsUsed) { addMemberFn(strSlice) }
       byteSliceToStrFuncGenerator.finalize(addMemberFn)
-      stringIndexFuncGenerator.finalize(addMemberFn)
+      // stringIndexFuncGenerator.finalize(addMemberFn)
     }
   }
   private var isUsed: Boolean = false
@@ -373,6 +379,7 @@ class StringEncoding extends LeafTypeEncoding {
           in.Length(res, resT)(info),
         )(info)
       )(info)
+      /*
       val post2 = in.SepForall(
         vars = Vector(qtfVar),
         triggers = Vector(
@@ -392,12 +399,14 @@ class StringEncoding extends LeafTypeEncoding {
         )(info)
       )(info)
 
+       */
+
       val func: in.PureFunction = in.PureFunction(
         name = in.FunctionProxy(byteSliceToStrFuncName)(info),
         args = Vector(param),
         results = Vector(res),
         pres = Vector(pre),
-        posts = Vector(post1, post2),
+        posts = Vector(post1 /*, post2 */),
         terminationMeasures = Vector(in.NonItfMethodWildcardMeasure(None)(info)),
         backendAnnotations = Vector.empty,
         body = None,
@@ -417,6 +426,7 @@ class StringEncoding extends LeafTypeEncoding {
    *    decreases _
    *    pure func stringIndexFunc(s string, i int) (res byte)
    */
+    /*
   private val stringIndexFuncName: String = "stringIndexFunc"
   private val stringIndexFuncGenerator: FunctionGenerator[Unit] = new FunctionGenerator[Unit] {
     override def genFunction(@unused x: Unit)(ctx: Context): vpr.Function = {
@@ -448,9 +458,11 @@ class StringEncoding extends LeafTypeEncoding {
       val translatedFunc = ctx.function(func)
       translatedFunc.res
     }
-  }
 
-  private def stringIndex(str: vpr.Exp, idx: vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.FuncApp =
-    stringIndexFuncGenerator(Vector(str, idx), ())(pos, info, errT)(ctx)
+  }
+     */
+
+  // private def stringIndex(str: vpr.Exp, idx: vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.FuncApp =
+  //  stringIndexFuncGenerator(Vector(str, idx), ())(pos, info, errT)(ctx)
 
 }

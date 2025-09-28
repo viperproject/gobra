@@ -430,6 +430,9 @@ object IntConversionInferenceTransform extends InternalTransform {
       case o: in.Old =>
         val newOp = transformExpr(originalProg)(o.operand)
         in.Old(newOp)(o.info)
+      case o: in.LabeledOld =>
+        val newOp = transformExpr(originalProg)(o.operand)
+        in.LabeledOld(o.label, newOp)(o.info)
       case u: in.Unfolding =>
         val newAcc = transformAccess(originalProg)(u.acc)
         val newExpr = transformExprToIntendedType(originalProg)(u.in, u.typ)
@@ -596,6 +599,15 @@ object IntConversionInferenceTransform extends InternalTransform {
     case u@in.Unfold(acc) =>
       val newAcc = transformAccess(originalProg)(acc)
       in.Unfold(newAcc)(u.info)
+    case o@in.Outline(name, pres, posts, terminationMeasures, backendAnnotations, body, trusted) =>
+      val newPres = pres map transformAssert(originalProg)
+      val newPosts = posts map transformAssert(originalProg)
+      val newMeasuers = terminationMeasures map transformTermMeasure(originalProg)
+      val newBody = transformStmt(originalProg)(body)
+      in.Outline(name, newPres, newPosts, newMeasuers, backendAnnotations, newBody, trusted)(o.info)
+    case a@in.ApplyWand(wand) =>
+      val newWand = transformAssert(originalProg)(wand).asInstanceOf[in.MagicWand]
+      in.ApplyWand(newWand)(a.info)
     case m@in.MakeSlice(target, typeParam, lenArg, capArg) =>
       // TODO: there's already some alternative means of preventing this error in the slice encoding.
       //       Chose a single solution
@@ -678,6 +690,9 @@ object IntConversionInferenceTransform extends InternalTransform {
       val newPres = pres map transformAssert(originalProg)
       val newPosts = posts map transformAssert(originalProg)
       in.SpecImplementationProof(newClosure, newSpec, newBody, newPres, newPosts)(p.info)
+    case l@in.SafeMapLookup(resTarget, successTarget, mapLookup) =>
+      val newMapLookup = transformIndexedExpression(originalProg)(mapLookup)
+      in.SafeMapLookup(resTarget, successTarget, newMapLookup)(l.info)
 
     case c@in.ClosureCall(targets, closure, args, spec) =>
       // TODO: improve, transformations missing

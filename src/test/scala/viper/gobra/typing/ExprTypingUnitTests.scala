@@ -603,7 +603,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify any use of a sequence inclusion as ghost") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PCompositeLit(
         PSequenceType(PIntType()),
@@ -618,7 +618,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify any proper use of a sequence inclusion as being well-defined") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PCompositeLit(
         PSequenceType(PIntType()),
@@ -633,7 +633,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not classify a sequence inclusion as being well-defined if the types don't match") {
-    val expr = PIn(
+    val expr = PElem(
       PBoolLit(false),
       PCompositeLit(
         PSequenceType(PIntType()),
@@ -649,12 +649,12 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not classify a seq/set inclusion as well-defined if the right-hand side is not a sequence of (multi)set") {
-    val expr = PIn(PBoolLit(false), PBoolLit(true))
+    val expr = PElem(PBoolLit(false), PBoolLit(true))
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should assign the correct type to a sequence inclusion operation") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PCompositeLit(
         PSequenceType(PIntType()),
@@ -672,7 +672,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify any use of a set inclusion as ghost") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
@@ -681,7 +681,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify any proper use of a set inclusion as being well-defined") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
@@ -690,7 +690,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should assign the correct type to a set inclusion operation") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
@@ -1246,7 +1246,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should mark a simple multiset inclusion expression as ghost") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(42),
       PLiteral.multiset(PIntType(), Vector())
     )
@@ -1255,7 +1255,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify a simple multiset inclusion expression as well-defined") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(42),
       PLiteral.multiset(PIntType(), Vector())
     )
@@ -1264,7 +1264,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not classify a multiset inclusion as well-defined if the types of the operands aren't compatible") {
-    val expr = PIn(
+    val expr = PElem(
       PBoolLit(false),
       PLiteral.multiset(PIntType(), Vector())
     )
@@ -1273,7 +1273,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not classify a multiset inclusion operation as well-defined if there is a typing problem in the left operand") {
-    val expr = PIn(
+    val expr = PElem(
       PLiteral.multiset(PIntType(), Vector(PBoolLit(false))),
       PLiteral.multiset(PMultisetType(PIntType()), Vector())
     )
@@ -1282,7 +1282,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not classify a multiset inclusion operation as well-defined if there is a typing problem in the right operand") {
-    val expr = PIn(
+    val expr = PElem(
       PBoolLit(false),
       PLiteral.multiset(PBoolType(), Vector(PIntLit(42)))
     )
@@ -1291,7 +1291,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not classify a multiset inclusion operation as well-defined if it mixed multisets with ordinary sets") {
-    val expr = PIn(
+    val expr = PElem(
       PLiteral.multiset(PIntType(), Vector()),
       PLiteral.multiset(PSetType(PIntType()), Vector())
     )
@@ -1300,7 +1300,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a simple multiset inclusion operation") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(2),
       PLiteral.multiset(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
@@ -1311,7 +1311,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a slightly more complicated multiset inclusion operation") {
-    val expr = PIn(
+    val expr = PElem(
       PLiteral.multiset(PIntType(), Vector(PIntLit(42))),
       PLiteral.multiset(PMultisetType(PIntType()), Vector())
     )
@@ -1322,14 +1322,14 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not type a (multi)set inclusion with integer literals as operands") {
-    val expr = PIn(PIntLit(1), PIntLit(2))
+    val expr = PElem(PIntLit(1), PIntLit(2))
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should be able to handle a comparison of multiset inclusions") {
     val expr = PEquals(
-      PIn(PIntLit(2), PLiteral.multiset(PIntType(), Vector(PIntLit(2)))),
-      PIn(PIntLit(3), PLiteral.multiset(PIntType(), Vector(PIntLit(4))))
+      PElem(PIntLit(2), PLiteral.multiset(PIntType(), Vector(PIntLit(2)))),
+      PElem(PIntLit(3), PLiteral.multiset(PIntType(), Vector(PIntLit(4))))
     )
 
     assert (frontend.wellDefExpr(expr)().valid)
@@ -1337,8 +1337,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("TypeChecker: should be able to correctly type a comparison of multiset inclusions") {
     val expr = PEquals(
-      PIn(PIntLit(2), PLiteral.multiset(PIntType(), Vector(PIntLit(2)))),
-      PIn(PIntLit(3), PLiteral.multiset(PIntType(), Vector(PIntLit(4))))
+      PElem(PIntLit(2), PLiteral.multiset(PIntType(), Vector(PIntLit(2)))),
+      PElem(PIntLit(3), PLiteral.multiset(PIntType(), Vector(PIntLit(4))))
     )
 
     frontend.exprType(expr)() should matchPattern {
@@ -1805,17 +1805,17 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should mark the multiset inclusion operator as ghost") {
-    val expr = PIn(PIntLit(42), PLiteral.multiset(PIntType(), Vector()))
+    val expr = PElem(PIntLit(42), PLiteral.multiset(PIntType(), Vector()))
     assert (frontend.isGhostExpr(expr)())
   }
 
   test("TypeChecker: should let a simple use of the multiset inclusion operator be well-defined") {
-    val expr = PIn(PIntLit(42), PLiteral.multiset(PIntType(), Vector()))
+    val expr = PElem(PIntLit(42), PLiteral.multiset(PIntType(), Vector()))
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should not let a multiset inclusion operator be well-defined if the types do not match") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(42),
       PLiteral.multiset(PBoolType(), Vector())
     )
@@ -1824,7 +1824,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not type check a multiset inclusion operator if there is a typing error in the left operand") {
-    val expr = PIn(
+    val expr = PElem(
       PLiteral.set(PBoolType(), Vector(PIntLit(42))),
       PLiteral.multiset(PSetType(PBoolType()), Vector())
     )
@@ -1833,7 +1833,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not type check a multiset inclusion operator if there is a typing error in the right operand") {
-    val expr = PIn(
+    val expr = PElem(
       PLiteral.set(PBoolType(), Vector(PBoolLit(false))),
       PLiteral.multiset(PSetType(PBoolType()), Vector(PIntLit(42)))
     )
@@ -1842,7 +1842,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should let the type of a multiset inclusion operator be Boolean (instead of integer)") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(42),
       PLiteral.multiset(PIntType(), Vector())
     )
@@ -1853,8 +1853,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a small chain of multiset inclusions") {
-    val expr = PIn(
-      PIn(
+    val expr = PElem(
+      PElem(
         PIntLit(42),
         PLiteral.multiset(PIntType(), Vector())
       ),
@@ -3364,7 +3364,6 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   class TestFrontend {
     def stubProgram(inArgs: Vector[(PParameter, Boolean)], body : PStatement) : PProgram = PProgram(
       PPackageClause(PPkgDef("pkg")),
-      Vector(),
       Vector(),
       Vector(),
       Vector(),

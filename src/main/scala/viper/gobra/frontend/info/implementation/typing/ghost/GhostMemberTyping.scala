@@ -52,9 +52,20 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
+        pureMembersCannotHavePreserves(member.spec) ++
         nonVariadicArguments(member.args) ++
         error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
+  }
+
+  // Preserves clauses are unnecessary in pure functions. Any condition that holds on entry is guaranteed to
+  // hold on exit, thus it is redundant to make properties both pre- and postconditions.
+  private[typing] def pureMembersCannotHavePreserves(member: PFunctionSpec): Messages = {
+    assert(member.isPure)
+    member.preserves flatMap { c =>
+      error(c, "Pure functions and pure methods cannot have preserves clauses." +
+        "Considering replacing this preserves clause with a precondition.")
+    }
   }
 
   private[typing] def wellDefIfPureMethodImplementationProof(implProof: PMethodImplementationProof): Messages = {
@@ -68,6 +79,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
+        pureMembersCannotHavePreserves(member.spec) ++
         nonVariadicArguments(member.args) ++
         error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages

@@ -35,7 +35,7 @@ object Desugar extends LazyLogging {
 
   // We currently desugar packages sequentially. We may make it parallel again in the future (if that is beneficial),
   // but care must be taken to guarantee that updates to the init specs collector are synchronized.
-  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(implicit executionContext: GobraExecutionContext): in.Program = {
+  def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(@unused executionContext: GobraExecutionContext): in.Program = {
     val pkg = info.tree.root
     val packageInitCollector = new PackageInitSpecCollector
 
@@ -3875,9 +3875,10 @@ object Desugar extends LazyLogging {
         res
 
       case t: Type.AdtClauseT =>
-        val adtName = nm.adt(t.declaredType)
-        val definedName = nm.declaredType(t.declaredType)
-        val adt: in.AdtT = in.AdtT(adtName, definedName, addrMod)
+        // calling `typeD` on the surrounding ADT declaration makes sure that the ADT
+        // is correctly registered as such and, thus, ends up in the resulting internal
+        // program.
+        val adt: in.AdtT = typeD(t.context.symbType(t.adtDecl), addrMod)(src).asInstanceOf[in.AdtT]
         val fields: Vector[in.Field] = t.fields.map{ case (key: String, typ: Type) =>
           in.Field(nm.adtField(key, t.typeDecl), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }
@@ -4424,7 +4425,10 @@ object Desugar extends LazyLogging {
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
 
-        case PIn(left, right) => for {
+        case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
+        case PLowContext() => unit(in.LowContext()(src))
+
+        case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
         } yield underlyingType(dright.typ) match {

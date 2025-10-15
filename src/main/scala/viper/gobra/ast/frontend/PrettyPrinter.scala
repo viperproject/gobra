@@ -63,8 +63,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    // initPosts not shown, they are deprecated and will soon be removed
-    case PProgram(packageClause, pkgInvs, _, imports, friends, declarations) =>
+    case PProgram(packageClause, pkgInvs, imports, friends, declarations) =>
       showPreamble(packageClause, pkgInvs, imports, friends) <>
         ssep(declarations map showMember, line <> line) <> line
   }
@@ -72,8 +71,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // preamble
 
   def showPreamble(p: PPreamble): Doc = p match {
-    // initPosts not shown, they are deprecated and will soon be removed
-    case PPreamble(packageClause, pkgInvs, _, imports, friends, _) =>
+    case PPreamble(packageClause, pkgInvs, imports, friends, _) =>
       showPreamble(packageClause, pkgInvs, imports, friends)
   }
 
@@ -557,6 +555,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PTypeExpr(typ) => "type" <> brackets(showType(typ))
       case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
 
+      case PLow(exp) => "low" <> parens(showExpr(exp))
+      case _: PLowContext => "low_context"
+
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))
       case POptionGet(e) => "get" <> parens(showExpr(e))
@@ -565,7 +566,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         ssep(clauses map { c => showMatchExpClause(c) <+> showExpr(c.exp) }, line))
 
       case expr : PGhostCollectionExp => expr match {
-        case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
+        case PElem(left, right) => showSubExpr(expr, left) <+> "elem" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
         case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
           (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showGhostColUpdateClause)))

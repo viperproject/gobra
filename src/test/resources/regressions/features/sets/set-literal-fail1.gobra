@@ -5,9 +5,9 @@ package pkg
 
 func foo() {
   s := set[int] { }
-  // fails: `s` is ghost so is the result of `in`
+  // fails: `s` is ghost so is the result of `elem`
   //:: ExpectedOutput(type_error)
-  test(5 in s)
+  test(5 elem s)
 }
 
 func test(b bool) {

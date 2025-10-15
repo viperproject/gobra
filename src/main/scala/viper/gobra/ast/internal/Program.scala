@@ -678,7 +678,15 @@ case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) e
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
+/* ** Information Flow  */
 
+case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class LowContext()(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
 
 /* ** Higher-order predicate expressions */
 
@@ -758,6 +766,7 @@ case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val i
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
+    case _: StringT => IntT(Addressability.Exclusive, TypeBounds.Byte)
     case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }
@@ -874,12 +883,12 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents a membership expression "`left` in `right`".
+  * Represents a membership expression "`left` elem `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
   * with the one of `left`.
   */
-case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("elem") {
   override val typ : Type = BoolT(Addressability.rValue)
 }
 

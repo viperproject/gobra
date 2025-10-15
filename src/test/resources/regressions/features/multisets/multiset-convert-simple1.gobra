@@ -21,7 +21,7 @@ func example3() {
 }
 
 func example4(ghost x int, ghost m mset[int]) {
-  assert x in mset(m) == x in m
+  assert x elem mset(m) == x elem m
 }
 
 ensures mset(mset(m)) == m

@@ -1415,9 +1415,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     */
   override def visitSlice_(ctx: Slice_Context): (Option[PExpression], Option[PExpression], Option[PExpression]) = {
-    val low = if (ctx.low() != null) Some(visitNode[PExpression](ctx.low().expression())).pos() else None
-    val high = if (ctx.high() != null) Some(visitNode[PExpression](ctx.high().expression())).pos() else None
-    val cap = if (ctx.cap() != null) Some(visitNode[PExpression](ctx.cap().expression())).pos() else None
+    val low = if (ctx.lowSliceArgument() != null) Some(visitNode[PExpression](ctx.lowSliceArgument().expression())).pos() else None
+    val high = if (ctx.highSliceArgument() != null) Some(visitNode[PExpression](ctx.highSliceArgument().expression())).pos() else None
+    val cap = if (ctx.capSliceArgument() != null) Some(visitNode[PExpression](ctx.capSliceArgument().expression())).pos() else None
     (low, high, cap)
   }
 
@@ -1478,6 +1478,20 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitIsComparable(ctx: IsComparableContext): AnyRef = super.visitIsComparable(ctx) match {
     case Vector("isComparable", "(", e : PExpression, ")") => PIsComparable(e)
+  }
+
+  /**
+    * Visits the rule
+    * typeOf: LOW L_PAREN expression R_PAREN;
+    */
+  override def visitLow(ctx: LowContext): AnyRef = super.visitLow(ctx) match {
+    case Vector("low", "(", expr: PExpression, ")") => PLow(expr)
+  }
+
+  /**
+    */
+  override def visitLowc(ctx: LowcContext): AnyRef = super.visitLowc(ctx) match {
+    case Vector("lowContext",  "(", ")") => PLowContext()
   }
 
 
@@ -2288,29 +2302,20 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitSourceFile(ctx: GobraParser.SourceFileContext): PProgram = {
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
-    val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
     val pkgInvs: Vector[PPkgInvariant] = visitListNode[PPkgInvariant](ctx.pkgInvariant())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
     val friendPkgs: Vector[PFriendPkgDecl] = visitListNode[PFriendPkgDecl](ctx.friendPkgDecl())
     val members = ctx.member().asScala.toVector.flatMap(visitMember)
-    PProgram(packageClause, pkgInvs, initPosts, importDecls, friendPkgs, members).at(ctx)
+    PProgram(packageClause, pkgInvs, importDecls, friendPkgs, members).at(ctx)
   }
 
   override def visitPreamble(ctx: GobraParser.PreambleContext): PPreamble = {
     val packageClause: PPackageClause = visitNode(ctx.packageClause())
-    val initPosts: Vector[PExpression] = visitListNode[PExpression](ctx.initPost())
     val pkgInvs: Vector[PPkgInvariant] = visitListNode[PPkgInvariant](ctx.pkgInvariant())
     val importDecls = ctx.importDecl().asScala.toVector.flatMap(visitImportDecl)
     val friendPkgs: Vector[PFriendPkgDecl] = visitListNode[PFriendPkgDecl](ctx.friendPkgDecl())
-    PPreamble(packageClause, pkgInvs, initPosts, importDecls, friendPkgs, pom).at(ctx)
+    PPreamble(packageClause, pkgInvs, importDecls, friendPkgs, pom).at(ctx)
   }
-
-  /**
-    * Visists an init postcondition
-    * @param ctx the parse tree
-    * @return the positioned PPackageclause
-    */
-  override def visitInitPost(ctx: InitPostContext): PExpression = visitNode[PExpression](ctx.expression())
 
   /**
    * Visits a pkgInvariant

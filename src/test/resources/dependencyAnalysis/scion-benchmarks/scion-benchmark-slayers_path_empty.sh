@@ -3,25 +3,24 @@
 BASE_FLAGS=
 ANALYSIS_FLAGS="--enableAssumptionAnalysis --disableInfeasibilityChecks"
 ANALYSIS_WITH_INFEAS_FLAGS="--enableAssumptionAnalysis"
-PATH_TO_VERIFIED_SCION=[YOUR_PATH_TO_VERIFIED_SCION]
+PATH_TO_VERIFIED_SCION="C:\Users\Andrea\Documents\ETH\FS25\MasterThesis\VerifiedSCION"
 
-RESULT_FILE=scion_benchmark_$(date '+%Y_%m_%d_%H_%M_%S').csv
+RESULT_FILE=scion_benchmark_slayers_path_empty_$(date '+%Y_%m_%d_%H_%M_%S').csv
 touch $RESULT_FILE
 echo "test name,runtimes [s]" > $RESULT_FILE
 
 function run(){
   ARGS="-Xss1g -Xmx4g 
   -jar $PATH_TO_VERIFIED_SCION/gobra/gobra.jar 
-  -p $PATH_TO_VERIFIED_SCION/pkg/addr 
+  -p $PATH_TO_VERIFIED_SCION/pkg/slayers/path/empty
   --norespectFunctionPrePermAmounts 
   --backend SILICON 
   --chop 1 
   -I $PATH_TO_VERIFIED_SCION $PATH_TO_VERIFIED_SCION/verification/dependencies 
-  --onlyFilesWithHeader 
-  -m github.com/scionproto/scion 
-  --assumeInjectivityOnInhale --checkConsistency 
-  --mceMode=od --experimentalFriendClauses 
-  --moreJoins off 
+  --onlyFilesWithHeader -m github.com/scionproto/scion
+  --assumeInjectivityOnInhale --checkConsistency
+  --mceMode=od --experimentalFriendClauses
+  --moreJoins off
   -g /tmp/
   $2
   $3

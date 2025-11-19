@@ -20,9 +20,10 @@ def plot_result_with_err(ax, result_file, x, width):
   values = []
   stdDevs = []
   for name in test_results.keys():
-    values.append(np.sum(test_results[name]))
+    values.append(np.mean(test_results[name]))
     stdDevs.append(np.std(test_results[name]))
-
+    
+  print(values)
   ax.bar(x, values, width, yerr=stdDevs, label=get_pretty_name(result_file))
 
 

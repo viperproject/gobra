@@ -80,8 +80,8 @@ object ConfigDefaults {
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
   val DefaultDisableInfeasibilityChecks: Boolean = false
-  val DefaultEnableAssumptionAnalysis: Boolean = false
-  val DefaultStartAssumptionAnalysisTool: Boolean = false
+  val DefaultEnableDependencyAnalysis: Boolean = false
+  val DefaultStartDependencyAnalysisTool: Boolean = false
 }
 
 // More-complete exhale modes
@@ -180,8 +180,8 @@ case class Config(
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                    disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
-                   enableAssumptionAnalysis: Boolean = ConfigDefaults.DefaultEnableAssumptionAnalysis,
-                   startAssumptionAnalysisTool: Boolean = ConfigDefaults.DefaultStartAssumptionAnalysisTool
+                   enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
+                   startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool
 ) {
 
   def merge(other: Config): Config = {
@@ -243,8 +243,8 @@ case class Config(
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
       disableInfeasibilityChecks = disableInfeasibilityChecks || other.disableInfeasibilityChecks,
-      enableAssumptionAnalysis = enableAssumptionAnalysis || other.enableAssumptionAnalysis,
-      startAssumptionAnalysisTool = startAssumptionAnalysisTool || other.startAssumptionAnalysisTool,
+      enableDependencyAnalysis = enableDependencyAnalysis || other.enableDependencyAnalysis,
+      startDependencyAnalysisTool = startDependencyAnalysisTool || other.startDependencyAnalysisTool,
     )
   }
 
@@ -307,8 +307,8 @@ case class BaseConfig(gobraDirectory: Path = ConfigDefaults.DefaultGobraDirector
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                       disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
-                      enableAssumptionAnalysis: Boolean = ConfigDefaults.DefaultEnableAssumptionAnalysis,
-                      startAssumptionAnalysisTool: Boolean = ConfigDefaults.DefaultStartAssumptionAnalysisTool,
+                      enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
+                      startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -373,8 +373,8 @@ trait RawConfig {
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
     disableInfeasibilityChecks = baseConfig.disableInfeasibilityChecks,
-    enableAssumptionAnalysis = baseConfig.enableAssumptionAnalysis,
-    startAssumptionAnalysisTool = baseConfig.startAssumptionAnalysisTool,
+    enableDependencyAnalysis = baseConfig.enableDependencyAnalysis,
+    startDependencyAnalysisTool = baseConfig.startDependencyAnalysisTool,
   )
 }
 
@@ -891,17 +891,17 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val enableAssumptionAnalysis: ScallopOption[Boolean] = opt[Boolean](
-    name = "enableAssumptionAnalysis",
-    descr = "Enable assumption analysis mode",
-    default = Some(ConfigDefaults.DefaultEnableAssumptionAnalysis),
+  val enableDependencyAnalysis: ScallopOption[Boolean] = opt[Boolean](
+    name = "enableDependencyAnalysis",
+    descr = "Enable dependency analysis mode",
+    default = Some(ConfigDefaults.DefaultEnableDependencyAnalysis),
     noshort = true
   )
 
-  val startAssumptionAnalysisTool: ScallopOption[Boolean] = opt[Boolean](
-    name = "startAssumptionAnalysisTool",
-    descr = "Starts the assumption analysis command line tool after verification",
-    default = Some(ConfigDefaults.DefaultStartAssumptionAnalysisTool),
+  val startDependencyAnalysisTool: ScallopOption[Boolean] = opt[Boolean](
+    name = "startDependencyAnalysisTool",
+    descr = "Starts the dependency analysis command line tool after verification",
+    default = Some(ConfigDefaults.DefaultStartDependencyAnalysisTool),
     noshort = true
   )
 
@@ -1117,7 +1117,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
     disableInfeasibilityChecks = disableInfeasibilityChecks(),
-    enableAssumptionAnalysis = enableAssumptionAnalysis(),
-    startAssumptionAnalysisTool = startAssumptionAnalysisTool(),
+    enableDependencyAnalysis = enableDependencyAnalysis(),
+    startDependencyAnalysisTool = startDependencyAnalysisTool(),
   )
 }

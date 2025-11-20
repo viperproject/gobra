@@ -7,13 +7,13 @@ import viper.gobra.util.Violation
 
 import java.nio.file.Path
 
-class AssumptionAnalysisBenchmarkTest extends OverallBenchmarkTests {
+class DependencyAnalysisBenchmarkTest extends OverallBenchmarkTests {
   val configOptionsPropertyName = "GOBRATESTS_FLAGS"
 
   // reuse the same frontend for all test files
-  override val gobraFrontend: GobraFrontendForTesting = new AssumptionAnalysisGobraFrontend()
+  override val gobraFrontend: GobraFrontendForTesting = new DependencyAnalysisGobraFrontend()
 
-  class AssumptionAnalysisGobraFrontend extends OverallGobraFrontend {
+  class DependencyAnalysisGobraFrontend extends OverallGobraFrontend {
     override def reset(files: Seq[Path]): Unit =
       {
         val configFlags = System.getProperty(configOptionsPropertyName, "").split(",").filter(_.nonEmpty).toSeq

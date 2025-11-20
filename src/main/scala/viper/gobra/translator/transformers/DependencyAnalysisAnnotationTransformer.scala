@@ -8,15 +8,15 @@ import viper.silver.ast.{AbstractSourcePosition, AnnotationInfo, MakeInfoPair, N
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 
-class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
+class DependencyAnalysisAnnotationTransformer extends ViperTransformer {
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    val programWithAnalysisAnnotation = addAssumptionAnalysisAnnotation(task.program)
+    val programWithAnalysisAnnotation = addDependencyAnalysisAnnotation(task.program)
     Right(task.copy(program = programWithAnalysisAnnotation))
   }
 
-  // existing assumption analysis annotations are preserved
-  private def addAssumptionAnalysisAnnotation(p: vpr.Program): vpr.Program = {
+  // existing dependency analysis annotations are preserved
+  private def addDependencyAnalysisAnnotation(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
       case aInput @ (_: vpr.Inhale | _: vpr.Assume) =>
         val a = aInput.asInstanceOf[vpr.Stmt]
@@ -34,8 +34,8 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
           case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
             | _: gobra.PDomainType | _: gobra.PPredType
               => NoInfo
-          case _ => disableAssumptionAnalysis
-        }, disableAssumptionAnalysis)
+          case _ => disableDependencyAnalysis
+        }, disableDependencyAnalysis)
         d.withMeta((d.pos, newInfo, d.errT))
 
       case meth: vpr.Method =>
@@ -43,8 +43,8 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
           case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
                | _: gobra.PDomainType | _: gobra.PPredType
           => NoInfo
-          case _ => disableAssumptionAnalysis
-        }, disableAssumptionAnalysis)
+          case _ => disableDependencyAnalysis
+        }, disableDependencyAnalysis)
         vpr.Method(meth.name, meth.formalArgs, meth.formalReturns, getNewExps(meth.pres), meth.posts, meth.body)(meth.pos, newInfo, meth.errT)
 
 
@@ -123,7 +123,7 @@ class AssumptionAnalysisAnnotationTransformer extends ViperTransformer {
     AnnotationInfo(Map(("assumptionType", List("Implicit"))))
   }
 
-  private def disableAssumptionAnalysis: AnnotationInfo = {
-    AnnotationInfo(Map(("enableAssumptionAnalysis", List("false"))))
+  private def disableDependencyAnalysis: AnnotationInfo = {
+    AnnotationInfo(Map(("enableDependencyAnalysis", List("false"))))
   }
 }

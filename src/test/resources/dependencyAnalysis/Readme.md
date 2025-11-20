@@ -1,8 +1,8 @@
 # Dependency Analysis Benchmarks
 
 Benchmark programs are provided in `benchmark_programs`.
-To verify them with dependency analysis enabled, use configuration `--disablePureFunctsTerminationRequirement --enableAssumptionAnalysis --disableInfeasibilityChecks`.
-The command-line tool needs to be enabled separately using `--startAssumptionAnalysisTool`.
+To verify them with dependency analysis enabled, use configuration `--disablePureFunctsTerminationRequirement --enableDependencyAnalysis --disableInfeasibilityChecks`.
+The command-line tool needs to be enabled separately using `--startDependencyAnalysisTool`.
 
 ## Precision Benchmark
 
@@ -12,8 +12,8 @@ The reported dependencies have been extracted using dependency query (`dep`) in 
 
 ## Performance Benchmark
 
-Impact on verification time has been measured using the benchmark script `assumptionAnalysisBenchmark.sh`.
-Execute it using `sh src/test/scala/viper/gobra/assumptionAnalysisBenchmark.sh`.
+Impact on verification time has been measured using the benchmark script `dependencyAnalysisBenchmark.sh`.
+Execute it using `sh src/test/scala/viper/gobra/dependencyAnalysisBenchmark.sh`.
 The results are written to CSV files in the folder `performance_benchmark`.
 
 The benchmark scripts for the VerifiedSCION performance benchmark are provided in `scion-benchmarks`.

@@ -63,12 +63,12 @@ object ViperBackends {
       if (config.disableInfeasibilityChecks) {
         options ++= Vector("--disableInfeasibilityChecks")
       }
-      if (config.enableAssumptionAnalysis) {
-        options ++= Vector("--enableAssumptionAnalysis")
+      if (config.enableDependencyAnalysis) {
+        options ++= Vector("--enableDependencyAnalysis")
         options ++= Vector("--proverArgs", "proof=true unsat-core=true")
       }
-      if (config.startAssumptionAnalysisTool) {
-        options ++= Vector("--startAssumptionAnalysisTool")
+      if (config.startDependencyAnalysisTool) {
+        options ++= Vector("--startDependencyAnalysisTool")
       }
       options ++= exePaths
       if (config.disableSetAxiomatization) {

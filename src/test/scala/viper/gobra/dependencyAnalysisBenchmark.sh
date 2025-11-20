@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# execute `sh .\src\test\scala\viper\gobra\assumptionAnalysisBenchmark.sh`
+# execute `sh .\src\test\scala\viper\gobra\dependencyAnalysisBenchmark.sh`
 # make sure no other sbt server is running
 
-TARGET=src/test/resources/andrea/performance_benchmark 
-WARMUP=src/test/resources/andrea/warm-up
+TARGET=src/test/resources/dependencyAnalysis/performance_benchmark
+WARMUP=src/test/resources/dependencyAnalysis/warm-up
 REPS=12
-CSV_BASE=src/test/resources/andrea/performance_benchmark/data
+CSV_BASE=src/test/resources/dependencyAnalysis/performance_benchmark/data
 TIMEOUT=900
 
 BASE_FLAGS="--disablePureFunctsTerminationRequirement"
-ANALYSIS_FLAGS="--disablePureFunctsTerminationRequirement,--enableAssumptionAnalysis,--disableInfeasibilityChecks"
-ANALYSIS_WITH_INFEAS_FLAGS="--disablePureFunctsTerminationRequirement,--enableAssumptionAnalysis"
+ANALYSIS_FLAGS="--disablePureFunctsTerminationRequirement,--enableDependencyAnalysis,--disableInfeasibilityChecks"
+ANALYSIS_WITH_INFEAS_FLAGS="--disablePureFunctsTerminationRequirement,--enableDependencyAnalysis"
 
 function run(){
   SBT_ARGS="
@@ -24,7 +24,7 @@ function run(){
     -DGOBRATESTS_FLAGS="$1" 
     org.scalatest.tools.Runner 
     -o -s 
-    viper.gobra.AssumptionAnalysisBenchmarkTest
+    viper.gobra.DependencyAnalysisBenchmarkTest
   "
   echo "Executing $2\n$SBT_ARGS"
   sbt "$SBT_ARGS"

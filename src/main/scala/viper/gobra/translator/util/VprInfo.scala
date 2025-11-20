@@ -25,8 +25,8 @@ object VprInfo {
     }
   }
 
-  def attachDisableAssumptionAnalysis(info: vpr.Info): vpr.Info = {
-    attachBackendAnnotation(info, "enableAssumptionAnalysis", "false")
+  def attachDisableDependencyAnalysis(info: vpr.Info): vpr.Info = {
+    attachBackendAnnotation(info, "enableDependencyAnalysis", "false")
   }
 
   def attachAssumptionTypeInternal(info: vpr.Info): vpr.Info = {

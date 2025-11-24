@@ -43,7 +43,7 @@ def plot_absolute(result_files: list[str]):
 
   # finish plot
   ax.set_ylabel("Runtime [s]")
-  ax.set_title("Verification Runtime for the VerifiedSCION addr package")
+#   ax.set_title("Verification Runtime")
   ax.set_xticks(x)
   ax.set_xticklabels(names, rotation=90)
   # ax.legend()

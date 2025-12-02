@@ -26,7 +26,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         wellDefIfPureFunction(n) ++
         wellDefIfInitBlock(n) ++
         wellDefIfMain(n) ++
-        wellFoundedIfNeeded(n)
+        wellFoundedIfNeeded(n) ++
+        wellDefIfClosureSpec(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++

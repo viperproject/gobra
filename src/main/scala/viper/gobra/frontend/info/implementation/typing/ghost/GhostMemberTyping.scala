@@ -85,6 +85,12 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
+  private[typing] def wellDefIfClosureSpec(member: PFunctionDecl): Messages = {
+    if (member.isClosureSpec) {
+        error(member.id, "Closure specifications must have empty bodies.", member.body.nonEmpty)
+    } else noMessages
+  }
+
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {
     error(member, "For now, pure methods and pure functions must have exactly one result argument", member.result.outs.size != 1)
   }

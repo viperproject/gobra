@@ -26,13 +26,14 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
         )
       )
 
-    case PFunctionDecl(id, args, res, _, body) =>
+    case PFunctionDecl(id, args, res, _, isClosureSpec, body) =>
       super.showMember(
         PFunctionDecl(
           id,
           filterParamList(args),
           filterResult(res),
           PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          isClosureSpec,
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )

@@ -125,8 +125,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, body) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+      case PFunctionDecl(id, args, res, spec, isClosureSpec, body) =>
+        val kw = if (isClosureSpec) "closureSpec" else "func"
+        showSpec(spec) <> kw <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
           opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
@@ -786,8 +787,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, _) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+      case PFunctionDecl(id, args, res, spec, isClosureSpec, _) =>
+        val kw = if (isClosureSpec) "closureSpec" else "func"
+        showSpec(spec) <> kw <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case PMethodDecl(id, rec, args, res, spec, _) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case ip: PImplementationProof =>

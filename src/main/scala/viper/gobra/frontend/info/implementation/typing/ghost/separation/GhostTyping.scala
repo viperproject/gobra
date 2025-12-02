@@ -22,6 +22,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     attr[PMember, Boolean] {
       case _: PGhostMember => true
       case m if isEnclosingGhost(m) => true
+      case m: PFunctionDecl if m.isClosureSpec => true
       case _ => false
     }
 

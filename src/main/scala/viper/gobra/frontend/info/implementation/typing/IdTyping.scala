@@ -96,7 +96,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       })
 
-    case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
+    case Function(PFunctionDecl(_, args, r, _, _, _), _, _) => unsafeMessage(! {
       args.forall(wellDefMisc.valid) && miscType.valid(r)
     })
 
@@ -212,7 +212,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case t => violation(s"expected tuple but got $t")
       })
 
-    case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
+    case Function(PFunctionDecl(_, args, r, _, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
     case Closure(PFunctionLit(_, PClosureDecl(args, r, _, _)), _, context) =>

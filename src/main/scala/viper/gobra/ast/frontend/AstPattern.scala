@@ -57,7 +57,7 @@ object AstPattern {
     def isPure: Boolean
   }
 
-  case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind {
+  case class Function(id: PIdnUse, symb: st.Function, isClosureSpec: Boolean) extends FunctionKind {
     override val isPure: Boolean = symb.isPure
   }
   case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind {

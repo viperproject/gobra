@@ -182,6 +182,7 @@ case class PFunctionDecl(
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
+                          isClosureSpec: Boolean,
                           body: Option[(PBodyParameterInfo, PBlock)]
                         ) extends PFunctionOrClosureDecl with PFunctionOrMethodDecl with PCodeRootWithResult with PWithBody with PGhostifiableMember
 

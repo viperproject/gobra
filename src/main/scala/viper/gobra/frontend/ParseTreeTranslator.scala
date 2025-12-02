@@ -861,7 +861,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitSpecMember(ctx: SpecMemberContext): PFunctionOrMethodDecl = super.visitSpecMember(ctx) match {
     case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
-      => PFunctionDecl(id, args, result, spec, body)
+      => PFunctionDecl(id, args, result, spec, ctx.isClosureSpec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
   }

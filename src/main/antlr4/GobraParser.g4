@@ -252,9 +252,9 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
+specMember returns [boolean isClosureSpec = false;]: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] {$isClosureSpec = $functionDecl.isClosureSpec;} | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
 
-functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+functionDecl[boolean trusted, boolean pure, boolean opaque] returns [boolean isClosureSpec = false;]:  (FUNC | CLOSURESPEC {$isClosureSpec = true;}) IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 

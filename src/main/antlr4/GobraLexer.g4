@@ -96,6 +96,7 @@ IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
 GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
+CLOSURESPEC : 'closureSpec';
 WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
 MAYINIT     : 'mayInit' -> mode(NLSEMI);

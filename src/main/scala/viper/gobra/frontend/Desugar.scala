@@ -2986,6 +2986,7 @@ object Desugar extends LazyLogging {
 
       lit match {
         case PIntLit(v, base)  => single(in.IntLit(v, base = base))
+        case f: PFloatLit => single(in.FloatLit(f.lit))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.ActualPointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool

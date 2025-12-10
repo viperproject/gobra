@@ -1136,6 +1136,10 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 
+case class FloatLit(v: BigDecimal)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = UntypedFloatT(Addressability.literal)
+}
+
 case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit with Permission {
   require(divisor != 0)
   override def typ: Type = PermissionT(Addressability.literal)
@@ -1351,12 +1355,20 @@ case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInt
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
-case class Float32T(addressability: Addressability) extends PrettyType("float32") {
+trait FloatT extends PrettyType
+
+/** type for floating point numbers with unbounded precision */
+case class UntypedFloatT(addressability: Addressability) extends PrettyType("untyped float") with FloatT {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[UntypedFloatT]
+  override def withAddressability(newAddressability: Addressability): UntypedFloatT = UntypedFloatT(newAddressability)
+}
+
+case class Float32T(addressability: Addressability) extends PrettyType("float32") with FloatT {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float32T]
   override def withAddressability(newAddressability: Addressability): Float32T = Float32T(newAddressability)
 }
 
-case class Float64T(addressability: Addressability) extends PrettyType("float64") {
+case class Float64T(addressability: Addressability) extends PrettyType("float64") with FloatT {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float64T]
   override def withAddressability(newAddressability: Addressability): Float64T = Float64T(newAddressability)
 }

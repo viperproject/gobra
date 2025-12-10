@@ -65,6 +65,11 @@ object TypePatterns {
         underlyingType(arg)(ctx).isInstanceOf[in.StringT]
     }
 
+    object UnboundedFloat {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx).isInstanceOf[in.UntypedFloatT]
+    }
+
     object Float32 {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.Float32T]

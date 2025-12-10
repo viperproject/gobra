@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Message
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, GlobalVariable, SingleConstant}
-import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.Type.{StringT, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
@@ -222,7 +222,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PIota =>
       error(n, s"cannot use iota outside of constant declaration", enclosingPConstDecl(n).isEmpty)
 
-    case _: PFloatLit => ???
+    case _: PFloatLit => noMessages
 
     case n@PCompositeLit(t, lit) =>
       val mayInit = isEnclosingMayInit(n)
@@ -480,19 +480,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT, mayInit)(n.left) ++
             assignableTo.errors(r, AssertionT, mayInit)(n.right)
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
-            case (StringT, StringT) => noMessages
-            case (Float32T, Float32T) => noMessages
-            case (Float64T, Float64T) => noMessages
-            case _ if l == PermissionT || r == PermissionT =>
-              assignableTo.errors(l, PermissionT, mayInit)(n.left) ++
-                assignableTo.errors(r, PermissionT, mayInit)(n.right)
-            case _ =>
-              assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
-                assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
-          }
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+            val mergeable = mergeableTypes.errors(l, r)(n)
+            val assignable = if (mergeable.isEmpty) {
+              typeMerge(l, r) match {
+                case Some(mergedType) if mergedType == StringT || mergedType == PermissionT || mergedType.isInstanceOf[FloatT] || mergedType.isInstanceOf[IntT] =>
+                  assignableTo.errors(l, mergedType, mayInit)(n.left) ++
+                    assignableTo.errors(r, mergedType, mayInit)(n.right)
+                case _ => error(n, s"could not determine the type to which $l and $r can be merged for comparison")
+              }
+            } else noMessages
+            mergeable ++ assignable
           case (_: PAdd, StringT, StringT) => noMessages
-          case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(Float32T, Float64T)).nonEmpty =>
+          case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(UnboundedFloatT, Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
@@ -680,7 +680,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def numExprWithinTypeBounds(num: PNumExpression): Messages =
-    intExprWithinTypeBounds(num, intExprType(num))
+    intExprWithinTypeBounds(num, numExprType(num))
 
   private def intExprWithinTypeBounds(exp: PExpression, typ: Type): Messages = {
     if (typ == UNTYPED_INT_CONST) {
@@ -711,6 +711,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolLit => BooleanT
     case _: PNilLit => NilType
     case _: PStringLit => StringT
+    case _: PFloatLit => UnboundedFloatT
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
@@ -797,7 +798,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PCapacity => INT_TYPE
 
     case exprNum: PNumExpression =>
-      val typ = intExprType(exprNum)
+      val typ = numExprType(exprNum)
       if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
@@ -1058,9 +1059,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("blank identifier always has a parent")
   }
 
-  private def intExprType(expr: PNumExpression): Type = {
+  private def numExprType(expr: PNumExpression): Type = {
     val typ = expr match {
       case _: PIntLit => UNTYPED_INT_CONST
+
+      case _: PFloatLit => UnboundedFloatT
 
       case e: PLength => typeOfPLength(e)
 

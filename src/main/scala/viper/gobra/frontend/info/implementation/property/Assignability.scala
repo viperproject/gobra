@@ -110,6 +110,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => successProp
       // not part of Go spec, but necessary for the definition of comparability
       case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => successProp
+      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[FloatT] => successProp
+      case (UnboundedFloatT, r) if underlyingType(r).isInstanceOf[FloatT] => successProp
       case (l, r) if identicalTypes(l, r) => successProp
       // the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type

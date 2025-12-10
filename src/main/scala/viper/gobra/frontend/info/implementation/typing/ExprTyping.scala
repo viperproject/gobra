@@ -222,7 +222,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PIota =>
       error(n, s"cannot use iota outside of constant declaration", enclosingPConstDecl(n).isEmpty)
 
-    case _: PFloatLit => noMessages
+    case n: PFloatLit => error(n, s"floating point literals are not yet supported.")
 
     case n@PCompositeLit(t, lit) =>
       val mayInit = isEnclosingMayInit(n)

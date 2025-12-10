@@ -3,9 +3,10 @@
 
 package issue783_1
 
+//:: ExpectedOutput(type_error)
 requires x > 0.0
+//:: ExpectedOutput(type_error)
 ensures  res > 0.0
-//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures  false
 func newton(x float32, y float32) (res float32) {
 	return x/2 + y / 2 / x

@@ -3,8 +3,8 @@
 
 package issue783_3
 
-//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures false
 func floatfn3(f float64) float64 {
+    //:: ExpectedOutput(type_error)
     return 0.0
 }

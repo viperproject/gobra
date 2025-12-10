@@ -4,7 +4,7 @@
 package issue783_2
 
 func main() {
+    //:: ExpectedOutput(type_error)
 	assert 1e2 > 0
-	//:: ExpectedOutput(assert_error:assertion_error)
 	assert false
 }

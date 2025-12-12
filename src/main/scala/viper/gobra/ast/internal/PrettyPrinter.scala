@@ -614,6 +614,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case Hexadecimal => "0x"
       }
       prefix + lit.toString(base.base)
+    case FloatLit(f) => f.toString()
     case StringLit(s) => "\"" <> s <> "\""
     case PermLit(a, b) => "perm" <> parens(a.toString() <> "/" <> b.toString())
     case BoolLit(b) => if (b) "true" else "false"

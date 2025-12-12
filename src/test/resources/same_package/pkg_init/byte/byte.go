@@ -13,9 +13,9 @@ var byteCache /*@@@*/ [256]*Byte
 
 func init() {
 	// @ invariant 0 <= i && i <= 256 && acc(&byteCache)
-	// @ invariant (forall j, k uint16 :: 0 <= j && j < k && k < i  ==>
+	// @ invariant (forall j, k int :: 0 <= j && j < k && k < i  ==>
 	// @ 	byteCache[j] != byteCache[k])
-	// @ invariant (forall j uint16 :: 0 <= j && j < i ==>
+	// @ invariant (forall j int :: 0 <= j && j < i ==>
 	// @ 	acc(byteCache[j]) && byteCache[j].value == byte(j) - 128)
 	// @ decreases 256 - i
 	for i := 0; i < 256; i++ {

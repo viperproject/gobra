@@ -16,6 +16,8 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
 
+import scala.annotation.nowarn
+
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
@@ -479,19 +481,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAnd | _: POr, l, r) =>
             // from the spec: "first operand must be assignable to the type of the second operand, or vice versa"
-            val fstAssignable = assignableTo.errors(exprOrTypeType(n.left), exprOrTypeType(n.right), mayInit)(n)
-            val sndAssignable = assignableTo.errors(exprOrTypeType(n.right), exprOrTypeType(n.left), mayInit)(n)
+            val fstAssignable = assignableTo.errors(l, r, mayInit)(n)
+            val sndAssignable = assignableTo.errors(r, l, mayInit)(n)
             val assignable = if (fstAssignable.isEmpty || sndAssignable.isEmpty) noMessages
               else error(n, s"neither operand is assignable to the type of the other operand")
+            @nowarn("msg=not.*?exhaustive")
             val applicable = if (assignable.isEmpty) {
-              (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
-                case (_: PEquals | _: PUnequals, l, r) =>
+              n match {
+                case _: PEquals | _: PUnequals =>
                   // from the spec: "The equality operators == and != apply to operands of comparable types"
                   comparableTypes.errors(l, r)(n)
-                case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+                case _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
                   // from the spec: "The ordering operators <, <=, >, and >= apply to operands of ordered types"
-                  orderedType.errors(l)(n) ++ orderedType.errors(r)(n)
-                case (_: PAnd | _: POr, l, r) =>
+                  orderedType.errors(l)(n.left) ++ orderedType.errors(r)(n.right)
+                case _: PAnd | _: POr =>
                   // from the spec: "Logical operators apply to boolean values", which we extend from boolean to assertion values:
                   assignableTo.errors(l, AssertionT, mayInit)(n.left) ++
                     assignableTo.errors(r, AssertionT, mayInit)(n.right)

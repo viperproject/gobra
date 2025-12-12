@@ -477,7 +477,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PBinaryExp[_,_] =>
         val mayInit = isEnclosingMayInit(n)
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
-          case (_: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+          case (_: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAnd | _: POr, l, r) =>
             // from the spec: "first operand must be assignable to the type of the second operand, or vice versa"
             val fstAssignable = assignableTo.errors(exprOrTypeType(n.left), exprOrTypeType(n.right), mayInit)(n)
             val sndAssignable = assignableTo.errors(exprOrTypeType(n.right), exprOrTypeType(n.left), mayInit)(n)

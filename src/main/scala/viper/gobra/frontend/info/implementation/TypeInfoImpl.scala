@@ -53,6 +53,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   with Assignability
   with Addressability
   with TypeIdentity
+  with Orderability
   with PointsTo
   with Executability
   with ConstantEvaluation

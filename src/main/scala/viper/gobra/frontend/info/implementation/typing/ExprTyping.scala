@@ -477,20 +477,27 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PBinaryExp[_,_] =>
         val mayInit = isEnclosingMayInit(n)
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
-          case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
-          case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT, mayInit)(n.left) ++
-            assignableTo.errors(r, AssertionT, mayInit)(n.right)
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
-            val mergeable = mergeableTypes.errors(l, r)(n)
-            val assignable = if (mergeable.isEmpty) {
-              typeMerge(l, r) match {
-                case Some(mergedType) if mergedType == StringT || mergedType == PermissionT || mergedType.isInstanceOf[FloatT] || mergedType.isInstanceOf[IntT] =>
-                  assignableTo.errors(l, mergedType, mayInit)(n.left) ++
-                    assignableTo.errors(r, mergedType, mayInit)(n.right)
-                case _ => error(n, s"could not determine the type to which $l and $r can be merged for comparison")
+          case (_: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+            // from the spec: "first operand must be assignable to the type of the second operand, or vice versa"
+            val fstAssignable = assignableTo.errors(exprOrTypeType(n.left), exprOrTypeType(n.right), mayInit)(n)
+            val sndAssignable = assignableTo.errors(exprOrTypeType(n.right), exprOrTypeType(n.left), mayInit)(n)
+            val assignable = if (fstAssignable.isEmpty || sndAssignable.isEmpty) noMessages
+              else error(n, s"neither operand is assignable to the type of the other operand")
+            val applicable = if (assignable.isEmpty) {
+              (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
+                case (_: PEquals | _: PUnequals, l, r) =>
+                  // from the spec: "The equality operators == and != apply to operands of comparable types"
+                  comparableTypes.errors(l, r)(n)
+                case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+                  // from the spec: "The ordering operators <, <=, >, and >= apply to operands of ordered types"
+                  orderedType.errors(l)(n) ++ orderedType.errors(r)(n)
+                case (_: PAnd | _: POr, l, r) =>
+                  // from the spec: "Logical operators apply to boolean values", which we extend from boolean to assertion values:
+                  assignableTo.errors(l, AssertionT, mayInit)(n.left) ++
+                    assignableTo.errors(r, AssertionT, mayInit)(n.right)
               }
             } else noMessages
-            mergeable ++ assignable
+            assignable ++ applicable
           case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(UnboundedFloatT, Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)

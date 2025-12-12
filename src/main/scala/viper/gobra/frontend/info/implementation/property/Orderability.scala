@@ -6,7 +6,6 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.internal.{PermissionT, StringT}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -15,9 +14,9 @@ trait Orderability extends BaseProperty { this: TypeInfoImpl =>
   lazy val orderedType: Property[Type] = createBinaryProperty("ordered") {
     case Single(st) => underlyingType(st) match {
       case _: IntT => true
-      case _: PermissionT => true
+      case PermissionT => true
       case _: FloatT => true
-      case _: StringT => true
+      case StringT => true
       case _ => false
     }
     case _ => false

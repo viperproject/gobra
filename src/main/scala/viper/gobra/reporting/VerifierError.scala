@@ -11,7 +11,8 @@ import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
-import viper.silver.ast.{SourcePosition}
+import viper.silver.ast.SourcePosition
+import viper.silver.dependencyAnalysis.AbstractDependencyGraphInterpreter
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]
@@ -373,6 +374,14 @@ case class MethodTerminationError(info: Source.Verifier.Info) extends Verificati
 case class LoopTerminationError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "loop_termination_error"
   override def localMessage: String = s"The loop ${info.origin.tag.trim} might not terminate"
+}
+
+case class DependencyAnalysisFakeError(dependencyGraphInterpreter: AbstractDependencyGraphInterpreter) extends VerificationError {
+  override def info: Verifier.Info = Verifier.noInfo
+
+  override def localId: String = "dependency_analysis_fake_error"
+
+  override def localMessage: String = "Dependency Analysis Results available (not an error)."
 }
 
 sealed trait VerificationErrorReason {

@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
-import viper.gobra.backend.BackendVerifier
+import viper.gobra.backend.{BackendVerifier, GobraDependencyGraphInterpreter}
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -26,6 +26,8 @@ import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
+import viper.silicon.dependencyAnalysis.{DependencyAnalysisUserTool, DependencyGraphInterpreter}
+import viper.silver.verifier.errors.DependencyAnalysisFakeError
 import viper.silver.{ast => vpr}
 
 import java.time.format.DateTimeFormatter
@@ -140,6 +142,16 @@ trait GoVerifier extends StrictLogging {
     }
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
+
+    if(config.enableDependencyAnalysis){
+      val graphInterpreter = allErrors.filter(_.isInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).map(_.asInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).headOption
+      if(graphInterpreter.nonEmpty){
+        // TODO ake: pass program and errors
+        val userTool = new DependencyAnalysisUserTool(GobraDependencyGraphInterpreter.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter]), Seq.empty, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
+        userTool.run()
+      }
+    }
+
     if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
@@ -163,12 +175,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
     } yield (viperTask, finalConfig)
 
-    task.foldM({
+    val res = task.foldM({
       case Vector() => Future(VerifierResult.Success)
       case errors => Future(VerifierResult.Failure(errors))
     }, {
       case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
     })
+    res
   }
 
   override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {

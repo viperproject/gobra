@@ -84,11 +84,12 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
+    var typeInfo: Option[TypeInfo] = None
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
       logger.info(s"Verifying package $pkgId [${LocalTime.now().format(timeFormatter)}]")
-      val future = verify(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
+      val future = verifyInternal(pkgInfo, config.copy(reporter = statsCollector, taskName = pkgId))(executor)
         .map(result => {
           // report that verification of this package has finished in order that `statsCollector` can free space by getting rid of this package's typeInfo
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
@@ -97,7 +98,9 @@ trait GoVerifier extends StrictLogging {
           warningCount += warnings.size
           warnings.foreach(w => logger.debug(w))
 
-          result match {
+          typeInfo = result._2
+
+          result._1 match {
             case VerifierResult.Success => logger.info(s"$name found no errors")
             case VerifierResult.Failure(errors) =>
               logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
@@ -143,11 +146,12 @@ trait GoVerifier extends StrictLogging {
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
 
-    if(config.enableDependencyAnalysis){
+    if(config.enableDependencyAnalysis && typeInfo.isDefined){
       val graphInterpreter = allErrors.filter(_.isInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).map(_.asInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).headOption
       if(graphInterpreter.nonEmpty){
         // TODO ake: pass program and errors
-        val userTool = new DependencyAnalysisUserTool(GobraDependencyGraphInterpreter.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter]), Seq.empty, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
+        val interpreter = GobraDependencyGraphInterpreter.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo.get)
+        val userTool = new DependencyAnalysisUserTool(interpreter, Seq.empty, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
         userTool.run()
       }
     }
@@ -155,7 +159,10 @@ trait GoVerifier extends StrictLogging {
     if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
-  protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verifyInternal(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[(VerifierResult, Option[TypeInfo])]
+
+  protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult] =
+    verifyInternal(pkgInfo, config).map(_._1)
 }
 
 trait GoIdeVerifier {
@@ -164,7 +171,7 @@ trait GoIdeVerifier {
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verifyInternal(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[(VerifierResult, Option[TypeInfo])] = {
     val task = for {
       finalConfig <- EitherT.fromEither(Future.successful(getAndMergeInFileConfig(config, pkgInfo)))
       _ = setLogLevel(finalConfig)
@@ -173,13 +180,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       program <- performDesugaring(finalConfig, typeInfo)
       program <- performInternalTransformations(finalConfig, pkgInfo, program)
       viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
-    } yield (viperTask, finalConfig)
+    } yield (viperTask, finalConfig, typeInfo)
 
     val res = task.foldM({
-      case Vector() => Future(VerifierResult.Success)
-      case errors => Future(VerifierResult.Failure(errors))
+      case Vector() => Future((VerifierResult.Success, None))
+      case errors => Future((VerifierResult.Failure(errors), None))
     }, {
-      case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
+      case (job, finalConfig, typeInfo) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack).map(r => (r, Some(typeInfo)))
     })
     res
   }

@@ -12,14 +12,17 @@ RUN apt-get update && \
 	apt-get install -y \
 	gnupg2 \
 	curl \
+	zip \
 	unzip \
 	git \
 	sysstat
 
-RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
-    curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
-    apt-get update && \
-    apt-get install sbt
+# Install sdkman, so that we can install java and sbt
+RUN curl -s "https://get.sdkman.io?ci=true" | bash
+RUN bash -c "source $HOME/.sdkman/bin/sdkman-init.sh \
+  && yes | sdk install java 17.0.14-ms \
+  && yes | sdk install sbt 1.11.7"
+
 # Install Z3
 ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
 # path to z3 binary unzipping Z3_ZIP:
@@ -56,14 +59,19 @@ COPY src /build/gobra/src
 COPY viperserver /build/gobra/viperserver
 COPY silver-sif-extension /build/gobra/silver-sif-extension
 
-RUN sbt assembly
-
+RUN bash -c "source $HOME/.sdkman/bin/sdkman-init.sh && sbt assembly"
 
 # a second build stage starts here that is based of a fresh image.
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM openjdk:11.0.16-jre-slim
+FROM openjdk:27-ea-slim-trixie
+
+# Install sdkman, so that we can install java and sbt
+RUN curl -s "https://get.sdkman.io?ci=true" | bash
+RUN bash -c "source $HOME/.sdkman/bin/sdkman-init.sh \
+  && yes | sdk install java 17.0.14-ms \
+  && yes | sdk install sbt 1.11.7"
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie

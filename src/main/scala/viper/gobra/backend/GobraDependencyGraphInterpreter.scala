@@ -132,36 +132,40 @@ object GobraDependencyGraphInterpreter {
   }
 
   /*
-    Adds edges between Gobra nodes belonging to the same statement or expression.
+    Adds (potentially missing) edges between Gobra nodes belonging to the same top-level statement or expression.
     This is necessary because the position stored in the lower level nodes is more fine-grained than what we need for the dependency analysis.
-    Using it directly would lead to unsound dependency results.
-    Therefore, we precompute the desired Gobra nodes (identifyGobraNodes) and add edges between lower level nodes belonging to the same Gobra node.
+    Using this position directly would lead to unsound dependency results.
    */
   private def transformToGobraDependencyGraph(graph: ReadOnlyDependencyGraph, typeInfo: TypeInfo): DependencyGraph = {
+
+    def addEdgesForSubnodes(newGraph: DependencyGraph): Unit = {
+      val gobraNodes = identifyGobraNodes(typeInfo)
+      val allNodes = graph.getNodes.groupBy(_.sourceInfo.getTopLevelSource.getPosition)
+
+      gobraNodes.map(gNode => allNodes.filter { case (pos, _) => pos match {
+          case p: AbstractSourcePosition => gNode.start <= p.start && (p.end.isEmpty || gNode.end.isEmpty || p.end.get <= gNode.end.get)
+          case _ => false
+        }})
+        .filter(_.nonEmpty)
+        .foreach(relevantNodes => {
+          val (parentNodePos, parentNodes) = relevantNodes.maxBy(node => {
+            val p = node._1.asInstanceOf[AbstractSourcePosition]
+            (p.end.getOrElse(p.start).line - p.start.line, p.end.getOrElse(p.start).column - p.start.column)
+          })
+          relevantNodes.filterNot(_._1.equals(parentNodePos))
+            .foreach { case (_, nodes) =>
+              // add edges from subnodes to parent node
+              newGraph.addEdges(nodes.map(_.id), parentNodes.map(_.id))
+              newGraph.addEdges(parentNodes.map(_.id), nodes.map(_.id)) // TODO ake: is this necessary?
+            }
+        })
+    }
+
     val newGraph  = new DependencyGraph()
     newGraph.addNodes(graph.getNodes)
     newGraph.setEdges(graph.getDirectEdges)
+    addEdgesForSubnodes(newGraph)
 
-    val gobraNodes = identifyGobraNodes(typeInfo)
-    val allNodes = graph.getNodes.groupBy(_.sourceInfo.getTopLevelSource.getPosition)
-
-    // determine the sets of nodes belonging together
-    val matchingSets = gobraNodes.map(gNode => {
-      val relevantNodes = allNodes.filter { case (pos, _) => pos match {
-        case p: AbstractSourcePosition => gNode.start <= p.start && (p.end.isEmpty || gNode.end.isEmpty || p.end.get <= gNode.end.get)
-        case _ => false
-      }}
-      val parentNode = Option.when(relevantNodes.nonEmpty)(relevantNodes.map(_._1.asInstanceOf[AbstractSourcePosition]).maxBy(p =>
-        (p.end.getOrElse(p.start).line - p.start.line, p.end.getOrElse(p.start).column - p.start.column)))
-      (gNode, relevantNodes, parentNode)
-    }).filter(_._3.isDefined).map(n => (n._1, n._2, n._3.get))
-
-    // add edges between nodes belonging to same Gobra node
-    matchingSets.foreach{ case (_, nodes, parent) =>
-      val parentNodes = nodes.filter(_._1.equals(parent)).values.flatten
-      nodes.filterNot(_._1.equals(parent)).foreach{case (_, nodes) => newGraph.addEdges(nodes.map(_.id), parentNodes.map(_.id))
-      }
-    }
     newGraph
   }
 

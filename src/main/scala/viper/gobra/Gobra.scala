@@ -149,7 +149,6 @@ trait GoVerifier extends StrictLogging {
     if(config.enableDependencyAnalysis && typeInfo.isDefined){
       val graphInterpreter = allErrors.filter(_.isInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).map(_.asInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).headOption
       if(graphInterpreter.nonEmpty){
-        // TODO ake: pass program and errors
         val interpreter = GobraDependencyGraphInterpreter.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo.get)
         val userTool = new DependencyAnalysisUserTool(interpreter, Seq.empty, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
         userTool.run()

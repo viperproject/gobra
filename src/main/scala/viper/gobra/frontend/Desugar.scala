@@ -180,7 +180,7 @@ object Desugar extends LazyLogging {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector) {
+  private class Desugarer(@unused pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector) {
 
     type Meta = Source.Parser.Info
 

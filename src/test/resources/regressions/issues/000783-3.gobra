@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue783_3
+
+ensures false
+func floatfn3(f float64) float64 {
+    //:: ExpectedOutput(type_error)
+    return 0.0
+}

@@ -61,9 +61,7 @@ echo -e "${GREEN}Generating the parser:${RESET}"
 java -jar "$ANTLR4_PATH" "$SCRIPT_DIR"/src/main/antlr4/GobraParser.g4 -package viper.gobra.frontend -visitor -no-listener || { echo -e "${RED}Error while generating the parser.${RESET}"; exit 3; }
 
 echo -e "${GREEN}Moving the generated files:${RESET}"
-mv -v "$SCRIPT_DIR"/*.java "$SCRIPT_DIR"/src/main/java/viper/gobra/frontend/
-mv -v "$SCRIPT_DIR"/*.interp "$SCRIPT_DIR"/src/main/antlr4/
-mv -v "$SCRIPT_DIR"/*.tokens "$SCRIPT_DIR"/src/main/antlr4/
+mv -v "$SCRIPT_DIR"/src/main/antlr4/*.java "$SCRIPT_DIR"/src/main/java/viper/gobra/frontend/
 
 ##### Create hash file #####
 # Since parser generation was successful, let's keep track of the hashes for all files on which parser generates depends

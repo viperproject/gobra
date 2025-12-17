@@ -336,14 +336,12 @@ expression:
   | UNFOLDING predicateAccess IN expression #unfolding
   | LET shortVarDecl IN expression #let
   | (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
-  | BACKEND L_BRACKET singleBackendAnnotation R_BRACKET L_PAREN expression R_PAREN #annotatedExpression
   ;
 
 
 // Added ghost statements
 statement:
   ghostStatement
-  | annotatedStmt
   | auxiliaryStatement
   | packageStmt
   | applyStmt
@@ -363,8 +361,6 @@ statement:
   | specForStmt
   | deferStmt
   | closureImplProofStmt;
-
-annotatedStmt: BACKEND L_BRACKET singleBackendAnnotation R_BRACKET eos statement;
 
 applyStmt: APPLY expression;
 

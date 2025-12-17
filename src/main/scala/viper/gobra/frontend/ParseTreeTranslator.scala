@@ -1654,12 +1654,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   //endregion
 
 
-  override def visitAnnotatedExpression(ctx: AnnotatedExpressionContext): PExpression = {
-    val expr = visitNode[PExpression](ctx.expression())
-//    val annotation = visitSingleBackendAnnotation(ctx.singleBackendAnnotation())
-//    PAnnotatedExpression(annotation, expr)
-    expr
-  }
 
   //region Binary Expressions
 
@@ -1736,13 +1730,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       case s : PStatement => s
       case _ => unexpected(ctx)
     }
-  }
-
-  override def visitAnnotatedStmt(ctx: GobraParser.AnnotatedStmtContext): PStatement = {
-    val stmt = visitNode[PStatement](ctx.statement())
-    //    val annotation = visitSingleBackendAnnotation(ctx.singleBackendAnnotation())
-    //    PAnnotatedStatement(annotation, stmt)
-    stmt
   }
 
 

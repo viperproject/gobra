@@ -146,7 +146,7 @@ object GobraDependencyGraphInterpreter {
           case p: AbstractSourcePosition => gNode.start <= p.start && (p.end.isEmpty || gNode.end.isEmpty || p.end.get <= gNode.end.get)
           case _ => false
         }})
-        .filter(_.nonEmpty)
+        .filter(_.size > 1)
         .foreach(relevantNodes => {
           val (parentNodePos, parentNodes) = relevantNodes.maxBy(node => {
             val p = node._1.asInstanceOf[AbstractSourcePosition]

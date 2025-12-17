@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM openjdk:11.0.16-slim as build
+FROM openjdk:27-ea-slim-trixie as build
 
 WORKDIR /build
 

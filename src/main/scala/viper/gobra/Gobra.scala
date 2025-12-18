@@ -147,8 +147,8 @@ trait GoVerifier extends StrictLogging {
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
 
-    // TODO ake: where to put this? Use proper config flag
-    if(config.enableDependencyAnalysis && typeInfo.isDefined){
+    // TODO ake: where to put this?
+    if(config.enableDependencyAnalysis && config.startDependencyAnalysisTool && typeInfo.isDefined){
       val graphInterpreter = allErrors.filter(_.isInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).map(_.asInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).headOption
       if(graphInterpreter.nonEmpty){
         val interpreter = GobraDependencyAnalysisAggregator.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo.get)

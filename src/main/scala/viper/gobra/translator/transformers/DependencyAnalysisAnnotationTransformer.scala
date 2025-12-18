@@ -2,26 +2,61 @@ package viper.gobra.translator.transformers
 
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
+import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
+import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
+import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.ast.{AbstractSourcePosition, AnnotationInfo, MakeInfoPair, NoInfo}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 
-class DependencyAnalysisAnnotationTransformer extends ViperTransformer {
+class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperTransformer {
+
+  private val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    val programWithAnalysisAnnotation = addDependencyAnalysisAnnotation(task.program)
+    val programWithAnalysisSources = addDependencyAnalysisSourceInfo(task.program)
+    val programWithAnalysisAnnotation = addDependencyAnalysisAnnotation(programWithAnalysisSources)
     Right(task.copy(program = programWithAnalysisAnnotation))
   }
 
-  // existing dependency analysis annotations are preserved
+  /**
+    *Adds GobraDependencyAnalysisInfos to the Viper nodes. This info is used to merge lower-level dependency nodes
+    *into Gobra dependency nodes such that soundness of transitive dependencies is guaranteed. Soundness depends on the
+    *correctness of [[GobraDependencyAnalysisAggregator.identifyGobraNodes]].
+   */
+  private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
+    ViperStrategy.Slim({
+      case stmt: vpr.Stmt =>
+        val depInfo = findGobraNode(stmt.pos)
+        val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, stmt.info) else stmt.info
+        stmt.withMeta(stmt.pos, newInfo, stmt.errT)
+      case exp: vpr.Exp =>
+        val depInfo = findGobraNode(exp.pos)
+        val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, exp.info) else exp.info
+        exp.withMeta(exp.pos, newInfo, exp.errT)
+    }).forceCopy().execute(p)
+  }
+
+  private def findGobraNode(pos: vpr.Position): Option[GobraDependencyAnalysisInfo] = {
+    pos match {
+      case lineColumn: AbstractSourcePosition =>
+        gobraNodes.find(gNode => gNode.pos.start <= lineColumn.start && lineColumn.end.exists(l => l <= gNode.pos.end.getOrElse(l)))
+      case _ => None
+    }
+  }
+
+  /**
+   * Adds assumption type information to the Viper nodes of program p such that they resemble the assumption type
+   * expected on the Gobra level (i.e. the assumption type associated with the Gobra node).
+   */
   private def addDependencyAnalysisAnnotation(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
       case aInput @ (_: vpr.Inhale | _: vpr.Assume) =>
         val a = aInput.asInstanceOf[vpr.Stmt]
         val newInfo = getNewInfo(a, a.pos, {
-            case _: gobra.PAssume | _: gobra.PInhale | _: gobra.PExpression  =>
+            case _: gobra.PAssume | _: gobra.PInhale | _: gobra.PExpression  => // TODO ake: expressions?
               NoInfo
             case _ =>
               implicitAnnotation
@@ -92,7 +127,7 @@ class DependencyAnalysisAnnotationTransformer extends ViperTransformer {
   }
 
   private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: (gobra.PNode => vpr.Info), default: vpr.Info): vpr.Info = {
-    val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
+    val sourceInfo = node.info.getUniqueInfo[Verifier.Info] // TODO ake: change to GobraDependencyAnalysisInfo?
     val sourceFileOpt = getSourceFileOpt(pos)
     if (sourceInfo.isDefined && sourceFileOpt.exists(s => !s.equals("builtin.gobra"))) {
       pNodeMapper(sourceInfo.get.pnode)

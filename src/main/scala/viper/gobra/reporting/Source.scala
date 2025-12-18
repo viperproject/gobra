@@ -6,6 +6,9 @@
 
 package viper.gobra.reporting
 
+import org.bitbucket.inkytonik.kiama.util.Position
+import viper.gobra.ast.frontend.PNode
+
 import java.nio.file.Paths
 
 import viper.silver.ast.SourcePosition
@@ -90,8 +93,11 @@ object Source {
       }
 
       def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
+    }
 
-      override def getSourceString: String = pnode.toString
+    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition) extends vpr.DependencyAnalysisInfo(pNode.toString, pos) {
+      def getStart: Position = start
+      def getEnd: Position = end
     }
 
     val noInfo: Info = Info(

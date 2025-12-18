@@ -9,6 +9,7 @@ package viper.gobra.translator
 
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig
@@ -31,7 +32,7 @@ object Translator {
       ConsistencyError(err.readableMessage, pos)
     }).toVector
 
-  def translate(program: Program, pkgInfo: PackageInfo)(config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  def translate(program: Program, pkgInfo: PackageInfo, typeInfo: TypeInfo)(config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
@@ -39,7 +40,7 @@ object Translator {
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationDomainTransformer,
-      new DependencyAnalysisAnnotationTransformer
+      new DependencyAnalysisAnnotationTransformer(typeInfo)
     )
 
     val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {

@@ -16,7 +16,8 @@ import org.slf4j.LoggerFactory
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
-import viper.gobra.backend.{BackendVerifier, GobraDependencyGraphInterpreter}
+import viper.gobra.backend.BackendVerifier
+import viper.gobra.dependencyAnalysis.{GobraDependencyAnalysisAggregator, GobraDependencyGraphInterpreter}
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -146,10 +147,11 @@ trait GoVerifier extends StrictLogging {
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
 
+    // TODO ake: where to put this? Use proper config flag
     if(config.enableDependencyAnalysis && typeInfo.isDefined){
       val graphInterpreter = allErrors.filter(_.isInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).map(_.asInstanceOf[viper.gobra.reporting.DependencyAnalysisFakeError]).headOption
       if(graphInterpreter.nonEmpty){
-        val interpreter = GobraDependencyGraphInterpreter.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo.get)
+        val interpreter = GobraDependencyAnalysisAggregator.convertFromDependencyGraphInterpreter(graphInterpreter.get.dependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo.get)
         val userTool = new DependencyAnalysisUserTool(interpreter, Seq.empty, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
         userTool.run()
       }
@@ -178,7 +180,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)
       program <- performDesugaring(finalConfig, typeInfo)
       program <- performInternalTransformations(finalConfig, pkgInfo, program)
-      viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
+      viperTask <- performViperEncoding(finalConfig, pkgInfo, program, typeInfo)
     } yield (viperTask, finalConfig, typeInfo)
 
     val res = task.foldM({
@@ -319,10 +321,10 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     EitherT.right(result)
   }
 
-  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
+  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
       val startMs = System.currentTimeMillis()
-      val res = EitherT.fromEither[Future, Vector[VerifierError], BackendVerifier.Task](Future.successful(Translator.translate(program, pkgInfo)(config)))
+      val res = EitherT.fromEither[Future, Vector[VerifierError], BackendVerifier.Task](Future.successful(Translator.translate(program, pkgInfo, typeInfo)(config)))
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"Viper encoding done, took ${durationS}s"

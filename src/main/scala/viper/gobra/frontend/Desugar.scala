@@ -665,7 +665,7 @@ object Desugar extends LazyLogging {
       // r1 := r1'; .... rn := rn'
       val resultAssignments =
         returnsWithSubs.flatMap{
-          case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(fsrc))
+          case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(p.info))
           case _ => None
         } // :+ in.Return()(fsrc)
 

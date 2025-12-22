@@ -628,6 +628,11 @@ class BuiltInEncoding extends Encoding {
         }
         val body: Option[in.Assertion] = Some(in.ExprAssertion(in.BoolLit(b = true)(src))(src))
         in.FPredicate(x.name, params, body)(src)
+      case (InvariantFPredTag, _) =>
+        val params = Vector(
+          in.Parameter.In("arg", in.PredT(Vector.empty, Addressability.Exclusive))(src)
+        )
+        in.FPredicate(x.name, params, None)(src)
       case (tag, args) => violation(s"no fpredicate generation defined for tag $tag and arguments $args")
     }
   }

@@ -103,7 +103,13 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       "Ghost members cannot be marked as atomic.",
       spec.isAtomic && isGhost
     )
-    atomicsAreAbstract ++ atomicsAreActual
+    val decreases = spec.terminationMeasures.nonEmpty
+    val atomicMethodsTerminate = error(
+      member,
+      "Atomic members must be specified as terminating with a decreases-clause.",
+      spec.isAtomic && !decreases
+    )
+    atomicsAreAbstract ++ atomicsAreActual ++ atomicMethodsTerminate
   }
 
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {

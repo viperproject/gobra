@@ -95,9 +95,10 @@ object Source {
       def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
     }
 
-    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition) extends vpr.DependencyAnalysisInfo(pNode.toString, pos) {
+    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition, infoStr: Option[String] = None) extends vpr.DependencyAnalysisInfo(infoStr.getOrElse(pNode.toString), pos) {
       def getStart: Position = start
       def getEnd: Position = end
+      def getPNode: PNode = pNode
     }
 
     val noInfo: Info = Info(

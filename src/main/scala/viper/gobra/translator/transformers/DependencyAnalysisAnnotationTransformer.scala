@@ -1,5 +1,6 @@
 package viper.gobra.translator.transformers
 
+import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
@@ -56,7 +57,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
       case aInput @ (_: vpr.Inhale | _: vpr.Assume) =>
         val a = aInput.asInstanceOf[vpr.Stmt]
         val newInfo = getNewInfo(a, a.pos, {
-            case _: gobra.PAssume | _: gobra.PInhale | _: gobra.PExpression  => // TODO ake: expressions?
+            case _: gobra.PAssume | _: gobra.PInhale  =>
               NoInfo
             case _ =>
               implicitAnnotation
@@ -126,17 +127,27 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
     }
   }
 
-  private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: (gobra.PNode => vpr.Info), default: vpr.Info): vpr.Info = {
-    val sourceInfo = node.info.getUniqueInfo[Verifier.Info] // TODO ake: change to GobraDependencyAnalysisInfo?
+  private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
+    val analysisSourceInfo = node.info.getUniqueInfo[GobraDependencyAnalysisInfo]
+    val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
+    if(analysisSourceInfo.isDefined)
+      getAnalysisInfoAnnotation(analysisSourceInfo.get.getPNode, analysisSourceInfo.get.pos, pNodeMapper, default)
+    else if(sourceInfo.isDefined)
+      getAnalysisInfoAnnotation(sourceInfo.get.pnode, pos, pNodeMapper, default)
+    else
+      default
+  }
+
+  private def getAnalysisInfoAnnotation(pNode: PNode, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val sourceFileOpt = getSourceFileOpt(pos)
-    if (sourceInfo.isDefined && sourceFileOpt.exists(s => !s.equals("builtin.gobra"))) {
-      pNodeMapper(sourceInfo.get.pnode)
+    if (sourceFileOpt.exists(s => !s.equals("builtin.gobra"))) {
+      pNodeMapper(pNode)
     } else {
       default
     }
   }
 
-  private def getNewInfo(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: (gobra.PNode => vpr.Info), default: vpr.Info): vpr.Info = {
+  private def getNewInfo(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val newInfo = getAnalysisInfoAnnotation(node, pos, pNodeMapper, default)
     mergeInfoOptionally(node.info, newInfo)
   }

@@ -1,6 +1,6 @@
 package viper.gobra.dependencyAnalysis
 
-import viper.gobra.ast.frontend.{PAnd, PAssForRange, PAssignment, PBlock, PClosureDecl, PClosureImplProof, PConstDecl, PExplicitGhostMember, PExprSwitchCase, PExprSwitchDflt, PExprSwitchStmt, PForStmt, PFriendPkgDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PIdnUse, PIfClause, PIfStmt, PImplementationProof, PLoopSpec, PMethodDecl, PMethodImplementationProof, PMethodSig, PNamedOperand, PNode, POutline, PPackage, PPkgInvariant, PPreamble, PProgram, PResult, PSelectAssRecv, PSelectDflt, PSelectRecv, PSelectSend, PSelectShortRecv, PSelectStmt, PSeq, PShortForRange, PTupleTerminationMeasure, PTypeSwitchCase, PTypeSwitchDflt, PTypeSwitchStmt, PWildcardMeasure, PositionManager}
+import viper.gobra.ast.frontend.{PAnd, PAssForRange, PAssert, PAssignment, PAssume, PBlock, PClosureDecl, PClosureImplProof, PConstDecl, PExhale, PExplicitGhostMember, PExprSwitchCase, PExprSwitchDflt, PExprSwitchStmt, PForStmt, PFriendPkgDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PIdnUse, PIfClause, PIfStmt, PImplementationProof, PInhale, PLoopSpec, PMethodDecl, PMethodImplementationProof, PMethodSig, PNamedOperand, PNode, POutline, PPackage, PPkgInvariant, PPreamble, PProgram, PRefute, PResult, PSelectAssRecv, PSelectDflt, PSelectRecv, PSelectSend, PSelectShortRecv, PSelectStmt, PSeq, PShortForRange, PTupleTerminationMeasure, PTypeSwitchCase, PTypeSwitchDflt, PTypeSwitchStmt, PWildcardMeasure, PositionManager}
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.silicon.dependencyAnalysis.DependencyGraphInterpreter
@@ -30,6 +30,7 @@ object GobraDependencyAnalysisAggregator {
     identifyGobraNodes(typeInfo.tree.originalRoot)(positionManager)
   }
 
+  // TODO ake: should we also compute the assumption and assertion types here?
   private def identifyGobraNodes(pNode: PNode)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
 
     def go(pNodes: Iterable[PNode]) = {
@@ -49,12 +50,25 @@ object GobraDependencyAnalysisAggregator {
       info
     }
 
+    def goTopLevelConjuncts(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = pNode match {
+      case PAnd(left, right) => goTopLevelConjuncts(left, origSource) ++ goTopLevelConjuncts(right, origSource)
+      case _ => get(pNode, origSource)
+    }
+
+    def get(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = {
+      val start = positionManager.positions.getStart(pNode).get
+      val end = positionManager.positions.getFinish(pNode).get
+      val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
+      val info = new GobraDependencyAnalysisInfo(origSource.getOrElse(pNode), start, end, sourcePosition, Some(pNode.toString))
+      Set(info)
+    }
+
     pNode match {
       // packages and programs
       case PPackage(packageClause, programs, _, _) => go(packageClause +: programs)
       case PProgram(packageClause, pkgInvariants, initPosts, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ initPosts ++ imports ++ friends ++ declarations))
       case PPreamble(packageClause, pkgInvariants, initPosts, imports, friends, _) => go(packageClause +: (pkgInvariants ++ initPosts ++ imports ++ friends))
-      case PPkgInvariant(inv, _) => identifyGobraNodes(inv)
+      case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv)
       case PFriendPkgDecl(_, assertion) => identifyGobraNodes(assertion)
 
       // constants
@@ -65,7 +79,8 @@ object GobraDependencyAnalysisAggregator {
       case PFunctionLit(id, closure) => goOpt(id) ++ goS(closure)
       case PMethodDecl(id, receiver, args, result, spec, body) => go(Set(id, receiver, result, spec) ++ args) ++ goOpt(body.map(_._2))
       case PMethodImplementationProof(id, receiver, args, result, _, body) => goOpt(body.map(_._2)) ++ go(Set(id, receiver, result) ++ args)
-      case PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _, _, _, _) => go(pres ++ preserves ++ posts ++ terminationMeasures)
+      case PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _, _, _, _) =>
+        (pres ++ preserves ++ posts).flatMap(goTopLevelConjuncts(_, None)) ++ go(terminationMeasures)
       case PMethodSig(id, args, result, spec, _) => go(Set(id, result, spec) ++ args)
       case PResult(params) => go(params)
       case PExplicitGhostMember(m) => goS(m)
@@ -112,17 +127,15 @@ object GobraDependencyAnalysisAggregator {
       case PTupleTerminationMeasure(tuple, cond) => go(tuple) ++ goOpt(cond)
 
       // ensure dependencies are determine on conjunct-level by splitting top-level conjunctions
-      case PAnd(left, right) => identifyGobraNodes(left) ++ identifyGobraNodes(right)
+      case PAssume(exp) => goTopLevelConjuncts(exp, Some(pNode))
+      case PInhale(exp) => goTopLevelConjuncts(exp, Some(pNode))
+      case PAssert(exp) => goTopLevelConjuncts(exp, Some(pNode))
+      case PExhale(exp) => goTopLevelConjuncts(exp, Some(pNode))
+      case PRefute(exp) => goTopLevelConjuncts(exp, Some(pNode))
 
       // base case: we arrived at a "primitive" statement or expression. This is the granularity level of the analysis.
       // Importantly, we do not iterate over the children of these statements and expressions.
-      case _ => {
-        val start = positionManager.positions.getStart(pNode).get
-        val end = positionManager.positions.getFinish(pNode).get
-        val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
-        val info = new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition)
-        Set(info)
-      }
+      case _ => get(pNode)
     }
   }
 }

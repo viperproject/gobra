@@ -45,6 +45,7 @@ UNFOLDING   : 'unfolding';
 LET         : 'let';
 IN          : 'in';
 GHOST       : 'ghost';
+ATOMIC      : 'atomic';
 ELEM        : 'elem';
 MULTI       : '#';
 SUBSET      : 'subset';

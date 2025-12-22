@@ -3933,7 +3933,6 @@ object Desugar extends LazyLogging {
         case _: st.GlobalVariable => nm.global(id.name, v.context)
         case _ => nm.variable(id.name, context.scope(id), v.context)
       }
-      case b: st.BuiltInPredicate => ???
       case c: st.Closure => nm.funcLit(id.name, context.enclosingFunctionOrMethod(id).get, c.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
@@ -4824,7 +4823,7 @@ object Desugar extends LazyLogging {
           unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInPredicate =>
-          val fproxy = fpredicateProxy(b.id, info)
+          val fproxy = fpredicateProxy(b.symb.tag, convertArgs(dArgs).map(_.typ))(src)
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>

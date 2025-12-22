@@ -182,6 +182,7 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait Method extends MethodLike with ActualTypeMember with WithResult {
     def isPure: Boolean
+    def isAtomic: Boolean
   }
 
   case class MethodImpl(decl: PMethodDecl, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -189,7 +190,9 @@ object SymbolTable extends Environments[Entity] {
     override def isPure: Boolean = decl.spec.isPure
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
+    override val isAtomic: Boolean = decl.spec.isAtomic
     def isOpaque: Boolean = decl.spec.isOpaque
+
   }
 
   case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -197,6 +200,7 @@ object SymbolTable extends Environments[Entity] {
     override def isPure: Boolean = spec.spec.isPure
     override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
+    override val isAtomic: Boolean = spec.spec.isAtomic
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 

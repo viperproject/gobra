@@ -85,6 +85,27 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
+  private[typing] def atomicMemberAreWellFormed(member: PMember): Messages = {
+    val (bodyOpt, spec) = member match {
+      case f: PFunctionDecl => (f.body, f.spec)
+      case m: PMethodDecl => (m.body, m.spec)
+      case o => Violation.violation(s"Unexpected case: $o")
+    }
+    val atomicsAreAbstract = error(
+      member,
+      "Gobra does not support proving that implementations are atomic. Atomic members cannot contain a body.",
+      spec.isAtomic && bodyOpt.nonEmpty
+    )
+
+    val isGhost = isEnclosingGhost(member)
+    val atomicsAreActual = error(
+      member,
+      "Ghost members cannot be marked as atomic.",
+      spec.isAtomic && isGhost
+    )
+    atomicsAreAbstract ++ atomicsAreActual
+  }
+
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {
     error(member, "For now, pure methods and pure functions must have exactly one result argument", member.result.outs.size != 1)
   }

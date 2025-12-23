@@ -45,7 +45,7 @@ UNFOLDING   : 'unfolding';
 LET         : 'let';
 IN          : 'in';
 GHOST       : 'ghost';
-ATOMIC      : 'atomic';
+ATOMIC      : 'atomic' -> mode(NLSEMI);
 ELEM        : 'elem';
 MULTI       : '#';
 SUBSET      : 'subset';

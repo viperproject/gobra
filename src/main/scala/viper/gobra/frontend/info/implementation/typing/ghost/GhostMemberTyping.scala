@@ -85,7 +85,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
-  private[typing] def atomicMemberAreWellFormed(member: PMember): Messages = {
+  private[typing] def atomicMemberIsWellFormed(member: PMember): Messages = {
     val (bodyOpt, spec) = member match {
       case f: PFunctionDecl => (f.body, f.spec)
       case m: PMethodDecl => (m.body, m.spec)

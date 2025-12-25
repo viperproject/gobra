@@ -1,0 +1,298 @@
+[info] welcome to sbt 1.4.4 (AdoptOpenJDK Java 15.0.2)
+[info] loading settings for project gobra-build from plugins.sbt ...
+[info] loading project definition from /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/project
+[info] loading settings for project gobra from build.sbt ...
+[info] loading settings for project server from build.sbt ...
+[info] loading settings for project silicon from build.sbt ...
+[info] loading settings for project carbon from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] set current project to Gobra (in build file:/Users/herzamos/Desktop/eth/fs25/practical-work/gobra/)
+No changes detected in the antlr4 files. Skipping parser generation.
+[info] running (fork) viper.gobra.GobraRunner --norespectFunctionPrePermAmounts --recursive --projectRoot ../VerifiedSCION/verification --backend SILICON --chop 1 -I ../VerifiedSCION/verification/dependencies ../VerifiedSCION --onlyFilesWithHeader -m github.com/scionproto/scion --excludePackages layers --assumeInjectivityOnInhale --checkConsistency --mceMode=od --experimentalFriendClauses --moreJoins off -g /tmp/
+[info] Gobra 1.1-SNAPSHOT (2e6c3b7e@(detached))
+[info] (c) Copyright ETH Zurich 2012 - 2024
+[info] Verifying package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/io - io [12:53:27]
+[info] registering panic
+[info] Skipping panic
+[info] Gobra found 0 errors in package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/io - io.
+[info] Verifying package /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/../VerifiedSCION/verification/dependencies/net - net [12:53:48]
+[info] registering panic
+[info] Skipping panic
+[info] registering test
+[info] 	done
+[info] registering Unreachable
+[info] 	done
+[info] registering TODO
+[info] 	done
+[info] registering Asserting
+[info] 	done
+[info] registering AssumeForIO
+[info] 	done
+[info] registering Since
+[info] 	done
+[info] registering Until
+[info] 	done
+[info] registering Now
+[info] 	done
+[info] registering Unix
+[info] 	done
+[info] registering Date
+[info] Date_531757d2_F
+[info] 	done
+[info] registering Sleep
+[info] 	done
+[info] registering FixedZone
+[info] 	done
+[info] registering LoadLocation
+[info] 	done
+[info] registering GetByte
+[info] GetByte_88c2f8cc_F
+[info] 	done
+[info] registering SplitByIndex_Bytes
+[info] SplitByIndex_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering CombineAtIndex_Bytes
+[info] CombineAtIndex_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering Reslice_Bytes
+[info] Reslice_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering Unslice_Bytes
+[info] Unslice_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering SplitRange_Bytes
+[info] SplitRange_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering CombineRange_Bytes
+[info] CombineRange_Bytes_88c2f8cc_F
+[info] 	done
+[info] registering NilAcc_Bytes
+[info] 	done
+[info] registering PermsImplyIneqWithWildcard
+[info] 	done
+[info] registering PermsImplyIneq
+[info] PermsImplyIneq_88c2f8cc_F
+[info] 	done
+[info] registering AssertSliceOverlap
+[info] 	done
+[info] registering Bytes_test
+[info] 	done
+[info] registering ListenUDP
+[info] 	done
+[info] registering DialUDP
+[info] 	done
+[info] registering IPv4
+[info] 	done
+[info] registering isZeros
+[info] 	done
+[info] registering ParseIP
+[info] 	done
+[info] An unknown Exception was thrown.
+[info] class viper.silver.ast.Let cannot be cast to class viper.silver.ast.AccessPredicate (viper.silver.ast.Let and viper.silver.ast.AccessPredicate are in unnamed module of loader 'app')
+[info] java.lang.ClassCastException: class viper.silver.ast.Let cannot be cast to class viper.silver.ast.AccessPredicate (viper.silver.ast.Let and viper.silver.ast.AccessPredicate are in unnamed module of loader 'app')
+[info] 	at viper.gobra.translator.encodings.PermissionEncoding$$anonfun$expression$1.$anonfun$applyOrElse$8(PermissionEncoding.scala:57)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.map(ViperWriter.scala:258)
+[info] 	at viper.gobra.translator.encodings.PermissionEncoding$$anonfun$expression$1.applyOrElse(PermissionEncoding.scala:56)
+[info] 	at viper.gobra.translator.encodings.PermissionEncoding$$anonfun$expression$1.applyOrElse(PermissionEncoding.scala:43)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalExpression$1.applyOrElse(TypeEncoding.scala:413)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalExpression$1.applyOrElse(TypeEncoding.scala:413)
+[info] 	at scala.runtime.AbstractPartialFunction.apply(AbstractPartialFunction.scala:35)
+[info] 	at viper.gobra.translator.context.Context.expression(Context.scala:88)
+[info] 	at viper.gobra.translator.context.Context.expression$(Context.scala:88)
+[info] 	at viper.gobra.translator.context.ContextImpl.expression(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.PermissionEncoding.viper$gobra$translator$encodings$PermissionEncoding$$goE$1(PermissionEncoding.scala:41)
+[info] 	at viper.gobra.translator.encodings.PermissionEncoding$$anonfun$expression$1.applyOrElse(PermissionEncoding.scala:71)
+[info] 	at viper.gobra.translator.encodings.PermissionEncoding$$anonfun$expression$1.applyOrElse(PermissionEncoding.scala:43)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalExpression$1.applyOrElse(TypeEncoding.scala:413)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalExpression$1.applyOrElse(TypeEncoding.scala:413)
+[info] 	at scala.runtime.AbstractPartialFunction.apply(AbstractPartialFunction.scala:35)
+[info] 	at viper.gobra.translator.context.Context.expression(Context.scala:88)
+[info] 	at viper.gobra.translator.context.Context.expression$(Context.scala:88)
+[info] 	at viper.gobra.translator.context.ContextImpl.expression(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.typeless.AssertionEncoding$$anonfun$assertion$1.applyOrElse(AssertionEncoding.scala:69)
+[info] 	at viper.gobra.translator.encodings.typeless.AssertionEncoding$$anonfun$assertion$1.applyOrElse(AssertionEncoding.scala:67)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalAssertion$1.applyOrElse(TypeEncoding.scala:419)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalAssertion$1.applyOrElse(TypeEncoding.scala:419)
+[info] 	at scala.runtime.AbstractPartialFunction.apply(AbstractPartialFunction.scala:35)
+[info] 	at viper.gobra.translator.context.Context.assertion(Context.scala:92)
+[info] 	at viper.gobra.translator.context.Context.assertion$(Context.scala:92)
+[info] 	at viper.gobra.translator.context.ContextImpl.assertion(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.typeless.AssertionEncoding$$anonfun$statement$1.applyOrElse(AssertionEncoding.scala:93)
+[info] 	at viper.gobra.translator.encodings.typeless.AssertionEncoding$$anonfun$statement$1.applyOrElse(AssertionEncoding.scala:92)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalStatement$1.applyOrElse(TypeEncoding.scala:426)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalStatement$1.applyOrElse(TypeEncoding.scala:425)
+[info] 	at scala.runtime.AbstractPartialFunction.apply(AbstractPartialFunction.scala:35)
+[info] 	at viper.gobra.translator.context.Context.statement(Context.scala:108)
+[info] 	at viper.gobra.translator.context.Context.statement$(Context.scala:108)
+[info] 	at viper.gobra.translator.context.ContextImpl.statement(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.$anonfun$applyOrElse$7(ControlEncoding.scala:38)
+[info] 	at scala.collection.immutable.Vector1.map(Vector.scala:1925)
+[info] 	at scala.collection.immutable.Vector1.map(Vector.scala:377)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.$anonfun$applyOrElse$6(ControlEncoding.scala:38)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.flatMap(ViperWriter.scala:262)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.applyOrElse(ControlEncoding.scala:37)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.applyOrElse(ControlEncoding.scala:22)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalStatement$1.applyOrElse(TypeEncoding.scala:426)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalStatement$1.applyOrElse(TypeEncoding.scala:425)
+[info] 	at scala.runtime.AbstractPartialFunction.apply(AbstractPartialFunction.scala:35)
+[info] 	at viper.gobra.translator.context.Context.statement(Context.scala:108)
+[info] 	at viper.gobra.translator.context.Context.statement$(Context.scala:108)
+[info] 	at viper.gobra.translator.context.ContextImpl.statement(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.$anonfun$applyOrElse$2(ControlEncoding.scala:28)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.flatMap(ViperWriter.scala:262)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.applyOrElse(ControlEncoding.scala:27)
+[info] 	at viper.gobra.translator.encodings.typeless.ControlEncoding$$anonfun$statement$1.applyOrElse(ControlEncoding.scala:22)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.applyOrElse(PartialFunction.scala:269)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalStatement$1.applyOrElse(TypeEncoding.scala:426)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalStatement$1.applyOrElse(TypeEncoding.scala:425)
+[info] 	at scala.runtime.AbstractPartialFunction.apply(AbstractPartialFunction.scala:35)
+[info] 	at viper.gobra.translator.context.Context.statement(Context.scala:108)
+[info] 	at viper.gobra.translator.context.Context.statement$(Context.scala:108)
+[info] 	at viper.gobra.translator.context.ContextImpl.statement(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding.$anonfun$functionDefault$14(DefaultMethodEncoding.scala:87)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.flatMap(ViperWriter.scala:262)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding.$anonfun$functionDefault$13(DefaultMethodEncoding.scala:86)
+[info] 	at scala.Option.map(Option.scala:242)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding.$anonfun$functionDefault$12(DefaultMethodEncoding.scala:84)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.flatMap(ViperWriter.scala:262)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding.$anonfun$functionDefault$10(DefaultMethodEncoding.scala:82)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.flatMap(ViperWriter.scala:262)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding.$anonfun$functionDefault$8(DefaultMethodEncoding.scala:81)
+[info] 	at viper.gobra.translator.util.ViperWriter$LeveledViperWriter$Writer.flatMap(ViperWriter.scala:262)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding.functionDefault(DefaultMethodEncoding.scala:80)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding$$anonfun$method$1.applyOrElse(DefaultMethodEncoding.scala:24)
+[info] 	at viper.gobra.translator.encodings.defaults.DefaultMethodEncoding$$anonfun$method$1.applyOrElse(DefaultMethodEncoding.scala:22)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalMethod$1.applyOrElse(TypeEncoding.scala:386)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$finalMethod$1.applyOrElse(TypeEncoding.scala:386)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at scala.PartialFunction.unapply(PartialFunction.scala:100)
+[info] 	at scala.PartialFunction.unapply$(PartialFunction.scala:100)
+[info] 	at scala.runtime.AbstractPartialFunction.unapply(AbstractPartialFunction.scala:27)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$member$1.applyOrElse(TypeEncoding.scala:61)
+[info] 	at viper.gobra.translator.encodings.combinators.TypeEncoding$$anonfun$member$1.applyOrElse(TypeEncoding.scala:60)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:338)
+[info] 	at scala.PartialFunction$Lifted.apply(PartialFunction.scala:334)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.$anonfun$safeApply$1(PartialFunctionCombiner.scala:22)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+[info] 	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+[info] 	at scala.collection.immutable.Vector.flatMap(Vector.scala:113)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner.safeApply(PartialFunctionCombiner.scala:22)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.apply(PartialFunction.scala:266)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.$anonfun$applyOrElse$1(PartialFunctionCombiner.scala:32)
+[info] 	at scala.Option.getOrElse(Option.scala:201)
+[info] 	at viper.gobra.translator.util.PartialFunctionCombiner$SafeCombiner$$anon$1.applyOrElse(PartialFunctionCombiner.scala:32)
+[info] 	at scala.PartialFunction$OrElse.apply(PartialFunction.scala:266)
+[info] 	at viper.gobra.translator.context.Context.member(Context.scala:64)
+[info] 	at viper.gobra.translator.context.Context.member$(Context.scala:64)
+[info] 	at viper.gobra.translator.context.ContextImpl.member(ContextImpl.scala:25)
+[info] 	at viper.gobra.translator.encodings.programs.ProgramsImpl.goM$1(ProgramsImpl.scala:29)
+[info] 	at viper.gobra.translator.encodings.programs.ProgramsImpl.$anonfun$translate$2(ProgramsImpl.scala:33)
+[info] 	at scala.collection.immutable.Vector2.map(Vector.scala:1925)
+[info] 	at scala.collection.immutable.Vector2.map(Vector.scala:435)
+[info] 	at viper.gobra.translator.encodings.programs.ProgramsImpl.translate(ProgramsImpl.scala:33)
+[info] 	at viper.gobra.translator.Translator$.translate(Translator.scala:37)
+[info] 	at viper.gobra.Gobra.performViperEncoding(Gobra.scala:322)
+[info] 	at viper.gobra.Gobra.$anonfun$verify$6(Gobra.scala:179)
+[info] 	at scalaz.EitherT.$anonfun$flatMap$1(EitherT.scala:101)
+[info] 	at scala.concurrent.impl.Promise$Transformation.run(Promise.scala:470)
+[info] 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+[info] 	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:630)
+[info] 	at java.base/java.lang.Thread.run(Thread.java:832)
+[info] Writing report to /tmp/stats.json
+[info] 
+[error] Nonzero exit code returned from runner: 1
+[error] (Compile / run) Nonzero exit code returned from runner: 1
+[error] Total time: 54 s, completed 29 Jul 2025, 12:53:57

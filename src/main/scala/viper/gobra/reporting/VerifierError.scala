@@ -273,6 +273,11 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Expression may cause integer overflow"
 }
 
+case class LinterError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "linter_error"
+  override def localMessage: String = "Linter Check Failed"
+}
+
 case class MainPreconditionNotEstablished(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "main_pre_error"
   override def localMessage: String =
@@ -456,6 +461,11 @@ case class DivisionByZeroReason(node: Option[Source.Verifier.Info]) extends Veri
 case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "integer_overflow_error"
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow."
+}
+
+case class LinterCheckReason(node: Source.Verifier.Info, checkType: String) extends VerificationErrorReason {
+  override def id: String = "linter_error"
+  override def message: String = s"Expression ${node.origin.tag.trim} fails linter check: ${checkType}"
 }
 
 case class InterfaceReceiverIsNilReason(node: Source.Verifier.Info) extends VerificationErrorReason {

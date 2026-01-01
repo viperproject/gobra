@@ -54,7 +54,7 @@ jobs:
 
       - name: Open a pull request
         id: pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         if: (env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF) || (env.PREV_SIF_EXTENSION_REF != env.CUR_SIF_EXTENSION_REF)
         with:
           # Use viper-admin's token to workaround a restriction of GitHub.

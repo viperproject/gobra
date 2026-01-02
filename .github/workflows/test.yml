@@ -187,7 +187,7 @@ jobs:
 
       - name: Upload RAM usage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pidstat.txt
           path: sync/pidstat.txt

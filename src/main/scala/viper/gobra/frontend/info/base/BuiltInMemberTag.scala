@@ -222,6 +222,12 @@ object BuiltInMemberTag {
     override def isAbstract: Boolean = false
   }
 
+  case object InvariantFPredTag extends BuiltInFPredicateTag {
+    override def identifier: String = "Invariant"
+    override def name: String = "InvariantTag"
+    override def isAbstract: Boolean = true
+  }
+
 
   /** Built-in Method Tags */
   case object BufferSizeMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
@@ -347,6 +353,7 @@ object BuiltInMemberTag {
     CopyFunctionTag,
     // fpredicates
     PredTrueFPredTag,
+    InvariantFPredTag,
     // methods
     BufferSizeMethodTag,
     SendGivenPermMethodTag,

@@ -99,6 +99,7 @@ GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
 MAYINIT     : 'mayInit' -> mode(NLSEMI);
+ATOMIC      : 'atomic' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
 FRIENDPKG   : 'friendPkg';

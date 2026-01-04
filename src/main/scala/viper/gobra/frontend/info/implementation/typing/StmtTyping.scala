@@ -185,6 +185,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case n: PReturn => error(n, "outline statements must not contain return statements.")
       }
       error(n, s"pure outline statements are not supported.", n.spec.isPure) ++
+        error(n, s"outline statements cannot be marked as atomic.", n.spec.isAtomic) ++
         error(n, "Opaque outline statements are not supported.", n.spec.isOpaque) ++
         invalidNodes.flatten
 

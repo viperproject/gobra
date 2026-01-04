@@ -894,6 +894,7 @@ case class PFunctionSpec(
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
+                          isAtomic: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
                       ) extends PSpecification
 

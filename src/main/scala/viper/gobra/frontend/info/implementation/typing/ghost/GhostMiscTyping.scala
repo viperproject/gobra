@@ -151,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque, isAtomic, _) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++

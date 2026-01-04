@@ -4823,7 +4823,7 @@ object Desugar extends LazyLogging {
           unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInPredicate =>
-          val fproxy = fpredicateProxy(b.id, info)
+          val fproxy = fpredicateProxy(b.symb.tag, convertArgs(dArgs).map(_.typ))(src)
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>

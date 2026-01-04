@@ -88,6 +88,18 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         {
           case args => FunctionT(args, AssertionT)
         })
+      case InvariantFPredTag => AbstractType(
+        {
+          case (n, t) =>
+            error(
+              n,
+              s"Predicate ${InvariantFPredTag.name} expects an argument of type pred().",
+              t.length != 1 || t(0) != PredT(Vector.empty)
+            )
+        },
+        {
+          case args => FunctionT(args, AssertionT)
+        })
 
     }
 

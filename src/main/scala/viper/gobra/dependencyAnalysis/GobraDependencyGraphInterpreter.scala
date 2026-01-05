@@ -2,13 +2,17 @@ package viper.gobra.dependencyAnalysis
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
+import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphInterpreter, ReadOnlyDependencyGraph}
+import viper.silicon.interfaces.Failure
 import viper.silver.ast
-import viper.silver.ast.Program
+import viper.silver.ast.{Program, TranslatedPosition}
 
 
 
-class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, typeInfo: TypeInfo) extends DependencyGraphInterpreter("gobra", dependencyGraph, member=None) {
+class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, typeInfo: TypeInfo, errors: List[Failure]) extends DependencyGraphInterpreter("gobra", dependencyGraph, errors, member=None) {
+
+  private val positionManager = typeInfo.tree.root.positions
 
   def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode]): (PPackage, Double) = {
 
@@ -40,9 +44,17 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
       pSpec.backendAnnotations, pSpec.isPure, pSpec.isTrusted, pSpec.isOpaque, pSpec.mayBeUsedInInit)
   }
 
-  private def pruneExpressions(exprs:  Vector[PExpression])(implicit crucialNodes: Set[DependencyAnalysisNode]):  Vector[PExpression] = {
-    exprs
+  def getGobraDependencyAnalysisInfo(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = {
+    val start = positionManager.positions.getStart(pNode).get
+    val end = positionManager.positions.getFinish(pNode).get
+    val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
+    val info = new GobraDependencyAnalysisInfo(origSource.getOrElse(pNode), start, end, sourcePosition, Some(pNode.toString))
+    Set(info)
   }
+
+  private def pruneExpressions(exprs: Vector[PExpression])(implicit crucialNodes: Set[DependencyAnalysisNode]):  Vector[PExpression] = {
+    exprs // TODO ake
+  } // crucialNodes.filter(_.sourceInfo.dependencyAnalysisInfo.isDefined).map(_.sourceInfo.dependencyAnalysisInfo.get).intersect(exprs.flatMap(getGobraDependencyAnalysisInfo(_)).toSet)
 
   private def pruneIfClause(pIfClause: PIfClause)(implicit crucialNodes: Set[DependencyAnalysisNode]): PIfClause = {
     PIfClause(pIfClause.pre /* TODO */, pIfClause.condition, pruneBlock(pIfClause.body))
@@ -113,11 +125,12 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
   }
 
   override def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode], program: Program): (Program, Double) = {
-    throw new Exception("Pruning of Gobra programs is not yet supported.")
+    getPrunedProgram(crucialNodes)
+    throw new Exception("whatever")
   }
 
   override def pruneProgramAndExport(crucialNodes: Set[DependencyAnalysisNode], program: ast.Program , exportFileName: String): Unit = {
-    throw new Exception("Pruning of Gobra programs is not yet supported.")
+    getPrunedProgram(crucialNodes, program)
   }
 
 }

@@ -4,13 +4,14 @@ import viper.gobra.ast.frontend.{PAnd, PAssForRange, PAssert, PAssignment, PAssu
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.silicon.dependencyAnalysis.DependencyGraphInterpreter
+import viper.silicon.interfaces.Failure
 import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.AbstractDependencyGraphInterpreter
 
 object GobraDependencyAnalysisAggregator {
-  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo): GobraDependencyGraphInterpreter = {
+  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[Failure]): GobraDependencyGraphInterpreter = {
     interpreter match {
-      case interpreter: DependencyGraphInterpreter => new GobraDependencyGraphInterpreter(interpreter.getGraph, typeInfo)
+      case interpreter: DependencyGraphInterpreter => new GobraDependencyGraphInterpreter(interpreter.getGraph, typeInfo, errors)
       case _ => throw new Exception(s"Unknown dependency graph interpreter $interpreter")
     }
   }
@@ -30,7 +31,7 @@ object GobraDependencyAnalysisAggregator {
     identifyGobraNodes(typeInfo.tree.originalRoot)(positionManager)
   }
 
-  // TODO ake: should we also compute the assumption and assertion types here?
+  // TODO ake: should we also determine the assumption and assertion types here?
   private def identifyGobraNodes(pNode: PNode)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
 
     def go(pNodes: Iterable[PNode]) = {

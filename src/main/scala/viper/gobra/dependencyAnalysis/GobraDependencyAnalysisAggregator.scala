@@ -53,10 +53,10 @@ object GobraDependencyAnalysisAggregator {
 
     def goTopLevelConjuncts(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = pNode match {
       case PAnd(left, right) => goTopLevelConjuncts(left, origSource) ++ goTopLevelConjuncts(right, origSource)
-      case _ => get(pNode, origSource)
+      case _ => getGobraDependencyAnalysisInfo(pNode, origSource)
     }
 
-    def get(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = {
+    def getGobraDependencyAnalysisInfo(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = {
       val start = positionManager.positions.getStart(pNode).get
       val end = positionManager.positions.getFinish(pNode).get
       val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
@@ -99,9 +99,11 @@ object GobraDependencyAnalysisAggregator {
 
       // loops
       case PForStmt(pre, cond, post, spec, body) => goOpt(pre) ++ goOpt(post) ++ go(Set(cond, spec, body))
-      case PAssForRange(range, ass, spec, body) => Set(aggregateInfo(PAssignment(Vector(range.exp), ass), goS(range) ++ go(ass))) ++ goS(spec) ++ goS(body) // range and ass form one dependency node
-      case PShortForRange(range, shorts, _, spec, body) => Set(aggregateInfo(PAssignment(Vector(range.exp), shorts.map(id => PNamedOperand(PIdnUse(id.name)))), goS(range) ++ go(shorts))) ++ goS(spec) ++ goS(body) // range and ass form one dependency node
-      case PLoopSpec(invs, terminationMeasure) => go(invs) ++ goOpt(terminationMeasure)
+      case PAssForRange(range, ass, spec, body) =>
+        Set(aggregateInfo(PAssForRange(range, ass, PLoopSpec(Vector.empty, None), PBlock(Vector.empty)), goS(range) ++ go(ass))) ++ goS(spec) ++ goS(body) // range and ass form one dependency node
+      case PShortForRange(range, shorts, bs, spec, body) =>
+        Set(aggregateInfo(PShortForRange(range, shorts, bs, PLoopSpec(Vector.empty, None), PBlock(Vector.empty)), goS(range) ++ go(shorts))) ++ goS(spec) ++ goS(body) // range and ass form one dependency node
+      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, None)) ++ goOpt(terminationMeasure)
 
       // switch-case, match TODO ake: should matched expr be a dependency of all clauses?
       case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ go(exp +: (cases ++ dflt))
@@ -136,7 +138,7 @@ object GobraDependencyAnalysisAggregator {
 
       // base case: we arrived at a "primitive" statement or expression. This is the granularity level of the analysis.
       // Importantly, we do not iterate over the children of these statements and expressions.
-      case _ => get(pNode)
+      case _ => getGobraDependencyAnalysisInfo(pNode)
     }
   }
 }

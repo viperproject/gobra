@@ -1,6 +1,6 @@
 package viper.gobra.translator.transformers
 
-import viper.gobra.ast.frontend.PNode
+import viper.gobra.ast.frontend.{PAssForRange, PForStmt, PNode, PRange, PShortForRange}
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
@@ -30,14 +30,36 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
   private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
       case stmt: vpr.Stmt =>
-        val depInfo = findGobraNode(stmt.pos)
+        val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
+        val depInfo = getDependencyAnalysisInfo(stmt.pos, sourceInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, stmt.info) else stmt.info
         stmt.withMeta(stmt.pos, newInfo, stmt.errT)
       case exp: vpr.Exp =>
-        val depInfo = findGobraNode(exp.pos)
+        val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
+        val depInfo = getDependencyAnalysisInfo(exp.pos, sourceInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, exp.info) else exp.info
         exp.withMeta(exp.pos, newInfo, exp.errT)
     }).forceCopy().execute(p)
+  }
+
+  private def getDependencyAnalysisInfo(pos: Position, sourceInfo: Option[Verifier.Info]): Option[GobraDependencyAnalysisInfo] = {
+    val depInfo = findGobraNode(pos)
+    // Due to encoding details some Viper nodes might be associated with non-atomic Gobra statements. In such cases,
+    // we associate them with a Gobra node as defined in the following.
+    if (depInfo.isEmpty && sourceInfo.isDefined) sourceInfo.get.pnode match {
+      case PShortForRange(range, _, _, _, _) => findGobraNode(getPosition(range))
+      case PAssForRange(range, _, _, _) => findGobraNode(getPosition(range))
+      case _ => depInfo
+    }
+    else depInfo
+  }
+
+  // TODO ake: duplicate! (see GobraDependencyAnalysisAggregator)
+  private def getPosition(pNode: PNode): TranslatedPosition = {
+    val start = typeInfo.tree.root.positions.positions.getStart(pNode).get
+    val end = typeInfo.tree.root.positions.positions.getFinish(pNode).get
+    val sourcePosition = TranslatedPosition(typeInfo.tree.root.positions.translate(start, end))
+    sourcePosition
   }
 
   private def findGobraNode(pos: vpr.Position): Option[GobraDependencyAnalysisInfo] = {

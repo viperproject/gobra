@@ -17,6 +17,7 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
   def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode]): (PPackage, Double) = {
 
     // TODO ake: implement pruning for Gobra programs
+    val newProgram = typeInfo.tree.originalRoot.programs.map(pruneProgram(_)(crucialNodes))
 
     (typeInfo.tree.originalRoot, 0.0)
   }
@@ -28,7 +29,7 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
   private def pruneMembers(pMember: PMember)(implicit crucialNodes: Set[DependencyAnalysisNode]): PMember = {
     pMember match {
       case PFunctionDecl(id, args, result, spec, body) => PFunctionDecl(id, args, result, pruneSpec(spec), pruneBody(body))
-      case PMethodDecl(id, receiver, args, result, spec, body) => PMethodDecl(id, receiver, args, result, pruneSpec(spec), body)
+      case PMethodDecl(id, receiver, args, result, spec, body) => PMethodDecl(id, receiver, args, result, pruneSpec(spec), pruneBody(body))
       case _ => pMember
     }
   }

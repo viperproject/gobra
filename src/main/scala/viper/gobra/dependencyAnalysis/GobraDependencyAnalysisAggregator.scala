@@ -70,7 +70,7 @@ object GobraDependencyAnalysisAggregator {
       case PProgram(packageClause, pkgInvariants, initPosts, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ initPosts ++ imports ++ friends ++ declarations))
       case PPreamble(packageClause, pkgInvariants, initPosts, imports, friends, _) => go(packageClause +: (pkgInvariants ++ initPosts ++ imports ++ friends))
       case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv)
-      case PFriendPkgDecl(_, assertion) => identifyGobraNodes(assertion)
+      case PFriendPkgDecl(_, assertion) => goS(assertion)
 
       // constants
       case PConstDecl(specs) => go(specs)
@@ -132,7 +132,7 @@ object GobraDependencyAnalysisAggregator {
       // ensure dependencies are determine on conjunct-level by splitting top-level conjunctions
       case PAssume(exp) => goTopLevelConjuncts(exp, Some(pNode))
       case PInhale(exp) => goTopLevelConjuncts(exp, Some(pNode))
-      case PAssert(exp) => goTopLevelConjuncts(exp, Some(pNode))
+//      case PAssert(exp) => goTopLevelConjuncts(exp, Some(pNode)) TODO ake
       case PExhale(exp) => goTopLevelConjuncts(exp, Some(pNode))
       case PRefute(exp) => goTopLevelConjuncts(exp, Some(pNode))
 

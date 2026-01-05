@@ -99,6 +99,7 @@ object Source {
       def getStart: Position = start
       def getEnd: Position = end
       def getPNode: PNode = pNode
+      def getPosition: vpr.Position = pos
     }
 
     val noInfo: Info = Info(

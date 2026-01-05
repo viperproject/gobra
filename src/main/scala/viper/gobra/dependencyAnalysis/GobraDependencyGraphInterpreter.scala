@@ -8,28 +8,43 @@ import viper.silicon.interfaces.Failure
 import viper.silver.ast
 import viper.silver.ast.{Program, TranslatedPosition}
 
+import java.io.PrintWriter
+
 
 
 class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, typeInfo: TypeInfo, errors: List[Failure]) extends DependencyGraphInterpreter("gobra", dependencyGraph, errors, member=None) {
 
   private val positionManager = typeInfo.tree.root.positions
 
-  def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode]): (PPackage, Double) = {
+  private val nonDetermBoolFuncName = "nonDetermBoolForDA"
+  private val nonDetermBoolEncoding = PFunctionDecl(PIdnDef(nonDetermBoolFuncName), Vector.empty, PResult(Vector(PNamedParameter(PIdnDef("res"), PBoolType()))),
+    PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty), None)
 
-    // TODO ake: implement pruning for Gobra programs
-    val newProgram = typeInfo.tree.originalRoot.programs.map(pruneProgram(_)(crucialNodes))
+  private def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode]): (PPackage, Double) = {
+    val newPrograms = typeInfo.tree.originalRoot.programs.map(pruneProgram(_)(crucialNodes))
+    val newPackage = PPackage(typeInfo.tree.root.packageClause, newPrograms, positionManager, typeInfo.tree.root.info)
+    (newPackage, 0.0)
+  }
 
-    (typeInfo.tree.originalRoot, 0.0)
+
+  private def isCrucialNode(pNode: PNode)(implicit crucialNodes: Set[DependencyAnalysisNode]) = {
+    val dependencyAnalysisInfo = getGobraDependencyAnalysisInfo(pNode)
+    crucialNodes.exists(node => node.sourceInfo.getTopLevelSource.getPosition.equals(dependencyAnalysisInfo.getPosition))
   }
 
   private def pruneProgram(pProgram: PProgram)(implicit crucialNodes: Set[DependencyAnalysisNode]): PProgram = {
-    PProgram(pProgram.packageClause, pProgram.pkgInvariants, pProgram.initPosts, pProgram.imports, pProgram.friends, pProgram.declarations.map(pruneMembers))
+    PProgram(pProgram.packageClause,
+      pProgram.pkgInvariants.filter(inv => isCrucialNode(inv.inv)),
+      pProgram.initPosts, pProgram.imports,
+      pProgram.friends.map(friendDecl => if(isCrucialNode(friendDecl.assertion)) friendDecl else PFriendPkgDecl(friendDecl.path, PBoolLit(true))),
+      pProgram.declarations.map(pruneMembers) ++ Vector(nonDetermBoolEncoding))
   }
 
   private def pruneMembers(pMember: PMember)(implicit crucialNodes: Set[DependencyAnalysisNode]): PMember = {
     pMember match {
       case PFunctionDecl(id, args, result, spec, body) => PFunctionDecl(id, args, result, pruneSpec(spec), pruneBody(body))
       case PMethodDecl(id, receiver, args, result, spec, body) => PMethodDecl(id, receiver, args, result, pruneSpec(spec), pruneBody(body))
+      case PConstDecl(specs) => PConstDecl(specs.filter(isCrucialNode))
       case _ => pMember
     }
   }
@@ -41,24 +56,29 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
   }
 
   private def pruneSpec(pSpec: PFunctionSpec)(implicit crucialNodes: Set[DependencyAnalysisNode]): PFunctionSpec = {
-    PFunctionSpec(pruneExpressions(pSpec.pres), pruneExpressions(pSpec.preserves), pruneExpressions(pSpec.posts), pSpec.terminationMeasures,
+    PFunctionSpec(pruneExpsConjunctLevel(pSpec.pres), pruneExpsConjunctLevel(pSpec.preserves), pruneExpsConjunctLevel(pSpec.posts), pSpec.terminationMeasures,
       pSpec.backendAnnotations, pSpec.isPure, pSpec.isTrusted, pSpec.isOpaque, pSpec.mayBeUsedInInit)
   }
 
-  def getGobraDependencyAnalysisInfo(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = {
+  def getGobraDependencyAnalysisInfo(pNode: PNode, origSource: Option[PNode]=None): GobraDependencyAnalysisInfo = {
     val start = positionManager.positions.getStart(pNode).get
     val end = positionManager.positions.getFinish(pNode).get
     val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
     val info = new GobraDependencyAnalysisInfo(origSource.getOrElse(pNode), start, end, sourcePosition, Some(pNode.toString))
-    Set(info)
+    info
   }
 
   private def pruneExpressions(exprs: Vector[PExpression])(implicit crucialNodes: Set[DependencyAnalysisNode]):  Vector[PExpression] = {
-    exprs // TODO ake
-  } // crucialNodes.filter(_.sourceInfo.dependencyAnalysisInfo.isDefined).map(_.sourceInfo.dependencyAnalysisInfo.get).intersect(exprs.flatMap(getGobraDependencyAnalysisInfo(_)).toSet)
+    exprs.filter(isCrucialNode)
+  }
+
+  private def pruneCondition(expr: PExpression)(implicit crucialNodes: Set[DependencyAnalysisNode]):  PExpression = {
+    if(isCrucialNode(expr)) expr else PInvoke(PNamedOperand(PIdnUse(nonDetermBoolFuncName)), Vector.empty, None)
+  }
+
 
   private def pruneIfClause(pIfClause: PIfClause)(implicit crucialNodes: Set[DependencyAnalysisNode]): PIfClause = {
-    PIfClause(pIfClause.pre /* TODO */, pIfClause.condition, pruneBlock(pIfClause.body))
+    PIfClause(pIfClause.pre.filter(isCrucialNode), pruneCondition(pIfClause.condition), pruneBlock(pIfClause.body))
   }
 
   private def pruneBlock(pBlock: PBlock)(implicit crucialNodes: Set[DependencyAnalysisNode]) = {
@@ -69,69 +89,99 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
     pStmt match {
       case declaration: PDeclaration => declaration
 
-      case PExpressionStmt(exp) => ???
-      case PAssignment(right, left) => ???
-      case PAssignmentWithOp(right, op, left) => ???
+      // constants
+      case PConstDecl(specs) => PConstDecl(specs.filter(isCrucialNode))
 
+      // functions and methods TODO ake
+//      case PFunctionLit(id, closure) => goOpt(id) ++ goS(closure)
+//      case PMethodImplementationProof(id, receiver, args, result, _, body) => goOpt(body.map(_._2)) ++ go(Set(id, receiver, result) ++ args)
+//      case PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _, _, _, _) =>
+//        (pres ++ preserves ++ posts).flatMap(goTopLevelConjuncts(_, None)) ++ go(terminationMeasures)
+//      case PMethodSig(id, args, result, spec, _) => go(Set(id, result, spec) ++ args)
+//      case PResult(params) => go(params)
+//      case PExplicitGhostMember(m) => goS(m)
+//      case PImplementationProof(subT, superT, alias, memberProofs) => go(Set(subT, superT) ++ alias ++ memberProofs)
+//
+//      // TODO ake: closures
+//      case PClosureDecl(args, result, spec, body) => go(args ++ Set(result, spec)) ++ goOpt(body.map(_._2))
+//      case PClosureImplProof(impl, block) => goS(impl) ++ pruneStmt(block)
+
+      // composed statements
+      case PBlock(stmts) => PBlock(stmts.filter(isCrucialNode))
+      case PSeq(stmts) => PSeq(stmts.filter(isCrucialNode))
       case PIfStmt(ifs, els) => PIfStmt(ifs.map(pruneIfClause), els.map(pruneBlock))
-      case PExprSwitchStmt(pre, exp, cases, dflt) => ???
-      case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => ???
-      case PForStmt(pre, cond, post, spec, body) => ???
-      case PAssForRange(range, ass, spec, body) => ???
-      case PSendStmt(channel, msg) => ???
-      case PShortForRange(range, shorts, addressable, spec, body) => ???
-      case PDeferStmt(exp) => ???
-      case pBlock: PBlock => pruneBlock(pBlock)
-      case PSeq(stmts) => PSeq(stmts.map(pruneStmt))
 
-      case PLabeledStmt(label, stmt) => PLabeledStmt(label, pruneStmt(stmt))
+      // loops
+      case PForStmt(pre, cond, post, spec, body) => PForStmt(pre.filter(isCrucialNode), pruneCondition(cond), post.filter(isCrucialNode), pruneLoopSpec(spec), pruneBlock(body))
+      case PAssForRange(range, ass, spec, body) => PAssForRange(range, ass, pruneLoopSpec(spec), pruneBlock(body)) /* TODO */
+      case PShortForRange(range, shorts, bs, spec, body) => PShortForRange(range, shorts, bs, pruneLoopSpec(spec), pruneBlock(body)) // TODO
 
-      case PGoStmt(exp) => ???
-      case PDeferStmt(exp) => ???
-      case PSelectStmt(send, rec, aRec, sRec, dflt) => ???
-      case PReturn(exps) => ???
-      case POutline(body, spec) => ???
-      case PClosureImplProof(impl, block) => ???
+      // switch-case, match
+      case PExprSwitchStmt(pre, exp, cases, dflt) => PExprSwitchStmt(pre, exp /* TODO */, cases.map(c => PExprSwitchCase(pruneExpressions(c.left), pruneBlock(c.body))), dflt.map(pruneBlock))
+      case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => PTypeSwitchStmt(pre, exp /* TODO */, binder, cases.map(c => PTypeSwitchCase(c.left /* TODO */, pruneBlock(c.body))), dflt.map(pruneBlock))
+      // TODO ake
+      //      case PMatchStatement(exp, clauses, _) => goS(exp) ++ go(clauses)
+      //      case PMatchStmtCase(pattern, stmts, _) => goS(pattern) ++ go(stmts)
 
-      case PExplicitGhostStatement(actual) => ???
-      case PAssert(exp) => ???
-      case PRefute(exp) => ???
-      case PAssume(exp) => ???
-      case PExhale(exp) => ???
-      case PInhale(exp) => ???
-      case PFold(exp) => ???
-      case PUnfold(exp) => ???
-      case POpenDupPkgInv() => ???
-      case PPackageWand(wand, proofScript) => ???
-      case PApplyWand(wand) => ???
-      case PMatchStatement(exp, clauses, strict) => ???
+      // select TODO ake
+//      case PSelectStmt(send, rec, aRec, sRec, dflt) =>
+//      case PSelectDflt(body) => goS(body)
+//      case PSelectSend(send, body) => goS(send) ++ goS(body)
+//      case PSelectRecv(recv, body) => goS(recv) ++ goS(body)
+//      case PSelectAssRecv(recv, ass, body) => Set(aggregateInfo(PAssignment(Vector(recv), ass), goS(recv) ++ go(ass))) ++ goS(body) // recv and ass form one dependency node
+//      case PSelectShortRecv(recv, shorts, body) => Set(aggregateInfo(PAssignment(Vector(recv), shorts.map(id => PNamedOperand(PIdnUse(id.name)))), goS(recv) ++ go(shorts))) ++ goS(body) // recv and shorts form one dependency node
+
+      // TODO ake: what to do with those?
+      case POutline(body, spec) => POutline(pruneStmt(body), pruneFunctionSpec(spec))
+//      case PWildcardMeasure(cond) => goOpt(cond)
+//      case PTupleTerminationMeasure(tuple, cond) => go(tuple) ++ goOpt(cond)
+
+      // ensure dependencies are determine on conjunct-level by splitting top-level conjunctions
+      case PAssume(exp) => PAssume(pruneExpConjunctLevel(exp))
+      case PInhale(exp) => PInhale(pruneExpConjunctLevel(exp))
+//      case PAssert(exp) => PAssert(pruneExpConjunctLevel(exp)) TODO ake
+      case PExhale(exp) => PExhale(pruneExpConjunctLevel(exp))
+      case PRefute(exp) => PRefute(pruneExpConjunctLevel(exp))
+
+      case _ => if(isCrucialNode(pStmt)) pStmt else PSeq(Vector.empty)
     }
   }
 
-  private def prune(pnode: PNode)(implicit crucialNodes: Set[DependencyAnalysisNode]): PNode = {
-    pnode match {
-      case scope: PScope => scope
-      case PPackage(packageClause, programs, positions, info) => PPackage(packageClause, programs.map(pruneProgram), positions, info)
-      case pProgram: PProgram => pruneProgram(pProgram)
-      case inv: PPkgInvariant => inv
-      case member: PMember => pruneMembers(member)
-      case statement: PStatement => ???
-      case PIfClause(pre, condition, body) => ???
-      case clause: PExprSwitchClause => ???
-      case clause: PTypeSwitchClause => ???
-      case expression: PExpression => ???
-      case clause: PStructClause => ???
-      case _ => pnode
+  private def pruneExpsConjunctLevel(exps: Vector[PExpression])(implicit crucialNodes: Set[DependencyAnalysisNode]): Vector[PExpression] = {
+    exps.map(pruneExpConjunctLevel).filterNot(_.equals(PBoolLit(true)))
+  }
+
+  private def pruneExpConjunctLevel(exp: PExpression)(implicit crucialNodes: Set[DependencyAnalysisNode]): PExpression = {
+    exp match {
+      case PAnd(left, right) =>
+        (pruneExpConjunctLevel(left), pruneExpConjunctLevel(right)) match {
+          case (PBoolLit(true), r) => r
+          case (l, PBoolLit(true)) => l
+          case (l, r) => PAnd(l, r)
+        }
+      case _ => if(isCrucialNode(exp)) exp else PBoolLit(true)
     }
+  }
+
+  private def pruneFunctionSpec(spec: PFunctionSpec)(implicit crucialNodes: Set[DependencyAnalysisNode]) =
+    PFunctionSpec(pruneExpsConjunctLevel(spec.pres), pruneExpsConjunctLevel(spec.preserves), pruneExpsConjunctLevel(spec.posts),
+      spec.terminationMeasures.filter(isCrucialNode), spec.backendAnnotations, spec.isPure, spec.isTrusted, spec.isOpaque, spec.mayBeUsedInInit)
+
+  private def pruneLoopSpec(spec: PLoopSpec)(implicit crucialNodes: Set[DependencyAnalysisNode]) = {
+    PLoopSpec(pruneExpsConjunctLevel(spec.invariants), spec.terminationMeasure.filter(isCrucialNode))
   }
 
   override def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode], program: Program): (Program, Double) = {
-    getPrunedProgram(crucialNodes)
-    throw new Exception("whatever")
+    val newPkg = getPrunedProgram(crucialNodes)
+    println(newPkg)
+    throw new Exception("whatever") // TODO ake: adjust return type
   }
 
   override def pruneProgramAndExport(crucialNodes: Set[DependencyAnalysisNode], program: ast.Program , exportFileName: String): Unit = {
-    getPrunedProgram(crucialNodes, program)
+    val writer = new PrintWriter(exportFileName)
+    val newProgram = getPrunedProgram(crucialNodes)
+    writer.println(newProgram._1.toString())
+    writer.close()
   }
 
 }

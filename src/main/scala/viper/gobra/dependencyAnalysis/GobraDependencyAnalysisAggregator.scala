@@ -106,10 +106,10 @@ object GobraDependencyAnalysisAggregator {
       case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, None)) ++ goOpt(terminationMeasure)
 
       // switch-case, match TODO ake: should matched expr be a dependency of all clauses?
-      case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ go(exp +: (cases ++ dflt))
+      case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ goS(exp) ++ go(cases ++ dflt)
       case PExprSwitchDflt(body) => goS(body)
       case PExprSwitchCase(left, body) => go(left) ++ goS(body)
-      case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => goOpt(pre) ++ goOpt(binder) ++ go(exp +: (cases ++ dflt))
+      case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => goOpt(pre) ++ goOpt(binder) ++ goS(exp) ++ go(cases ++ dflt)
       case PTypeSwitchDflt(body) => goS(body)
       case PTypeSwitchCase(left, body) => go(left) ++ goS(body)
       // TODO ake: treat as one statement or go more fine-grained?

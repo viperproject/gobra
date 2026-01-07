@@ -29,7 +29,7 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
 
   private def isCrucialNode(pNode: PNode)(implicit crucialNodes: Set[DependencyAnalysisNode]) = {
     val dependencyAnalysisInfo = getGobraDependencyAnalysisInfo(pNode)
-    crucialNodes.exists(node => node.sourceInfo.getTopLevelSource.getPosition.equals(dependencyAnalysisInfo.getPosition))
+    crucialNodes.exists(node => node.getSourceCodePosition.equals(dependencyAnalysisInfo.getPosition))
   }
 
   private def pruneProgram(pProgram: PProgram)(implicit crucialNodes: Set[DependencyAnalysisNode]): PProgram = {

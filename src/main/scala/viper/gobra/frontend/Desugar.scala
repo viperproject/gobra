@@ -17,7 +17,7 @@ import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
-import viper.gobra.reporting.{DesugaredMessage, Source}
+import viper.gobra.reporting.{AssertError, DeriveError, DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
@@ -4179,6 +4179,28 @@ object Desugar extends LazyLogging {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor], args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
+        case PDeriveStmt(exp, block) =>
+          /**
+            * `derive cond by block`
+            * is encoded to
+            * ```
+            * if !cond {
+            *   block
+            *   assert false
+            * }
+            * ```
+            */
+          for {
+            cond <- exprD(ctx, info)(exp)
+            b <- stmtD(ctx, info)(block)
+            // transform error of `assert false` to indicate that the derive statement failed
+            annotatedSrc = Source.Parser.Single(stmt, Source.AnnotatedOrigin(src.origin.get, new Source.OverwriteErrorAnnotation(_ match {
+              case e: AssertError => DeriveError(e.info)
+              case e => e
+            }, false)))
+            contradiction = in.Assert(in.ExprAssertion(in.BoolLit(false)(src))(src))(annotatedSrc)
+            thenStmt: in.Stmt = in.Seqn(Vector(b, contradiction))(src)
+          } yield in.If(in.Negation(cond)(cond.info), thenStmt, in.Seqn(Vector.empty)(src))(src)
         case POpenDupPkgInv() =>
           // open the current package's invariant.
           val currPkg = info.tree.originalRoot

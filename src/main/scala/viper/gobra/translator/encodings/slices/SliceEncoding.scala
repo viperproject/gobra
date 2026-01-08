@@ -55,10 +55,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     default(super.assertion(ctx)) {
-      case x@in.Access(in.Accessible.ExprAccess(exp :: ctx.Slice(_)), perm :: ctx.Perm()) =>
+      case in.Access(in.Accessible.ExprAccess(exp :: ctx.Slice(_)), perm :: ctx.Perm()) =>
         // in practice, requiring permissions to all elements within the length of the slice
         // seems to be more common than requiring permissions to all elements within the capacity
-        getCellPerms(ctx)(exp, perm, SliceBound.Len, x)
+        getCellPerms(ctx)(exp, perm, SliceBound.Len)
     }
   }
 
@@ -173,7 +173,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             }
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
-            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info), SliceBound.Cap, makeStmt)
+            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info), SliceBound.Cap)
             _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
 
             lenExpr = in.Length(slice)(makeStmt.info)
@@ -228,10 +228,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *         forall idx :: { loc(a, idx) } 0 <= idx < bound ==> Footprint[ loc[idx] ]
     *            where bound is len(l) if sliceBound = SliceBound.Len, and cap(l) otherwise.
     */
-  private def getCellPerms(ctx: Context)(expr: in.Expr, perm: in.Expr, sliceBound: SliceBound, src: in.Node): CodeWriter[vpr.Exp] =
+  private def getCellPerms(ctx: Context)(expr: in.Expr, perm: in.Expr, sliceBound: SliceBound): CodeWriter[vpr.Exp] =
     (expr, perm) match {
       case (loc :: ctx.Slice(_), perm :: ctx.Perm())  =>
-        val (pos, info, errT) = src.vprMeta
+        val (pos, info, errT) = loc.vprMeta
         val bound = sliceBound match {
           case SliceBound.Cap => in.Capacity(loc)(loc.info)
           case SliceBound.Len => in.Length(loc)(loc.info)
@@ -242,7 +242,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
           Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx)(pos, info, errT)))(pos, info, errT))
         val underlyingBaseTyp = underlyingType(loc.typ)(ctx)
         val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
-        boundedQuant(vprBound, trigger, body)(src)(ctx).map{ forall =>
+        boundedQuant(vprBound, trigger, body)(loc)(ctx).map{ forall =>
           import viper.silver.ast.utility.QuantifiedPermissions
           // to eliminate nested quantified permissions, which are not supported by the silver ast.
           vu.bigAnd(QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)

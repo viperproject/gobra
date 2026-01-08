@@ -665,7 +665,7 @@ object Desugar extends LazyLogging {
       // r1 := r1'; .... rn := rn'
       val resultAssignments =
         returnsWithSubs.flatMap{
-          case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(p.info))
+          case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(fsrc))
           case _ => None
         } // :+ in.Return()(fsrc)
 
@@ -3964,7 +3964,7 @@ object Desugar extends LazyLogging {
     def varD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable])
       ctx(id, info) match {
-        case Some(v : in.Var) => v
+        case Some(v : in.Var) => v.withInfo(meta(id, info))
         case Some(d@in.Deref(_: in.Var, _)) => d
         case Some(v) => violation(s"expected a variable or the dereference of a pointer but got $v")
         case None => localVarContextFreeD(id, info)

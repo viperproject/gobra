@@ -25,6 +25,8 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
       try {
         siliconApi.initialize(commandLineArguments)
         val result = siliconApi.verify(program)
+        // TODO ake: how to return the DA results?
+        val dependencyAnalysisResult = siliconApi.verifier.getDependencyAnalysisResult
         siliconApi.stop()
 
         result match {

@@ -1,15 +1,15 @@
 package viper.gobra.dependencyAnalysis
 
-import viper.gobra.ast.frontend.{PAnd, PAssForRange, PAssert, PAssignment, PAssume, PBlock, PClosureDecl, PClosureImplProof, PConstDecl, PExhale, PExplicitGhostMember, PExprSwitchCase, PExprSwitchDflt, PExprSwitchStmt, PForStmt, PFriendPkgDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PIdnUse, PIfClause, PIfStmt, PImplementationProof, PInhale, PLoopSpec, PMethodDecl, PMethodImplementationProof, PMethodSig, PNamedOperand, PNode, POutline, PPackage, PPkgInvariant, PPreamble, PProgram, PRefute, PResult, PSelectAssRecv, PSelectDflt, PSelectRecv, PSelectSend, PSelectShortRecv, PSelectStmt, PSeq, PShortForRange, PTupleTerminationMeasure, PTypeSwitchCase, PTypeSwitchDflt, PTypeSwitchStmt, PWildcardMeasure, PositionManager}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
+import viper.gobra.reporting.VerifierError
 import viper.silicon.dependencyAnalysis.DependencyGraphInterpreter
-import viper.silicon.interfaces.Failure
 import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.AbstractDependencyGraphInterpreter
 
 object GobraDependencyAnalysisAggregator {
-  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[Failure]): GobraDependencyGraphInterpreter = {
+  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[VerifierError]): GobraDependencyGraphInterpreter = {
     interpreter match {
       case interpreter: DependencyGraphInterpreter => new GobraDependencyGraphInterpreter(interpreter.getGraph, typeInfo, errors)
       case _ => throw new Exception(s"Unknown dependency graph interpreter $interpreter")

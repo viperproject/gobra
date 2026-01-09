@@ -171,8 +171,6 @@ class DefaultErrorBackTranslator(
         MethodTerminationError(info) dueTo translate(reason)
       case termination.LoopTerminationError(Source(info), reason, _) =>
         LoopTerminationError(info) dueTo translate(reason)
-      case vprerr.DependencyAnalysisFakeError(interpreter) =>
-        DependencyAnalysisFakeError(interpreter)
     }
 
     val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {

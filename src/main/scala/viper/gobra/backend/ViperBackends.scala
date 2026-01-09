@@ -67,6 +67,9 @@ object ViperBackends {
         options ++= Vector("--enableDependencyAnalysis")
         options ++= Vector("--proverArgs", "proof=true unsat-core=true")
       }
+      if(config.startDependencyAnalysisTool){
+        options ++= Vector("--startDependencyAnalysisTool")
+      }
       options ++= exePaths
       if (config.disableSetAxiomatization) {
         // Since resources are stored within the .jar archive, we cannot

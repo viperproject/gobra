@@ -95,10 +95,11 @@ object Source {
       def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
     }
 
-    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition, infoStr: Option[String] = None) extends vpr.DependencyAnalysisInfo(infoStr.getOrElse(pNode.toString), pos) {
+    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition, enclosingNode: Option[PNode]=None, infoStr: Option[String] = None) extends vpr.DependencyAnalysisInfo(infoStr.getOrElse(pNode.toString), pos) {
       def getStart: Position = start
       def getEnd: Position = end
       def getPNode: PNode = pNode
+      def getEnclosingNode: PNode = enclosingNode.getOrElse(pNode)
       def getPosition: vpr.Position = pos
     }
 

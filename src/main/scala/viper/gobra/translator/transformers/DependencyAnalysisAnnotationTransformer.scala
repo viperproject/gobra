@@ -15,6 +15,7 @@ import viper.silver.{ast => vpr}
 class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperTransformer {
 
   private val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
+  private val positions = typeInfo.tree.root.positions.positions
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     val programWithAnalysisSources = addDependencyAnalysisSourceInfo(task.program)
@@ -23,51 +24,53 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
   }
 
   /**
-    *Adds GobraDependencyAnalysisInfos to the Viper nodes. This info is used to merge lower-level dependency nodes
-    *into Gobra dependency nodes such that soundness of transitive dependencies is guaranteed. Soundness depends on the
-    *correctness of [[GobraDependencyAnalysisAggregator.identifyGobraNodes]].
+    * Adds GobraDependencyAnalysisInfos to the Viper nodes. This info is used to merge lower-level dependency nodes
+    * into Gobra dependency nodes such that soundness of transitive dependencies is guaranteed. Soundness depends on the
+    * correctness of [[GobraDependencyAnalysisAggregator.identifyGobraNodes]].
    */
   private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
       case stmt: vpr.Stmt =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
-        val depInfo = getDependencyAnalysisInfo(stmt.pos, sourceInfo)
+        val depInfo = getDependencyAnalysisInfo(sourceInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, stmt.info) else stmt.info
         stmt.withMeta(stmt.pos, newInfo, stmt.errT)
       case exp: vpr.Exp =>
         val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
-        val depInfo = getDependencyAnalysisInfo(exp.pos, sourceInfo)
+        val depInfo = getDependencyAnalysisInfo(sourceInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, exp.info) else exp.info
         exp.withMeta(exp.pos, newInfo, exp.errT)
     }).forceCopy().execute(p)
   }
 
-  private def getDependencyAnalysisInfo(pos: Position, sourceInfo: Option[Verifier.Info]): Option[GobraDependencyAnalysisInfo] = {
-    val depInfo = findGobraNode(pos)
-    // Due to encoding details some Viper nodes might be associated with non-atomic Gobra statements. In such cases,
-    // we associate them with a Gobra node as defined in the following.
-    if (depInfo.isEmpty && sourceInfo.isDefined) sourceInfo.get.pnode match {
-      case PShortForRange(range, _, _, _, _) => findGobraNode(getPosition(range))
-      case PAssForRange(range, _, _, _) => findGobraNode(getPosition(range))
-      case _ => depInfo
-    }
-    else depInfo
+  private def getDependencyAnalysisInfo(sourceInfo: Option[Verifier.Info]): Option[GobraDependencyAnalysisInfo] = {
+    if (sourceInfo.isEmpty) return None
+    getDependencyAnalysisInfo(sourceInfo.get.pnode)
   }
+
+  private def getDependencyAnalysisInfo(pNode: PNode): Option[GobraDependencyAnalysisInfo] = {
+    try {
+      var pNodes = Vector(pNode)
+      val gNodes = gobraNodes.map(n => ((n.getPNode, n.getPosition), n)).toMap
+      var gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN))))
+      while (pNodes.nonEmpty && gNodeCandidates.isEmpty) {
+        pNodes = pNodes.flatMap(node => typeInfo.tree.parent(node))
+        gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN))))
+      }
+
+      gNodeCandidates.headOption
+    } catch {
+      case _ => None
+    }
+  }
+
 
   // TODO ake: duplicate! (see GobraDependencyAnalysisAggregator)
   private def getPosition(pNode: PNode): TranslatedPosition = {
-    val start = typeInfo.tree.root.positions.positions.getStart(pNode).get
-    val end = typeInfo.tree.root.positions.positions.getFinish(pNode).get
+    val start = positions.getStart(pNode).get
+    val end = positions.getFinish(pNode).get
     val sourcePosition = TranslatedPosition(typeInfo.tree.root.positions.translate(start, end))
     sourcePosition
-  }
-
-  private def findGobraNode(pos: vpr.Position): Option[GobraDependencyAnalysisInfo] = {
-    pos match {
-      case lineColumn: AbstractSourcePosition =>
-        gobraNodes.find(gNode => gNode.pos.start <= lineColumn.start && lineColumn.end.exists(l => l <= gNode.pos.end.getOrElse(l)))
-      case _ => None
-    }
   }
 
   /**
@@ -153,7 +156,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
     val analysisSourceInfo = node.info.getUniqueInfo[GobraDependencyAnalysisInfo]
     val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
     if(analysisSourceInfo.isDefined)
-      getAnalysisInfoAnnotation(analysisSourceInfo.get.getPNode, analysisSourceInfo.get.pos, pNodeMapper, default)
+      getAnalysisInfoAnnotation(analysisSourceInfo.get.getEnclosingNode, analysisSourceInfo.get.pos, pNodeMapper, default)
     else if(sourceInfo.isDefined)
       getAnalysisInfoAnnotation(sourceInfo.get.pnode, pos, pNodeMapper, default)
     else

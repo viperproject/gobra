@@ -64,7 +64,7 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
     val start = positionManager.positions.getStart(pNode).get
     val end = positionManager.positions.getFinish(pNode).get
     val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
-    val info = new GobraDependencyAnalysisInfo(origSource.getOrElse(pNode), start, end, sourcePosition, Some(pNode.toString))
+    val info = new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition, origSource, Some(pNode.toString))
     info
   }
 

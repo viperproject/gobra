@@ -9,11 +9,12 @@ package viper.gobra.translator
 
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.info.TypeInfo
-import viper.gobra.frontend.{Config, PackageInfo}
+import viper.gobra.frontend.{Config, Hyper, PackageInfo}
 import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
+import viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl
+import viper.gobra.translator.transformers.{AssumeTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.translator.transformers.{AssumeTransformer, DependencyAnalysisAnnotationTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
@@ -33,15 +34,19 @@ object Translator {
     }).toVector
 
   def translate(program: Program, pkgInfo: PackageInfo, typeInfo: TypeInfo)(config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
-    val translationConfig = new DfltTranslatorConfig()
+    val translationConfig = new DfltTranslatorConfig()(config)
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
 
+    // for hyper mode `EnabledExtended`, we use Viper's SIF plugin instead
+    val sifTransformer =
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) Seq.empty
+      else Seq(new SIFLowGuardTransformerImpl(config))
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationDomainTransformer,
       new DependencyAnalysisAnnotationTransformer(typeInfo)
-    )
+    ) ++ sifTransformer
 
     val transformedTask = transformers.foldLeft[Either[Vector[VerifierError], BackendVerifier.Task]](Right(task)) {
       case (Right(t), transformer) => transformer.transform(t).left.map(createConsistencyErrors)

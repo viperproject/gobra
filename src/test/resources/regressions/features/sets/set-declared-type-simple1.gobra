@@ -9,7 +9,7 @@ type cell struct {
 
 func test1() {
     s := set[cell] { cell{42} }
-    assert cell{42} in s
+    assert cell{42} elem s
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }
@@ -17,7 +17,7 @@ func test1() {
 func test2() {
     c := &cell{42}
     s := set[*cell] { c }
-    assert c in s
+    assert c elem s
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }

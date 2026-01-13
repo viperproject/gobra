@@ -5,12 +5,12 @@ package pkg
 
 ghost
 pure func bar(m dict[int]int, idx int) option[int] {
-    return idx in domain(m) ? some(m[idx]) : none[int]
+    return idx elem domain(m) ? some(m[idx]) : none[int]
 }
 
 ghost
 pure func baz(m dict[int]int, idx int) option[int] {
-    return match idx in domain(m){
+    return match idx elem domain(m){
         case true:
             some(m[idx])
         case false:

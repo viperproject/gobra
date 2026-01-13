@@ -17,9 +17,9 @@ func example2() {
 
   // could we do without the first assertion?
   assert seq[1..10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
-  assert 3 in mset[1..10]
-  assert 2 + 3 in mset[1..10]
-  assert !(42 in mset[1..10])
+  assert 3 elem mset[1..10]
+  assert 2 + 3 elem mset[1..10]
+  assert !(42 elem mset[1..10])
 }
 
 func example3() {

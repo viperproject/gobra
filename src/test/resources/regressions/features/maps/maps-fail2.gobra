@@ -27,7 +27,7 @@ func test3() {
 
 // cannot compute domain(m), no permission to m
 //:: ExpectedOutput(contract_not_well_formed)
-requires "key" in domain(m)
+requires "key" elem domain(m)
 func test4(m map[string]string) (r string){
 	return m["key"]
 }

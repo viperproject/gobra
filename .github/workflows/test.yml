@@ -33,14 +33,16 @@ jobs:
       FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: 'recursive'
-      - name: Check that silicon & carbon reference same silver commit
+      - name: Check that Silicon, Carbon, and SIF Plugin reference same silver commit
         run: |
           SILICON_SILVER_REF=$(git -C viperserver/silicon/silver rev-parse HEAD) && \
           CARBON_SILVER_REF=$(git -C viperserver/carbon/silver rev-parse HEAD) && \
-          if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi
+          SIF_PLUGIN_SILVER_REF=$(git -C silver-sif-extension/silver rev-parse HEAD) && \
+          if [ "$SILICON_SILVER_REF" != "$CARBON_SILVER_REF" ]; then echo "Silicon and Carbon reference different Silver commits ($SILICON_SILVER_REF and $CARBON_SILVER_REF)" && exit 1 ; fi && \
+          if [ "$SILICON_SILVER_REF" != "$SIF_PLUGIN_SILVER_REF" ]; then echo "Silicon and SIF Plugin reference different Silver commits ($SILICON_SILVER_REF and $SIF_PLUGIN_SILVER_REF)" && exit 1 ; fi
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
       - name: Set up Docker Buildx
@@ -185,7 +187,7 @@ jobs:
 
       - name: Upload RAM usage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pidstat.txt
           path: sync/pidstat.txt

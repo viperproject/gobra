@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM openjdk:11.0.12-slim as build
+FROM openjdk:11.0.16-slim as build
 
 WORKDIR /build
 
@@ -54,6 +54,7 @@ COPY conf /build/gobra/conf
 COPY src /build/gobra/src
 # Copies viperserver and, transitively, all of its dependencies (carbon, silicon and silver)
 COPY viperserver /build/gobra/viperserver
+COPY silver-sif-extension /build/gobra/silver-sif-extension
 
 RUN sbt assembly
 
@@ -62,7 +63,7 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM openjdk:11-jre-slim
+FROM openjdk:11.0.16-jre-slim
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie

@@ -63,22 +63,27 @@ trait GoVerifier extends StrictLogging {
    * Additionally statistics are collected with the StatsCollector reporter class
    */
   def verifyAllPackages(config: Config)(executor: GobraExecutionContext): VerifierResult = {
+    def addPlural(n: Int): String = if (n != 1) "s" else ""
     val statsCollector = StatsCollector(config.reporter)
     var warningCount: Int = 0
     var allVerifierErrors: Vector[VerifierError] = Vector()
     var allTimeoutErrors: Vector[TimeoutError] = Vector()
+    val isVerifyingMultiplePackages = config.packageInfoInputMap.size != 1
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run(): Unit = {
-        val statsFile = config.gobraDirectory.resolve("stats.json").toFile
-        logger.info("Writing report to " + statsFile.getPath)
-        val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
-        if (!wroteFile) {
-          logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+        config.gobraDirectory match {
+          case Some(path) =>
+            val statsFile = path.resolve("stats.json").toFile
+            logger.info("Writing report to " + statsFile.getPath)
+            val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
+            if (!wroteFile) {
+              logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+            }
+          case _ =>
         }
-
         // Report timeouts that were not previously reported
         statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }
@@ -97,10 +102,12 @@ trait GoVerifier extends StrictLogging {
           warningCount += warnings.size
           warnings.foreach(w => logger.debug(w))
 
+          val suffix = if (isVerifyingMultiplePackages) s" in package $pkgId" else ""
           result match {
-            case VerifierResult.Success => logger.info(s"$name found no errors")
+            case VerifierResult.Success =>
+              logger.info(s"$name found 0 errors$suffix.")
             case VerifierResult.Failure(errors) =>
-              logger.error(s"$name has found ${errors.length} error(s) in package $pkgId")
+              logger.error(s"$name found ${errors.length} error${addPlural(errors.length)}$suffix.")
               if (config.noStreamErrors) {
                 errors.foreach(err => logger.error(s"\t${err.formattedMessage}"))
               }
@@ -111,7 +118,7 @@ trait GoVerifier extends StrictLogging {
         Await.result(future, config.packageTimeout)
       } catch {
         case _: TimeoutException =>
-          logger.error(s"The verification of package $pkgId got terminated after " + config.packageTimeout.toString)
+          logger.error(s"The verification of package $pkgId timed out after ${config.packageTimeout}.")
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
           val errors = statsCollector.getTimeoutErrors(pkgId)
           errors.foreach(err => logger.error(err.formattedMessage))
@@ -121,24 +128,33 @@ trait GoVerifier extends StrictLogging {
 
     // Print statistics for caching
     if(config.cacheFile.isDefined) {
-      logger.debug(s"Number of cacheable Viper member(s): ${statsCollector.getNumberOfCacheableViperMembers}")
-      logger.debug(s"Number of cached Viper member(s): ${statsCollector.getNumberOfCachedViperMembers}")
+      logger.debug(s"Number of cacheable Viper members: ${statsCollector.getNumberOfCacheableViperMembers}")
+      logger.debug(s"Number of cached Viper members: ${statsCollector.getNumberOfCachedViperMembers}")
     }
 
     // Print general statistics
-    logger.debug(s"Gobra has found ${statsCollector.getNumberOfVerifiableMembers} methods and functions" )
-    logger.debug(s"${statsCollector.getNumberOfSpecifiedMembers} have specification")
-    logger.debug(s"${statsCollector.getNumberOfSpecifiedMembersWithAssumptions} are assumed to be satisfied")
+    logger.debug(s"Gobra found ${statsCollector.getNumberOfVerifiableMembers} methods and functions." )
+    logger.debug{
+      val specMem = statsCollector.getNumberOfSpecifiedMembers
+      s"$specMem member${addPlural(specMem)} are explicitly specified."
+    }
+    logger.debug{
+      val memAssum = statsCollector.getNumberOfSpecifiedMembersWithAssumptions
+      val isOrAre = if (memAssum != 1) "are" else "is"
+      s"$memAssum specified member${addPlural(memAssum)} of the package under verification $isOrAre trusted or abstract."
+    }
 
     // Print warnings
     if(warningCount > 0) {
-      logger.info(s"$name has found $warningCount warning(s)")
+      logger.debug(s"$name reported $warningCount warning${addPlural(warningCount)}.")
     }
 
     // Print errors
-    logger.info(s"$name has found ${allVerifierErrors.size} error(s)")
+    if (isVerifyingMultiplePackages) {
+      logger.info(s"$name found ${allVerifierErrors.size} error${addPlural(allVerifierErrors.size)} across all verified packages.")
+    }
     if(allTimeoutErrors.nonEmpty) {
-      logger.info(s"The verification of ${allTimeoutErrors.size} members timed out")
+      logger.info(s"The verification of ${allTimeoutErrors.size} member${addPlural(allTimeoutErrors.size)} timed out.")
     }
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
@@ -377,7 +393,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       }
     } catch {
       case e: UglyErrorMessage =>
-        logger.error(s"${verifier.name} has found 1 error(s): ")
+        logger.error(s"${verifier.name} has found 1 error: ")
         logger.error(s"\t${e.error.formattedMessage}")
         exitCode = 1
       case e: LogicException =>

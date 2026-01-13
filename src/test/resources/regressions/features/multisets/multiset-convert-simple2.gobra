@@ -6,8 +6,8 @@ package pkg
 func example1(ghost x int, ghost xs seq[int]) {
   ghost m := mset(xs)
   assert x # xs == x # m
-  assert 0 < x # xs ==> x in m
-  assert x in m ==> 0 < x # xs
+  assert 0 < x # xs ==> x elem m
+  assert x elem m ==> 0 < x # xs
 }
 
 func example2(ghost xs seq[int], ghost ys seq[int]) {
@@ -26,8 +26,8 @@ func example4() {
 }
 
 func example5(ghost x int, ghost xs seq[int]) {
-  assert x in xs ==> x in mset(xs)
-  assert x in mset(xs) ==> x in xs
+  assert x elem xs ==> x elem mset(xs)
+  assert x elem mset(xs) ==> x elem xs
 }
 
 func example6() {
@@ -42,7 +42,7 @@ func example7(ghost xs seq[int], ghost ys seq[int]) {
 
 func example8(ghost xs seq[int], n int, i int) {
   assert xs == xs[:i] ++ xs[i:] // can we also do without this assertion?
-  assert n in xs[:i] ==> n in mset(xs)
-  assert n in xs[i:] ==> n in mset(xs)
-  assert n in xs[i:] ==> n in mset(xs[i:])
+  assert n elem xs[:i] ==> n elem mset(xs)
+  assert n elem xs[i:] ==> n elem mset(xs)
+  assert n elem xs[i:] ==> n elem mset(xs[i:])
 }

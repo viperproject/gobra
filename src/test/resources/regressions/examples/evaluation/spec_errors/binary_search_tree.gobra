@@ -105,13 +105,13 @@ func (t *Tree) Contains(value, dividend int) (res bool) {
 ghost
 requires acc(t.tree(), _)
 pure func (t *Tree) pureContains(value int) bool {
-  return unfolding acc(t.tree(), _) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
+  return unfolding acc(t.tree(), _) in t.root != nil && value elem t.root.sortedValues(none[int], none[int])
 }
 
 requires dividend > 0
 requires acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
 ensures acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
-ensures res == value in n.sortedValues(lowerBound, upperBound) // res is correct
+ensures res == value elem n.sortedValues(lowerBound, upperBound) // res is correct
 func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
     unfold acc(n.tree(), 1/dividend)
     if (n.value == value) {
@@ -130,10 +130,10 @@ func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBo
 requires t.tree()
 ensures t.tree()
 // seeded bug: postcondition is too weak:
-// ensures value in t.sortedValues()
-ensures len(t.sortedValues()) == old(len(t.sortedValues())) + (value in old(t.sortedValues()) ? 0 : 1)
-ensures forall i int :: (i in old(t.sortedValues()) ==> i in t.sortedValues())
-ensures value in old(t.sortedValues()) ==> old(t.sortedValues()) == t.sortedValues()
+// ensures value elem t.sortedValues()
+ensures len(t.sortedValues()) == old(len(t.sortedValues())) + (value elem old(t.sortedValues()) ? 0 : 1)
+ensures forall i int :: (i elem old(t.sortedValues()) ==> i elem t.sortedValues())
+ensures value elem old(t.sortedValues()) ==> old(t.sortedValues()) == t.sortedValues()
 func (t *Tree) Insert(value int) {
     unfold t.tree()
     if (t.root == nil) {
@@ -149,10 +149,10 @@ requires lowerBound != none[int] ==> get(lowerBound) < value
 requires upperBound != none[int] ==> get(upperBound) > value
 requires n.tree() && n.sorted(lowerBound, upperBound)
 ensures n.tree() && n.sorted(lowerBound, upperBound)
-ensures value in n.sortedValues(lowerBound, upperBound)
-ensures len(n.sortedValues(lowerBound, upperBound)) == old(len(n.sortedValues(lowerBound, upperBound))) + (value in old(n.sortedValues(lowerBound, upperBound)) ? 0 : 1)
-ensures forall i int :: (i in old(n.sortedValues(lowerBound, upperBound)) ==> i in n.sortedValues(lowerBound, upperBound))
-ensures value in old(n.sortedValues(lowerBound, upperBound)) ==> old(n.sortedValues(lowerBound, upperBound)) == n.sortedValues(lowerBound, upperBound)
+ensures value elem n.sortedValues(lowerBound, upperBound)
+ensures len(n.sortedValues(lowerBound, upperBound)) == old(len(n.sortedValues(lowerBound, upperBound))) + (value elem old(n.sortedValues(lowerBound, upperBound)) ? 0 : 1)
+ensures forall i int :: (i elem old(n.sortedValues(lowerBound, upperBound)) ==> i elem n.sortedValues(lowerBound, upperBound))
+ensures value elem old(n.sortedValues(lowerBound, upperBound)) ==> old(n.sortedValues(lowerBound, upperBound)) == n.sortedValues(lowerBound, upperBound)
 func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
     unfold n.tree()
     if (value < n.value) {
@@ -175,7 +175,7 @@ func (n *node) insert(value int, ghost lowerBound, upperBound option[int]) {
 
 requires t.tree()
 ensures t.tree()
-ensures !(value in t.sortedValues())
+ensures !(value elem t.sortedValues())
 func (t *Tree) Delete(value int) {
     unfold t.tree()
     if (t.root != nil) {
@@ -188,7 +188,7 @@ requires lowerBound != none[int] ==> get(lowerBound) < value
 requires upperBound != none[int] ==> get(upperBound) > value
 requires n.tree() && n.sorted(lowerBound, upperBound)
 ensures res != nil ==> res.tree() && res.sorted(lowerBound, upperBound)
-ensures res != nil ==> !(value in res.sortedValues(lowerBound, upperBound))
+ensures res != nil ==> !(value elem res.sortedValues(lowerBound, upperBound))
 func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res *node) {
     unfold n.tree()
     if (value < n.value && n.left != nil) {
@@ -233,7 +233,7 @@ func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res 
 
 requires n.tree() && n.sorted(lowerBound, upperBound)
 ensures res != nil ==> res.tree() && res.sorted(some(minimum), upperBound)
-ensures res != nil ==> !(minimum in res.sortedValues(some(minimum), upperBound))
+ensures res != nil ==> !(minimum elem res.sortedValues(some(minimum), upperBound))
 ensures lowerBound != none[int] ==> get(lowerBound) < minimum
 ensures upperBound != none[int] ==> get(upperBound) > minimum
 func (n *node) deleteMinimum(ghost lowerBound, upperBound option[int]) (res *node, minimum int) {
@@ -327,7 +327,7 @@ func client2(t *Tree, value int) {
     var newValues = t.sortedValues()
     //:: ExpectedOutput(assert_error:assertion_error)
     assert t.pureContains(value)
-    ghost if (value in oldValues) {
+    ghost if (value elem oldValues) {
         assert oldValues == newValues
     } else {
         // this cannot be proven:

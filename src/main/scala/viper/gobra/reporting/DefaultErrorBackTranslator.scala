@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -14,6 +14,7 @@ import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reaso
 import viper.silver.plugin.standard.predicateinstance
 import viper.silver.plugin.standard.termination
 import viper.silver.plugin.standard.{refute => vprrefute}
+import viper.silver.sif
 
 object DefaultErrorBackTranslator {
 
@@ -88,6 +89,8 @@ object DefaultErrorBackTranslator {
         TupleDecreasesFalseError(info)
       case termination.TupleBoundedFalse(CertainSource(info)) =>
         TupleBoundedFalseError(info)
+      case sif.SIFGotoNotLowEvent(CertainSource(info)) =>
+        SIFGotoNotLowEvent(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
@@ -171,6 +174,8 @@ class DefaultErrorBackTranslator(
         MethodTerminationError(info) dueTo translate(reason)
       case termination.LoopTerminationError(Source(info), reason, _) =>
         LoopTerminationError(info) dueTo translate(reason)
+      case sif.SIFGotoCheckFailed(Source(info), reason, _) =>
+        SIFGotoError(info) dueTo translate(reason)
     }
 
     val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {
@@ -197,6 +202,9 @@ class DefaultErrorBackTranslator(
 
       case _ / LoopInvariantNotEstablishedAnnotation =>
         x.reasons.foldLeft(LoopInvariantEstablishmentError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
+
+      case _ / InvalidImplTermMeasureAnnotation() =>
+        x.reasons.foldLeft(MethodTerminationError(x.info): VerificationError) { case (err, _) => err dueTo ImplMeasureHigherThanInterfaceReason(x.info) }
 
       case _ => x
     }

@@ -54,8 +54,6 @@ case class PPackage(
 case class PProgram(
                      packageClause: PPackageClause,
                      pkgInvariants: Vector[PPkgInvariant],
-                     @deprecated("Init postconditions were deprecated in PR #797 and will soon be completely removed.")
-                     initPosts: Vector[PExpression],
                      imports: Vector[PImport],
                      friends: Vector[PFriendPkgDecl],
                      declarations: Vector[PMember]
@@ -65,8 +63,6 @@ case class PProgram(
 case class PPreamble(
                       packageClause: PPackageClause,
                       pkgInvariants: Vector[PPkgInvariant],
-                      @deprecated("Init postconditions were deprecated in PR #797 and will soon be completely removed.")
-                      initPosts: Vector[PExpression],
                       imports: Vector[PImport],
                       friends: Vector[PFriendPkgDecl],
                       positions: PositionManager,
@@ -1067,6 +1063,10 @@ case class PTypeExpr(typ: PType) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
+case class PLow(exp: PExpression) extends PGhostExpression
+
+case class PLowContext() extends PGhostExpression
+
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */
@@ -1091,10 +1091,10 @@ case class POptionGet(exp : PExpression) extends PGhostExpression
 sealed trait PGhostCollectionExp extends PGhostExpression
 
 /**
-  * Represents expressions of the form "`left` in `right`",
-  * that is, membership of a ghost collection.
+  * Represents expressions of the form "`left` elem `right`",
+  * that is, membership of the element `left` in a ghost collection `right`.
   */
-case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
+case class PElem(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"

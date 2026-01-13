@@ -1,0 +1,123 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// This testcase contains a program that is verified against a simple declassification policy.
+// This is inspired by case studies from the paper "Verifiable Security Policies for Distributed Systems",
+// but we use a style that is more common in Gobra implementing protocols as separation logic resources in the style of I/O separation logic.
+
+// ##(--hyperMode on)
+
+// Protocol:
+// 0. The key K is already given.
+// 1. We receive a message M over the network.
+// 2. We compute a "MAC tag" of M using K.
+// 3. We send the computed tag over the network.
+
+package sif
+
+// Used to track position in protocol.
+type Place int
+pred token(ghost p Place)
+
+pred RecvPerm(ghost p Place)
+
+// Returns the next place after calling `Recv` from `p`.
+// Avoids using an existential quantifier.
+ghost
+requires RecvPerm(p)
+decreases
+pure func Recv_T(ghost p Place) Place
+
+// Used to refer to the received message.
+ghost
+requires RecvPerm(p)
+decreases
+pure func Recv_R(ghost p Place) int
+
+requires token(p) && RecvPerm(p)
+ensures token(next_p) && next_p == old(Recv_T(p))
+ensures m == old(Recv_R(p))
+ensures low(m)
+func Recv(ghost p Place) (ghost next_p Place, m int)
+
+pred SendPerm(ghost p Place, t int)
+
+ghost
+requires SendPerm(p, t)
+decreases
+pure func Send_T(ghost p Place, t int) Place
+
+requires token(p) && SendPerm(p, t)
+requires low(t)
+ensures token(next_p) && next_p == old(Send_T(p, t))
+func Send(ghost p Place, t int) (ghost next_p Place)
+
+pred DeclassifyPerm(ghost p Place, tag int, t int)
+
+ghost
+requires DeclassifyPerm(p, tag, t)
+decreases
+pure func Declassify_T(ghost p Place, tag int, t int) Place
+
+ghost
+requires token(p) && DeclassifyPerm(p, tag, t)
+requires low(tag)
+ensures token(next_p) && next_p == old(Declassify_T(p, tag, t))
+ensures low(t)
+decreases
+func Declassify(ghost p Place, tag int, t int) (ghost next_p Place)
+
+pred Proto(ghost p0 Place, key int) {
+	// 1. Receive a message.
+	RecvPerm(p0) && let p1, m := Recv_T(p0), Recv_R(p0) in
+	// 2. Compute MAC tag and declassify it.
+	let tag := MAC(key, m) in
+	DeclassifyPerm(p1, m, tag) && let p2 := Declassify_T(p1, m, tag) in
+	// 3. Send MAC tag over network.
+	SendPerm(p2, tag) && let p3 := Send_T(p2, tag) in
+	// 4. Restart.
+	Proto(p3, key)
+}
+
+// Abstract function representing the computation of a MAC.
+// key x message -> MAC tag
+decreases
+pure func MAC(int, int) int
+
+requires token(p0) && Proto(p0, key)
+func authenticateTest(key int, ghost p0 Place) {
+	invariant token(p0) && Proto(p0, key)
+	for {
+		unfold Proto(p0, key)
+		p1, m1 := Recv(p0)
+		t := MAC(key, m1)
+		ghost p2 := Declassify(p1, m1, t)
+		p0 = Send(p2, t)
+		assert Proto(p0, key)
+	}
+}
+
+requires token(p0) && Proto(p0, key)
+func wrongKeyTest(key int, ghost p0 Place) {
+	invariant token(p0) && Proto(p0, key)
+	for {
+		unfold Proto(p0, key)
+		p1, m1 := Recv(p0)
+		t := MAC(key, 0)
+		// declassifying with the wrong key causes an error
+		//:: ExpectedOutput(precondition_error)
+		ghost p2 := Declassify(p1, m1, t)
+		p0 = Send(p2, t)
+		assert Proto(p0, key)
+	}
+}
+
+requires token(p0) && Proto(p0, key)
+func sendWrongMsgTest(key int, ghost p0 Place) {
+	unfold Proto(p0, key)
+	p1, m1 := Recv(p0)
+	// sending a message other than the mac of the previously
+	// received message is not allowed
+	//:: ExpectedOutput(precondition_error)
+	Send(p1, 0)
+}

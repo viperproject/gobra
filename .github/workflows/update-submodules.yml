@@ -17,26 +17,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
       - name: Get current commits
         run: |
           echo "PREV_VIPERSERVER_REF=$(git -C viperserver rev-parse HEAD)" >> $GITHUB_ENV
+          echo "PREV_SIF_EXTENSION_REF=$(git -C silver-sif-extension rev-parse HEAD)" >> $GITHUB_ENV
 
       - name: Update ViperServer submodule
         run: git checkout master && git pull
         working-directory: viperserver
 
+      - name: Update SIF Plugin submodule
+        run: git checkout master && git pull
+        working-directory: silver-sif-extension
+
       - name: Get new commits
         run: |
           echo "CUR_VIPERSERVER_REF=$(git -C viperserver rev-parse HEAD)" >> $GITHUB_ENV
+          echo "CUR_SIF_EXTENSION_REF=$(git -C silver-sif-extension rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Create PR body
+        run: |
+          if [[ "${{ env.PREV_VIPERSERVER_REF }}" != "${{ env.CUR_VIPERSERVER_REF }}" ]]; then
+            echo 'PR_BODY_LINE1=* Updates ViperServer from `${{ env.PREV_VIPERSERVER_REF }}` to `${{ env.CUR_VIPERSERVER_REF }}`.' >> $GITHUB_ENV
+          else
+            echo 'PR_BODY_LINE1=' >> $GITHUB_ENV
+          fi
+          if [[ "${{ env.PREV_SIF_EXTENSION_REF }}" != "${{ env.CUR_SIF_EXTENSION_REF }}" ]]; then
+            echo 'PR_BODY_LINE2=* Updates SIF Plugin from `${{ env.PREV_SIF_EXTENSION_REF }}` to `${{ env.CUR_SIF_EXTENSION_REF }}`.' >> $GITHUB_ENV
+          else
+            echo 'PR_BODY_LINE2=' >> $GITHUB_ENV
+          fi
 
       - name: Open a pull request
         id: pr
-        uses: peter-evans/create-pull-request@v7
-        if: env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF
+        uses: peter-evans/create-pull-request@v8
+        if: (env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF) || (env.PREV_SIF_EXTENSION_REF != env.CUR_SIF_EXTENSION_REF)
         with:
           # Use viper-admin's token to workaround a restriction of GitHub.
           # See: https://github.com/peter-evans/create-pull-request/issues/48
@@ -48,12 +67,11 @@ jobs:
           labels: |
             automated pr
           body: |
-            * Updates ViperServer from `${{ env.PREV_VIPERSERVER_REF }}` to `${{ env.CUR_VIPERSERVER_REF }}`.
+            ${{ env.PR_BODY_LINE1 }}
+            ${{ env.PR_BODY_LINE2 }}
 
       # - name: Enable auto-merge of PR
-      #   uses: peter-evans/create-or-update-comment@v2
-      #   if: env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF
-      #   with:
-      #     token: ${{ secrets.VIPER_ADMIN_TOKEN }}
-      #     issue-number: ${{ steps.pr.outputs.pull-request-number }}
-      #     body: bors merge
+      #   if: (env.PREV_VIPERSERVER_REF != env.CUR_VIPERSERVER_REF) || (env.PREV_SIF_EXTENSION_REF != env.CUR_SIF_EXTENSION_REF)
+      #   run: gh pr merge --merge --auto "${{ steps.pr.outputs.pull-request-number }}"
+      #   env:
+      #     GH_TOKEN: ${{ secrets.VIPER_ADMIN_TOKEN }}

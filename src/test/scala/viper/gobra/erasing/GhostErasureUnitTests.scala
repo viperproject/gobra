@@ -378,7 +378,6 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       Vector.empty,
       Vector.empty,
       Vector.empty,
-      Vector.empty,
       Vector(PFunctionDecl(
         PIdnDef("foo"),
         inArgs.map(_._1),
@@ -417,7 +416,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val program = stubProgram(inArgs, stmt)
       val ghostLess = ghostLessProg(program)
       val block = ghostLess match {
-        case PProgram(_, _, _, _, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
+        case PProgram(_, _, _, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
         case p => fail(s"Parsing succeeded but with an unexpected program $p")
       }
       normalize(block.stmts) match {

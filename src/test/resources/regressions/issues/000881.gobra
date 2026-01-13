@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000881
+
+// ##(--hyperMode on)
+
+ghost
+requires Pred(x)
+ensures Pred(1)
+decreases
+func Step(x int)
+
+pred Pred(x int)
+
+requires Pred(0)
+func test(i int) {
+	package Pred(0) --* Pred(1) {
+		Step(0)
+	}
+}

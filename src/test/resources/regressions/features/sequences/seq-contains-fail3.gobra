@@ -4,7 +4,7 @@
 package pkg
 
 func foo() {
-  b := 42 in seq[1..100]
+  b := 42 elem seq[1..100]
   // fails: assigning ghost expression to non-ghost parameter
   //:: ExpectedOutput(type_error)
   test(b)

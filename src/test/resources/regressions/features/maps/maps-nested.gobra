@@ -7,5 +7,5 @@ ghost
 func foo(){
     mm := dict[int](dict[int]int){1 : {2:3}}
     assert mm[1][2] == 3
-    assert 2 in domain(mm[1])
+    assert 2 elem domain(mm[1])
 }

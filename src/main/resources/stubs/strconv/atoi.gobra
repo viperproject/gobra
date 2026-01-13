@@ -42,10 +42,11 @@ pure func (e *NumError) Unwrap() error { return e.Err }
 
 // a to the power of b
 ghost
+requires base == 0 || (2 <= base && base <= 36)
 requires exp >= 0
 ensures res == (exp == 0 ? 1 : (base * Exp(base, exp - 1)))
 decreases exp
-pure func Exp(base int, exp int) (res int) {
+pure func Exp(base uint64, exp int) (res uint64) {
 	return exp == 0 ? 1 : (base * Exp(base, exp - 1))
 }
 

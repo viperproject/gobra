@@ -205,7 +205,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
             // no implication, access
             // no forall or exists body
-          case PIn(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
+          case PElem(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
           case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
             // no cardinality
             // no sequence append, sequence conversion

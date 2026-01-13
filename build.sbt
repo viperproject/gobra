@@ -10,6 +10,7 @@ import scala.util.Try
 // Import general settings from viperserver and, transitively, from carbon, silicon and silver.
 // we assume that carbon/silver and silicon/silver point to the same version of the silver repo
 lazy val server = project in file("viperserver")
+lazy val silver_sif_extension = project in file("silver-sif-extension")
 
 lazy val genParser = taskKey[Unit]("Generate Gobra's parser")
 genParser := {
@@ -23,6 +24,7 @@ genParser := {
 // Gobra specific project settings
 lazy val gobra = (project in file("."))
   .dependsOn(server % "compile->compile;test->test")
+  .dependsOn(silver_sif_extension % "compile->compile;test->test")
   .settings(
     // General settings
     name := "Gobra",

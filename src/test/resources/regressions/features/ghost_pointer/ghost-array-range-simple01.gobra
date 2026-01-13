@@ -50,9 +50,9 @@ decreases
 func GhostRangeOverGhostPtrToInts() {
     arr@ := [2]int{ 0, 1 }
     p := &arr
-    var elem int
+    var element int
     decreases len(*p) - i0
-    for elem = range(*p) with i0 {
+    for element = range(*p) with i0 {
 
     }
 }
@@ -61,9 +61,9 @@ decreases
 func ActualRangeOverPtrToInts() {
     arr@ := [2]int{ 0, 1 }
     p := &arr
-    var elem int
+    var element int
     decreases len(*p) - i0
-    for elem = range(*p) with i0 {
+    for element = range(*p) with i0 {
 
     }
 }

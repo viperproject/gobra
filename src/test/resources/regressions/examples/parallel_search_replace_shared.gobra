@@ -15,6 +15,7 @@ ghost
 requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
 ensures len(res) == len(s)
 ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
+decreases len(s)
 pure func toSeq(ghost s []int) (res seq[int]) {
   return (len(s) == 0 ? seq[int]{} :
                         toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
@@ -142,11 +143,11 @@ func SearchReplace(s []int, x, y int) {
     decreases len(pseqs) - i
     for i := 0; i != len(pseqs); i++ {
       unfold sync.InjEval(pseqs[i],i)
-      low := i * workRange
-      up := low + len(seqs[i])
-      s1 := s[low:up]
+      down := i * workRange
+      up := down + len(seqs[i])
+      s1 := s[down:up]
       unfold replacedPerm!<seqs[i],s1,x,y!>()
-      assert forall j int :: {&s[j]} low <= j && j < up ==> &s[j] == &s1[j-low]
+      assert forall j int :: {&s[j]} down <= j && j < up ==> &s[j] == &s1[j-down]
     }
   }
 }

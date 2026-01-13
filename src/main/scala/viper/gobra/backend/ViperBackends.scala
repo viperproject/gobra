@@ -6,12 +6,13 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{Config, MCE}
+import viper.gobra.frontend.{Config, Hyper, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
 import viper.silicon.decider.Z3ProverAPI
 import viper.server.vsi.DefaultVerificationServerStart
+import viper.silver.sif.SIFExtendedTransformer
 
 import java.nio.file.{Files, Paths}
 import scala.io.Source
@@ -19,89 +20,108 @@ import scala.util.Using
 
 trait ViperBackend {
   def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
+
+  protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
+    var options: Vector[String] = Vector.empty
+
+    options ++= exePaths
+    if (config.assumeInjectivityOnInhale) {
+      options ++= Vector("--assumeInjectivityOnInhale")
+    }
+    if (config.respectFunctionPrePermAmounts) {
+      options ++= Vector("--respectFunctionPrePermAmounts")
+    }
+    if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
+      // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
+      options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
+      // since Gobra adds gotos to handle return statements, which might jump out of a loop, we cannot use the default
+      // encoding of gotos in the SIFExtendedTransformer:
+      SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
+    }
+    if (config.disableInfeasibilityChecks) {
+      options ++= Vector("--disableInfeasibilityChecks")
+    }
+    if (config.enableDependencyAnalysis) {
+      options ++= Vector("--enableDependencyAnalysis")
+      options ++= Vector("--proverArgs", "proof=true unsat-core=true")
+    }
+    if(config.startDependencyAnalysisTool){
+      options ++= Vector("--startDependencyAnalysisTool")
+    }
+
+    options
+  }
+}
+
+trait SiliconBasedBackend extends ViperBackend {
+  override protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
+    var options: Vector[String] = super.buildOptions(exePaths, config)
+    options ++= Vector("--logLevel", "ERROR")
+    options ++= Vector("--disableCatchingExceptions")
+    if (config.conditionalizePermissions) {
+      options ++= Vector("--conditionalizePermissions")
+    }
+    if (config.z3APIMode) {
+      options ++= Vector(s"--prover=${Z3ProverAPI.name}")
+    }
+    if (config.disableNL) {
+      options ++= Vector(s"--disableNL")
+    }
+    if (config.unsafeWildcardOptimization) {
+      options ++= Vector(s"--unsafeWildcardOptimization")
+    }
+    options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
+    val mceSiliconOpt = config.mceMode match {
+      case MCE.Disabled => "0"
+      case MCE.Enabled  => "1"
+      case MCE.OnDemand => "2"
+    }
+    options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
+    // Gobra seems to be much slower with the new silicon axiomatization of collections.
+    // For now, we stick to the old one.
+    options ++= Vector("--useOldAxiomatization")
+    if (config.parallelizeBranches) {
+      options ++= Vector("--parallelizeBranches")
+    }
+    if (config.disableSetAxiomatization) {
+      // Since resources are stored within the .jar archive, we cannot
+      // directly pass the axiom file to Silicon.
+      val tmpPath = Paths.get("gobra_tmp")
+      val axiomTmpPath = tmpPath.resolve("noaxioms_sets.vpr")
+      val axiom: Source = Source.fromResource("noaxioms/sets.vpr")
+
+      Files.createDirectories(tmpPath)
+      Using(axiom) { source =>
+        Files.write(axiomTmpPath, source.mkString.getBytes)
+      }
+
+      options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
+    }
+
+    options
+  }
+}
+
+trait CarbonBasedBackend extends ViperBackend {
+  override protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
+    val options: Vector[String] = super.buildOptions(exePaths, config)
+    // options ++= Vector("--logLevel", "ERROR")
+    options
+  }
 }
 
 object ViperBackends {
 
-  object SiliconBackend extends ViperBackend {
+  object SiliconBackend extends SiliconBasedBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Silicon = {
-
-      var options: Vector[String] = Vector.empty
-      options ++= Vector("--logLevel", "ERROR")
-      options ++= Vector("--disableCatchingExceptions")
-      if (config.conditionalizePermissions) {
-        options ++= Vector("--conditionalizePermissions")
-      }
-      if (config.z3APIMode) {
-        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
-      }
-      if (config.disableNL) {
-        options ++= Vector(s"--disableNL")
-      }
-      if (config.unsafeWildcardOptimization) {
-        options ++= Vector(s"--unsafeWildcardOptimization")
-      }
-      options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
-      val mceSiliconOpt = config.mceMode match {
-        case MCE.Disabled => "0"
-        case MCE.Enabled  => "1"
-        case MCE.OnDemand => "2"
-      }
-      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
-      // Gobra seems to be much slower with the new silicon axiomatization of collections.
-      // For now, we stick to the old one.
-      options ++= Vector("--useOldAxiomatization")
-      if (config.respectFunctionPrePermAmounts) {
-        options ++= Vector("--respectFunctionPrePermAmounts")
-      }
-      if (config.assumeInjectivityOnInhale) {
-        options ++= Vector("--assumeInjectivityOnInhale")
-      }
-      if (config.parallelizeBranches) {
-        options ++= Vector("--parallelizeBranches")
-      }
-      if (config.disableInfeasibilityChecks) {
-        options ++= Vector("--disableInfeasibilityChecks")
-      }
-      if (config.enableDependencyAnalysis) {
-        options ++= Vector("--enableDependencyAnalysis")
-        options ++= Vector("--proverArgs", "proof=true unsat-core=true")
-      }
-      if(config.startDependencyAnalysisTool){
-        options ++= Vector("--startDependencyAnalysisTool")
-      }
-      options ++= exePaths
-      if (config.disableSetAxiomatization) {
-        // Since resources are stored within the .jar archive, we cannot
-        // directly pass the axiom file to Silicon.
-        val tmpPath = Paths.get("gobra_tmp")
-        val axiomTmpPath = tmpPath.resolve("noaxioms_sets.vpr")
-        val axiom: Source = Source.fromResource("noaxioms/sets.vpr")
-
-        Files.createDirectories(tmpPath)
-        Using(axiom) { source =>
-          Files.write(axiomTmpPath, source.mkString.getBytes)
-        }
-
-        options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
-      }
-
+      val options = buildOptions(exePaths, config)
       new Silicon(options)
     }
   }
 
-  object CarbonBackend extends ViperBackend {
+  object CarbonBackend extends CarbonBasedBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
-      var options: Vector[String] = Vector.empty
-      // options ++= Vector("--logLevel", "ERROR")
-      if (config.respectFunctionPrePermAmounts) {
-        options ++= Vector("--respectFunctionPrePermAmounts")
-      }
-      if (config.assumeInjectivityOnInhale) {
-        options ++= Vector("--assumeInjectivityOnInhale")
-      }
-      options ++= exePaths
-
+      val options = buildOptions(exePaths, config)
       new Carbon(options)
     }
   }
@@ -146,58 +166,16 @@ object ViperBackends {
       server = None
   }
 
-  case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
+  case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with SiliconBasedBackend {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
-      var options: Vector[String] = Vector.empty
-      options ++= Vector("--logLevel", "ERROR")
-      options ++= Vector("--disableCatchingExceptions")
-      // Gobra seems to be much slower with the new silicon axiomatization of collections.
-      // For now, we stick to the old one.
-      options ++= Vector("--useOldAxiomatization")
-      if (config.z3APIMode) {
-        options ++= Vector(s"--prover=${Z3ProverAPI.name}")
-      }
-      if (config.disableNL) {
-        options ++= Vector(s"--disableNL")
-      }
-      if (config.unsafeWildcardOptimization) {
-        options ++= Vector(s"--unsafeWildcardOptimization")
-      }
-      options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
-      val mceSiliconOpt = config.mceMode match {
-        case MCE.Disabled => "0"
-        case MCE.Enabled  => "1"
-        case MCE.OnDemand => "2"
-      }
-      options ++= Vector(s"--exhaleMode=$mceSiliconOpt")
-      if (config.respectFunctionPrePermAmounts) {
-        options ++= Vector("--respectFunctionPrePermAmounts")
-      }
-      if (config.assumeInjectivityOnInhale) {
-        options ++= Vector("--assumeInjectivityOnInhale")
-      }
-      if (config.parallelizeBranches) {
-        options ++= Vector("--parallelizeBranches")
-      }
-      if (config.conditionalizePermissions) {
-        options ++= Vector("--conditionalizePermissions")
-      }
-      options ++= exePaths
+      val options = super.buildOptions(exePaths, config)
       ViperServerConfig.ConfigWithSilicon(options.toList)
     }
   }
 
-  case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) {
+  case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with CarbonBasedBackend {
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
-      var options: Vector[String] = Vector.empty
-      // options ++= Vector("--logLevel", "ERROR")
-      if (config.respectFunctionPrePermAmounts) {
-        options ++= Vector("--respectFunctionPrePermAmounts")
-      }
-      if (config.assumeInjectivityOnInhale) {
-        options ++= Vector("--assumeInjectivityOnInhale")
-      }
-      options ++= exePaths
+      val options = super.buildOptions(exePaths, config)
       ViperServerConfig.ConfigWithCarbon(options.toList)
     }
   }

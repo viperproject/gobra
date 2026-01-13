@@ -7,12 +7,12 @@ package pkg
 requires acc(x)
 requires len(x) > 0
 ensures acc(x)
-ensures forall k uint :: k in domain(x) ==> max >= k
+ensures forall k uint :: k elem domain(x) ==> max >= k
 decreases
 func foo(x map[uint]int) (max uint) {
 	max = 0
 	invariant acc(x)
-	invariant forall i uint :: i in visited ==> max >= i
+	invariant forall i uint :: i elem visited ==> max >= i
 	decreases len(domain(x)) - len(visited)
 	for k, v := range x with visited {
 		if k > max {
@@ -25,20 +25,20 @@ decreases
 func bar() {
 	x := map[uint]int{1:1, 2:2, 3:3}
 	m := foo(x)
-	assert forall i uint :: i in domain(x) ==> m >= i
+	assert forall i uint :: i elem domain(x) ==> m >= i
 }
 
 requires acc(x)
 requires len(x) > 0
 ensures acc(x)
-ensures forall k int :: k in domain(x) ==> max >= x[k]
+ensures forall k int :: k elem domain(x) ==> max >= x[k]
 decreases
 func foo1(x map[int]uint) (max uint) {
 	max = 0
 	var k int
 	var v uint
 	invariant acc(x)
-	invariant forall i int :: i in visited ==> max >= x[i]
+	invariant forall i int :: i elem visited ==> max >= x[i]
 	decreases len(domain(x)) - len(visited)
 	for k, v = range x with visited {
 		if v > max {
@@ -51,5 +51,5 @@ decreases
 func bar1() {
 	x := map[int]uint{1:1, 2:2, 3:3}
 	m := foo1(x)
-	assert forall i int :: i in domain(x) ==> m >= x[i]
+	assert forall i int :: i elem domain(x) ==> m >= x[i]
 }

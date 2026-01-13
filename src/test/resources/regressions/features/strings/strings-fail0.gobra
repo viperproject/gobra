@@ -30,3 +30,10 @@ func orderStringLit3() {
 	//:: ExpectedOutput(assert_error)
 	assert "a" > "bb"
 }
+
+decreases
+func indexOutOfBounds(s string) {
+	// s is not guaranteed to have at least one element.
+	//:: ExpectedOutput(precondition_error)
+	assert s[0] == s[0]
+}

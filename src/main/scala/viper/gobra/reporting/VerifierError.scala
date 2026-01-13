@@ -186,7 +186,7 @@ case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
 
   override def localId: String = "refute_error"
 
-  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds."
+  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds"
 }
 
 case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {
@@ -376,6 +376,11 @@ case class LoopTerminationError(info: Source.Verifier.Info) extends Verification
   override def localMessage: String = s"The loop ${info.origin.tag.trim} might not terminate"
 }
 
+case class SIFGotoError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "sif_goto_error"
+  override def localMessage: String = s"The side conditions for the goto statement ${info.origin.tag.trim} caused by verifying hyper properties might not hold"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
@@ -504,6 +509,11 @@ case class TerminationConditionFalseError(info: Source.Verifier.Info) extends Ve
   override def message: String = s"Required termination condition might not hold."
 }
 
+case class ImplMeasureHigherThanInterfaceReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "term_measure_impl_higher_than_interface"
+  override def message: String = s"The termination measure of this method might exceed the termination measure of the corresponding interface method."
+}
+
 case class TupleConditionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "tuple_condition_false_error"
   override def message: String = s"Required tuple condition might not hold."
@@ -532,6 +542,11 @@ case class LabelledStateNotReached(info: Source.Verifier.Info) extends Verificat
 case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spec: String) extends VerificationErrorReason {
   override def id = "spec_not_implemented"
   override def message: String = s"$closure might not implement $spec."
+}
+
+case class SIFGotoNotLowEvent(info: Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "sif_goto_not_low_event"
+  override def message: String = s"${info.origin.tag.trim} might not be executed by both executions."
 }
 
 sealed trait VerificationErrorClarification {

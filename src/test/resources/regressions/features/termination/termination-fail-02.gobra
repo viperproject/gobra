@@ -6,8 +6,8 @@
 package termination
 
 type Func interface {
-    //:: ExpectedOutput(pure_function_termination_error)
-    //:: ExpectedOutput(postcondition_error:assertion_error)
+	//:: ExpectedOutput(pure_function_termination_error)
+	//:: ExpectedOutput(postcondition_error:assertion_error)
 	pure
 	decreases n
 	requires a != nil
@@ -18,7 +18,7 @@ type FuncImpl struct {}
 
 (FuncImpl) implements Func {
 	pure (f FuncImpl) fun (n int, a Func) int {
-		//:: ExpectedOutput(pure_function_termination_error)
+		// Unlike previous versions of Gobra, the termination error is no longer (also) reported here.
 		return f.fun(n, a)
 	}
 }

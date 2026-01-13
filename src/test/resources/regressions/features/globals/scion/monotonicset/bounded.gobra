@@ -9,7 +9,7 @@ type BoundedMonotonicSet struct {
 
 pred (b BoundedMonotonicSet) Inv() {
 	forall i uint16 :: 0 <= i && i < 256 ==>
-		(i in domain(b.valuesMap) && acc(b.valuesMap[i], 1/2))
+		(i elem domain(b.valuesMap) && acc(b.valuesMap[i], 1/2))
 }
 
 ghost
@@ -24,7 +24,7 @@ pure func (b BoundedMonotonicSet) FContains(i uint16) bool {
 
 ghost
 requires forall i uint16 :: 0 <= i && i < 256 ==>
-	(i in domain(b.valuesMap) && acc(b.valuesMap[i], _))
+	(i elem domain(b.valuesMap) && acc(b.valuesMap[i], _))
 requires 0 <= i && i < 256
 decreases
 pure func (b BoundedMonotonicSet) fcontainshelper(i uint16) bool {
@@ -34,7 +34,7 @@ pure func (b BoundedMonotonicSet) fcontainshelper(i uint16) bool {
 
 pred (b BoundedMonotonicSet) Contains(i uint16) {
 	0 <= i && i < 256 &&
-	i in domain(b.valuesMap) &&
+	i elem domain(b.valuesMap) &&
 	acc(b.valuesMap[i], _)   &&
 	*b.valuesMap[i]
 }
@@ -51,7 +51,7 @@ func (b BoundedMonotonicSet) ContainsIsDup(i uint16) {
 
 pred (b BoundedMonotonicSet) DoesNotContain(i uint16) {
 	0 <= i && i < 256 &&
-	i in domain(b.valuesMap) &&
+	i elem domain(b.valuesMap) &&
 	acc(b.valuesMap[i], 1/2) &&
 	!(*b.valuesMap[i])
 }
@@ -81,6 +81,17 @@ func (b BoundedMonotonicSet) ContainsImpliesFContains(i uint16) {
 }
 
 ghost
+opaque
+requires 0 <= i && i <= 256
+requires forall i uint16 :: 0 <= i && i < 256 ==>
+	(i elem domain(b.valuesMap) && acc(b.valuesMap[i], _))
+decreases
+pure func (b BoundedMonotonicSet) fnotcontainshelperUpTo(i uint16) bool {
+    return forall j uint16 :: { b.fcontainshelper(j) } 0 <= j && j < i ==>
+        !b.fcontainshelper(j)
+}
+
+ghost
 ensures res.Inv()
 ensures forall i uint16 :: 0 <= i && i < 256 ==>
 	res.DoesNotContain(i)
@@ -93,7 +104,7 @@ func Alloc() (res BoundedMonotonicSet) {
 	var i uint16
 	invariant 0 <= i && i <= 256
 	invariant forall j uint16 :: 0 <= j && j < i ==>
-		j in domain(b.valuesMap)
+		j elem domain(b.valuesMap)
 	// injectivity requirement
 	invariant forall j1, j2 uint16 :: 0 <= j1 && j1 < j2 && j2 < i ==>
 		b.valuesMap[j1] != b.valuesMap[j2]
@@ -106,23 +117,29 @@ func Alloc() (res BoundedMonotonicSet) {
 		b.valuesMap[i] = new(bool)
 	}
 
+	assert reveal b.fnotcontainshelperUpTo(0)
+
 	invariant 0 <= i && i <= 256
-	invariant forall j uint16 :: 0 <= j && j < i ==>
-		j in domain(b.valuesMap)
+	invariant forall j uint16 :: { j elem domain(b.valuesMap) } 0 <= j && j < i ==>
+		j elem domain(b.valuesMap)
 	// injectivity requirement
-	invariant forall j1, j2 uint16 :: 0 <= j1 && j1 < j2 && j2 < i ==>
+	invariant forall j1, j2 uint16 :: { b.valuesMap[j1], b.valuesMap[j2] } 0 <= j1 && j1 < j2 && j2 < i ==>
 		b.valuesMap[j1] != b.valuesMap[j2]
-	invariant forall j uint16 :: i <= j && j < 256 ==>
-		acc(b.valuesMap[j]) && !(*b.valuesMap[j])
-	invariant forall j uint16 :: 0 <= j && j < i ==>
-		acc(b.valuesMap[j], 1/2)
-	invariant forall j uint16 :: 0 <= j && j < i ==>
+	invariant forall j uint16 :: { b.valuesMap[j] } i <= j && j < 256 ==>
+		acc(b.valuesMap[j], 3/4) && !(*b.valuesMap[j])
+	invariant forall j uint16 :: { b.valuesMap[j] } 0 <= j && j < i ==>
+		acc(b.valuesMap[j], 1/4)
+	invariant forall j uint16 :: { b.DoesNotContain(j) } 0 <= j && j < i ==>
 		b.DoesNotContain(j)
-	invariant forall j uint16 :: 0 <= j && j < i ==>
-		!b.fcontainshelper(j)
+	invariant b.fnotcontainshelperUpTo(i)
 	decreases 256 - i
 	for i = 0; i < 256; i +=1 {
-		fold b.DoesNotContain(i)
+	    fold b.DoesNotContain(i)
+		if b.fnotcontainshelperUpTo(i + 1) {} else {
+		    assert reveal b.fnotcontainshelperUpTo(i)
+		    assert reveal b.fnotcontainshelperUpTo(i + 1)
+            assert false
+		}
 	}
 	fold b.Inv()
 	return b
@@ -149,7 +166,7 @@ requires 0 < p
 requires acc(b.Inv(), p)
 requires b.Contains(v)
 ensures  acc(b.Inv(), p)
-ensures  v in b.ToSet()
+ensures  v elem b.ToSet()
 decreases
 func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 	found := false
@@ -163,7 +180,7 @@ func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 	invariant b.Contains(v)
 	invariant 0 <= i && i <= 256
 	invariant v < i ==> found
-	invariant found ==> v in b.ToSet()
+	invariant found ==> v elem b.ToSet()
 	invariant part1 union part2 == b.ToSet()
 	invariant i < 256 ==>
 		part2 == unfolding acc(b.Inv(), _) in ((*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}) union (i < 255 ? b.toSetAux(i+1) : set[uint16]{}))
@@ -176,8 +193,8 @@ func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 			found = true
 			assert *b.valuesMap[i]
 			assert newpart1 union newpart2 == b.ToSet()
-			assert v in (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}))
-			assert v in newpart1
+			assert v elem (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}))
+			assert v elem newpart1
 			fold b.Contains(v)
 		}
 		part1 = newpart1
@@ -189,7 +206,7 @@ ghost
 requires  0 < p
 preserves acc(b.Inv(), p)
 preserves b.DoesNotContain(v)
-ensures   !(v in b.ToSet())
+ensures   !(v elem b.ToSet())
 decreases
 func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v uint16, p perm) {
 	found := false
@@ -203,7 +220,7 @@ func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v uint
 	invariant b.DoesNotContain(v)
 	invariant 0 <= i && i <= 256
 	invariant !found
-	invariant found == v in part1
+	invariant found == v elem part1
 	invariant part1 union part2 == b.ToSet()
 	invariant i < 256 ==>
 		part2 == unfolding acc(b.Inv(), _) in ((*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{}) union (i < 255 ? b.toSetAux(i+1) : set[uint16]{}))
@@ -217,8 +234,8 @@ func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v uint
 			unfold b.DoesNotContain(v)
 			assert !(*b.valuesMap[i])
 			assert newpart1 union newpart2 == b.ToSet()
-			assert !(v in (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{})))
-			assert !(v in newpart1)
+			assert !(v elem (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[uint16]{i} : set[uint16]{})))
+			assert !(v elem newpart1)
 			fold b.DoesNotContain(v)
 		}
 		part1 = newpart1

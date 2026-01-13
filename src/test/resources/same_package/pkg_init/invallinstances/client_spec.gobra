@@ -6,11 +6,11 @@ package invallinstances
 pred PkgInv() {
 	acc(&ids) &&
 	acc(&allocs) &&
-	(forall c *Client :: { c in allocs } c in allocs ==>
+	(forall c *Client :: { c elem allocs } c elem allocs ==>
 		acc(&c.id, 1/2)) &&
-	(forall c *Client :: { c in allocs } c in allocs ==>
+	(forall c *Client :: { c elem allocs } c elem allocs ==>
 		c.id < ids) &&
-	(forall c1, c2 *Client :: { c1 in allocs, c2 in allocs } c1 in allocs && c2 in allocs && c1 != c2 ==>
+	(forall c1, c2 *Client :: { c1 elem allocs, c2 elem allocs } c1 elem allocs && c2 elem allocs && c1 != c2 ==>
 		c1.id != c2.id)
 }
 
@@ -19,7 +19,7 @@ requires acc(PkgInv(), _)
 decreases
 pure func (c *Client) Allocated() bool {
 	return unfolding acc(PkgInv(), _) in
-		c in allocs
+		c elem allocs
 }
 
 pred (c *Client) Inv() {

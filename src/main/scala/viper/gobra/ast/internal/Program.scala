@@ -518,11 +518,27 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Assertion
-case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
-case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
+sealed trait TerminationMeasure extends Assertion {
+  val cond: Option[Expr]
+  val info: Source.Parser.Info
+}
+
+sealed trait ItfMethodMeasure extends TerminationMeasure
+sealed trait NonItfMethodMeasure extends TerminationMeasure
+sealed trait WildcardMeasure extends TerminationMeasure
+sealed trait TupleTerminationMeasure extends TerminationMeasure {
+  val tuple: Vector[Node]
   require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
 }
+
+case class ItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with WildcardMeasure
+case class NonItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with WildcardMeasure
+case class ItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with TupleTerminationMeasure
+case class NonItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with TupleTerminationMeasure
 
 sealed trait Accessible extends Node {
   def op: Node
@@ -543,8 +559,6 @@ sealed trait PredicateAccess extends Node
 case class FPredicateAccess(pred: FPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extends PredicateAccess
-
-
 
 sealed trait Expr extends Node with Typed with TriggerExpr
 
@@ -664,7 +678,15 @@ case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) e
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
+/* ** Information Flow  */
 
+case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class LowContext()(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
 
 /* ** Higher-order predicate expressions */
 
@@ -744,6 +766,7 @@ case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val i
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
+    case _: StringT => IntT(Addressability.Exclusive, TypeBounds.Byte)
     case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }
@@ -860,12 +883,12 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents a membership expression "`left` in `right`".
+  * Represents a membership expression "`left` elem `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
   * with the one of `left`.
   */
-case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("elem") {
   override val typ : Type = BoolT(Addressability.rValue)
 }
 

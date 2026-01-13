@@ -125,6 +125,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
 
+    case PLow(e) => isExpr(e).out
+    case _: PLowContext => noMessages
+
     case n: PGhostEquals =>
       val lType = typ(n.left)
       val rType = typ(n.right)
@@ -155,7 +158,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       sameTypeE ++ patternE ++ error(clauses, "Cases cannot be empty", clauses.isEmpty) ++ pureExpE ++ moreThanOneDfltE ++ pureClauses
 
     case expr : PGhostCollectionExp => expr match {
-      case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
+      case PElem(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
           case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
           case t : MapT => ghostComparableTypes.errors(exprType(left), t.key)(expr)
@@ -279,6 +282,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PTypeOf => SortT
     case _: PTypeExpr => SortT
     case _: PIsComparable => BooleanT
+
+    case _: PLow | _: PLowContext => BooleanT
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
@@ -301,7 +306,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
       case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
-      case PIn(_, _) => BooleanT
+      case PElem(_, _) => BooleanT
       case PGhostCollectionUpdate(seq, _) => exprType(seq)
       case expr : PSequenceExp => expr match {
         case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))
@@ -457,8 +462,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PUnfolding => true
       case _: PLet => true // the well-definedness check makes sure that both sub-expressions are pure.
       case _: POld | _: PLabeledOld | _: PBefore => true
-      case _: PForall => true
-      case _: PExists => true
+      case f: PForall => go(f.body)
+      case e: PExists =>
+        // The type checker currently enforces that all existential quantifiers must be strongly pure, so we wouldn't need to recurse here.
+        // Nonetheless, this implementation is safer in case that ever changes.
+        go(e.body)
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(go)
 
@@ -489,6 +497,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PTypeOf => go(n.exp)
       case _: PTypeExpr => true
       case n: PIsComparable => asExpr(n.exp).forall(go)
+
+      case n: PLow => go(n.exp)
+      case _: PLowContext => true
 
       case PCompositeLit(typ, _) => typ match {
         case _: PImplicitSizeArrayType => true

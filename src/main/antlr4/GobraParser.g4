@@ -35,15 +35,13 @@ friendPkgDecl: FRIENDPKG importPath assertion;
 
 // Ghost members
 sourceFile:
-  (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
+  (pkgInvariant eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
     member eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
 // That's also why we don not enforce EOF at the end.
-preamble: (pkgInvariant eos)* (initPost eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
-
-initPost: INIT_POST expression;
+preamble: (pkgInvariant eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
 
 importPre: IMPORT_PRE expression;
 
@@ -87,6 +85,8 @@ ghostPrimaryExpr: range
   | typeOf
   | typeExpr
   | isComparable
+  | low
+  | lowc
   | old
   | before
   | sConversion
@@ -130,6 +130,10 @@ labelUse: IDENTIFIER;
 before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
+
+low: LOW L_PAREN expression R_PAREN;
+
+lowc: LOWC L_PAREN R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
@@ -314,7 +318,7 @@ expression:
     | SETMINUS
   ) expression #p42Expr
   | expression p41_op = (
-    IN
+    ELEM
     | MULTI
     | SUBSET
   ) expression #p41Expr
@@ -463,13 +467,13 @@ implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 // distinguish low,high cap
 slice_:
   L_BRACKET (
-    low? COLON high?
-    | low? COLON high COLON cap
+    lowSliceArgument? COLON highSliceArgument?
+    | lowSliceArgument? COLON highSliceArgument COLON capSliceArgument
   ) R_BRACKET;
 
-low : expression;
-high: expression;
-cap: expression;
+lowSliceArgument : expression;
+highSliceArgument: expression;
+capSliceArgument: expression;
 
 
 

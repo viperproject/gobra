@@ -64,8 +64,8 @@ object GobraDependencyAnalysisAggregator {
     getGobraDependencyAnalysisInfo(pNode) ++ (pNode match {
       // packages and programs
       case PPackage(packageClause, programs, _, _) => go(packageClause +: programs)
-      case PProgram(packageClause, pkgInvariants, initPosts, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ initPosts ++ imports ++ friends ++ declarations))
-      case PPreamble(packageClause, pkgInvariants, initPosts, imports, friends, _) => getGobraDependencyAnalysisInfo(pNode) ++ go(packageClause +: (pkgInvariants ++ initPosts ++ imports ++ friends))
+      case PProgram(packageClause, pkgInvariants, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ imports ++ friends ++ declarations))
+      case PPreamble(packageClause, pkgInvariants, imports, friends, _) => getGobraDependencyAnalysisInfo(pNode) ++ go(packageClause +: (pkgInvariants ++ imports ++ friends))
       case PPkgInvariant(inv, _) => getGobraDependencyAnalysisInfo(pNode) ++ goTopLevelConjuncts(inv)
       case PFriendPkgDecl(_, assertion) => goS(assertion)
 

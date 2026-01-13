@@ -35,7 +35,7 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
   private def pruneProgram(pProgram: PProgram)(implicit crucialNodes: Set[DependencyAnalysisNode]): PProgram = {
     PProgram(pProgram.packageClause,
       pProgram.pkgInvariants.filter(inv => isCrucialNode(inv.inv)),
-      pProgram.initPosts, pProgram.imports,
+      pProgram.imports,
       pProgram.friends.map(friendDecl => if(isCrucialNode(friendDecl.assertion)) friendDecl else PFriendPkgDecl(friendDecl.path, PBoolLit(true))),
       pProgram.declarations.map(pruneMembers) ++ Vector(nonDetermBoolEncoding))
   }

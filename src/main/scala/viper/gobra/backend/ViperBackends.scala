@@ -38,16 +38,6 @@ trait ViperBackend {
       // encoding of gotos in the SIFExtendedTransformer:
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
     }
-    if (config.disableInfeasibilityChecks) {
-      options ++= Vector("--disableInfeasibilityChecks")
-    }
-    if (config.enableDependencyAnalysis) {
-      options ++= Vector("--enableDependencyAnalysis")
-      options ++= Vector("--proverArgs", "proof=true unsat-core=true")
-    }
-    if(config.startDependencyAnalysisTool){
-      options ++= Vector("--startDependencyAnalysisTool")
-    }
 
     options
   }
@@ -96,6 +86,17 @@ trait SiliconBasedBackend extends ViperBackend {
       }
 
       options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
+    }
+    if (config.disableInfeasibilityChecks) {
+      options ++= Vector("--disableInfeasibilityChecks")
+      options ++= Vector("--numberOfErrorsToReport=0")
+    }
+    if (config.enableDependencyAnalysis) {
+      options ++= Vector("--enableDependencyAnalysis")
+      options ++= Vector("--proverArgs", "proof=true unsat-core=true")
+    }
+    if(config.startDependencyAnalysisTool){
+      options ++= Vector("--startDependencyAnalysisTool")
     }
 
     options

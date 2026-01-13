@@ -9,6 +9,7 @@ package viper.gobra.translator
 
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.frontend.{Config, Hyper, PackageInfo}
 import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig

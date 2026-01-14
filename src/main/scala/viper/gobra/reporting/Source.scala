@@ -8,16 +8,15 @@ package viper.gobra.reporting
 
 import org.bitbucket.inkytonik.kiama.util.Position
 import viper.gobra.ast.frontend.PNode
-
-import java.nio.file.Paths
-
-import viper.silver.ast.SourcePosition
-import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
 import viper.gobra.util.Violation
-import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
+import viper.silicon.dependencyAnalysis.{DependencyAnalysisInfo, DependencyType}
+import viper.silver.ast.SourcePosition
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
+import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
+import viper.silver.{ast => vpr}
 
+import java.nio.file.Paths
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
@@ -96,11 +95,10 @@ object Source {
       def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
     }
 
-    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition, enclosingNode: Option[PNode]=None, infoStr: Option[String] = None) extends vpr.DependencyAnalysisInfo(infoStr.getOrElse(pNode.toString), pos) {
+    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, pos: vpr.AbstractSourcePosition, dependencyType: Option[DependencyType] = None, infoStr: Option[String] = None) extends DependencyAnalysisInfo(infoStr.getOrElse(pNode.toString), pos, dependencyType) {
       def getStart: Position = start
       def getEnd: Position = end
       def getPNode: PNode = pNode
-      def getEnclosingNode: PNode = enclosingNode.getOrElse(pNode)
       def getPosition: vpr.Position = pos
     }
 

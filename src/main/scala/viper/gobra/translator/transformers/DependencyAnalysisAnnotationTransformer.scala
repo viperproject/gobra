@@ -1,6 +1,6 @@
 package viper.gobra.translator.transformers
 
-import viper.gobra.ast.frontend.{PAssForRange, PForStmt, PNode, PRange, PShortForRange}
+import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
@@ -19,8 +19,8 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     val programWithAnalysisSources = addDependencyAnalysisSourceInfo(task.program)
-    val programWithAnalysisAnnotation = addDependencyAnalysisAnnotation(programWithAnalysisSources)
-    Right(task.copy(program = programWithAnalysisAnnotation))
+//    val programWithAnalysisAnnotation = addDependencyAnalysisAnnotation(programWithAnalysisSources)
+    Right(task.copy(program = programWithAnalysisSources))
   }
 
   /**
@@ -30,6 +30,15 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
    */
   private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
+      case member: vpr.Member =>
+        val newInfo = getNewInfo(member, member.pos, {
+          case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
+               | _: gobra.PDomainType | _: gobra.PPredType
+          => NoInfo
+          case _ => disableDependencyAnalysis
+        }, disableDependencyAnalysis)
+        member.withMeta((member.pos, newInfo, member.errT))
+
       case stmt: vpr.Stmt =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)
@@ -89,24 +98,6 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
           }, implicitAnnotation)
         a.withMeta((a.pos, newInfo, a.errT))
 
-      case dInput @ (_: vpr.Domain | _: vpr.Function | _: vpr.Predicate) =>
-        val d = dInput.asInstanceOf[vpr.Member]
-        val newInfo = getNewInfo(d, d.pos, {
-          case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
-            | _: gobra.PDomainType | _: gobra.PPredType
-              => NoInfo
-          case _ => disableDependencyAnalysis
-        }, disableDependencyAnalysis)
-        d.withMeta((d.pos, newInfo, d.errT))
-
-      case meth: vpr.Method =>
-        val newInfo = getNewInfo(meth, meth.pos, {
-          case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
-               | _: gobra.PDomainType | _: gobra.PPredType
-          => NoInfo
-          case _ => disableDependencyAnalysis
-        }, disableDependencyAnalysis)
-        vpr.Method(meth.name, meth.formalArgs, meth.formalReturns, getNewExps(meth.pres), meth.posts, meth.body)(meth.pos, newInfo, meth.errT)
 
 
       case seqn: vpr.Seqn =>
@@ -153,11 +144,8 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
   }
 
   private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
-    val analysisSourceInfo = node.info.getUniqueInfo[GobraDependencyAnalysisInfo]
     val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
-    if(analysisSourceInfo.isDefined)
-      getAnalysisInfoAnnotation(analysisSourceInfo.get.getEnclosingNode, analysisSourceInfo.get.pos, pNodeMapper, default)
-    else if(sourceInfo.isDefined)
+    if(sourceInfo.isDefined)
       getAnalysisInfoAnnotation(sourceInfo.get.pnode, pos, pNodeMapper, default)
     else
       default

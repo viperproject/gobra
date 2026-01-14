@@ -4,7 +4,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.DependencyGraphInterpreter
+import viper.silicon.dependencyAnalysis.{AssumptionType, DependencyGraphInterpreter, DependencyType}
 import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.AbstractDependencyGraphInterpreter
 
@@ -32,50 +32,69 @@ object GobraDependencyAnalysisAggregator {
   }
 
   // TODO ake: should we also determine the assumption and assertion types here?
-  private def identifyGobraNodes(pNode: PNode)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
+  private def identifyGobraNodes(pNode: PNode, dependencyType: Option[DependencyType]=None)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
 
-    def go(pNodes: Iterable[PNode]) = {
-      pNodes.flatMap(identifyGobraNodes)
+    def go(pNodes: Iterable[PNode], dependencyType: Option[DependencyType]=None) = {
+      pNodes.flatMap(identifyGobraNodes(_, dependencyType))
     }
 
-    def goS(pNode: PNode) = identifyGobraNodes(pNode)
+    def goS(pNode: PNode, dependencyType: Option[DependencyType]=None) = identifyGobraNodes(pNode, dependencyType)
 
-    def goOpt(pNode: Option[PNode]) = {
-      pNode.map(identifyGobraNodes).getOrElse(Set.empty)
+    def goOpt(pNode: Option[PNode], dependencyType: Option[DependencyType]=None) = {
+      pNode.map(identifyGobraNodes(_, dependencyType)).getOrElse(Set.empty)
     }
 
-    def goTopLevelConjuncts(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = pNode match {
-      case PAnd(left, right) => goTopLevelConjuncts(left, origSource) ++ goTopLevelConjuncts(right, origSource)
-      case _ => getGobraDependencyAnalysisInfo(pNode, origSource)
+    def goSpec(spec: PFunctionSpec, isAbstractFunction: Boolean) = {
+      val postCondType = if(isAbstractFunction) AssumptionType.ExplicitPostcondition else AssumptionType.ImplicitPostcondition
+      spec.pres.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Implicit)))) ++
+        spec.preserves.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, postCondType)))) ++
+        spec.posts.flatMap(goTopLevelConjuncts(_, Some(DependencyType(postCondType, AssumptionType.Explicit)))) ++
+        go(spec.terminationMeasures)
     }
 
-    def getGobraDependencyAnalysisInfo(pNode: PNode, origSource: Option[PNode]=None): Set[GobraDependencyAnalysisInfo] = {
+
+    def goTopLevelConjuncts(pNode: PNode, dependencyType: Option[DependencyType]=None): Set[GobraDependencyAnalysisInfo] = pNode match {
+      case PAnd(left, right) => goTopLevelConjuncts(left, dependencyType) ++ goTopLevelConjuncts(right, dependencyType)
+      case _ => getGobraDependencyAnalysisInfo(pNode, dependencyType)
+    }
+
+    def getDependencyType(pNode: PNode): DependencyType = {
+      pNode match {
+        case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
+        case _: PAssert | _: PExhale | _: PRefute => DependencyType.ExplicitAssertion
+        case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
+        case _: PInvoke => DependencyType(AssumptionType.CallPostcondition, AssumptionType.Implicit)
+        case _ => DependencyType.Implicit
+      }
+    }
+
+    def getGobraDependencyAnalysisInfo(pNode: PNode, dependencyType: Option[DependencyType]=None): Set[GobraDependencyAnalysisInfo] = {
       try {
         val start = positionManager.positions.getStart(pNode).get
         val end = positionManager.positions.getFinish(pNode).get
         val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
-        val info = new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition, origSource, Some(pNode.toString))
+        val info = new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition, Some(dependencyType.getOrElse(getDependencyType(pNode))), Some(pNode.toString))
         Set(info)
       } catch {
         case _ => Set.empty
       }
     }
 
-    getGobraDependencyAnalysisInfo(pNode) ++ (pNode match {
+    getGobraDependencyAnalysisInfo(pNode, dependencyType) ++ (pNode match {
       // packages and programs
       case PPackage(packageClause, programs, _, _) => go(packageClause +: programs)
       case PProgram(packageClause, pkgInvariants, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ imports ++ friends ++ declarations))
-      case PPreamble(packageClause, pkgInvariants, imports, friends, _) => getGobraDependencyAnalysisInfo(pNode) ++ go(packageClause +: (pkgInvariants ++ imports ++ friends))
-      case PPkgInvariant(inv, _) => getGobraDependencyAnalysisInfo(pNode) ++ goTopLevelConjuncts(inv)
+      case PPreamble(packageClause, pkgInvariants, imports, friends, _) => go(packageClause +: (pkgInvariants ++ imports ++ friends))
+      case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))
       case PFriendPkgDecl(_, assertion) => goS(assertion)
 
       // constants
       case PConstDecl(specs) => go(specs)
 
       // functions and methods
-      case PFunctionDecl(id, args, result, spec, body) => go(Set(id, result, spec) ++ args) ++ goOpt(body.map(_._2))
+      case PFunctionDecl(id, args, result, spec, body) => go(Set(id, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2))
       case PFunctionLit(id, closure) => goOpt(id) ++ goS(closure)
-      case PMethodDecl(id, receiver, args, result, spec, body) => go(Set(id, receiver, result, spec) ++ args) ++ goOpt(body.map(_._2))
+      case PMethodDecl(id, receiver, args, result, spec, body) => go(Set(id, receiver, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2))
       case PMethodImplementationProof(id, receiver, args, result, _, body) => goOpt(body.map(_._2)) ++ go(Set(id, receiver, result) ++ args)
       case PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _, _, _, _) =>
         (pres ++ preserves ++ posts).flatMap(goTopLevelConjuncts(_, None)) ++ go(terminationMeasures)
@@ -92,23 +111,23 @@ object GobraDependencyAnalysisAggregator {
       case PBlock(stmts) => go(stmts)
       case PSeq(stmts) => go(stmts)
       case PIfStmt(ifs, els) => go(ifs) ++ goOpt(els)
-      case PIfClause(pre, condition, body) => goOpt(pre) ++ goS(condition) ++ goS(body)
+      case PIfClause(pre, condition, body) => goOpt(pre) ++ goS(condition, Some(DependencyType.PathCondition)) ++ goS(body)
 
       // loops
-      case PForStmt(pre, cond, post, spec, body) => goOpt(pre) ++ goOpt(post) ++ go(Set(cond, spec, body))
+      case PForStmt(pre, cond, post, spec, body) => goOpt(pre) ++ goOpt(post) ++ goS(cond, Some(DependencyType.PathCondition)) ++ go(Set(spec, body))
       case PAssForRange(range, ass, spec, body) =>
-        goS(range) ++ go(ass) ++ goS(spec) ++ goS(body)
+        goS(range, Some(DependencyType.PathCondition)) ++ go(ass, Some(DependencyType.PathCondition)) ++ goS(spec) ++ goS(body)
       case PShortForRange(range, shorts, _, spec, body) =>
-        goS(range) ++ go(shorts) ++ goS(spec) ++ goS(body)
-      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, None)) ++ goOpt(terminationMeasure)
+        goS(range, Some(DependencyType.PathCondition)) ++ go(shorts, Some(DependencyType.PathCondition)) ++ goS(spec) ++ goS(body)
+      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))) ++ goOpt(terminationMeasure)
 
       // switch-case, match TODO ake: should matched expr be a dependency of all clauses?
-      case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ goS(exp) ++ go(cases ++ dflt)
+      case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ goS(exp, Some(DependencyType.PathCondition)) ++ go(cases ++ dflt)
       case PExprSwitchDflt(body) => goS(body)
-      case PExprSwitchCase(left, body) => go(left) ++ goS(body)
-      case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => goOpt(pre) ++ goOpt(binder) ++ goS(exp) ++ go(cases ++ dflt)
+      case PExprSwitchCase(left, body) => go(left, Some(DependencyType.PathCondition)) ++ goS(body)
+      case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => goOpt(pre) ++ goOpt(binder, Some(DependencyType.PathCondition)) ++ goS(exp, Some(DependencyType.PathCondition)) ++ go(cases ++ dflt)
       case PTypeSwitchDflt(body) => goS(body)
-      case PTypeSwitchCase(left, body) => go(left) ++ goS(body)
+      case PTypeSwitchCase(left, body) => go(left, Some(DependencyType.PathCondition)) ++ goS(body)
       // TODO ake: treat as one statement or go more fine-grained?
       //      case PMatchStatement(exp, clauses, _) => goS(exp) ++ go(clauses)
       //      case PMatchStmtCase(pattern, stmts, _) => goS(pattern) ++ go(stmts)
@@ -127,11 +146,11 @@ object GobraDependencyAnalysisAggregator {
       case PTupleTerminationMeasure(tuple, cond) => go(tuple) ++ goOpt(cond)
 
       // ensure dependencies are determine on conjunct-level by splitting top-level conjunctions
-      case PAssume(exp) => goTopLevelConjuncts(exp, Some(pNode))
-      case PInhale(exp) => goTopLevelConjuncts(exp, Some(pNode))
+      case PAssume(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssumption))
+      case PInhale(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssumption))
 //      case PAssert(exp) => goTopLevelConjuncts(exp, Some(pNode)) TODO ake
-      case PExhale(exp) => goTopLevelConjuncts(exp, Some(pNode))
-      case PRefute(exp) => goTopLevelConjuncts(exp, Some(pNode))
+      case PExhale(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssertion))
+      case PRefute(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssertion))
 
       // base case: we arrived at a "primitive" statement or expression. This is the granularity level of the analysis.
       // Importantly, we do not iterate over the children of these statements and expressions.

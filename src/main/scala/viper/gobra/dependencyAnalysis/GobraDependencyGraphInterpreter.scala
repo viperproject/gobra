@@ -4,7 +4,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphInterpreter, ReadOnlyDependencyGraph}
+import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphInterpreter, DependencyType, ReadOnlyDependencyGraph}
 import viper.silver.ast
 import viper.silver.ast.{Program, TranslatedPosition}
 
@@ -60,12 +60,11 @@ class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, 
       pSpec.backendAnnotations, pSpec.isPure, pSpec.isTrusted, pSpec.isOpaque, pSpec.mayBeUsedInInit)
   }
 
-  def getGobraDependencyAnalysisInfo(pNode: PNode, origSource: Option[PNode]=None): GobraDependencyAnalysisInfo = {
+  def getGobraDependencyAnalysisInfo(pNode: PNode, dependencyType: Option[DependencyType]=None): GobraDependencyAnalysisInfo = {
     val start = positionManager.positions.getStart(pNode).get
     val end = positionManager.positions.getFinish(pNode).get
     val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
-    val info = new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition, origSource, Some(pNode.toString))
-    info
+    new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition, dependencyType, Some(pNode.toString))
   }
 
   private def pruneExpressions(exprs: Vector[PExpression])(implicit crucialNodes: Set[DependencyAnalysisNode]):  Vector[PExpression] = {

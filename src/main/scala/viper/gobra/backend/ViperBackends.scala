@@ -89,7 +89,6 @@ trait SiliconBasedBackend extends ViperBackend {
     }
     if (config.disableInfeasibilityChecks) {
       options ++= Vector("--disableInfeasibilityChecks")
-      options ++= Vector("--numberOfErrorsToReport=0")
     }
     if (config.enableDependencyAnalysis) {
       options ++= Vector("--enableDependencyAnalysis")

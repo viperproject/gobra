@@ -97,7 +97,7 @@ object GobraDependencyAnalysisAggregator {
       case PMethodDecl(id, receiver, args, result, spec, body) => go(Set(id, receiver, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2))
       case PMethodImplementationProof(id, receiver, args, result, _, body) => goOpt(body.map(_._2)) ++ go(Set(id, receiver, result) ++ args)
       case PFunctionSpec(pres, preserves, posts, terminationMeasures, _, _, _, _, _) =>
-        (pres ++ preserves ++ posts).flatMap(goTopLevelConjuncts(_, None)) ++ go(terminationMeasures)
+        (pres ++ preserves ++ posts).flatMap(goTopLevelConjuncts(_, None)) ++ go(terminationMeasures, Some(DependencyType.Invariant))
       case PMethodSig(id, args, result, spec, _) => go(Set(id, result, spec) ++ args)
       case PResult(params) => go(params)
       case PExplicitGhostMember(m) => goS(m)
@@ -119,7 +119,7 @@ object GobraDependencyAnalysisAggregator {
         goS(range, Some(DependencyType.PathCondition)) ++ go(ass, Some(DependencyType.PathCondition)) ++ goS(spec) ++ goS(body)
       case PShortForRange(range, shorts, _, spec, body) =>
         goS(range, Some(DependencyType.PathCondition)) ++ go(shorts, Some(DependencyType.PathCondition)) ++ goS(spec) ++ goS(body)
-      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))) ++ goOpt(terminationMeasure)
+      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))) ++ goOpt(terminationMeasure, Some(DependencyType.Invariant))
 
       // switch-case, match TODO ake: should matched expr be a dependency of all clauses?
       case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ goS(exp, Some(DependencyType.PathCondition)) ++ go(cases ++ dflt)
@@ -142,8 +142,8 @@ object GobraDependencyAnalysisAggregator {
 
       // TODO ake: what to do with those?
       case POutline(body, spec) => goS(body) ++ goS(spec)
-      case PWildcardMeasure(cond) => goOpt(cond)
-      case PTupleTerminationMeasure(tuple, cond) => go(tuple) ++ goOpt(cond)
+      case PWildcardMeasure(cond) => goOpt(cond, Some(DependencyType.Invariant))
+      case PTupleTerminationMeasure(tuple, cond) => go(tuple, Some(DependencyType.Invariant)) ++ goOpt(cond, Some(DependencyType.Invariant))
 
       // ensure dependencies are determine on conjunct-level by splitting top-level conjunctions
       case PAssume(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssumption))

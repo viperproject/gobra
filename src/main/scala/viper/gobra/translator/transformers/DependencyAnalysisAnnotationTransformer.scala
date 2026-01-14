@@ -19,7 +19,6 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     val programWithAnalysisSources = addDependencyAnalysisSourceInfo(task.program)
-//    val programWithAnalysisAnnotation = addDependencyAnalysisAnnotation(programWithAnalysisSources)
     Right(task.copy(program = programWithAnalysisSources))
   }
 
@@ -82,104 +81,23 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
     sourcePosition
   }
 
-  /**
-   * Adds assumption type information to the Viper nodes of program p such that they resemble the assumption type
-   * expected on the Gobra level (i.e. the assumption type associated with the Gobra node).
-   */
-  private def addDependencyAnalysisAnnotation(p: vpr.Program): vpr.Program = {
-    ViperStrategy.Slim({
-      case aInput @ (_: vpr.Inhale | _: vpr.Assume) =>
-        val a = aInput.asInstanceOf[vpr.Stmt]
-        val newInfo = getNewInfo(a, a.pos, {
-            case _: gobra.PAssume | _: gobra.PInhale  =>
-              NoInfo
-            case _ =>
-              implicitAnnotation
-          }, implicitAnnotation)
-        a.withMeta((a.pos, newInfo, a.errT))
-
-
-
-      case seqn: vpr.Seqn =>
-        val annotationInfo = getAnalysisInfoAnnotation(seqn, seqn.pos, {
-          case _: gobra.PAssume | _: gobra.PInhale  =>
-            explicitAnnotation
-          case _ => NoInfo
-        }, NoInfo)
-        attachAnalysisInfoToSeqn(seqn, annotationInfo)
-
-      case stmt: vpr.Stmt =>
-        val newInfo = getNewInfo(stmt, stmt.pos, {
-          case _: gobra.PAssume | _: gobra.PInhale =>
-            explicitAnnotation
-          case _ => NoInfo
-        }, NoInfo)
-        stmt.withMeta((stmt.pos, newInfo, stmt.errT))
-
-    }).forceCopy().execute(p)
-  }
-
-
-  private def mergeInfoOptionally(oldInfo: vpr.Info, newInfo: vpr.Info): vpr.Info = {
-    newInfo match {
-      case _: AnnotationInfo =>
-        if(oldInfo.getUniqueInfo[AnnotationInfo].isDefined) oldInfo
-        else MakeInfoPair(oldInfo, newInfo)
-      case _ => oldInfo
-    }
-  }
-
-  private def attachAnalysisInfoToSeqn(seqn: vpr.Seqn, analysisInfo: vpr.Info): vpr.Seqn = analysisInfo match {
-      case NoInfo => seqn
-      case _ => vpr.Seqn(seqn.ss.map(s => s.withMeta((s.pos, mergeInfoOptionally(s.info, analysisInfo), s.errT))),
-        seqn.scopedSeqnDeclarations)(seqn.pos, seqn.info, seqn.errT)
-    }
-
-  private def getSourceFileOpt(pos: vpr.Position): Option[String] = {
-    pos match {
+  private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
+    val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
+    val sourceFileOpt = pos match {
       case position: AbstractSourcePosition =>
         Some(position.file.getFileName.toString)
       case _ => None
     }
-  }
 
-  private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
-    val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
-    if(sourceInfo.isDefined)
-      getAnalysisInfoAnnotation(sourceInfo.get.pnode, pos, pNodeMapper, default)
+    if(sourceInfo.isDefined && sourceFileOpt.exists(s => !s.equals("builtin.gobra")))
+      pNodeMapper(sourceInfo.get.pnode)
     else
       default
   }
 
-  private def getAnalysisInfoAnnotation(pNode: PNode, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
-    val sourceFileOpt = getSourceFileOpt(pos)
-    if (sourceFileOpt.exists(s => !s.equals("builtin.gobra"))) {
-      pNodeMapper(pNode)
-    } else {
-      default
-    }
-  }
-
   private def getNewInfo(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val newInfo = getAnalysisInfoAnnotation(node, pos, pNodeMapper, default)
-    mergeInfoOptionally(node.info, newInfo)
-  }
-
-  private def getNewExps(es: Seq[vpr.Exp]): Seq[vpr.Exp] = {
-    es map (e => {
-      val newInfo = getNewInfo(e, e.pos, {
-        case _: gobra.PDeclaration | _: gobra.PNamedParameter => implicitAnnotation
-        case _ => NoInfo}, NoInfo)
-        e.withMeta((e.pos, newInfo, e.errT))
-    })
-  }
-
-  private def explicitAnnotation: AnnotationInfo = {
-    AnnotationInfo(Map(("assumptionType", List("Explicit"))))
-  }
-
-  private def implicitAnnotation: AnnotationInfo = {
-    AnnotationInfo(Map(("assumptionType", List("Implicit"))))
+    MakeInfoPair(node.info, newInfo)
   }
 
   private def disableDependencyAnalysis: AnnotationInfo = {

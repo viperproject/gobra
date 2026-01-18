@@ -31,7 +31,7 @@ class InformativeErrorListener(val messages: ListBuffer[ParserError], val source
     * Last refers to the order of token declarations in GobraLexer.g4
     * this order is preserved by ANTLR4 when generating GobraParser.java
     */
-  private val LAST_GOBRA_TOKEN = GobraParser.FRIENDPKG
+  private val LAST_GOBRA_TOKEN = GobraParser.REL
 
   /**
     *

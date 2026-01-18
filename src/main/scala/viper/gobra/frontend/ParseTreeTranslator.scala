@@ -1494,6 +1494,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("lowContext",  "(", ")") => PLowContext()
   }
 
+  override def visitHyperRelExpr(ctx: HyperRelExprContext): AnyRef = super.visitHyperRelExpr(ctx) match {
+    case Vector("rel", "(", expr: PExpression, ",", lit: PIntLit, ")") => PRel(expr, lit)
+  }
 
   /**
     * Visits the rule

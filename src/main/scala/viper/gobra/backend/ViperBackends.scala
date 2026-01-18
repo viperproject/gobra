@@ -37,6 +37,7 @@ trait ViperBackend {
       // since Gobra adds gotos to handle return statements, which might jump out of a loop, we cannot use the default
       // encoding of gotos in the SIFExtendedTransformer:
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
+      SIFExtendedTransformer.Config.enableExperimentalFeatures = config.enableExperimentalHyperFeatures
     }
 
     options

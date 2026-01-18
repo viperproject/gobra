@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -127,6 +128,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLow(e) => isExpr(e).out
     case _: PLowContext => noMessages
+    case n: PRel =>
+      error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.", config.hyperModeOrDefault != Hyper.EnabledExtended || !config.enableExperimentalHyperFeatures) ++
+      error(n, s"expected 0 or 1 to denote the major or minor execution, but got ${n.lit.lit}", n.lit.lit < 0 || 1 < n.lit.lit)
 
     case n: PGhostEquals =>
       val lType = typ(n.left)
@@ -284,6 +288,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PIsComparable => BooleanT
 
     case _: PLow | _: PLowContext => BooleanT
+    case PRel(exp, _) => exprType(exp)
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
@@ -500,6 +505,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n: PLow => go(n.exp)
       case _: PLowContext => true
+      case n: PRel => go(n.exp)
 
       case PCompositeLit(typ, _) => typ match {
         case _: PImplicitSizeArrayType => true

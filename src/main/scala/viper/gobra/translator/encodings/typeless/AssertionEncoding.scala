@@ -15,7 +15,7 @@ import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.{refute => vprrefute}
-import viper.silver.sif.{SIFLowEventExp, SIFLowExp}
+import viper.silver.sif.{SIFLowEventExp, SIFLowExp, SIFRelExp}
 
 class AssertionEncoding extends Encoding {
 
@@ -66,6 +66,10 @@ class AssertionEncoding extends Encoding {
 
     case n@ in.Low(e) => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
     case n: in.LowContext => unit(withSrc(SIFLowEventExp(), n))
+    case n@ in.Rel(e, i) => for {
+      ve <- ctx.expression(e)
+      vi <- ctx.expression(i)
+    } yield withSrc(SIFRelExp(ve, vi.asInstanceOf[vpr.IntLit]), n)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {

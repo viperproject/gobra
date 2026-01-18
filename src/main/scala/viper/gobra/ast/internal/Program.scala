@@ -688,6 +688,10 @@ case class LowContext()(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
 }
 
+case class Rel(exp: Expr, lit: IntLit)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = exp.typ
+}
+
 /* ** Higher-order predicate expressions */
 
 case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vector[Option[Expr]])(val info: Source.Parser.Info) extends Expr {

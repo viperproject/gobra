@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relfail03
+
+// tests that the literal `i` in `rel(_, i)` cannot be negative
+
+//:: ExpectedOutput(parse_error)
+requires rel(b, -1)
+func foo(b bool)

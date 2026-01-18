@@ -583,6 +583,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Low(exp) => "low" <> parens(showExpr(exp))
     case LowContext() => "low_context"
+    case Rel(exp, lit) => "rel" <> parens(showExpr(exp) <> "," <+> showExpr(lit))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))

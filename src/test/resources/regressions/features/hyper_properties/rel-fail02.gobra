@@ -3,7 +3,7 @@
 
 package relfail02
 
-// ##(--hyperMode on)
+// ##(--hyperMode extended --enableExperimentalHyperFeatures)
 
 // tests that the literal `i` in `rel(_, i)` must be within range
 

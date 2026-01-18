@@ -5,6 +5,6 @@ package relfail03
 
 // tests that the literal `i` in `rel(_, i)` cannot be negative
 
-//:: ExpectedOutput(parse_error)
+//:: ExpectedOutput(parser_error)
 requires rel(b, -1)
 func foo(b bool)

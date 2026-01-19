@@ -130,7 +130,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PLowContext => noMessages
     case n: PRel =>
       error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.", config.hyperModeOrDefault != Hyper.EnabledExtended || !config.enableExperimentalHyperFeatures) ++
-      error(n, s"$Currently, only 0 and 1 are valid execution identifiers, but {n.lit.lit} was provided. ", n.lit.lit < 0 || 1 < n.lit.lit)
+      error(n, s"currently, only 0 and 1 are valid execution identifiers, but ${n.lit.lit} was provided. ", n.lit.lit < 0 || 1 < n.lit.lit)
 
     case n: PGhostEquals =>
       val lType = typ(n.left)

@@ -1,0 +1,35 @@
+[info] welcome to sbt 1.4.4 (AdoptOpenJDK Java 15.0.2)
+[info] loading settings for project gobra-build from plugins.sbt ...
+[info] loading project definition from /Users/herzamos/Desktop/eth/fs25/practical-work/gobra/project
+[info] loading settings for project gobra from build.sbt ...
+[info] loading settings for project server from build.sbt ...
+[info] loading settings for project silicon from build.sbt ...
+[info] loading settings for project carbon from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] loading settings for project silver from build.sbt ...
+[info] set current project to Gobra (in build file:/Users/herzamos/Desktop/eth/fs25/practical-work/gobra/)
+No changes detected in the antlr4 files. Skipping parser generation.
+[info] running (fork) viper.gobra.GobraRunner -p ../VerifiedSCION/pkg/slayers/path --norespectFunctionPrePermAmounts --backend SILICON --chop 1 -I ../VerifiedSCION ../VerifiedSCION/verification/dependencies --onlyFilesWithHeader -m github.com/scionproto/scion --assumeInjectivityOnInhale --checkConsistency --mceMode=od --experimentalFriendClauses --moreJoins off -g /tmp/
+[info] Gobra 1.1-SNAPSHOT (7d79f434@(detached))
+[info] (c) Copyright ETH Zurich 2012 - 2024
+[info] Verifying package ../VerifiedSCION/pkg/slayers/path - path [13:14:51]
+[info] Skipping panic
+[info] An assumption was violated during execution.
+[info] Logic error: Vector(<../VerifiedSCION/pkg/slayers/path/path.go:205:9> Consistency error: Formal returns Vector() of method closureCall$NewPathSpec_faafd1d5_F$ are not assignable to targets Vector(N6). (path.go@205.9--205.33), <../VerifiedSCION/pkg/slayers/path/path.go:205:9> Consistency error: Arguments Vector((get2of3((get1of2(pm_V1): Tuple3[Int, Int, Closure])): Closure)) are not assignable to formal arguments Vector(closure: Closure, p_V0: Tuple2[Ref, Types]) of method closureCall$NewPathSpec_faafd1d5_F$ (path.go@205.9--205.33))
+[info] viper.gobra.util.Violation$LogicException: Logic error: Vector(<../VerifiedSCION/pkg/slayers/path/path.go:205:9> Consistency error: Formal returns Vector() of method closureCall$NewPathSpec_faafd1d5_F$ are not assignable to targets Vector(N6). (path.go@205.9--205.33), <../VerifiedSCION/pkg/slayers/path/path.go:205:9> Consistency error: Arguments Vector((get2of3((get1of2(pm_V1): Tuple3[Int, Int, Closure])): Closure)) are not assignable to formal arguments Vector(closure: Closure, p_V0: Tuple2[Ref, Types]) of method closureCall$NewPathSpec_faafd1d5_F$ (path.go@205.9--205.33))
+[info] 	at viper.gobra.util.Violation$.violation(Violation.scala:27)
+[info] 	at viper.gobra.translator.Translator$.$anonfun$translate$4(Translator.scala:56)
+[info] 	at scala.util.Either$LeftProjection.map(Either.scala:614)
+[info] 	at viper.gobra.translator.Translator$.translate(Translator.scala:56)
+[info] 	at viper.gobra.Gobra.performViperEncoding(Gobra.scala:322)
+[info] 	at viper.gobra.Gobra.$anonfun$verify$6(Gobra.scala:179)
+[info] 	at scalaz.EitherT.$anonfun$flatMap$1(EitherT.scala:101)
+[info] 	at scala.concurrent.impl.Promise$Transformation.run(Promise.scala:470)
+[info] 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+[info] 	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:630)
+[info] 	at java.base/java.lang.Thread.run(Thread.java:832)
+[info] Writing report to /tmp/stats.json
+[info] 
+[error] Nonzero exit code returned from runner: 1
+[error] (Compile / run) Nonzero exit code returned from runner: 1
+[error] Total time: 89 s (01:29), completed 17 Jul 2025, 13:16:08

@@ -53,8 +53,8 @@ class PermissionEncoding extends LeafTypeEncoding {
       case cp: in.CurrentPerm =>
         val (pos, info, errT) = cp.vprMeta
         for {
-          arg <- ctx.assertion(in.Access(in.Accessible.Predicate(cp.acc.op), in.FullPerm(cp.info))(cp.info))
-          pap = arg.asInstanceOf[vpr.PredicateAccessPredicate]
+          arg <- ctx.assertion(in.Access(cp.acc, in.FullPerm(cp.info))(cp.info))
+          pap = arg.asInstanceOf[vpr.AccessPredicate]
           res = vpr.CurrentPerm(pap.loc)(pos, info, errT)
         } yield res
       case pm@ in.PermMinus(exp) => for { e <- goE(exp) } yield withSrc(vpr.PermMinus(e), pm)

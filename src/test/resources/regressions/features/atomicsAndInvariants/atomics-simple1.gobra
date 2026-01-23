@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// abstract functions may be marked as atomic
+preserves acc(x)
+ensures   b ==> *x == newv && old(*x) == oldv
+ensures   !b ==> *x == old(*x) && old(*x) != oldv
+decreases
+atomic func CAS(x *int, oldv int, newv int) (b bool)
+
+type I interface {
+	// interface methods may also be marked as atomic
+	decreases
+	atomic
+	M()
+}
+
+type T1 struct{}
+
+decreases
+atomic func (t T1) M()
+
+// types with atomic methods may implement interfaces with atomic
+// methods, as long as the atomic interface members are implemented
+// by atomic members.
+T1 implements I

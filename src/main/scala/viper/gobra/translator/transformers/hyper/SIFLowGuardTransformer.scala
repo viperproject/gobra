@@ -15,7 +15,7 @@ import viper.silver.ast._
 import viper.silver.ast.utility.Simplifier
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance
 import viper.silver.plugin.standard.termination.{DecreasesClause, DecreasesTuple, DecreasesWildcard}
-import viper.silver.sif._
+import viper.silver.plugin.sif._
 import viper.silver.verifier.{AbstractError, ConsistencyError}
 
 import scala.annotation.{tailrec, unused}

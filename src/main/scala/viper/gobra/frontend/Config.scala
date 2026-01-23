@@ -687,6 +687,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val printSIFVpr: ScallopOption[Boolean] = opt[Boolean](
+    name = "printSIFVpr",
+    descr = "Print the encoded Viper program after applying the secure information flow (SIF) encoding",
+    default = Some(debug()),
+    noshort = true
+  )
+
   val parseOnly: ScallopOption[Boolean] = opt[Boolean](
     name = "parseOnly",
     descr = "Perform only the parsing step",
@@ -1108,6 +1115,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
         debug = debug(),
         printInternal = printInternal(),
         printVpr = printVpr(),
+        printSIFVpr = printSIFVpr(),
         streamErrs = !noStreamErrors()),
     backend = backend.toOption,
     isolate = isolate,

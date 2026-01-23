@@ -161,7 +161,7 @@ case class GeneratedViperMessage(taskName: String, inputs: Vector[String], vprAs
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
-    s"taskName=$taskName" +
+    s"taskName=$taskName, " +
     s"files=$inputs)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
@@ -180,6 +180,16 @@ case class ChoppedViperMessage(inputs: Vector[String], idx: Int, vprAst: () => v
 
   override def toString: String = s"chopped_viper_message(" +
     s"file=$inputs)"
+
+  lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
+}
+
+case class SIFEncodedViperMessage(taskName: String, inputs: Vector[String], vprAst: () => vpr.Program) extends GobraMessage {
+  override val name: String = s"SIF_encoded_viper_message"
+
+  override def toString: String = s"$name(" +
+    s"taskName=$taskName, " +
+    s"files=$inputs)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
 }

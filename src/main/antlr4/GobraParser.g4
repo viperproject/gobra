@@ -364,7 +364,10 @@ statement:
   | selectStmt
   | specForStmt
   | deferStmt
+  | criticalStmt
   | closureImplProofStmt;
+
+criticalStmt: CRITICAL expression L_CURLY statementList? R_CURLY;
 
 applyStmt: APPLY expression;
 

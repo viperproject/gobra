@@ -66,3 +66,11 @@ func callTryCAS() {
 	EstablishInvariant(Own!<&x!>)
 	tryCAS(&x)
 }
+
+requires i != nil
+requires Invariant(PredTrue!<!>)
+func testInterface(i I) {
+	critical PredTrue!<!> (
+		i.M()
+	)
+}

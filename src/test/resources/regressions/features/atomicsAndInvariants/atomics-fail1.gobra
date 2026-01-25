@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+preserves acc(x)
+ensures   b ==> *x == newv && old(*x) == oldv
+ensures   !b ==> *x == old(*x) && old(*x) != oldv
+decreases
+atomic func CAS(x *int, oldv int, newv int) (b bool)
+
+preserves acc(x)
+decreases
+atomic func Get(x *int) int
+
+pred Own(x *int) { acc(x) }
+
+func fail1(x *int) {
+	// Gobra fails to open critical regions for a property if it
+	// cannot prove that that property is an invariant.
+	//:: ExpectedOutput(is_invariant_failed)
+	critical Own!<x!> (
+
+	)
+}
+
+requires Invariant(Own!<x!>)
+func fail2(x *int) {
+	// Gobra fails if an invariant is not restored immediately
+	// before the end of its critical region.
+	//:: ExpectedOutput(invariant_not_restored)
+	critical Own!<x!> (
+		unfold Own!<x!>()
+	)
+}
+
+requires Invariant(Own!<x!>)
+func fail3(x *int) {
+	critical Own!<x!> (
+		// Gobra fails to open an invariant that is already open to
+		// prevent reentrance.
+		//:: ExpectedOutput(invariant_already_open)
+		critical Own!<x!> (
+		assert false
+		)
+	)
+}

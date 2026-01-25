@@ -10,6 +10,10 @@ ensures   !b ==> *x == old(*x) && old(*x) != oldv
 decreases
 atomic func CAS(x *int, oldv int, newv int) (b bool)
 
+preserves acc(x)
+decreases
+atomic func Get(x *int) int
+
 type I interface {
 	// interface methods may also be marked as atomic
 	decreases
@@ -26,3 +30,39 @@ atomic func (t T1) M()
 // methods, as long as the atomic interface members are implemented
 // by atomic members.
 T1 implements I
+
+pred Own(x *int) { acc(x) }
+
+requires Invariant(Own!<x!>)
+decreases
+func tryCAS(x *int) {
+	var v int
+	var b bool
+
+	// An invariant may be opened for the duraion of one atomic (non-ghost) operation
+	// and arbitrary ghost code. When an invariant is opened in a critical region,
+	// Gobra first checks that the property is an invariant.
+	critical Own!<x!> (
+	// The invariant is made available inside the critical region.
+	unfold Own!<x!>()
+	v = Get(x)
+	// An invariant must be re-established before the end of the critical region.
+	fold Own!<x!>()
+	)
+
+	vp := v+1
+
+	critical Own!<x!> (
+	unfold Own!<x!>()
+	b = CAS(x, v, vp)
+	fold Own!<x!>()
+	)
+}
+
+decreases
+func callTryCAS() {
+	x@ := 1
+	fold Own!<&x!>()
+	EstablishInvariant(Own!<&x!>)
+	tryCAS(&x)
+}

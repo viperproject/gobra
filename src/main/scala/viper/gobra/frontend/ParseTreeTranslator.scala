@@ -927,6 +927,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       isTrusted = ctx.trusted,
       isOpaque = ctx.opaque,
       isAtomic = ctx.atomic,
+      opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
     )
   }

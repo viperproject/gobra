@@ -46,6 +46,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
     attr[PStatement, Boolean] {
       case _: PGhostStatement => true
+      case c: PCritical => c.stmts.forall(ghostStmtClassification)
       case s if isEnclosingGhost(s) => true
       case PAssignment(_, left) => left.forall(ghostExprClassification)
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)

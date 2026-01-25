@@ -1980,6 +1980,20 @@ object Desugar extends LazyLogging {
                 )(exprSrcNotRestored)
               )(exprSrcNotRestored)
 
+              // mark invariant as closed
+              markClosed = in.SingleAss(
+                in.Assignee.Var(openInvsVar),
+                in.SetMinus(
+                  openInvsVar,
+                  in.SetLit(
+                    in.PredT(Vector.empty, Addressability.Exclusive),
+                    Vector(e)
+                  )(exprSrc),
+                  in.PredT(Vector.empty, Addressability.Exclusive)
+                )(exprSrc)
+              )(exprSrc)
+              _ <- write(markClosed)
+
             } yield exhaleInv
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))

@@ -242,6 +242,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
+      val inCriticalRegion = isEnclosingCritical(n)
+
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
         case (Right(_), Some(p: ap.Conversion)) =>
@@ -256,14 +258,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
+          val (isOpaque, isMayInit, isImported, isPure, isGhost, opensInvs) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
+              case f: st.Function =>
+                (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure, f.ghost, f.decl.spec.opensInvs)
               case m: st.MethodImpl =>
-                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
-              case _ => (false, true, false, false)
+                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure, m.ghost, m.decl.spec.opensInvs)
+              case _ => (false, true, false, false, false, true)
             }
           }
+          // Ghost methods from a critical region must not be annotated with `opensInvariants` to avoid re-entrance.
+          val callToGhostInCriticalRegionIsValid =
+            error(n, "Call to ghost method annotated with 'opensInvariants' in critical region is not allowed",
+              if (isGhost && inCriticalRegion) opensInvs else false)
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
           // in initialization code, as it may be dispatched to a method that assumes the current package's invariant.
           val cannotCallItfIfInit = c.callee match {
@@ -295,7 +302,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
+          callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++

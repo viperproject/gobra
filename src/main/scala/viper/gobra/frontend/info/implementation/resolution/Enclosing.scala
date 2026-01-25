@@ -75,6 +75,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingFunctionOrMethod: PNode => Option[PFunctionOrMethodDecl] =
     down[Option[PFunctionOrMethodDecl]](None) { case f: PFunctionOrMethodDecl => Some(f) }
 
+  lazy val isEnclosingCritical: PNode => Boolean =
+    down(false){ case _: PCritical => true }
+
   lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 

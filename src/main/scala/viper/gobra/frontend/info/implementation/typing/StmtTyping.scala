@@ -220,7 +220,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             }
             val isGhost = m.symb.ghost
             val isAtomic = spec.isAtomic
-            val recvIsFine = validArgAtomicFuncCall(i.base.asInstanceOf[PExpression])
+            val recvIsFine = validArgAtomicFuncCall(i.base.asInstanceOf[PDot].base.asInstanceOf[PExpression])
             val argsAreFine = i.args.forall(validArgAtomicFuncCall)
             !isGhost && isAtomic && recvIsFine && argsAreFine
           case _ => false

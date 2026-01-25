@@ -367,7 +367,7 @@ statement:
   | criticalStmt
   | closureImplProofStmt;
 
-criticalStmt: CRITICAL expression L_CURLY statementList? R_CURLY;
+criticalStmt: CRITICAL expression L_PAREN statementList? R_PAREN;
 
 applyStmt: APPLY expression;
 

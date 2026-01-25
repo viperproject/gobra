@@ -385,6 +385,24 @@ class BuiltInEncoding extends Encoding {
       )
 
     (x.tag, x.argsT) match {
+      case (InvariantFunctionTag, _) =>
+        val params = Vector(
+          in.Parameter.In("arg", in.PredT(Vector.empty, Addressability.Exclusive))(src)
+        )
+        val out = Vector(
+          in.Parameter.Out("res", in.BoolT(Addressability.Exclusive))(src)
+        )
+        in.PureFunction(
+          x.name,
+          params,
+          out,
+          Vector.empty,
+          Vector.empty,
+          Vector(in.NonItfTupleTerminationMeasure(Vector.empty, None)(src)),
+          Vector.empty,
+          None,
+          false
+        )(src)
       case (CloseFunctionTag, Vector(channelT, dividendT, divisorT /* permissionAmountT */, predicateT)) =>
         /**
           * requires dividend >= 0
@@ -628,11 +646,6 @@ class BuiltInEncoding extends Encoding {
         }
         val body: Option[in.Assertion] = Some(in.ExprAssertion(in.BoolLit(b = true)(src))(src))
         in.FPredicate(x.name, params, body)(src)
-      case (InvariantFPredTag, _) =>
-        val params = Vector(
-          in.Parameter.In("arg", in.PredT(Vector.empty, Addressability.Exclusive))(src)
-        )
-        in.FPredicate(x.name, params, None)(src)
       case (tag, args) => violation(s"no fpredicate generation defined for tag $tag and arguments $args")
     }
   }

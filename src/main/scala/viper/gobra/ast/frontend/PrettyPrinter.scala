@@ -302,6 +302,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBlock(stmts) => block(showStmtList(stmts))
       case PSeq(stmts) => showStmtList(stmts)
       case POutline(body, spec) => showSpec(spec) <> "outline" <> parens(nest(line <> showStmt(body)) <> line)
+      case PCritical(expr, stmts) =>
+        "critical" <> parens(showExpr(expr)) <> parens(nest(line <> showStmtList(stmts)) <> line)
       case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
     }
     case statement: PGhostStatement => statement match {

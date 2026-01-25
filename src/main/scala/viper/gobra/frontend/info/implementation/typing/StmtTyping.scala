@@ -189,6 +189,10 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         error(n, "Opaque outline statements are not supported.", n.spec.isOpaque) ++
         invalidNodes.flatten
 
+    case n: PCritical =>
+      // TODO
+      noMessages
+
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???
 

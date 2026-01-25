@@ -244,6 +244,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val mayInit = isEnclosingMayInit(n)
       val inCriticalRegion = isEnclosingCritical(n)
       val inEnclosingGhostFunc = enclosingFunctionOrMethod(n).exists(isEnclosingGhost)
+      val enclosingFuncOpensInvs = enclosingFunctionOrMethod(n).exists {
+        case f: PFunctionDecl => f.spec.opensInvs
+        case m: PMethodDecl => m.spec.opensInvs
+      }
 
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
@@ -274,7 +278,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               if (isGhost && inCriticalRegion) opensInvs else false)
           val ghostCallsOpensInvOutsideOpen =
             error(n, "Ghost function not annotated with `opensInvariants` calls ghost function annotated with `opensInvariants`.",
-              inEnclosingGhostFunc && isGhost && !inCriticalRegion && opensInvs)
+              inEnclosingGhostFunc && !enclosingFuncOpensInvs && isGhost && !inCriticalRegion && opensInvs)
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
           // in initialization code, as it may be dispatched to a method that assumes the current package's invariant.
           val cannotCallItfIfInit = c.callee match {

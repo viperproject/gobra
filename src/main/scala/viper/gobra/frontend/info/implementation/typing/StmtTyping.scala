@@ -201,6 +201,17 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case v: PNamedOperand if addressability(v) == Addressability.Exclusive =>
           // exclusive variables cannot be concurrently modified during an atomic operation and thus, are ok
           true
+        case p: PDot =>
+          // if p is a package name, an exclusive var, or a type
+          addressability(p) == Addressability.Exclusive &&
+            (p.base match {
+            case _: PType => true
+            case e: PExpression =>
+              e match {
+                case _: PNamedOperand => true
+                case _ => false
+              }
+            })
         case _ =>
           false
       }
@@ -247,6 +258,15 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
           a.right.length == 1 &&
           a.right(0).isInstanceOf[PInvoke] &&
           nonGhostAtomicFuncCall(a.right(0).asInstanceOf[PInvoke])
+        case l: PLabeledStmt =>
+          notGhostAtomicOp(l.stmt)
+        case d: PShortVarDecl =>
+          // we only allow a very limited form of assignments to be able to read the out parameters of a call to
+          // an atomic function
+          d.left.forall(e => addressableVar(e) == Addressability.Exclusive) &&
+            d.right.length == 1 &&
+            d.right(0).isInstanceOf[PInvoke] &&
+            nonGhostAtomicFuncCall(d.right(0).asInstanceOf[PInvoke])
         case p: PCritical => p.stmts.exists(notGhostAtomicOp)
         case _ => false
       }
@@ -256,8 +276,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(m: PMethodDecl) => (isEnclosingGhost(m), m.spec)
         case _ => violation("Unexpected case reached")
       }
-      val invalidOpOpt = n.stmts.find(s => !notGhostAtomicOp(s) && !isStmtGhost(s))
       // all ops are either ghost or non-ghost atomic operations
+      val invalidOpOpt = n.stmts.find(s => !notGhostAtomicOp(s) && !isStmtGhost(s))
 
       val exprT = exprType(n.expr)
       val nonGhostAtomicOps = n.stmts.filter(notGhostAtomicOp)

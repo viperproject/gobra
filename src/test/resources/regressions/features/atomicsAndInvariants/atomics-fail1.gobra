@@ -45,3 +45,12 @@ func fail3(x *int) {
 		)
 	)
 }
+
+requires Invariant(Own!<x!>)
+func fail4(x *int) {
+	critical Own!<x!> (
+		// Gobra checks proof obligations inside critical regions.
+		//:: ExpectedOutput(assert_error)
+		assert false
+	)
+}

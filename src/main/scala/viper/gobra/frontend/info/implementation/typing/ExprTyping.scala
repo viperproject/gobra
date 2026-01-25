@@ -243,6 +243,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
       val inCriticalRegion = isEnclosingCritical(n)
+      val inEnclosingGhostFunc = enclosingFunctionOrMethod(n).exists(isEnclosingGhost)
 
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
@@ -271,6 +272,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val callToGhostInCriticalRegionIsValid =
             error(n, "Call to ghost method annotated with 'opensInvariants' in critical region is not allowed",
               if (isGhost && inCriticalRegion) opensInvs else false)
+          val ghostCallsOpensInvOutsideOpen =
+            error(n, "Ghost function not annotated with `opensInvariants` calls ghost function annotated with `opensInvariants`.",
+              inEnclosingGhostFunc && isGhost && !inCriticalRegion && opensInvs)
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
           // in initialization code, as it may be dispatched to a method that assumes the current package's invariant.
           val cannotCallItfIfInit = c.callee match {
@@ -302,7 +306,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
+          ghostCallsOpensInvOutsideOpen ++ callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++

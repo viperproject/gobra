@@ -3809,7 +3809,7 @@ object Desugar extends LazyLogging {
         backendAnnotations = Vector.empty,
         body = Some(
           in.MethodBody(
-            decls = Vector(),
+            decls = Vector(openInvsVar),
             postprocessing = Vector(),
             seqn = in.MethodBodySeqn{
               // Init all global variables declared in the file (not all declarations in the package!).

@@ -121,9 +121,9 @@ func fail10() {
 
 ghost
 func fail11() {
+	ghost
 	// Outlined code may not be annotated with 'opensInv'
 	//:: ExpectedOutput(type_error)
-	ghost
 	opensInvariants
 	outline(
 		x := 1
@@ -155,3 +155,12 @@ func (t T1) M()
 // atomic functions.
 //:: ExpectedOutput(type_error)
 T1 implements I
+
+func fail14() {
+	critical PredTrue!<!> (
+		// Ghost functions marked with `opensInvariants` cannot be called
+		// from a critical region.
+		//:: ExpectedOutput(type_error)
+		ghostOpensInvs()
+	)
+}

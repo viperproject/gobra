@@ -17,7 +17,7 @@ import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, InvariantMightBeOpenAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, MainPreNotEstablished}
-import viper.gobra.reporting.{DesugaredMessage, InvariantNotRestoredError, Source}
+import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
@@ -1594,6 +1594,19 @@ object Desugar extends LazyLogging {
           case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
+                oldOpenInvs <- freshDeclaredExclusiveVar(
+                  in.SetT(in.PredT(Vector.empty, Addressability.Exclusive), Addressability.Exclusive), n, info
+                )(src)
+                initOldOpenInvs = in.SingleAss(in.Assignee.Var(oldOpenInvs), openInvsVar)(src)
+                // This invariant allows for loops that open critical regions without havocking the value
+                // of openInvs, which would prevent opening invariants in the body of the loop or after the loop.
+                // This invariant does not impose any restrictions on the user, given that the syntax of critical
+                // regions guarantees that no invariant may be open for longer than one loop iteration.
+                // TODO: do the same for range loops
+                openInvsDoesNotChange: in.Assertion = in.ExprAssertion(
+                  in.EqCmp(oldOpenInvs, openInvsVar)(src)
+                )(src)
+
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx, info)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
@@ -1612,8 +1625,8 @@ object Desugar extends LazyLogging {
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
-                  Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(dCond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                  Vector(initOldOpenInvs, dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(dCond, openInvsDoesNotChange +: dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
                   )

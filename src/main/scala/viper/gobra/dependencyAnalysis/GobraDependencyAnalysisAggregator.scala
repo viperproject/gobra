@@ -64,6 +64,7 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssert | _: PExhale | _: PRefute => DependencyType.ExplicitAssertion
         case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
         case _: PInvoke => DependencyType.MethodCall
+        case _: PParameter | _: PResult => DependencyType.Internal
         case _ => DependencyType.SourceCode
       }
     }

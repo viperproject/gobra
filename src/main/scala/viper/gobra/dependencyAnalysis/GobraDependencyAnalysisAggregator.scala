@@ -63,8 +63,8 @@ object GobraDependencyAnalysisAggregator {
         case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
         case _: PAssert | _: PExhale | _: PRefute => DependencyType.ExplicitAssertion
         case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
-        case _: PInvoke => DependencyType(AssumptionType.CallPostcondition, AssumptionType.Implicit)
-        case _ => DependencyType.Implicit
+        case _: PInvoke => DependencyType.MethodCall
+        case _ => DependencyType.SourceCode
       }
     }
 

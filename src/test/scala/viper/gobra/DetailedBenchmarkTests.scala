@@ -116,14 +116,14 @@ class DetailedBenchmarkTests extends BenchmarkTests {
         Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
       })
 
-    private val desugaring: NextStep[TypeInfo, Vector[VerifierError], Program] =
+    private val desugaring: NextStep[TypeInfo, Vector[VerifierError], (TypeInfo, Program)] =
       NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
         assert(config.isDefined)
         val c = config.get
-        Right(Desugar.desugar(c, typeInfo)(executor))
+        Right(typeInfo, Desugar.desugar(c, typeInfo)(executor))
       })
 
-    private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {
+    private val internalTransforming: NextStep[(TypeInfo, Program), Vector[VerifierError], (TypeInfo, Program)] = NextStep("internal transforming", desugaring, {case (typeInfo: TypeInfo, program: Program) => {
       assert(config.isDefined)
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
@@ -131,19 +131,19 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       if (c.checkOverflows) {
         val result = OverflowChecksTransform.transform(program)
         c.reporter report AppliedInternalTransformsMessage(c.packageInfoInputMap(pkgInfo).map(_.name), () => result)
-        Right(result)
+        Right(typeInfo, result)
       } else {
-        Right(program)
-      }
+        Right(typeInfo, program)
+      }}
     })
 
-    private val encoding = NextStep("Viper encoding", internalTransforming, (program: Program) => {
+    private val encoding: NextStep[(TypeInfo, Program), Vector[VerifierError], BackendVerifier.Task] = NextStep("Viper encoding", internalTransforming,  {case (typeInfo: TypeInfo, program: Program) => {
       assert(config.isDefined)
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      Translator.translate(program, pkgInfo)(c)
-    })
+      Translator.translate(program, pkgInfo, typeInfo)(c)
+    }})
 
     private val verifying = NextStepEitherT("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
       assert(config.isDefined)

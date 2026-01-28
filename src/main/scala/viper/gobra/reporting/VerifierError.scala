@@ -380,6 +380,21 @@ case class SIFGotoError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = s"The side conditions for the goto statement ${info.origin.tag.trim} caused by verifying hyper properties might not hold"
 }
 
+case class IsInvariantFailedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "is_invariant_failed"
+  override def localMessage: String = s"${info.origin.tag.trim} might not be an invariant"
+}
+
+case class InvariantMightBeOpenError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_already_open"
+  override def localMessage: String = s"Invariant ${info.origin.tag.trim} might be already open"
+}
+
+case class InvariantNotRestoredError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_not_restored"
+  override def localMessage: String = s"Invariant ${info.origin.tag.trim} might not have been restored"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String

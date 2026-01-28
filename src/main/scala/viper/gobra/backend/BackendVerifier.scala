@@ -48,7 +48,7 @@ object BackendVerifier {
     }
 
     val verificationResults: Future[VerificationResult] =  {
-      val verifier = config.backendOrDefault.create(exePaths, config)
+      val verifier = config.backendOrDefault.create(exePaths, config, pkgInfo)
       val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
       if (!config.shouldChop) {

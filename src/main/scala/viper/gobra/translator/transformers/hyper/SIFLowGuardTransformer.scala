@@ -166,6 +166,7 @@ trait SIFLowGuardTransformer {
   def directlyRelational(e: Exp): Boolean = {
     e.exists {
       case _: SIFLowExp => true
+      case _: SIFRelExp => true
       case f: DomainFuncApp => isRelationalTrigger(f.funcname)
       case _ => false
     }
@@ -174,6 +175,7 @@ trait SIFLowGuardTransformer {
   def isRelational(e: Exp, ctx: Context): Boolean = {
     e.exists {
       case _: SIFLowExp => true
+      case _: SIFRelExp => true
       case f: DomainFuncApp => isRelationalTrigger(f.funcname)
       case p: PredicateAccess => ctx.isRelationalPredicate(p.predicateName)
       case _ => false
@@ -244,6 +246,8 @@ trait SIFLowGuardTransformer {
 
         case l: SIFLowExp => comparison(l, ctx)
         case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
+        case SIFRelExp(e, lit) if lit.i == 0 => runExp(e, ctx.major)
+        case SIFRelExp(e, lit) if lit.i == 1 => runExp(e, ctx.minor)
 
         case a: DomainFuncApp =>
           assert(isRelationalTrigger(a.funcname), s"Expected relational trigger, but got $a.")
@@ -511,6 +515,11 @@ trait SIFLowGuardTransformer {
         removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Low expression found: ${n.exp}")
       case (n: SIFLowEventExp, optMember) =>
         removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Low context expression found")
+      case (n: SIFRelExp, optMember) =>
+        // it's unclear how to remove a `rel(_, _)` expressions while preserving well-typedness. Thus,
+        // we always report an error:
+        errs = errs :+ ConsistencyError("Rel expression found: $n", n.pos)
+        (n, optMember)
     }, None)
     if (errs.isEmpty) Right(transformedN)
     else Left(errs)

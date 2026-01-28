@@ -41,6 +41,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
                               debug: Boolean = false,
                               printInternal: Boolean = false,
                               printVpr: Boolean = false,
+                              printSIFVpr: Boolean = false,
                               streamErrs: Boolean = true) extends GobraReporter {
 
   lazy val logger: Logger =
@@ -58,6 +59,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case m@GeneratedViperMessage(_, WithoutBuiltinSources(inputs), _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case m: ChoppedProgressMessage => logger.info(m.toString)
+    case m@SIFEncodedViperMessage(_, WithoutBuiltinSources(inputs), _) if printSIFVpr => write(inputs, "sif.vpr", m.vprAstFormatted)
     case CopyrightReport(text) => println(text)
     // Stream errors here
     case m:GobraEntityFailureMessage if streamErrs => m.result match {

@@ -4427,6 +4427,10 @@ object Desugar extends LazyLogging {
 
         case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
         case PLowContext() => unit(in.LowContext()(src))
+        case PRel(exp, lit) => for {
+          dExp <- go(exp)
+          dLit <- go(lit)
+        } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
 
         case PElem(left, right) => for {
           dleft <- go(left)

@@ -12,7 +12,7 @@ import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
 import viper.silicon.decider.Z3ProverAPI
 import viper.server.vsi.DefaultVerificationServerStart
-import viper.silver.sif.SIFExtendedTransformer
+import viper.silver.plugin.sif.SIFExtendedTransformer
 
 import java.nio.file.{Files, Paths}
 import scala.io.Source
@@ -33,7 +33,7 @@ trait ViperBackend {
     }
     if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
       // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
-      options ++= Vector("--plugin", "viper.silver.sif.SIFPlugin")
+      options ++= Vector("--plugin", "viper.silver.plugin.sif.SIFPlugin")
       // since Gobra adds gotos to handle return statements, which might jump out of a loop, we cannot use the default
       // encoding of gotos in the SIFExtendedTransformer:
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true

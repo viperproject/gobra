@@ -15,7 +15,7 @@ import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.{refute => vprrefute}
-import viper.silver.sif.{SIFLowEventExp, SIFLowExp}
+import viper.silver.plugin.sif._
 
 class AssertionEncoding extends Encoding {
 

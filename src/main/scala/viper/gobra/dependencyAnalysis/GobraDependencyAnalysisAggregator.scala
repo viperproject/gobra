@@ -46,7 +46,7 @@ object GobraDependencyAnalysisAggregator {
 
     def goSpec(spec: PFunctionSpec, isAbstractFunction: Boolean) = {
       val postCondType = if(isAbstractFunction) AssumptionType.ExplicitPostcondition else AssumptionType.ImplicitPostcondition
-      spec.pres.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Implicit)))) ++
+      spec.pres.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Precondition)))) ++
         spec.preserves.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, postCondType)))) ++
         spec.posts.flatMap(goTopLevelConjuncts(_, Some(DependencyType.make(postCondType)))) ++
         go(spec.terminationMeasures)

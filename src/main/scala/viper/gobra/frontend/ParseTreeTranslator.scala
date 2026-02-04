@@ -2239,7 +2239,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *     */
   override def visitProofStatement(ctx: ProofStatementContext): PGhostStatement = super.visitProofStatement(ctx) match {
     case Vector(kind : String, expr : PExpression) => kind match {
-      case "assert" => PAssert(expr)
       case "refute" => PRefute(expr)
       case "assume" => PAssume(expr)
       case "inhale" => PInhale(expr)
@@ -2249,10 +2248,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   /**
     * Visits the production
-    * DERIVE expression BY block #deriveStatement
+    * ASSERT expression (BY CONTRA? block)? #assertStatement
     */
-  override def visitDeriveStatement(ctx: DeriveStatementContext): PGhostStatement = super.visitDeriveStatement(ctx) match {
-    case Vector("derive", expr: PExpression, "by", block: PBlock) => PDeriveStmt(expr, block)
+  override def visitAssertStatement(ctx: AssertStatementContext): PGhostStatement = super.visitAssertStatement(ctx) match {
+    case Vector("assert", expr: PExpression) => PAssert(expr)
+    case Vector("assert", expr: PExpression, "by", block: PBlock) => PAssertByProof(expr, block)
+    case Vector("assert", expr: PExpression, "by", "contra", block: PBlock) => PAssertByContra(expr, block)
   }
 
   override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {

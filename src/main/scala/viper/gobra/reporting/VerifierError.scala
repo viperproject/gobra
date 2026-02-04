@@ -181,9 +181,9 @@ case class AssertError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Assert might fail"
 }
 
-case class DeriveError(info: Source.Verifier.Info) extends VerificationError {
-  override def localId: String = "derive_error"
-  override def localMessage: String = "Derive statement failed. The body might not derive a contradiction after assuming the negated expression"
+case class AssertByError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assert_by_error"
+  override def localMessage: String = "Assert by might fail"
 }
 
 case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
@@ -423,6 +423,16 @@ case class RefutationTrueError(info: Source.Verifier.Info) extends VerificationE
   override def id: String = "refutation_true_error"
 
   override def message: String = s"Assertion ${info.origin.tag.trim} definitely holds."
+}
+
+case class AssertByProofBodyError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assert_by_proof_body_error"
+  override def message: String = "The proof block might not establish the assertion"
+}
+
+case class AssertByContraBodyError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assert_by_contra_body_error"
+  override def message: String = "The proof block might not derive a contradiction after assuming the negated expression"
 }
 
 case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {

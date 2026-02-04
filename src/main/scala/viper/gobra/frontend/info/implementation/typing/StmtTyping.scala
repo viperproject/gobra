@@ -285,7 +285,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         exprT != PredT(Vector.empty)) ++
       invalidOpOpt.toVector.flatMap(e => error(n, s"Found invalid operation $e in a critical region.")) ++
       nonGhostAtomicOps.lift(1).toVector.flatMap(e => error(e, s"At most one atomic operation is allowed in a critical region.")) ++
-      error(n, s"Only ghost members marked with 'opensInvariants' may have open invariants.", inGhost && !spec.opensInvs)
+      error(n, s"Only ghost members marked with 'opensInvariants' may open invariants.", inGhost && !spec.opensInvs)
 
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???

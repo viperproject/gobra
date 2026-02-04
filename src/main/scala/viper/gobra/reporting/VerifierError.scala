@@ -387,7 +387,7 @@ case class IsInvariantFailedError(info: Source.Verifier.Info) extends Verificati
 
 case class InvariantMightBeOpenError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "invariant_already_open"
-  override def localMessage: String = s"Invariant ${info.origin.tag.trim} might be already open"
+  override def localMessage: String = s"Invariant ${info.origin.tag.trim} might already be open"
 }
 
 case class InvariantNotRestoredError(info: Source.Verifier.Info) extends VerificationError {

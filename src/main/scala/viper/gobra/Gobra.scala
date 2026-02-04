@@ -365,9 +365,14 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         case Right(config) =>
           // Print copyright report
           config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-          verifier.verifyAllPackages(config)(executor) match {
-            case VerifierResult.Failure(_) => 1
-            case _ => 0
+          if (scallopGobraConfig.printConfig()) {
+            println(config.formatted)
+            0
+          } else {
+            verifier.verifyAllPackages(config)(executor) match {
+              case VerifierResult.Failure(_) => 1
+              case _ => 0
+            }
           }
       }
     } catch {

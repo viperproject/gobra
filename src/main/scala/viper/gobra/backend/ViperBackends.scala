@@ -103,6 +103,7 @@ trait CarbonBasedBackend extends ViperBackend {
 object ViperBackends {
 
   object SiliconBackend extends SiliconBasedBackend {
+    override val value: String = "SILICON"
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Silicon = {
       val options = buildOptions(exePaths, config)
       new Silicon(options)
@@ -110,6 +111,7 @@ object ViperBackends {
   }
 
   object CarbonBackend extends CarbonBasedBackend {
+    override val value: String = "CARBON"
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
       val options = buildOptions(exePaths, config)
       new Carbon(options)
@@ -157,6 +159,7 @@ object ViperBackends {
   }
 
   case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with SiliconBasedBackend {
+    override val value: String = "VSWITHSILICON"
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       val options = super.buildOptions(exePaths, config)
       ViperServerConfig.ConfigWithSilicon(options.toList)
@@ -164,6 +167,7 @@ object ViperBackends {
   }
 
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with CarbonBasedBackend {
+    override val value: String = "VSWITHCARBON"
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
       val options = super.buildOptions(exePaths, config)
       ViperServerConfig.ConfigWithCarbon(options.toList)

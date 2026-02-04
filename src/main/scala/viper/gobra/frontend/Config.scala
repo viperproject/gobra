@@ -307,6 +307,51 @@ case class Config(
 
   val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
   val hyperModeOrDefault: Hyper.Mode = hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode)
+
+  /** Returns a human-readable summary of the resolved configuration. */
+  def formatted: String = {
+    val entries = Seq(
+      "moduleName" -> moduleName,
+      "projectRoot" -> projectRoot,
+      "includeDirs" -> (if (includeDirs.isEmpty) "(none)" else includeDirs.mkString(", ")),
+      "backend" -> backendOrDefault.value,
+      "choppingUpperBound" -> choppingUpperBound,
+      "packageTimeout" -> packageTimeout,
+      "z3Exe" -> z3Exe.getOrElse("(default)"),
+      "boogieExe" -> boogieExe.getOrElse("(default)"),
+      "logLevel" -> logLevel,
+      "cacheFile" -> cacheFile.map(_.toString).getOrElse("(none)"),
+      "checkOverflows" -> checkOverflows,
+      "checkConsistency" -> checkConsistency,
+      "int32bit" -> int32bit,
+      "onlyFilesWithHeader" -> onlyFilesWithHeader,
+      "gobraDirectory" -> gobraDirectory.map(_.toString).getOrElse("(none)"),
+      "assumeInjectivityOnInhale" -> assumeInjectivityOnInhale,
+      "parallelizeBranches" -> parallelizeBranches,
+      "conditionalizePermissions" -> conditionalizePermissions,
+      "z3APIMode" -> z3APIMode,
+      "disableNL" -> disableNL,
+      "mceMode" -> mceMode.value,
+      "hyperMode" -> hyperModeOrDefault,
+      "requireTriggers" -> requireTriggers,
+      "moreJoins" -> moreJoins.value,
+      "disableSetAxiomatization" -> disableSetAxiomatization,
+      "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
+      "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
+      "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
+      "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
+      "noVerify" -> noVerify,
+      "noStreamErrors" -> noStreamErrors,
+      "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
+    )
+    val maxKeyLen = entries.map(_._1.length).max
+    val lines = entries.map { case (k, v) => s"  ${k.padTo(maxKeyLen, ' ')}  $v" }
+    val packagesStr = if (packageInfoInputMap.isEmpty) "  (none)"
+    else packageInfoInputMap.map { case (pkg, srcs) =>
+      s"  ${pkg.id} -> [${srcs.map(_.name).mkString(", ")}]"
+    }.mkString("\n")
+    (Seq("Gobra Configuration:") ++ lines ++ Seq("  packages:") ++ Seq(packagesStr)).mkString("\n")
+  }
 }
 
 object Config {
@@ -550,7 +595,7 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
   }
 }
 
-case class ConfigFileModeConfig(configFile: File) extends RawConfig {
+case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictLogging {
   // configFile is in the directory of the package we want to verify.
   // In the same or some parent directory, there's an additional configuration
   // file listing settings that are common to the entire module.
@@ -560,27 +605,34 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
   // directory or any parent directory). Without it, Gobra cannot determine the module-level configuration.
   private val ModuleConfigFilename = "gobra-mod.json"
 
+  /** Resolves the job config file path, if one exists.
+    * Returns `Some(file)` if a job config file was found, `None` otherwise (e.g., because a path to
+    * a package directory has been provided that does not contain a job config file).
+    * Returns `Left` if `configFile` itself does not exist. */
+  private lazy val resolvedJobConfigFile: Either[Vector[VerifierError], Option[File]] = {
+    if (configFile.exists()) {
+      // if the user provides a path to a directory (presumably containing a Go package),
+      // the we want to check whether a config file with the default filename is located within
+      // that package:
+      val candidate = if (configFile.isFile) configFile
+        else new File(configFile, VerificationJobConfigFilename)
+      Right(if (candidate.exists() && candidate.isFile) Some(candidate) else None)
+    } else {
+      Left(Vector(ConfigError(s"The provided config path does not exist: ${configFile.getAbsoluteFile.toString}")))
+    }
+  }
+
   /** The verification job config is optional */
   private lazy val verificationJobConfig: Either[Vector[VerifierError], VerificationJobCfg] = {
-    // either `configFile` points to the config file itself or to a directory containing one:
-    if (configFile.exists()) {
-      val jobConfigFile = if (configFile.isFile) {
-        configFile
-      } else {
-        new File(configFile, VerificationJobConfigFilename)
-      }
-      if (jobConfigFile.exists() && jobConfigFile.isFile) {
+    resolvedJobConfigFile.flatMap {
+      case Some(file) =>
         // provide the generic type argument to avoid weird runtime errors even though the
         // Scala compiler pretends to not need it!
-        GobraJsonConfigHandler
-          .fromJson[VerificationJobCfg](jobConfigFile)
-      } else {
+        GobraJsonConfigHandler.fromJson[VerificationJobCfg](file)
+      case None =>
         // No job config file found; return an empty config (all fields None).
         // Missing fields will be filled from the module config's default_job_cfg.
         Right(VerificationJobCfg())
-      }
-    } else {
-      Left(Vector(ConfigError(s"The provided config path does not exist: ${configFile.getAbsoluteFile.toString}")))
     }
   }
 
@@ -682,7 +734,6 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
       z3APIMode = ConfigDefaults.DefaultZ3APIMode,
       disableNL = ConfigDefaults.DefaultDisableNL,
       mceMode = defaultJobCfg.mce_mode.getOrElse(ConfigDefaults.DefaultMCEMode),
-      enableLazyImports = ConfigDefaults.DefaultEnableLazyImports,
       noVerify = ConfigDefaults.DefaultNoVerify,
       noStreamErrors = ConfigDefaults.DefaultNoStreamErrors,
       parseAndTypeCheckMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -692,6 +743,7 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
       unsafeWildcardOptimization = ConfigDefaults.DefaultUnsafeWildcardOptimization,
       moreJoins = defaultJobCfg.more_joins.getOrElse(ConfigDefaults.DefaultMoreJoins),
       respectFunctionPrePermAmounts = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+      enableExperimentalFriendClauses = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
     )
   }.getOrElse(BaseConfig())
 
@@ -700,8 +752,16 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
     for {
       moduleWithDir <- moduleConfigWithDir
       jobCfg <- verificationJobConfig
+      resolvedJobFile <- resolvedJobConfigFile
       moduleCfg = moduleWithDir._1
       moduleConfigDir = moduleWithDir._2
+      _ = {
+        logger.info(s"Using module config: ${moduleConfigDir.resolve(ModuleConfigFilename)}")
+        resolvedJobFile match {
+          case Some(f) => logger.info(s"Using job config: ${f.getAbsolutePath}")
+          case None => logger.info("No job config file found; using default-job config only from module config")
+        }
+      }
       defaultJobCfg: VerificationJobCfg = moduleCfg.default_job_cfg.getOrElse(VerificationJobCfg())
       // Determine verification mode (`jobCfg` takes precedence over `defaultJobCfg`)
       initialConfig <- (jobCfg.input_files.orElse(defaultJobCfg.input_files), jobCfg.recursive.orElse(defaultJobCfg.recursive)) match {
@@ -822,6 +882,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "config",
     descr = "Reads all configuration options from the provided JSON file.",
     noshort = true
+  )
+
+  val printConfig: ScallopOption[Boolean] = opt[Boolean](
+    name = "printConfig",
+    descr = "Print the resolved configuration and exit without verifying. Requires --config.",
+    default = Some(false),
+    noshort = true,
   )
 
   val projectRoot: ScallopOption[File] = opt[File](
@@ -1171,7 +1238,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val allOptions = getClass.getDeclaredFields
     .map(_.get(this)) // get field value
     .collect { case o: ScallopOption[_] => o } // filter by ScallopOption
-  conflicts(configFile, allOptions.toList.filterNot(_ == configFile))
+  conflicts(configFile, allOptions.toList.filterNot(o => o == configFile || o == printConfig))
 
   // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
   private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
@@ -1264,6 +1331,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
+  addValidation {
+    if (printConfig.toOption.contains(true) && configFile.toOption.isEmpty) {
+      Left("--printConfig requires --config")
+    } else {
+      Right(())
+    }
+  }
 
   /** File Validation */
   validateFilesExist(cutInput)

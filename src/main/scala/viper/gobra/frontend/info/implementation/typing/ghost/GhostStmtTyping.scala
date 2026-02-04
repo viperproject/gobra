@@ -24,10 +24,10 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
-    case PDeriveStmt(exp, _) =>
-      isExpr(exp).out ++
-        isPureExpr(exp) ++
-        comparableTypes.errors(exprType(exp), BooleanT)(exp)
+    case n: PAssertBy =>
+      isExpr(n.exp).out ++
+        isPureExpr(n.exp) ++
+        comparableTypes.errors(exprType(n.exp), BooleanT)(n.exp)
     case POpenDupPkgInv() =>
       val occursInInitMember = isEnclosingMayInit(stmt)
       error(stmt, "Opening the package invariant in a function that may execute during initialization is not allowed.", occursInInitMember)

@@ -1,9 +1,9 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package derivefail02
+package assertbyprooffail02
 
 func foo(x *int) {
     //:: ExpectedOutput(type_error)
-    derive acc(x) by {}
+    assert acc(x) by {}
 }

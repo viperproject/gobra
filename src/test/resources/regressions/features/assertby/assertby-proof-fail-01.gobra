@@ -1,11 +1,11 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package derivefail01
+package assertbyprooffail01
 
 func foo(x, y int) {
-    //:: ExpectedOutput(assert_error:assertion_error)
-    derive false by {
+    //:: ExpectedOutput(assert_by_error:assert_by_proof_body_error)
+    assert false by {
         mylemma(x, y)
     }
 }

@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Verifies that the proof block's effects do not leak
+// into the enclosing scope: after the assert-by, only the
+// asserted property should be known.
+package assertbyproofnoleak
+
+func foo(x, y, z int) {
+    assert x <= y by {
+        mylemma(x, y, z)
+    }
+
+    assert x <= y
+
+    // y <= z was established inside the proof block via mylemma
+    // but should NOT be available here
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert y <= z
+}
+
+ghost
+ensures x <= y
+ensures y <= z
+decreases
+func mylemma(x, y, z int)

@@ -341,6 +341,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case s: AssertBy => s match {
+      case AssertByProof(ass, block) => "assert" <+> showAss(ass) <+> "by" <+> showStmt(block)
+      case AssertByContra(ass, block) => "assert" <+> showAss(ass) <+> "by" <+> "contra" <+> showStmt(block)
+    }
     case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
@@ -796,6 +800,10 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case s: AssertBy => s match {
+      case AssertByProof(ass, _) => "assert" <+> showAss(ass) <+> "by" <+> "{...}"
+      case AssertByContra(ass, _) => "assert" <+> showAss(ass) <+> "by" <+> "contra" <+> "{...}"
+    }
     case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)

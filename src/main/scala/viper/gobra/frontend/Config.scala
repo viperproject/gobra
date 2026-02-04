@@ -320,21 +320,43 @@ object Config {
   val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
 
   /**
-    * Parses `args` as CLI options and resolves potential `includeDirs` to `resolveTo` if it's not None.
-    * Inputs in `configString` are optional.
+    * Parses `args` as CLI options and resolves path-bearing fields relative to `resolveTo` if it's not None.
+    * Resolved fields: includeDirs, projectRoot, cacheFile, z3Exe, boogieExe.
+    * Inputs in `args` are optional.
     */
   def parseCliArgs(args: List[String], resolveTo: Option[Path]): Either[Vector[VerifierError], Config] = {
-    /** skip checks if we resolve include dirs */
+    /** skip checks if we resolve paths */
     val skipIncludeDirChecks = resolveTo.isDefined
     for {
       config <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = skipIncludeDirChecks).config
       resolvedConfig = resolveTo match {
         case None => config
-        case Some(p) => config.copy(includeDirs = config.includeDirs.map(
-          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
-          includeDir => p.toAbsolutePath.resolve(includeDir.toString)))
+        case Some(p) =>
+          val absBase = p.toAbsolutePath
+          config.copy(
+            // convert to string first to handle potential ZipPath vs regular Path mismatch
+            includeDirs = config.includeDirs.map(d => absBase.resolve(d.toString)),
+            projectRoot = absBase.resolve(config.projectRoot.toString),
+            cacheFile = config.cacheFile.map(cf => absBase.resolve(cf.toString)),
+            z3Exe = config.z3Exe.map(z => absBase.resolve(z).toString),
+            boogieExe = config.boogieExe.map(b => absBase.resolve(b).toString),
+          )
       }
     } yield resolvedConfig
+  }
+
+  /** Options that must not appear in the `other` field of a JSON config because their paths
+    * cannot be correctly resolved (they are turned into Source objects before path resolution). */
+  private val disallowedInOther: Set[String] = Set("--input", "-i", "--directory", "-p")
+
+  /** Validates that `other` args do not contain disallowed options. */
+  def validateOtherArgs(args: List[String]): Either[Vector[VerifierError], Unit] = {
+    val found = args.filter(disallowedInOther.contains)
+    if (found.nonEmpty)
+      Left(Vector(ConfigError(
+        s"The 'other' field in the JSON config must not contain ${found.mkString(", ")}. " +
+          "Use the dedicated JSON fields (input_files, pkg_path) instead.")))
+    else Right(())
   }
 }
 
@@ -534,6 +556,8 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
   // file listing settings that are common to the entire module.
 
   private val VerificationJobConfigFilename = "gobra.json"
+  // A module config file must exist in the directory tree of configFile (i.e., in the same
+  // directory or any parent directory). Without it, Gobra cannot determine the module-level configuration.
   private val ModuleConfigFilename = "gobra-mod.json"
 
   /** The verification job config is optional */
@@ -547,10 +571,12 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
       }
       if (jobConfigFile.exists() && jobConfigFile.isFile) {
         // provide the generic type argument to avoid weird runtime errors even though the
-        // pretends to not need it!
+        // Scala compiler pretends to not need it!
         GobraJsonConfigHandler
           .fromJson[VerificationJobCfg](jobConfigFile)
       } else {
+        // No job config file found; return an empty config (all fields None).
+        // Missing fields will be filled from the module config's default_job_cfg.
         Right(VerificationJobCfg())
       }
     } else {
@@ -558,7 +584,8 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
     }
   }
 
-  private lazy val moduleConfig: Either[Vector[VerifierError], GobraModuleCfg] = {
+  /** Returns the module config together with the directory containing the module config file */
+  private lazy val moduleConfigWithDir: Either[Vector[VerifierError], (GobraModuleCfg, Path)] = {
     var searchDirectory = if (configFile.isFile) configFile.getParentFile else configFile
     var moduleConfigFile: Option[File] = None
     while (searchDirectory != null) {
@@ -573,134 +600,130 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig {
     moduleConfigFile match {
       case Some(file) =>
         // provide the generic type argument to avoid weird runtime errors even though the
-        // pretends to not need it!
+        // Scala compiler pretends to not need it!
         GobraJsonConfigHandler
           .fromJson[GobraModuleCfg](file)
+          .map(cfg => (cfg, file.getParentFile.toPath))
       case None =>
         Left(Vector(ConfigError(s"Could not find module configuration file $ModuleConfigFilename in the directory or a parent directory of ${configFile.getAbsoluteFile.toString}")))
     }
   }
 
-  private lazy val mergedConfig: Either[Vector[VerifierError], MergedGobraModuleCfg] = (moduleConfig, verificationJobConfig) match {
-    case (Left(moduleErrors), Left(jobErrors)) => Left(moduleErrors ++ jobErrors)
-    case (Left(moduleErrors), _) => Left(moduleErrors)
-    case (_, Left(jobErrors)) => Left(jobErrors)
-    case (Right(moduleCfg), Right(jobCfg)) =>
-      def mergeField[T](fieldSelector: VerificationJobCfg => Option[T]): Option[T] =
-        fieldSelector(jobCfg).orElse(moduleCfg.default_job_cfg.flatMap(fieldSelector(_)))
-      Right(MergedGobraModuleCfg(
-      installation_cfg = moduleCfg.installation_cfg.getOrElse(GobraInstallCfg()),
-      job_cfg = VerificationJobCfg(
-        assume_injectivity_inhale = mergeField(_.assume_injectivity_inhale),
-        backend = mergeField(_.backend),
-        check_consistency = mergeField(_.check_consistency),
-        overflow = mergeField(_.overflow),
-        conditionalize_permissions = mergeField(_.conditionalize_permissions),
-        only_files_with_header = mergeField(_.only_files_with_header),
-        includes = mergeField(_.includes),
-        input_files = mergeField(_.input_files),
-        mce_mode = mergeField(_.mce_mode),
-        module = mergeField(_.module),
-        more_joins = mergeField(_.more_joins),
-        pkg_path = mergeField(_.pkg_path),
-        parallelize_branches = mergeField(_.parallelize_branches),
-        print_vpr = mergeField(_.print_vpr),
-        project_root = mergeField(_.project_root),
-        recursive = mergeField(_.recursive),
-        require_triggers = mergeField(_.require_triggers),
-        // we merge by combining the default and job-specific `other` fields:
-        other = Some(jobCfg.other.getOrElse(List.empty) ++ moduleCfg.default_job_cfg.flatMap(_.other).getOrElse(List.empty)),
-      )
-    ))
+  /** Applies non-None fields from `overrides` directly onto `config`, overriding any existing values.
+    * Unlike `Config.merge` (which uses OR for booleans, concatenation for lists, etc.), this performs
+    * direct replacement. Used to apply a higher-priority config level on top of a lower-priority one. */
+  private def applyJobCfg(config: Config, overrides: VerificationJobCfg): Config = {
+    config.copy(
+      moduleName = overrides.module.getOrElse(config.moduleName),
+      includeDirs = overrides.includes.map(_.map(Paths.get(_)).toVector).getOrElse(config.includeDirs),
+      projectRoot = overrides.project_root.map(Paths.get(_)).getOrElse(config.projectRoot),
+      backend = overrides.backend.map(_.underlying).orElse(config.backend),
+      choppingUpperBound = overrides.chop.getOrElse(config.choppingUpperBound),
+      checkOverflows = overrides.overflow.getOrElse(config.checkOverflows),
+      checkConsistency = overrides.check_consistency.getOrElse(config.checkConsistency),
+      onlyFilesWithHeader = overrides.only_files_with_header.getOrElse(config.onlyFilesWithHeader),
+      assumeInjectivityOnInhale = overrides.assume_injectivity_inhale.getOrElse(config.assumeInjectivityOnInhale),
+      parallelizeBranches = overrides.parallelize_branches.getOrElse(config.parallelizeBranches),
+      conditionalizePermissions = overrides.conditionalize_permissions.getOrElse(config.conditionalizePermissions),
+      mceMode = overrides.mce_mode.getOrElse(config.mceMode),
+      requireTriggers = overrides.require_triggers.getOrElse(config.requireTriggers),
+      moreJoins = overrides.more_joins.getOrElse(config.moreJoins),
+    )
   }
 
-  case class MergedGobraModuleCfg(
-                                   installation_cfg: GobraInstallCfg,
-                                   job_cfg: VerificationJobCfg
-                                 )
+  /** Validates, parses, and merges `other` CLI args into an existing Config.
+    * Relative paths in `other` are resolved relative to `configDir`. */
+  private def mergeOtherArgs(config: Config, otherArgs: Option[List[String]], configDir: Path): Either[Vector[VerifierError], Config] = {
+    val args = otherArgs.getOrElse(List.empty)
+    for {
+      _ <- Config.validateOtherArgs(args)
+      parsed <- if (args.isEmpty) Right(None)
+        else Config.parseCliArgs(args, Some(configDir)).map(Some(_))
+    } yield parsed.map(config.merge).getOrElse(config)
+  }
 
-  /** `other` field is not considered for creating the base config */
-  override protected def baseConfig: BaseConfig = mergedConfig.map(c => {
+  /** Builds a BaseConfig from the module-level configuration only.
+    * Options without a dedicated JSON field use their default values but can be configured via `other`. */
+  override protected def baseConfig: BaseConfig = moduleConfigWithDir.map { case (moduleCfg, _) =>
+    val defaultJobCfg = moduleCfg.default_job_cfg.getOrElse(VerificationJobCfg())
+    val installCfg = moduleCfg.installation_cfg.getOrElse(GobraInstallCfg())
     val logLevel: Level = ConfigDefaults.DefaultLogLevel
     val debug: Boolean = Level.DEBUG.isGreaterOrEqual(logLevel)
     BaseConfig(
       gobraDirectory = ConfigDefaults.DefaultGobraDirectory,
-      moduleName = c.job_cfg.module.getOrElse(ConfigDefaults.DefaultModuleName),
-      includeDirs = c.job_cfg.includes.map(_.map(Paths.get(_))).getOrElse(ConfigDefaults.DefaultIncludeDirs.map(_.toPath)).toVector,
+      moduleName = defaultJobCfg.module.getOrElse(ConfigDefaults.DefaultModuleName),
+      includeDirs = defaultJobCfg.includes.map(_.map(Paths.get(_))).getOrElse(ConfigDefaults.DefaultIncludeDirs.map(_.toPath)).toVector,
       reporter = FileWriterReporter(
         unparse = debug,
         eraseGhost = false,
         goify = false,
         debug = debug,
         printInternal = debug,
-        printVpr = c.job_cfg.print_vpr.getOrElse(debug),
+        printVpr = defaultJobCfg.print_vpr.getOrElse(debug),
         streamErrs = !ConfigDefaults.DefaultNoStreamErrors),
-      backend = c.job_cfg.backend.map(_.underlying),
+      backend = defaultJobCfg.backend.map(_.underlying),
       isolate = ConfigDefaults.DefaultIsolate,
-      choppingUpperBound = ConfigDefaults.DefaultChoppingUpperBound,
+      choppingUpperBound = defaultJobCfg.chop.getOrElse(ConfigDefaults.DefaultChoppingUpperBound),
       packageTimeout = ConfigDefaults.DefaultPackageTimeout,
-      z3Exe = c.installation_cfg.z3_path.orElse(ConfigDefaults.DefaultZ3Exe),
+      z3Exe = installCfg.z3_path.orElse(ConfigDefaults.DefaultZ3Exe),
       boogieExe = ConfigDefaults.DefaultBoogieExe,
       logLevel = logLevel,
       cacheFile = ConfigDefaults.DefaultCacheFile.map(_.toPath),
       shouldParseOnly = ConfigDefaults.DefaultParseOnly,
       stopAfterEncoding = ConfigDefaults.DefaultStopAfterEncoding,
-      checkOverflows = c.job_cfg.overflow.getOrElse(ConfigDefaults.DefaultCheckOverflows),
-      checkConsistency = c.job_cfg.check_consistency.getOrElse(ConfigDefaults.DefaultCheckConsistency),
+      checkOverflows = defaultJobCfg.overflow.getOrElse(ConfigDefaults.DefaultCheckOverflows),
+      checkConsistency = defaultJobCfg.check_consistency.getOrElse(ConfigDefaults.DefaultCheckConsistency),
       int32bit = ConfigDefaults.DefaultInt32bit,
       cacheParserAndTypeChecker = ConfigDefaults.DefaultCacheParserAndTypeChecker,
-      onlyFilesWithHeader = c.job_cfg.only_files_with_header.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
-      assumeInjectivityOnInhale = c.job_cfg.assume_injectivity_inhale.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
-      parallelizeBranches = c.job_cfg.parallelize_branches.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
-      conditionalizePermissions = c.job_cfg.conditionalize_permissions.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
+      onlyFilesWithHeader = defaultJobCfg.only_files_with_header.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
+      assumeInjectivityOnInhale = defaultJobCfg.assume_injectivity_inhale.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+      parallelizeBranches = defaultJobCfg.parallelize_branches.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
+      conditionalizePermissions = defaultJobCfg.conditionalize_permissions.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
       z3APIMode = ConfigDefaults.DefaultZ3APIMode,
       disableNL = ConfigDefaults.DefaultDisableNL,
-      mceMode = c.job_cfg.mce_mode.getOrElse(ConfigDefaults.DefaultMCEMode),
+      mceMode = defaultJobCfg.mce_mode.getOrElse(ConfigDefaults.DefaultMCEMode),
       enableLazyImports = ConfigDefaults.DefaultEnableLazyImports,
       noVerify = ConfigDefaults.DefaultNoVerify,
       noStreamErrors = ConfigDefaults.DefaultNoStreamErrors,
       parseAndTypeCheckMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
-      requireTriggers = c.job_cfg.require_triggers.getOrElse(ConfigDefaults.DefaultRequireTriggers),
+      requireTriggers = defaultJobCfg.require_triggers.getOrElse(ConfigDefaults.DefaultRequireTriggers),
       disableSetAxiomatization = ConfigDefaults.DefaultDisableSetAxiomatization,
       disableCheckTerminationPureFns = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
       unsafeWildcardOptimization = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-      moreJoins = c.job_cfg.more_joins.getOrElse(ConfigDefaults.DefaultMoreJoins),
+      moreJoins = defaultJobCfg.more_joins.getOrElse(ConfigDefaults.DefaultMoreJoins),
       respectFunctionPrePermAmounts = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
     )
-  }).getOrElse(BaseConfig())
+  }.getOrElse(BaseConfig())
 
   override lazy val config: Either[Vector[VerifierError], Config] = {
+    val jobConfigDir: Path = (if (configFile.isDirectory) configFile else configFile.getParentFile).toPath
     for {
-      mergedConfig <- mergedConfig
-      config <- (mergedConfig.job_cfg.input_files, mergedConfig.job_cfg.recursive) match {
+      moduleWithDir <- moduleConfigWithDir
+      jobCfg <- verificationJobConfig
+      moduleCfg = moduleWithDir._1
+      moduleConfigDir = moduleWithDir._2
+      defaultJobCfg: VerificationJobCfg = moduleCfg.default_job_cfg.getOrElse(VerificationJobCfg())
+      // Determine verification mode (`jobCfg` takes precedence over `defaultJobCfg`)
+      initialConfig <- (jobCfg.input_files.orElse(defaultJobCfg.input_files), jobCfg.recursive.orElse(defaultJobCfg.recursive)) match {
         case (Some(inputFiles), _) => FileModeConfig(inputFiles.map(Paths.get(_)).toVector, baseConfig).config
         case (None, Some(true)) => RecursiveModeConfig(
-          projectRoot = mergedConfig.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
-          includePackages = mergedConfig.job_cfg.includes.getOrElse(ConfigDefaults.DefaultIncludePackages),
+          projectRoot = jobCfg.project_root.orElse(defaultJobCfg.project_root).map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+          includePackages = jobCfg.includes.orElse(defaultJobCfg.includes).getOrElse(ConfigDefaults.DefaultIncludePackages),
           excludePackages = ConfigDefaults.DefaultExcludePackages,
           baseConfig = baseConfig,
         ).config
         case (None, _) =>
-          // we use the provide `configFile` (which either points to a directory or a config file) to
-          // determine which package to verify
-          val pathToDirectory = (if (configFile.isDirectory) configFile else configFile.getParentFile).toPath
           PackageModeConfig(
-            projectRoot = mergedConfig.job_cfg.project_root.map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
-            inputDirectories = Vector(pathToDirectory),
+            projectRoot = jobCfg.project_root.orElse(defaultJobCfg.project_root).map(Paths.get(_)).getOrElse(ConfigDefaults.DefaultProjectRoot.toPath),
+            inputDirectories = Vector(jobConfigDir),
             baseConfig = baseConfig,
           ).config
       }
-      otherArgs = mergedConfig.job_cfg.other.getOrElse(List.empty)
-      otherConfig <- if (otherArgs.isEmpty) Right(None)
-        else {
-          // at this point, we do not know anymore from which config file these arguments come from.
-          // Thus, we do not resolve potential paths.
-          Config.parseCliArgs(otherArgs, None).map(Some(_))
-        }
-    } yield otherConfig match {
-      case None => config
-      case Some(o) => config.merge(o)
-    }
+      // Module-level config: structured fields (already in baseConfig) + module-level `other` field
+      moduleLevelConfig <- mergeOtherArgs(initialConfig, defaultJobCfg.other, moduleConfigDir)
+      // Job-level config applied on top: structured fields + job-level `other` field
+      finalConfig <- mergeOtherArgs(applyJobCfg(moduleLevelConfig, jobCfg), jobCfg.other, jobConfigDir)
+    } yield finalConfig
   }
 }
 

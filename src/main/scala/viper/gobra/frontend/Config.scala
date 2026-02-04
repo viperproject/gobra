@@ -835,7 +835,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
        | package imports.
        |
        | Mode 4 (--config):
-       |  Instructs Gobra to read all configuration options from the provided JSON file.
+       |  Instructs Gobra to read all configuration options from the provided JSON file. The only other permitted CLI option is '--printConfig'.
        |
        | Options:
        |""".stripMargin
@@ -880,13 +880,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val configFile:  ScallopOption[File] = opt[File](
     name = "config",
-    descr = "Reads all configuration options from the provided JSON file.",
+    descr = "Reads all configuration options from the provided JSON file. The only other permitted CLI option is '--printConfig'.",
     noshort = true
   )
 
   val printConfig: ScallopOption[Boolean] = opt[Boolean](
     name = "printConfig",
-    descr = "Print the resolved configuration and exit without verifying. Requires --config.",
+    descr = "Print the resolved configuration and exit without verifying. Requires '--config'.",
     default = Some(false),
     noshort = true,
   )

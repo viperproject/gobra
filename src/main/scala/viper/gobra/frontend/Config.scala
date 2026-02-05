@@ -1030,11 +1030,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val checkOverflows: ScallopOption[Boolean] = opt[Boolean](
+  val checkOverflows: ScallopOption[Boolean] = toggle(
     name = "overflow",
-    descr = "Find expressions that may lead to integer overflow",
+    descrYes = "Find expressions that may lead to integer overflow",
+    descrNo = "Do not check for integer overflow (default)",
     default = Some(ConfigDefaults.DefaultCheckOverflows),
-    noshort = false
+    noshort = true
   )
 
   val cacheFile: ScallopOption[File] = opt[File](

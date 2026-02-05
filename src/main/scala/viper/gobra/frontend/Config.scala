@@ -191,7 +191,7 @@ case class Config(
                    shouldTypeCheck: Boolean = true,
                    shouldDesugar: Boolean = true,
                    shouldViperEncode: Boolean = true,
-                   checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+                   checkOverflows: Option[Boolean] = None,
                    checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                    shouldVerify: Boolean = true,
                    shouldChop: Boolean = ConfigDefaults.DefaultShouldChop,
@@ -267,7 +267,7 @@ case class Config(
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
       shouldViperEncode = shouldViperEncode,
-      checkOverflows = checkOverflows || other.checkOverflows,
+      checkOverflows = checkOverflows orElse other.checkOverflows,
       shouldVerify = shouldVerify,
       int32bit = int32bit || other.int32bit,
       checkConsistency = checkConsistency || other.checkConsistency,
@@ -307,6 +307,7 @@ case class Config(
 
   val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
   val hyperModeOrDefault: Hyper.Mode = hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode)
+  val checkOverflowsOrDefault: Boolean = checkOverflows.getOrElse(ConfigDefaults.DefaultCheckOverflows)
 
   /** Returns a human-readable summary of the resolved configuration. */
   def formatted: String = {
@@ -321,7 +322,7 @@ case class Config(
       "boogieExe" -> boogieExe.getOrElse("(default)"),
       "logLevel" -> logLevel,
       "cacheFile" -> cacheFile.map(_.toString).getOrElse("(none)"),
-      "checkOverflows" -> checkOverflows,
+      "checkOverflows" -> checkOverflowsOrDefault,
       "checkConsistency" -> checkConsistency,
       "int32bit" -> int32bit,
       "onlyFilesWithHeader" -> onlyFilesWithHeader,
@@ -405,7 +406,23 @@ object Config {
   }
 }
 
-// have a look at `Config` to see an inline description of some of these parameters
+/**
+ * BaseConfig holds configuration options that can be shared across different RawConfig modes.
+ * Have a look at `Config` to see an inline description of some of these parameters.
+ *
+ * IMPORTANT: All fields that can be explicitly set by the user (via CLI or JSON config) should use
+ * `Option[T]` rather than `T` with a default value. This allows us to distinguish between:
+ *   - `None`: the user did not specify this option (in which case the default value should be used)
+ *   - `Some(value)`: the user explicitly set this option
+ *
+ * This is critical for config layering (job config overriding module config) (when using `--config`)
+ * because we need to know whether a field was explicitly set in the job config or should be inherited
+ * from the module.
+ *
+ * Pattern: For a field `foo: Option[T]`, add a corresponding `fooOrDefault: T` accessor in `Config`
+ * that provides the resolved value with defaults applied. Example:
+ *   val fooOrDefault: T = foo.getOrElse(ConfigDefaults.DefaultFoo)
+ */
 case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
@@ -421,7 +438,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
                       shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
                       stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
-                      checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+                      checkOverflows: Option[Boolean] = None,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                       cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
@@ -671,7 +688,7 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
       projectRoot = overrides.project_root.map(Paths.get(_)).getOrElse(config.projectRoot),
       backend = overrides.backend.map(_.underlying).orElse(config.backend),
       choppingUpperBound = overrides.chop.getOrElse(config.choppingUpperBound),
-      checkOverflows = overrides.overflow.getOrElse(config.checkOverflows),
+      checkOverflows = overrides.overflow.orElse(config.checkOverflows),
       checkConsistency = overrides.check_consistency.getOrElse(config.checkConsistency),
       onlyFilesWithHeader = overrides.only_files_with_header.getOrElse(config.onlyFilesWithHeader),
       assumeInjectivityOnInhale = overrides.assume_injectivity_inhale.getOrElse(config.assumeInjectivityOnInhale),
@@ -680,6 +697,57 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
       mceMode = overrides.mce_mode.getOrElse(config.mceMode),
       requireTriggers = overrides.require_triggers.getOrElse(config.requireTriggers),
       moreJoins = overrides.more_joins.getOrElse(config.moreJoins),
+    )
+  }
+
+  /** Applies job-level config values over module-level config values.
+    * For Option[T] fields, uses job's value if set, otherwise module's value.
+    * For non-Option fields, uses job's value directly (convert to Option[T] for proper inheritance). */
+  private def applyJobConfig(moduleConfig: Config, jobConfig: Config): Config = {
+    moduleConfig.copy(
+      gobraDirectory = jobConfig.gobraDirectory orElse moduleConfig.gobraDirectory,
+      taskName = jobConfig.taskName,
+      packageInfoInputMap = jobConfig.packageInfoInputMap,
+      moduleName = jobConfig.moduleName,
+      includeDirs = jobConfig.includeDirs,
+      projectRoot = jobConfig.projectRoot,
+      reporter = jobConfig.reporter,
+      backend = jobConfig.backend orElse moduleConfig.backend,
+      isolate = jobConfig.isolate orElse moduleConfig.isolate,
+      choppingUpperBound = jobConfig.choppingUpperBound,
+      packageTimeout = jobConfig.packageTimeout,
+      z3Exe = jobConfig.z3Exe orElse moduleConfig.z3Exe,
+      boogieExe = jobConfig.boogieExe orElse moduleConfig.boogieExe,
+      logLevel = jobConfig.logLevel,
+      cacheFile = jobConfig.cacheFile orElse moduleConfig.cacheFile,
+      shouldParse = jobConfig.shouldParse,
+      shouldTypeCheck = jobConfig.shouldTypeCheck,
+      shouldDesugar = jobConfig.shouldDesugar,
+      shouldViperEncode = jobConfig.shouldViperEncode,
+      checkOverflows = jobConfig.checkOverflows orElse moduleConfig.checkOverflows,
+      checkConsistency = jobConfig.checkConsistency,
+      shouldVerify = jobConfig.shouldVerify,
+      shouldChop = jobConfig.shouldChop,
+      int32bit = jobConfig.int32bit,
+      cacheParserAndTypeChecker = jobConfig.cacheParserAndTypeChecker,
+      onlyFilesWithHeader = jobConfig.onlyFilesWithHeader,
+      assumeInjectivityOnInhale = jobConfig.assumeInjectivityOnInhale,
+      parallelizeBranches = jobConfig.parallelizeBranches,
+      conditionalizePermissions = jobConfig.conditionalizePermissions,
+      z3APIMode = jobConfig.z3APIMode,
+      disableNL = jobConfig.disableNL,
+      mceMode = jobConfig.mceMode,
+      hyperMode = jobConfig.hyperMode orElse moduleConfig.hyperMode,
+      noVerify = jobConfig.noVerify,
+      noStreamErrors = jobConfig.noStreamErrors,
+      parseAndTypeCheckMode = jobConfig.parseAndTypeCheckMode,
+      requireTriggers = jobConfig.requireTriggers,
+      disableSetAxiomatization = jobConfig.disableSetAxiomatization,
+      disableCheckTerminationPureFns = jobConfig.disableCheckTerminationPureFns,
+      unsafeWildcardOptimization = jobConfig.unsafeWildcardOptimization,
+      moreJoins = jobConfig.moreJoins,
+      respectFunctionPrePermAmounts = jobConfig.respectFunctionPrePermAmounts,
+      enableExperimentalFriendClauses = jobConfig.enableExperimentalFriendClauses,
     )
   }
 
@@ -723,7 +791,7 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
       cacheFile = ConfigDefaults.DefaultCacheFile.map(_.toPath),
       shouldParseOnly = ConfigDefaults.DefaultParseOnly,
       stopAfterEncoding = ConfigDefaults.DefaultStopAfterEncoding,
-      checkOverflows = defaultJobCfg.overflow.getOrElse(ConfigDefaults.DefaultCheckOverflows),
+      checkOverflows = defaultJobCfg.overflow,
       checkConsistency = defaultJobCfg.check_consistency.getOrElse(ConfigDefaults.DefaultCheckConsistency),
       int32bit = ConfigDefaults.DefaultInt32bit,
       cacheParserAndTypeChecker = ConfigDefaults.DefaultCacheParserAndTypeChecker,
@@ -779,10 +847,14 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
             baseConfig = baseConfig,
           ).config
       }
-      // Module-level config: structured fields (already in baseConfig) + module-level `other` field
+      // Build complete module-level config: initial + module's `other` field
       moduleLevelConfig <- mergeOtherArgs(initialConfig, defaultJobCfg.other, moduleConfigDir)
-      // Job-level config applied on top: structured fields + job-level `other` field
-      finalConfig <- mergeOtherArgs(applyJobCfg(moduleLevelConfig, jobCfg), jobCfg.other, jobConfigDir)
+      // Build job-level config: initial + job's structured fields (without job's `other` field yet)
+      jobWithStructured = applyJobCfg(initialConfig, jobCfg)
+      // Build complete job-level config: initial + job's structured fields + job's `other` field
+      jobLevelConfig <- mergeOtherArgs(jobWithStructured, jobCfg.other, jobConfigDir)
+      // Apply precedence: job-level config takes precedence over module-level config
+      finalConfig = applyJobConfig(moduleLevelConfig, jobLevelConfig)
     } yield finalConfig
   }
 }
@@ -1422,7 +1494,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     logLevel = logLevel(),
     cacheFile = cacheFile.toOption.map(_.toPath),
     shouldParseOnly = parseOnly(),
-    checkOverflows = checkOverflows(),
+    checkOverflows = checkOverflows.toOption,
     checkConsistency = checkConsistency(),
     int32bit = int32Bit(),
     cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`

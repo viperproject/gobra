@@ -20,7 +20,7 @@ import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, PackageInfo, Parser, ScallopGobraConfig}
+import viper.gobra.frontend.{Config, Desugar, InputConfig, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
@@ -218,11 +218,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   /**
     * Parses all inputFiles given in the current config for in-file command line options (wrapped with "## (...)")
-    * These in-file command options get combined for all files and passed to ScallopGobraConfig.
-    * The current config merged with the newly created config is then returned
+    * These in-file command options get combined for all files and merged into an InputConfig.
+    * The current config is then updated with the merged InputConfig and returned.
     */
   def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
-    val inFileEitherConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
+    val inFileEitherInputConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
       if (configs.isEmpty) {
@@ -230,17 +230,17 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val configString = configs.flatMap(_.split(" ")).toList
-        Config.parseCliArgs(configString, Some(Paths.get(input.name).getParent)).map(Some(_))
+        InputConfig.parseCliArgs(configString, Some(Paths.get(input.name).getParent)).map(Some(_))
       }
     })
-    val (errors, inFileConfigs) = inFileEitherConfigs.partitionMap(identity)
+    val (errors, inFileInputConfigs) = inFileEitherInputConfigs.partitionMap(identity)
     if (errors.nonEmpty) Left(errors.flatten)
     else {
-      // start with original config `config` and merge in every in file config:
-      val mergedConfig = inFileConfigs.flatten.foldLeft(config) {
-        case (oldConfig, fileConfig) => oldConfig.merge(fileConfig)
+      // merge all in-file InputConfigs together, then apply to the original config:
+      val mergedInputConfig = inFileInputConfigs.flatten.foldLeft(InputConfig()) {
+        case (acc, inputConfig) => acc merge inputConfig
       }
-      Right(mergedConfig)
+      Right(config.applyInputConfig(mergedInputConfig))
     }
   }
 

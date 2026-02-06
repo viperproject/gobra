@@ -231,70 +231,56 @@ case class Config(
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
 ) {
 
-  def merge(other: Config): Config = {
-    // this config takes precedence over other config
-    val newInputs: Map[PackageInfo, Vector[Source]] = {
-      val keys = packageInfoInputMap.keys ++ other.packageInfoInputMap.keys
-      keys.map(k => k -> (packageInfoInputMap.getOrElse(k, Vector()) ++ other.packageInfoInputMap.getOrElse(k, Vector())).distinct).toMap
-    }
-
-    Config(
-      moduleName = moduleName,
-      taskName = taskName,
-      gobraDirectory = gobraDirectory,
-      packageInfoInputMap = newInputs,
-      projectRoot = projectRoot,
-      includeDirs = (includeDirs ++ other.includeDirs).distinct,
-      reporter = reporter,
-      backend = (backend, other.backend) match {
+  /** Merges values from an InputConfig into this Config.
+    * This Config takes precedence; InputConfig values are used as fallbacks.
+    * Keeps packageInfoInputMap, reporter, and taskName from this Config.
+    * Uses same merge semantics as the old merge method:
+    * - includeDirs: concatenate and deduplicate
+    * - backend/hyperMode: must match if both defined
+    * - packageTimeout/logLevel: take minimum
+    * - Boolean OR fields: use OR
+    * - Others: this Config takes precedence */
+  def applyInputConfig(input: InputConfig): Config = {
+    copy(
+      gobraDirectory = gobraDirectory orElse input.gobraDirectory.value,
+      includeDirs = input.includeDirs.value.map(dirs => (includeDirs ++ dirs).distinct) getOrElse includeDirs,
+      backend = (backend, input.backend.value) match {
         case (l, None) => l
         case (None, r) => r
         case (l, r) if l == r => l
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing backends from in-file configuration options, got $l and $r")
       },
-      isolate = (isolate, other.isolate) match {
-        case (None, r) => r
-        case (l, None) => l
-        case (Some(l), Some(r)) => Some((l ++ r).distinct)
-      },
-      packageTimeout = if(packageTimeout < other.packageTimeout) packageTimeout else other.packageTimeout, // take minimum
-      z3Exe = z3Exe orElse other.z3Exe,
-      boogieExe = boogieExe orElse other.boogieExe,
-      logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
+      packageTimeout = input.packageTimeout.value.map(pt => if (packageTimeout < pt) packageTimeout else pt) getOrElse packageTimeout,
+      z3Exe = z3Exe orElse input.z3Exe.value,
+      boogieExe = boogieExe orElse input.boogieExe.value,
+      logLevel = input.logLevel.value.map(ll => if (logLevel.isGreaterOrEqual(ll)) ll else logLevel) getOrElse logLevel,
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
-      cacheFile = cacheFile orElse other.cacheFile,
-      shouldParse = shouldParse,
-      shouldTypeCheck = shouldTypeCheck,
-      shouldDesugar = shouldDesugar,
-      shouldViperEncode = shouldViperEncode,
-      checkOverflows = checkOverflows orElse other.checkOverflows,
-      shouldVerify = shouldVerify,
-      int32bit = int32bit orElse other.int32bit,
-      checkConsistency = checkConsistency orElse other.checkConsistency,
-      cacheParserAndTypeChecker = cacheParserAndTypeChecker || other.cacheParserAndTypeChecker,
-      onlyFilesWithHeader = onlyFilesWithHeader orElse other.onlyFilesWithHeader,
-      assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse other.assumeInjectivityOnInhale,
-      parallelizeBranches = parallelizeBranches orElse other.parallelizeBranches,
-      conditionalizePermissions = conditionalizePermissions orElse other.conditionalizePermissions,
-      z3APIMode = z3APIMode orElse other.z3APIMode,
-      disableNL = disableNL orElse other.disableNL,
-      mceMode = mceMode,
-      hyperMode = (hyperMode, other.hyperMode) match {
+      cacheFile = cacheFile orElse input.cacheFile.value,
+      checkOverflows = checkOverflows orElse input.checkOverflows.value,
+      int32bit = int32bit orElse input.int32bit.value,
+      checkConsistency = checkConsistency orElse input.checkConsistency.value,
+      cacheParserAndTypeChecker = cacheParserAndTypeChecker,
+      onlyFilesWithHeader = onlyFilesWithHeader orElse input.onlyFilesWithHeader.value,
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse input.assumeInjectivityOnInhale.value,
+      parallelizeBranches = parallelizeBranches orElse input.parallelizeBranches.value,
+      conditionalizePermissions = conditionalizePermissions orElse input.conditionalizePermissions.value,
+      z3APIMode = z3APIMode orElse input.z3APIMode.value,
+      disableNL = disableNL orElse input.disableNL.value,
+      hyperMode = (hyperMode, input.hyperMode.value) match {
         case (l, None) => l
         case (None, r) => r
         case (l, r) if l == r => l
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
-      noVerify = noVerify || other.noVerify,
-      noStreamErrors = noStreamErrors || other.noStreamErrors,
-      parseAndTypeCheckMode = parseAndTypeCheckMode,
-      requireTriggers = requireTriggers orElse other.requireTriggers,
-      disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
-      unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
-      moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
-      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
-      enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
+      noVerify = noVerify || input.noVerify.value.contains(true),
+      noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
+      requireTriggers = requireTriggers orElse input.requireTriggers.value,
+      disableSetAxiomatization = disableSetAxiomatization orElse input.disableSetAxiomatization.value,
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse input.disableCheckTerminationPureFns.value,
+      unsafeWildcardOptimization = unsafeWildcardOptimization orElse input.unsafeWildcardOptimization.value,
+      moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
+      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
+      enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
     )
   }
 
@@ -376,32 +362,6 @@ object Config {
 
   val enableLazyImportOptionName = "enableLazyImport"
   val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
-
-  /**
-    * Parses `args` as CLI options and resolves path-bearing fields relative to `resolveTo` if it's not None.
-    * Resolved fields: includeDirs, projectRoot, cacheFile, z3Exe, boogieExe.
-    * Inputs in `args` are optional.
-    */
-  def parseCliArgs(args: List[String], resolveTo: Option[Path]): Either[Vector[VerifierError], Config] = {
-    /** skip checks if we resolve paths */
-    val skipIncludeDirChecks = resolveTo.isDefined
-    for {
-      config <- new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = skipIncludeDirChecks).config
-      resolvedConfig = resolveTo match {
-        case None => config
-        case Some(p) =>
-          val absBase = p.toAbsolutePath
-          config.copy(
-            // convert to string first to handle potential ZipPath vs regular Path mismatch
-            includeDirs = config.includeDirs.map(d => absBase.resolve(d.toString)),
-            projectRoot = absBase.resolve(config.projectRoot.toString),
-            cacheFile = config.cacheFile.map(cf => absBase.resolve(cf.toString)),
-            z3Exe = config.z3Exe.map(z => absBase.resolve(z).toString),
-            boogieExe = config.boogieExe.map(b => absBase.resolve(b).toString),
-          )
-      }
-    } yield resolvedConfig
-  }
 
   /** Options that must not appear in the `other` field of a JSON config because their paths
     * cannot be correctly resolved (they are turned into Source objects before path resolution). */
@@ -1046,6 +1006,28 @@ object InputConfig {
       Right(scallopConfig.toInputConfig)
     } catch {
       case e: Exception => Left(Vector(ConfigError(s"Failed to parse 'other' args: ${e.getMessage}")))
+    }
+  }
+
+  /** Parses CLI arguments and returns an InputConfig with optional path resolution.
+    * Used for parsing in-file configuration annotations.
+    * @param args the CLI arguments to parse
+    * @param resolveTo if provided, resolves relative paths against this directory
+    * @return Right(inputConfig) on success, Left(errors) if parsing fails */
+  def parseCliArgs(args: List[String], resolveTo: Option[Path]): Either[Vector[VerifierError], InputConfig] = {
+    fromOtherArgs(args).map { inputConfig =>
+      resolveTo match {
+        case None => inputConfig
+        case Some(p) =>
+          val absBase = p.toAbsolutePath
+          inputConfig.copy(
+            include = inputConfig.include.map(_.map(d => new File(absBase.resolve(d.toPath.toString).toString))),
+            projectRoot = inputConfig.projectRoot.map(pr => new File(absBase.resolve(pr.toPath.toString).toString)),
+            cacheFile = inputConfig.cacheFile.map(cf => absBase.resolve(cf.toString)),
+            z3Exe = inputConfig.z3Exe.map(z => absBase.resolve(z).toString),
+            boogieExe = inputConfig.boogieExe.map(b => absBase.resolve(b).toString),
+          )
+      }
     }
   }
 }

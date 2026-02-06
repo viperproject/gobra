@@ -93,8 +93,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIfStmt => n.ifs.flatMap(ic =>
       isExpr(ic.condition).out ++
-        isPureExpr(ic.condition) ++
-        comparableTypes.errors(exprType(ic.condition), BooleanT)(ic)
+        assignableTo.errors(exprType(ic.condition), BooleanT, isEnclosingMayInit(ic))(ic)
     )
 
     case n@PExprSwitchStmt(_, exp, _, dflt) =>

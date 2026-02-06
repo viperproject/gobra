@@ -25,7 +25,7 @@ trait ViperBackend extends CliEnumConverter.EnumCase {
     var options: Vector[String] = Vector.empty
 
     options ++= exePaths
-    if (config.assumeInjectivityOnInhale) {
+    if (config.assumeInjectivityOnInhaleOrDefault) {
       options ++= Vector("--assumeInjectivityOnInhale")
     }
     if (config.respectFunctionPrePermAmounts) {
@@ -48,16 +48,16 @@ trait SiliconBasedBackend extends ViperBackend {
     var options: Vector[String] = super.buildOptions(exePaths, config)
     options ++= Vector("--logLevel", "ERROR")
     options ++= Vector("--disableCatchingExceptions")
-    if (config.conditionalizePermissions) {
+    if (config.conditionalizePermissionsOrDefault) {
       options ++= Vector("--conditionalizePermissions")
     }
-    if (config.z3APIMode) {
+    if (config.z3APIModeOrDefault) {
       options ++= Vector(s"--prover=${Z3ProverAPI.name}")
     }
-    if (config.disableNL) {
+    if (config.disableNLOrDefault) {
       options ++= Vector(s"--disableNL")
     }
-    if (config.unsafeWildcardOptimization) {
+    if (config.unsafeWildcardOptimizationOrDefault) {
       options ++= Vector(s"--unsafeWildcardOptimization")
     }
     options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
@@ -70,10 +70,10 @@ trait SiliconBasedBackend extends ViperBackend {
     // Gobra seems to be much slower with the new silicon axiomatization of collections.
     // For now, we stick to the old one.
     options ++= Vector("--useOldAxiomatization")
-    if (config.parallelizeBranches) {
+    if (config.parallelizeBranchesOrDefault) {
       options ++= Vector("--parallelizeBranches")
     }
-    if (config.disableSetAxiomatization) {
+    if (config.disableSetAxiomatizationOrDefault) {
       // Since resources are stored within the .jar archive, we cannot
       // directly pass the axiom file to Silicon.
       val tmpPath = Paths.get("gobra_tmp")

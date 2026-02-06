@@ -36,7 +36,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     val hasMeasureIfNeeded =
       if (spec.isPure || isEnclosingGhost(member))
-        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
+        config.disableCheckTerminationPureFnsOrDefault || spec.terminationMeasures.nonEmpty
       else
         true
     val needsMeasureError =

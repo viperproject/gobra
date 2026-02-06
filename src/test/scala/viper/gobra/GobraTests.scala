@@ -53,12 +53,12 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       logLevel = Level.INFO,
       reporter = StringifyReporter,
       packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
-      checkConsistency = true,
+      checkConsistency = Some(true),
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,
       // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
       // but requires some work to add termination measures all over the test suite.
-      disableCheckTerminationPureFns = true,
+      disableCheckTerminationPureFns = Some(true),
     )
 
   override def runTests(testName: Option[String], args: Args): Status = {

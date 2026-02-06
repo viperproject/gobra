@@ -76,7 +76,7 @@ class GobraPackageTests extends GobraTests {
           reporter = NoopReporter,
           packageInfoInputMap = Map(pkgInfo -> input.files.toVector.map(FromFileSource(_))),
           includeDirs = Vector(currentDir),
-          checkConsistency = true,
+          checkConsistency = Some(true),
           z3Exe = z3Exe
         )
 

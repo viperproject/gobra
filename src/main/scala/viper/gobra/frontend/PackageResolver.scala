@@ -94,7 +94,7 @@ object PackageResolver {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget)(config)
-      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = config.onlyFilesWithHeader)
+      sourceFiles = getSourceFiles(pkgDir, onlyFilesWithHeader = config.onlyFilesWithHeaderOrDefault)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       // in case of error, iterate over all resources and close them

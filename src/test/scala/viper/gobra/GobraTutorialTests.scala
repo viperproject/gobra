@@ -21,7 +21,7 @@ class GobraTutorialTests extends GobraTests {
       logLevel = Level.INFO,
       reporter = StringifyReporter,
       packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
-      checkConsistency = Some(true),
+      checkConsistency = true,
       z3Exe = z3Exe,
     )
 }

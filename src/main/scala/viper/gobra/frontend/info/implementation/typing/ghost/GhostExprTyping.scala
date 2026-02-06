@@ -55,7 +55,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // check that the quantifier `body` is either Boolean or an assertion
       assignableToSpec(body) ++
       // check that the user provided triggers when running with --requireTriggers
-      error(n, "found a quantifier without triggers.", config.requireTriggersOrDefault && triggers.isEmpty)
+      error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
     case n@PExists(vars, triggers, body) =>
       val mayInit = isEnclosingMayInit(n)
@@ -64,7 +64,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // check that the quantifier `body` is Boolean
       assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT, mayInit)(expr) ++
       // check that the user provided triggers when running with --requireTriggers
-      error(n, "found a quantifier without triggers.", config.requireTriggersOrDefault && triggers.isEmpty)
+      error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
     case n: PImplication =>
       val mayInit = isEnclosingMayInit(n)

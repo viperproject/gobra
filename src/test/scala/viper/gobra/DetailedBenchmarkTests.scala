@@ -128,7 +128,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
-      if (c.checkOverflowsOrDefault) {
+      if (c.checkOverflows) {
         val result = OverflowChecksTransform.transform(program)
         c.reporter report AppliedInternalTransformsMessage(c.packageInfoInputMap(pkgInfo).map(_.name), () => result)
         Right(result)

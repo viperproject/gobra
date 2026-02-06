@@ -191,14 +191,14 @@ case class Config(
                    shouldTypeCheck: Boolean = true,
                    shouldDesugar: Boolean = true,
                    shouldViperEncode: Boolean = true,
-                   checkOverflows: Option[Boolean] = None,
-                   checkConsistency: Option[Boolean] = None,
+                   checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+                   checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                    shouldVerify: Boolean = true,
                    shouldChop: Boolean = ConfigDefaults.DefaultShouldChop,
                    // The go language specification states that int and uint variables can have either 32bit or 64, as long
                    // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                    // 64 bit otherwise.
-                   int32bit: Option[Boolean] = None,
+                   int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                    cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
@@ -206,15 +206,15 @@ case class Config(
                    // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
                    // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
                    // to verify.
-                   onlyFilesWithHeader: Option[Boolean] = None,
+                   onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                    // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
-                   assumeInjectivityOnInhale: Option[Boolean] = None,
+                   assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
                    // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
                    // branches will be verified in parallel
-                   parallelizeBranches: Option[Boolean] = None,
-                   conditionalizePermissions: Option[Boolean] = None,
-                   z3APIMode: Option[Boolean] = None,
-                   disableNL: Option[Boolean] = None,
+                   parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                   conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                   z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
@@ -222,10 +222,10 @@ case class Config(
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
-                   requireTriggers: Option[Boolean] = None,
-                   disableSetAxiomatization: Option[Boolean] = None,
-                   disableCheckTerminationPureFns: Option[Boolean] = None,
-                   unsafeWildcardOptimization: Option[Boolean] = None,
+                   requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                   disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                   unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
@@ -256,16 +256,16 @@ case class Config(
       logLevel = input.logLevel.value.map(ll => if (logLevel.isGreaterOrEqual(ll)) ll else logLevel) getOrElse logLevel,
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
       cacheFile = cacheFile orElse input.cacheFile.value,
-      checkOverflows = checkOverflows orElse input.checkOverflows.value,
-      int32bit = int32bit orElse input.int32bit.value,
-      checkConsistency = checkConsistency orElse input.checkConsistency.value,
+      checkOverflows = checkOverflows || input.checkOverflows.value.contains(true),
+      int32bit = int32bit || input.int32bit.value.contains(true),
+      checkConsistency = checkConsistency || input.checkConsistency.value.contains(true),
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
-      onlyFilesWithHeader = onlyFilesWithHeader orElse input.onlyFilesWithHeader.value,
-      assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse input.assumeInjectivityOnInhale.value,
-      parallelizeBranches = parallelizeBranches orElse input.parallelizeBranches.value,
-      conditionalizePermissions = conditionalizePermissions orElse input.conditionalizePermissions.value,
-      z3APIMode = z3APIMode orElse input.z3APIMode.value,
-      disableNL = disableNL orElse input.disableNL.value,
+      onlyFilesWithHeader = onlyFilesWithHeader || input.onlyFilesWithHeader.value.contains(true),
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale || input.assumeInjectivityOnInhale.value.contains(true),
+      parallelizeBranches = parallelizeBranches || input.parallelizeBranches.value.contains(true),
+      conditionalizePermissions = conditionalizePermissions || input.conditionalizePermissions.value.contains(true),
+      z3APIMode = z3APIMode || input.z3APIMode.value.contains(true),
+      disableNL = disableNL || input.disableNL.value.contains(true),
       hyperMode = (hyperMode, input.hyperMode.value) match {
         case (l, None) => l
         case (None, r) => r
@@ -274,10 +274,10 @@ case class Config(
       },
       noVerify = noVerify || input.noVerify.value.contains(true),
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
-      requireTriggers = requireTriggers orElse input.requireTriggers.value,
-      disableSetAxiomatization = disableSetAxiomatization orElse input.disableSetAxiomatization.value,
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse input.disableCheckTerminationPureFns.value,
-      unsafeWildcardOptimization = unsafeWildcardOptimization orElse input.unsafeWildcardOptimization.value,
+      requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
+      disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns || input.disableCheckTerminationPureFns.value.contains(true),
+      unsafeWildcardOptimization = unsafeWildcardOptimization || input.unsafeWildcardOptimization.value.contains(true),
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
@@ -286,22 +286,9 @@ case class Config(
 
   val backendOrDefault: ViperBackend = backend getOrElse ConfigDefaults.DefaultBackend
   val hyperModeOrDefault: Hyper.Mode = hyperMode getOrElse ConfigDefaults.DefaultHyperMode
-  val checkOverflowsOrDefault: Boolean = checkOverflows getOrElse ConfigDefaults.DefaultCheckOverflows
-  val checkConsistencyOrDefault: Boolean = checkConsistency getOrElse ConfigDefaults.DefaultCheckConsistency
-  val int32bitOrDefault: Boolean = int32bit getOrElse ConfigDefaults.DefaultInt32bit
-  val onlyFilesWithHeaderOrDefault: Boolean = onlyFilesWithHeader getOrElse ConfigDefaults.DefaultOnlyFilesWithHeader
-  val assumeInjectivityOnInhaleOrDefault: Boolean = assumeInjectivityOnInhale getOrElse ConfigDefaults.DefaultAssumeInjectivityOnInhale
-  val parallelizeBranchesOrDefault: Boolean = parallelizeBranches getOrElse ConfigDefaults.DefaultParallelizeBranches
-  val conditionalizePermissionsOrDefault: Boolean = conditionalizePermissions getOrElse ConfigDefaults.DefaultConditionalizePermissions
-  val z3APIModeOrDefault: Boolean = z3APIMode getOrElse ConfigDefaults.DefaultZ3APIMode
-  val disableNLOrDefault: Boolean = disableNL getOrElse ConfigDefaults.DefaultDisableNL
-  val requireTriggersOrDefault: Boolean = requireTriggers getOrElse ConfigDefaults.DefaultRequireTriggers
-  val disableSetAxiomatizationOrDefault: Boolean = disableSetAxiomatization getOrElse ConfigDefaults.DefaultDisableSetAxiomatization
-  val disableCheckTerminationPureFnsOrDefault: Boolean = disableCheckTerminationPureFns getOrElse ConfigDefaults.DefaultDisableCheckTerminationPureFns
-  val unsafeWildcardOptimizationOrDefault: Boolean = unsafeWildcardOptimization getOrElse ConfigDefaults.DefaultUnsafeWildcardOptimization
 
   lazy val typeBounds: TypeBounds =
-    if (int32bitOrDefault) {
+    if (int32bit) {
       TypeBounds()
     } else {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
@@ -320,23 +307,23 @@ case class Config(
       "boogieExe" -> boogieExe.getOrElse("(default)"),
       "logLevel" -> logLevel,
       "cacheFile" -> cacheFile.map(_.toString).getOrElse("(none)"),
-      "checkOverflows" -> checkOverflowsOrDefault,
-      "checkConsistency" -> checkConsistencyOrDefault,
-      "int32bit" -> int32bitOrDefault,
-      "onlyFilesWithHeader" -> onlyFilesWithHeaderOrDefault,
+      "checkOverflows" -> checkOverflows,
+      "checkConsistency" -> checkConsistency,
+      "int32bit" -> int32bit,
+      "onlyFilesWithHeader" -> onlyFilesWithHeader,
       "gobraDirectory" -> gobraDirectory.map(_.toString).getOrElse("(none)"),
-      "assumeInjectivityOnInhale" -> assumeInjectivityOnInhaleOrDefault,
-      "parallelizeBranches" -> parallelizeBranchesOrDefault,
-      "conditionalizePermissions" -> conditionalizePermissionsOrDefault,
-      "z3APIMode" -> z3APIModeOrDefault,
-      "disableNL" -> disableNLOrDefault,
+      "assumeInjectivityOnInhale" -> assumeInjectivityOnInhale,
+      "parallelizeBranches" -> parallelizeBranches,
+      "conditionalizePermissions" -> conditionalizePermissions,
+      "z3APIMode" -> z3APIMode,
+      "disableNL" -> disableNL,
       "mceMode" -> mceMode.value,
       "hyperMode" -> hyperModeOrDefault,
-      "requireTriggers" -> requireTriggersOrDefault,
+      "requireTriggers" -> requireTriggers,
       "moreJoins" -> moreJoins.value,
-      "disableSetAxiomatization" -> disableSetAxiomatizationOrDefault,
-      "disableCheckTerminationPureFns" -> disableCheckTerminationPureFnsOrDefault,
-      "unsafeWildcardOptimization" -> unsafeWildcardOptimizationOrDefault,
+      "disableSetAxiomatization" -> disableSetAxiomatization,
+      "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
+      "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
       "noVerify" -> noVerify,
@@ -381,19 +368,6 @@ object Config {
 /**
  * BaseConfig holds configuration options that can be shared across different RawConfig modes.
  * Have a look at `Config` to see an inline description of some of these parameters.
- *
- * IMPORTANT: All fields that can be explicitly set by the user (via CLI or JSON config) should use
- * `Option[T]` rather than `T` with a default value. This allows us to distinguish between:
- *   - `None`: the user did not specify this option (in which case the default value should be used)
- *   - `Some(value)`: the user explicitly set this option
- *
- * This is critical for config layering (job config overriding module config) (when using `--config`)
- * because we need to know whether a field was explicitly set in the job config or should be inherited
- * from the module.
- *
- * Pattern: For a field `foo: Option[T]`, add a corresponding `fooOrDefault: T` accessor in `Config`
- * that provides the resolved value with defaults applied. Example:
- *   val fooOrDefault: T = foo.getOrElse(ConfigDefaults.DefaultFoo)
  */
 case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                       moduleName: String = ConfigDefaults.DefaultModuleName,
@@ -410,31 +384,29 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
                       shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
                       stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
-                      checkOverflows: Option[Boolean] = None,
-                      checkConsistency: Option[Boolean] = None,
-                      int32bit: Option[Boolean] = None,
+                      checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+                      checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
+                      int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
                       cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
-                      onlyFilesWithHeader: Option[Boolean] = None,
-                      assumeInjectivityOnInhale: Option[Boolean] = None,
-                      parallelizeBranches: Option[Boolean] = None,
-                      conditionalizePermissions: Option[Boolean] = None,
-                      z3APIMode: Option[Boolean] = None,
-                      disableNL: Option[Boolean] = None,
+                      onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+                      assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+                      parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+                      conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+                      z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       hyperMode: Option[Hyper.Mode] = None,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
-                      requireTriggers: Option[Boolean] = None,
-                      disableSetAxiomatization: Option[Boolean] = None,
-                      disableCheckTerminationPureFns: Option[Boolean] = None,
-                      unsafeWildcardOptimization: Option[Boolean] = None,
+                      requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+                      disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+                      unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                      ) {
-  val onlyFilesWithHeaderOrDefault: Boolean = onlyFilesWithHeader getOrElse ConfigDefaults.DefaultOnlyFilesWithHeader
-
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
@@ -945,25 +917,25 @@ case class InputConfig(
     logLevel = logLevel.value.getOrElse(ConfigDefaults.DefaultLogLevel),
     cacheFile = cacheFile.value,
     shouldParseOnly = parseOnly.value.getOrElse(ConfigDefaults.DefaultParseOnly),
-    checkOverflows = checkOverflows.value,
-    checkConsistency = checkConsistency.value,
-    int32bit = int32bit.value,
+    checkOverflows = checkOverflows.value.getOrElse(ConfigDefaults.DefaultCheckOverflows),
+    checkConsistency = checkConsistency.value.getOrElse(ConfigDefaults.DefaultCheckConsistency),
+    int32bit = int32bit.value.getOrElse(ConfigDefaults.DefaultInt32bit),
     cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
-    onlyFilesWithHeader = onlyFilesWithHeader.value,
-    assumeInjectivityOnInhale = assumeInjectivityOnInhale.value,
-    parallelizeBranches = parallelizeBranches.value,
-    conditionalizePermissions = conditionalizePermissions.value,
-    z3APIMode = z3APIMode.value,
-    disableNL = disableNL.value,
+    onlyFilesWithHeader = onlyFilesWithHeader.value.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
+    assumeInjectivityOnInhale = assumeInjectivityOnInhale.value.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+    parallelizeBranches = parallelizeBranches.value.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
+    conditionalizePermissions = conditionalizePermissions.value.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
+    z3APIMode = z3APIMode.value.getOrElse(ConfigDefaults.DefaultZ3APIMode),
+    disableNL = disableNL.value.getOrElse(ConfigDefaults.DefaultDisableNL),
     mceMode = mceMode.value.getOrElse(ConfigDefaults.DefaultMCEMode),
     hyperMode = hyperMode.value,
     noVerify = noVerify.value.getOrElse(false),
     noStreamErrors = noStreamErrors.value.getOrElse(false),
     parseAndTypeCheckMode = parseAndTypeCheckMode.value.getOrElse(ConfigDefaults.DefaultParseAndTypeCheckMode),
-    requireTriggers = requireTriggers.value,
-    disableSetAxiomatization = disableSetAxiomatization.value,
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns.value,
-    unsafeWildcardOptimization = unsafeWildcardOptimization.value,
+    requireTriggers = requireTriggers.value.getOrElse(ConfigDefaults.DefaultRequireTriggers),
+    disableSetAxiomatization = disableSetAxiomatization.value.getOrElse(ConfigDefaults.DefaultDisableSetAxiomatization),
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns.value.getOrElse(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
+    unsafeWildcardOptimization = unsafeWildcardOptimization.value.getOrElse(ConfigDefaults.DefaultUnsafeWildcardOptimization),
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
@@ -1123,7 +1095,7 @@ case class PackageModeConfig(projectRoot: Path = ConfigDefaults.DefaultProjectRo
                              inputDirectories: Vector[Path], baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
   override lazy val config: Either[Vector[VerifierError], Config] = {
     val (errors, mappings) = inputDirectories.map { directory =>
-      val sources = getSources(directory, recursive = false, onlyFilesWithHeader = baseConfig.onlyFilesWithHeaderOrDefault)
+      val sources = getSources(directory, recursive = false, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
       // we do not check whether the provided files all belong to the same package
       // instead, we trust the programmer that she knows what she's doing.
       // If they do not belong to the same package, Gobra will report an error after parsing.
@@ -1146,7 +1118,7 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
                                excludePackages: List[String] = ConfigDefaults.DefaultExcludePackages,
                                baseConfig: BaseConfig) extends PackageAndRecursiveModeConfig {
   override lazy val config: Either[Vector[VerifierError], Config] = {
-    val sources = getSources(projectRoot, recursive = true, onlyFilesWithHeader = baseConfig.onlyFilesWithHeaderOrDefault)
+    val sources = getSources(projectRoot, recursive = true, onlyFilesWithHeader = baseConfig.onlyFilesWithHeader)
     val (errors, pkgInfos) = sources.map(source => {
       for {
         pkgInfo <- getPackageInfo(source, projectRoot)

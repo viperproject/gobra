@@ -51,7 +51,7 @@ object Translator {
       case (errs, _) => errs
     }
 
-    if (config.checkConsistencyOrDefault) {
+    if (config.checkConsistency) {
       transformedTask
         .flatMap(task => {
           val consistencyErrs = task.program.checkTransitively

@@ -396,7 +396,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val config = Config(disableCheckTerminationPureFns = Some(true))
+      val config = Config(disableCheckTerminationPureFns = true)
       val info = new TypeInfoImpl(tree, Map.empty)(config)
       info.errors match {
         case Vector(msgs) => fail(s"Type-checking failed: $msgs")

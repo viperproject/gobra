@@ -14,7 +14,7 @@ import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reaso
 import viper.silver.plugin.standard.predicateinstance
 import viper.silver.plugin.standard.termination
 import viper.silver.plugin.standard.{refute => vprrefute}
-import viper.silver.sif
+import viper.silver.plugin.sif
 
 object DefaultErrorBackTranslator {
 

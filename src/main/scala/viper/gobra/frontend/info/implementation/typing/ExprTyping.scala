@@ -275,7 +275,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // Ghost methods from a critical region must not be annotated with `opensInvariants` to avoid re-entrance.
           val callToGhostInCriticalRegionIsValid =
             error(n, "Call to ghost method annotated with 'opensInvariants' in critical region is not allowed",
-              if (isGhost && inCriticalRegion) opensInvs else false)
+              isGhost && inCriticalRegion && opensInvs)
           val ghostCallsOpensInvOutsideOpen =
             error(n, "Ghost function not annotated with `opensInvariants` calls ghost function annotated with `opensInvariants`.",
               inEnclosingGhostFunc && !enclosingFuncOpensInvs && isGhost && !inCriticalRegion && opensInvs)

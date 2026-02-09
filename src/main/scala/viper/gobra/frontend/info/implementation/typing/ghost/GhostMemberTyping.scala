@@ -93,7 +93,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     val atomicsAreAbstract = error(
       member,
-      "Gobra does not support proving that implementations are atomic. Atomic members cannot contain a body.",
+      "Gobra does not support proving that implementations are atomic. Thus, atomic members cannot contain a body.",
       spec.isAtomic && bodyOpt.nonEmpty
     )
 

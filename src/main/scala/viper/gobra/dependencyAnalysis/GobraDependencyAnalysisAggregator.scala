@@ -31,7 +31,7 @@ object GobraDependencyAnalysisAggregator {
     identifyGobraNodes(typeInfo.tree.originalRoot)(positionManager)
   }
 
-  // TODO ake: should we also determine the assumption and assertion types here?
+
   private def identifyGobraNodes(pNode: PNode, dependencyType: Option[DependencyType]=None)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
 
     def go(pNodes: Iterable[PNode], dependencyType: Option[DependencyType]=None) = {

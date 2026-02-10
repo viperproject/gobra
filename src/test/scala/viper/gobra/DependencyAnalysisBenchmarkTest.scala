@@ -1,12 +1,14 @@
 package viper.gobra
 
 import org.rogach.scallop.throwError
+import org.scalatest.DoNotDiscover
 import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.NoopReporter
 import viper.gobra.util.Violation
 
 import java.nio.file.Path
 
+@DoNotDiscover
 class DependencyAnalysisBenchmarkTest extends OverallBenchmarkTests {
   val configOptionsPropertyName = "GOBRATESTS_FLAGS"
 

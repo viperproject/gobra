@@ -318,7 +318,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
     val startMs = System.currentTimeMillis()
-    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
+    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform) ++ (if(config.enableDependencyAnalysis) Vector() else Vector(ConstantPropagation))
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform
     }

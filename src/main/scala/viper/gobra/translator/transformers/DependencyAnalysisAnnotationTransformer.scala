@@ -4,6 +4,7 @@ import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
+import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
@@ -12,12 +13,14 @@ import viper.silver.ast.utility.ViperStrategy
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 
-class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperTransformer {
+class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config) extends ViperTransformer {
 
   private val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
   private val positions = typeInfo.tree.root.positions.positions
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
+    if(!config.enableDependencyAnalysis) return Right(task)
+
     val programWithAnalysisSources = addDependencyAnalysisSourceInfo(task.program)
     Right(task.copy(program = programWithAnalysisSources))
   }
@@ -30,14 +33,8 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo) extends ViperT
   private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
       case member: vpr.Member =>
-        val newInfo = getNewInfo(member, member.pos, {
-          case _: gobra.PFunctionDecl | _: gobra.PMethodDecl
-               | _: gobra.PDomainType | _: gobra.PPredType
-          => NoInfo
-          case _ => disableDependencyAnalysis
-        }, disableDependencyAnalysis)
+        val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
         member.withMeta((member.pos, newInfo, member.errT))
-
       case stmt: vpr.Stmt =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)

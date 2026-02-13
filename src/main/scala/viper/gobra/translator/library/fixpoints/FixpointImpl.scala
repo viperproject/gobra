@@ -37,7 +37,7 @@ class FixpointImpl extends Fixpoint {
       Seq(getFunc),
       Seq(getAxiom),
       Seq()
-    )()
+    )(pos, info, errT)
     _generatedDomains ::= domain
   }
 

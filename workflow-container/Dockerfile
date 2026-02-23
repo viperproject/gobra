@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM eclipse-temurin:21.0.10_7-jdk-jammy AS build
+FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392 AS build
 
 WORKDIR /build
 
@@ -62,7 +62,7 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM eclipse-temurin:21.0.10_7-jdk-jammy
+FROM mcr.microsoft.com/openjdk/jdk:21-distroless@sha256:c138509044194768cdb020dcd7f83ca08419e02267ccaafa72c57f1d8570e869
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie

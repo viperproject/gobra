@@ -8,7 +8,7 @@ pidstat 1 -r -H -p ALL > /build/gobra/sync/pidstat.txt & PIDSTAT_PID=$!
 # execute sbt test and stop pidstat independent of outcome
 # set `-Dsbt.color=always` such that sbt displays warnings in yellow, passed test cases in green and failed ones in red.
 # it seems that sbt on it's own thinks that colors cannot be displayed when run in docker and thus turns them off by default.
-sbt -Dsbt.color=always test
+sbt -Dsbt.color=always "testOnly *.GobraTests"
 TEST_RES=$?
 kill -INT $PIDSTAT_PID
 

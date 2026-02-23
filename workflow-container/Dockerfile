@@ -8,13 +8,17 @@ FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e04
 
 WORKDIR /build
 
+# Boogie (dotnet) needs OpenSSL runtime libraries on Ubuntu-based images.
 RUN apt-get update && \
-	apt-get install -y \
-	gnupg2 \
+    apt-get install -y --no-install-recommends \
+    libssl3 \
+    ca-certificates && \
+    gnupg2 \
 	curl \
 	unzip \
 	git \
-	sysstat
+	sysstat && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
     curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
@@ -62,7 +66,14 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM mcr.microsoft.com/openjdk/jdk:21-distroless@sha256:c138509044194768cdb020dcd7f83ca08419e02267ccaafa72c57f1d8570e869
+FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392
+
+# Boogie (dotnet) needs OpenSSL runtime libraries on Ubuntu-based images.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libssl3 \
+    ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie

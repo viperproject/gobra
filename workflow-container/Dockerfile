@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM eclipse-temurin:21.0.10_7-jdk-jammy AS build
+FROM eclipse-temurin:17.0.18_8-jdk-jammy AS build
 
 WORKDIR /build
 

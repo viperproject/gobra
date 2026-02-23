@@ -8,16 +8,20 @@ FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e04
 
 WORKDIR /build
 
-# Boogie (dotnet) needs OpenSSL runtime libraries on Ubuntu-based images.
+# Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
+# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    libssl3 \
-    ca-certificates \
     gnupg2 \
 	curl \
 	unzip \
 	git \
 	sysstat && \
+    # Boogie expects libssl.so.1.1:
+    echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends libssl1.1 && \
+    rm -f /etc/apt/sources.list.d/focal-security.list && \
     rm -rf /var/lib/apt/lists/*
 
 RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
@@ -68,11 +72,12 @@ RUN sbt assembly
 # environment variables are not carried over either and need to be redeclared.
 FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392
 
-# Boogie (dotnet) needs OpenSSL runtime libraries on Ubuntu-based images.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    libssl3 \
-    ca-certificates && \
+# Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
+# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
+RUN echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends libssl1.1 && \
+    rm -f /etc/apt/sources.list.d/focal-security.list && \
     rm -rf /var/lib/apt/lists/*
 
 # copy downloaded & unzipped boogie

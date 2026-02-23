@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM openjdk:11.0.16-slim AS build
+FROM eclipse-temurin:17.0.18_8-jdk-jammy AS build
 
 WORKDIR /build
 
@@ -62,7 +62,7 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM openjdk:11.0.16-jre-slim
+FROM eclipse-temurin:17.0.18_8-jdk-jammy
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie

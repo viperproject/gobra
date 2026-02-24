@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError, ChannelReceiveError, InsufficientPermissionFromTagError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
@@ -111,54 +111,50 @@ class AssertionEncoding extends Encoding {
       // assert P by { L }
       //    ~~>
       // if(*) { L; assert P; assume false }; assume P
-      val (pos, info, errT) = n.vprMeta
-      val src = n.info
-      val nonDetChoice = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(src)
-      val errInfo = n.vprMeta._2.asInstanceOf[Source.Verifier.Info]
+      val nonDetChoice = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(n.info)
       for {
-        _ <- cl.local(vpr.LocalVarDecl(nonDetChoice.id, ctx.typ(nonDetChoice.typ))(pos, info, errT))
-        nonDetChoiceExpr <- ctx.assertion(in.ExprAssertion(nonDetChoice)(src))
-        proof <- ctx.statement(n.proof)
-        v <- ctx.assertion(n.ass)
-        assertP = vpr.Assert(v)(pos, info, errT)
-        assumeFalse = vpr.Assume(vpr.FalseLit()(pos, info, errT))(pos, info, errT)
-        assumeP = vpr.Assume(v)(pos, info, errT)
-        thenBranch = vu.seqn(Vector(proof, assertP, assumeFalse))(pos, info, errT)
-        elseBranch = vu.nop(pos, info, errT)
-        ifStmt = vpr.If(nonDetChoiceExpr, thenBranch, elseBranch)(pos, info, errT)
-        _ <- cl.errorT({
-          case e@errors.AssertFailed(_, reason, _) if e causedBy assertP =>
-            reason match {
-              case reason: reasons.AssertionFalse =>
-                reporting.AssertByError(errInfo)
-                  .dueTo(reporting.AssertByProofBodyError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
-              case _ => reporting.AssertByError(errInfo)
-            }
-        }: ErrorTransformer)
-      } yield vu.seqn(Vector(ifStmt, assumeP))(pos, info, errT)
+        _ <- cl.local(withSrc(vpr.LocalVarDecl(nonDetChoice.id, ctx.typ(nonDetChoice.typ)), n))
+        cond <- ctx.assertion(in.ExprAssertion(nonDetChoice)(n.info))
+
+        p <- ctx.assertion(n.ass)
+
+        thenBranch <- seqnUnits(Vector(for {
+          // L
+          proof <- ctx.statement(n.proof)
+          _ <- write(proof)
+
+          // assert P
+          _ <- assert(p,
+            (info, _) => AssertByError(info) dueTo AssertByProofBodyError(info)
+          )
+
+          // assume false
+          ass <- assume(withSrc(vpr.FalseLit(), n))
+        } yield ass))
+
+        ifStmt = withSrc(vpr.If(cond, thenBranch, withSrc(vu.nop, n)), n)
+        assumeP = withSrc(vpr.Assume(p), n)
+      } yield withSrc(vu.seqn(Vector(ifStmt, assumeP)), n)
 
     case n: in.AssertByContra =>
       // assert P by contra { L }
       //    ~~>
       // if (!P) { L; assert false }
-      val (pos, info, errT) = n.vprMeta
-      val assertFalse = vpr.Assert(vpr.FalseLit()(pos, info, errT))(pos, info, errT)
-      val errInfo = n.vprMeta._2.asInstanceOf[Source.Verifier.Info]
       for {
-        cond <- ctx.expression(n.ass.asInstanceOf[in.ExprAssertion].exp)
-        proof <- ctx.statement(n.proof)
-        thenBranch = vu.seqn(Vector(proof, assertFalse))(pos, info, errT)
-        elseBranch = vu.nop(pos, info, errT)
-        _ <- cl.errorT({
-          case e@errors.AssertFailed(_, reason, _) if e causedBy assertFalse =>
-            reason match {
-              case reason: reasons.AssertionFalse =>
-                reporting.AssertByError(errInfo)
-                  .dueTo(reporting.AssertByContraBodyError(reason.offendingNode.info.asInstanceOf[Source.Verifier.Info]))
-              case _ => reporting.AssertByError(errInfo)
-            }
-        }: ErrorTransformer)
-      } yield vpr.If(vpr.Not(cond)(pos, info, errT), thenBranch, elseBranch)(pos, info, errT)
+        p <- ctx.assertion(n.ass)
+        cond = withSrc(vpr.Not(p), n)
+
+        thenBranch <- seqnUnits(Vector(for {
+          // L
+          proof <- ctx.statement(n.proof)
+          _ <- write(proof)
+
+          // assert false
+          ass <- assert(withSrc(vpr.FalseLit(), n),
+            (info, _) => AssertByError(info) dueTo AssertByContraBodyError(info)
+          )
+        } yield ass))
+      } yield withSrc(vpr.If(cond, thenBranch, withSrc(vu.nop, n)), n)
 
     case n@ in.PackageWand(wand, blockOpt) =>
       val (pos, info, errT) = n.vprMeta

@@ -8,18 +8,24 @@ package viper.gobra.translator.encodings.typeless
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
+import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError, ChannelReceiveError, InsufficientPermissionFromTagError, Source}
+import viper.gobra.theory.Addressability
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.silver.verifier.{errors, reasons}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.{refute => vprrefute}
 import viper.silver.plugin.sif._
 
 class AssertionEncoding extends Encoding {
 
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
+  import cl._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case n@ in.Old(op) => for { o <- ctx.expression(op)} yield withSrc(vpr.Old(o), n)
@@ -103,6 +109,56 @@ class AssertionEncoding extends Encoding {
     case n@ in.Assume(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Assume(v), n) // Assumes are later rewritten
     case n@ in.Inhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Inhale(v), n)
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)
+
+    case n: in.AssertByProof =>
+      // Dafny-style
+      // assert P by { L }
+      //    ~~>
+      // if(*) { L; assert P; assume false }; assume P
+      val nonDetChoice = in.LocalVar(ctx.freshNames.next(), in.BoolT(Addressability.exclusiveVariable))(n.info)
+      for {
+        _ <- cl.local(withSrc(vpr.LocalVarDecl(nonDetChoice.id, ctx.typ(nonDetChoice.typ)), n))
+        cond <- ctx.assertion(in.ExprAssertion(nonDetChoice)(n.info))
+
+        p <- ctx.assertion(n.ass)
+
+        thenBranch <- seqnUnits(Vector(for {
+          // L
+          proof <- ctx.statement(n.proof)
+          _ <- write(proof)
+
+          // assert P
+          _ <- assert(p,
+            (info, _) => AssertByError(info) dueTo AssertByProofBodyError(info)
+          )
+
+          // assume false
+          ass <- assume(withSrc(vpr.FalseLit(), n))
+        } yield ass))
+
+        ifStmt = withSrc(vpr.If(cond, thenBranch, withSrc(vu.nop, n)), n)
+        assumeP = withSrc(vpr.Assume(p), n)
+      } yield withSrc(vu.seqn(Vector(ifStmt, assumeP)), n)
+
+    case n: in.AssertByContra =>
+      // assert P by contra { L }
+      //    ~~>
+      // if (!P) { L; assert false }
+      for {
+        p <- ctx.assertion(n.ass)
+        cond = withSrc(vpr.Not(p), n)
+
+        thenBranch <- seqnUnits(Vector(for {
+          // L
+          proof <- ctx.statement(n.proof)
+          _ <- write(proof)
+
+          // assert false
+          ass <- assert(withSrc(vpr.FalseLit(), n),
+            (info, _) => AssertByError(info) dueTo AssertByContraBodyError(info)
+          )
+        } yield ass))
+      } yield withSrc(vpr.If(cond, thenBranch, withSrc(vu.nop, n)), n)
 
     case n@ in.PackageWand(wand, blockOpt) =>
       val (pos, info, errT) = n.vprMeta

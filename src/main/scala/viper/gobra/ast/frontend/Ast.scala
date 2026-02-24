@@ -971,6 +971,15 @@ case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement w
 
 case class PAssert(exp: PExpression) extends PGhostStatement
 
+sealed trait PAssertBy extends PGhostStatement {
+  def exp: PExpression
+  def block: PBlock
+}
+
+case class PAssertByProof(exp: PExpression, block: PBlock) extends PAssertBy
+
+case class PAssertByContra(exp: PExpression, block: PBlock) extends PAssertBy
+
 case class PRefute(exp: PExpression) extends PGhostStatement
 
 case class PAssume(exp: PExpression) extends PGhostStatement

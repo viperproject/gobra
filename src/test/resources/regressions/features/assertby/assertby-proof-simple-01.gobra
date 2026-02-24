@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assertbyproofsimple01
+
+func foo(x, y int) {
+    assert x <= y by {
+        mylemma(x, y)
+    }
+
+    assert x <= y
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+ensures x <= y
+decreases
+func mylemma(x, y int)

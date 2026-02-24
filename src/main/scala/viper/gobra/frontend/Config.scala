@@ -689,7 +689,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val printSIFVpr: ScallopOption[Boolean] = opt[Boolean](
     name = "printSIFVpr",
-    descr = "Print the encoded Viper program after applying the secure information flow (SIF) encoding",
+    descr = "Print the Viper program emitted by the secure information flow (SIF) plugin",
     default = Some(debug()),
     noshort = true
   )

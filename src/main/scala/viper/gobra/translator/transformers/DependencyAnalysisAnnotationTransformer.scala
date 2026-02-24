@@ -38,8 +38,10 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       case stmt: vpr.Stmt =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)
+        val annotationInfo = getAnnotationInfo(depInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, stmt.info) else stmt.info
-        stmt.withMeta(stmt.pos, newInfo, stmt.errT)
+        val finalInfo = if(annotationInfo.isDefined)  MakeInfoPair(annotationInfo.get, newInfo) else newInfo
+        stmt.withMeta(stmt.pos, finalInfo, stmt.errT)
       case exp: vpr.Exp =>
         val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)
@@ -99,5 +101,15 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private def disableDependencyAnalysis: AnnotationInfo = {
     AnnotationInfo(Map(("enableDependencyAnalysis", List("false"))))
+  }
+
+  private def getAnnotationInfo(gobraDependencyAnalysisInfo: Option[GobraDependencyAnalysisInfo]): Option[AnnotationInfo] = {
+    if(gobraDependencyAnalysisInfo.isEmpty) return None
+    val depTypeOpt = gobraDependencyAnalysisInfo.get.dependencyType
+    if(depTypeOpt.isDefined){
+      val depType = depTypeOpt.get
+      Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
+    }
+    else None
   }
 }

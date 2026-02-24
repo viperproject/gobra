@@ -869,7 +869,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val enableExperimentalHyperFeatures: ScallopOption[Boolean] = opt[Boolean](
     name = Config.enableExperimentalHyperFeaturesOptionName,
-    descr = s"Enables certain hyperproperty-related experimental features such as rel expressions and extended support for gotos.",
+    descr = s"Enables certain hyperproperty-related experimental features such as rel expressions.",
     default = Some(ConfigDefaults.DefaultEnableExperimentalHyperFeatures),
     noshort = true,
   )

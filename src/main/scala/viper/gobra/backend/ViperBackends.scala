@@ -39,6 +39,7 @@ trait ViperBackend {
       // encoding of gotos in the SIFExtendedTransformer:
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
       SIFExtendedTransformer.Config.enableExperimentalFeatures = config.enableExperimentalHyperFeatures
+      // registers a callback to report the encoded Viper program such that we can print it if the user set `--printSIFVpr`:
       SIFExtendedTransformer.Config.transformedProgramCallback = Some(encodedVpr =>
         config.reporter.report(SIFEncodedViperMessage(
           config.taskName,

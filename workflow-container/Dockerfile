@@ -65,6 +65,9 @@ COPY viperserver /build/gobra/viperserver
 
 RUN sbt assembly
 
+# force compilation of test classes:
+RUN sbt "test:compile"
+
 
 # a second build stage starts here that is based of a fresh image.
 # note that only stuff explicitly copied from "build" will be present.

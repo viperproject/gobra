@@ -14,17 +14,23 @@ import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
-import viper.gobra.frontend.info.Info
+import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierError}
+import viper.gobra.tags.GobraTestsTag
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
-import scala.concurrent.{Await, Future}
+import java.util.concurrent.atomic.AtomicReference
+import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.Duration
 
+
+// tag this class with `GobraTestsTag` such that we can run all except this test class
+// (if necessary) by executing `sbt "testOnly * -- -l viper.gobra.GobraTestsTag"`
+@GobraTestsTag
 class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   val regressionsPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
@@ -36,7 +42,8 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   var gobraInstance: Gobra = _
   var executor: GobraExecutionContext = _
   var inputs: Vector[Source] = Vector.empty
-  val cacheParserAndTypeChecker = true
+  val shouldPreParseAndTypeCheck = true
+  val preParseAndTypeCheckResult: AtomicReference[Option[Future[Vector[Either[Vector[VerifierError], TypeInfo]]]]] = new AtomicReference(None)
 
   override def beforeAll(): Unit = {
     executor = new DefaultGobraExecutionContext()
@@ -55,31 +62,51 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       reporter = StringifyReporter,
       packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
-      cacheParserAndTypeChecker = cacheParserAndTypeChecker,
+      cacheParserAndTypeChecker = shouldPreParseAndTypeCheck,
       z3Exe = z3Exe,
       // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
       // but requires some work to add termination measures all over the test suite.
       disableCheckTerminationPureFns = true,
     )
 
-  override def runTests(testName: Option[String], args: Args): Status = {
-    if (cacheParserAndTypeChecker) {
-      implicit val execContext: GobraExecutionContext = executor
-      val futs = inputs.map(source => {
-        val config = getConfig(source)
-        val pkgInfo = config.packageInfoInputMap.keys.head
-        val fut = for {
-          finalConfig <- EitherT.fromEither(Future.successful(gobraInstance.getAndMergeInFileConfig(config, pkgInfo)))
-          parseResult <- Parser.parse(finalConfig, pkgInfo)
-          pkg = RegularPackage(pkgInfo.id)
-          typeCheckResult <- Info.check(finalConfig, pkg, parseResult)
-        } yield typeCheckResult
-        fut.toEither
-      })
-      Await.result(Future.sequence(futs), Duration.Inf)
-      println("pre-parsing and pre-typeChecking completed")
+  // The testing framework calls first `runTests` once, followed by multiple calls to `runTest`.
+  // Even if we skip `GobraTests` by instructing ScalaTest to ignore a certain tag, `runTests` is still called.
+  // Thus, we start the pre-parsing and pre-typeChecking at the first invocation of `runTest`.
+  override def runTest(testName: String, args: Args): Status = {
+    if (shouldPreParseAndTypeCheck) {
+      val result: Promise[Vector[Either[Vector[VerifierError], TypeInfo]]] = Promise()
+      val prevValue = preParseAndTypeCheckResult.getAndUpdate {
+        case None => Some(result.future)
+        case v => v // leave unchanged
+      }
+      // We start the pre-parsing and pre-typechecking only if we just updated the atomic reference, i.e., the
+      // previous value was `None`.
+      val fut = prevValue match {
+        case Some(f) => f // atomic reference was already set by another thread
+        case None =>
+          implicit val execContext: GobraExecutionContext = executor
+          val futs = inputs.map(source => {
+            val config = getConfig(source)
+            val pkgInfo = config.packageInfoInputMap.keys.head
+            val fut = for {
+              finalConfig <- EitherT.fromEither(Future.successful(gobraInstance.getAndMergeInFileConfig(config, pkgInfo)))
+              parseResult <- Parser.parse(finalConfig, pkgInfo)
+              pkg = RegularPackage(pkgInfo.id)
+              typeCheckResult <- Info.check(finalConfig, pkg, parseResult)
+            } yield typeCheckResult
+            fut.toEither
+          })
+          Future.sequence(futs)
+            .andThen(res => {
+              result.complete(res) // set the result to the promise
+            })
+          result.future // return the promise's future
+      }
+      // block until the pre-parsing and pre-typechecking is completed:
+      Await.result(fut, Duration.Inf)
     }
-    super.runTests(testName, args)
+
+    super.runTest(testName, args)
   }
 
   override def afterAll(): Unit = {

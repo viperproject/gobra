@@ -65,6 +65,9 @@ COPY viperserver /build/gobra/viperserver
 
 RUN sbt assembly
 
+# force compilation of test classes:
+RUN sbt "test:compile"
+
 
 # a second build stage starts here that is based of a fresh image.
 # note that only stuff explicitly copied from "build" will be present.
@@ -97,5 +100,8 @@ COPY --from=build /build/gobra/target/scala-2.13/gobra.jar .
 # copy evaluation and tutorial examples
 COPY src/test/resources/regressions/examples/evaluation ./evaluation
 COPY src/test/resources/regressions/examples/tutorial-examples ./tutorial-examples
+
+# create the directory that Gobra uses to write its stats to:
+RUN mkdir -p .gobra
 
 ENTRYPOINT ["java", "-Xss128m", "-jar", "gobra.jar"]

@@ -10,10 +10,18 @@ on:
   push: # run this workflow on every push
   pull_request: # run this workflow on every pull_request
 
+env:
+  BUILD_IMAGE_WORKFLOW_ARTIFACT_NAME: gobra-build-image
+  BUILD_IMAGE_FILENAME: build-image.tar
+  FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME: gobra-final-image
+  FINAL_IMAGE_FILENAME: final-image.tar
+
+
 jobs:
-  # there is a single job to avoid copying the built docker image from one job to the other
-  build-test-deploy-container:
+  build-container:
     runs-on: ubuntu-latest
+    outputs:
+      IMAGE_TAG: ${{ steps.output_step.outputs.IMAGE_TAG }}
     env:
       IMAGE_ID: ghcr.io/${{ github.repository_owner }}/gobra
       # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/):
@@ -24,13 +32,6 @@ jobs:
         org.opencontainers.image.revision=${{ github.sha }}
         org.opencontainers.image.licenses=MPL-2.0
         org.opencontainers.image.description=Gobra image for revision ${{ github.sha }} built by workflow run ${{ github.run_id }}
-      CONCLUSION_SUCCESS: "success"
-      CONCLUSION_FAILURE: "failure"
-      # Output levels according to severity.
-      # They identify the kinds of annotations to be printed by Github.
-      NOTICE_LEVEL: "info"
-      WARNING_LEVEL: "warning"
-      FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v6
@@ -70,9 +71,6 @@ jobs:
             # use latest tag for default branch and with highest priority (1000 is the highest default priority for the other types):
             type=raw,value=latest,priority=1100,enable={{is_default_branch}}
 
-      - name: Get first tag
-        run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV
-
       - name: Build image up to including stage 'build'
         id: image-build
         # note that the action's name is misleading: this step does NOT push
@@ -89,14 +87,110 @@ jobs:
           # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
+          outputs: type=docker,dest=/tmp/${{ env.BUILD_IMAGE_FILENAME }}
 
-      - name: Execute all tests
+      - name: Upload build image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUILD_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp/${{ env.BUILD_IMAGE_FILENAME }}
+          retention-days: 1
+
+      - name: Build entire image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true # make the built image available in docker (locally)
+          file: workflow-container/Dockerfile
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
+          push: false
+          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
+          # use GitHub cache:
+          cache-from: type=gha, scope=${{ github.workflow }}
+          cache-to: type=gha, scope=${{ github.workflow }}
+          outputs: type=docker,dest=/tmp/${{ env.FINAL_IMAGE_FILENAME }}
+
+      - name: Upload final image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp/${{ env.FINAL_IMAGE_FILENAME }}
+          retention-days: 1
+
+      - name: Get first tag
+        run: echo "IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | head -1)" >> $GITHUB_ENV
+
+      - name: Set job output
+        id: output_step
+        run: echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+
+
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout Gobra
+        uses: actions/checkout@v4
+        # we do not need any submodules here as we need the folders containing our test cases
+
+      - id: set-matrix
+        run: |
+          # find subfolders of `regressions` and use those as a natural split of the GobraTests
+          # store these subfolders as a JSON array:
+          REGRESSION_SUBFOLDERS=$(ls src/test/resources/regressions)
+          MATRIX_ENTRIES=''
+          for SUBFOLDER in $REGRESSION_SUBFOLDERS; do
+            MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"GobraTests - regressions/$SUBFOLDER\", \"sbt-command\": \"set javaOptions += \\\"-DGOBRATESTS_REGRESSIONS_DIR=regressions/$SUBFOLDER\\\";  testOnly * -- -n viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-GobraTests-$SUBFOLDER.txt\"},"
+          done
+          # add an entry for all other non-GobraTests tests:
+          MATRIX_ENTRIES="$MATRIX_ENTRIES {\"name\": \"All other tests\", \"sbt-command\": \"testOnly * -- -l viper.gobra.tags.GobraTestsTag\", \"pidstat-filename\": \"pidstat-OtherTests.txt\"},"
+          # print matrix for debugging purposes:
+          echo "matrix={\"include\": [$MATRIX_ENTRIES]}"
+          echo "matrix={\"include\": [$MATRIX_ENTRIES]}" >> $GITHUB_OUTPUT
+
+
+  run-all-tests:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    needs: [build-container, prepare-matrix]
+    env:
+      CONCLUSION_SUCCESS: "success"
+      CONCLUSION_FAILURE: "failure"
+      # Output levels according to severity.
+      # They identify the kinds of annotations to be printed by Github.
+      NOTICE_LEVEL: "info"
+      WARNING_LEVEL: "warning"
+      FAILURE_LEVEL: "error"
+      # we do the context expansion here to avoid escaping problems below as explained in https://stackoverflow.com/a/77924154/1990080
+      SBT_COMMAND: ${{ matrix.sbt-command }}
+    strategy:
+      # tests should not be stopped when they fail on one of the OSes:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    steps:
+      # we only need .github/test-and-measure-ram.sh. Thus, we do not checkout the submodules
+      - name: Checkout Gobra
+        uses: actions/checkout@v4
+
+      - name: Download build image
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BUILD_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp
+
+      - name: Load image
+        run: docker load --input /tmp/${{ env.BUILD_IMAGE_FILENAME }}
+
+      - name: Execute tests
         run: |
           # create a directory to sync with the docker container and to store the created pidstats
           mkdir -p $PWD/sync
           docker run \
+            -e SBTCOMMAND="$SBT_COMMAND" \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
-            ${{ env.IMAGE_TAG }} \
+            ${{ needs.build-container.outputs.IMAGE_TAG }} \
             /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"
 
       - name: Get max RAM usage by Java and Z3
@@ -187,27 +281,27 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: pidstat.txt
+          name: ${{ matrix.pidstat-filename }}
           path: sync/pidstat.txt
 
-      - name: Build entire image
-        uses: docker/build-push-action@v6
+
+  test-final-container-and-deploy:
+    runs-on: ubuntu-latest
+    needs: [build-container, run-all-tests]
+    steps:
+      - name: Download final image
+        uses: actions/download-artifact@v4
         with:
-          context: .
-          load: true # make the built image available in docker (locally)
-          file: workflow-container/Dockerfile
-          tags: ${{ steps.image-metadata.outputs.tags }}
-          labels: ${{ steps.image-metadata.outputs.labels }}
-          push: false
-          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
-          # use GitHub cache:
-          cache-from: type=gha, scope=${{ github.workflow }}
-          cache-to: type=gha, scope=${{ github.workflow }}
+          name: ${{ env.FINAL_IMAGE_WORKFLOW_ARTIFACT_NAME }}
+          path: /tmp
+
+      - name: Load image
+        run: docker load --input /tmp/${{ env.FINAL_IMAGE_FILENAME }}
 
       - name: Test final container by verifying a file
         run: |
           docker run \
-            ${{ env.IMAGE_TAG }} \
+            ${{ needs.build-container.outputs.IMAGE_TAG }} \
             -i tutorial-examples/basic-annotations.gobra
 
       - name: Decide whether image should be deployed or not
@@ -234,16 +328,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push entire image
+      - name: Push image
         if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: workflow-container/Dockerfile
-          tags: ${{ steps.image-metadata.outputs.tags }}
-          labels: ${{ steps.image-metadata.outputs.labels }}
-          push: true
-          provenance: false # without this, GH displays 2 architecture (unknown/unknown) and omits labels
-          # use GitHub cache:
-          cache-from: type=gha, scope=${{ github.workflow }}
-          cache-to: type=gha, scope=${{ github.workflow }}
+        run: docker push ${{ needs.build-container.outputs.IMAGE_TAG }}

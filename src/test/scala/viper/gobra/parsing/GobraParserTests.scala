@@ -23,10 +23,7 @@ import scala.concurrent.duration.Duration
 
 class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
 
-  val regressionsPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
-
-  val regressionsDir: String = System.getProperty(regressionsPropertyName, "better_errors")
-  val testDirectories: Seq[String] = Vector(regressionsDir)
+  val testDirectories: Seq[String] = Vector("better_errors")
   override val defaultTestPattern: String = PackageResolver.inputFilePattern
 
   var gobraInstance: Gobra = _

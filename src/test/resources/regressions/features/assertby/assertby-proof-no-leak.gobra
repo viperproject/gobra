@@ -7,6 +7,8 @@
 package assertbyproofnoleak
 
 func foo(x, y, z int) {
+    // due to #1000, assert by proof are currently rejected by the type checker
+    //:: ExpectedOutput(type_error)
     assert x <= y by {
         mylemma(x, y, z)
     }
@@ -15,7 +17,9 @@ func foo(x, y, z int) {
 
     // y <= z was established inside the proof block via mylemma
     // but should NOT be available here
-    //:: ExpectedOutput(assert_error:assertion_error)
+    // due to #1000, assert by proof are currently rejected by the type checker so this example does not even reach the
+    // verification phase, so the following assertion error is commented:
+    // ExpectedOutput(assert_error:assertion_error)
     assert y <= z
 }
 

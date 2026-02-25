@@ -24,6 +24,8 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
+    case n: PAssertByProof =>
+      error(n, "`assert P by { ... }` is currently not supported (cf. Gobra #1000). Use `assert P by contra { ... }` instead.")
     case n: PAssertBy =>
       isExpr(n.exp).out ++
         isPureExpr(n.exp) ++

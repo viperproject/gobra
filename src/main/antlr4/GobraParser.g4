@@ -88,6 +88,7 @@ ghostPrimaryExpr: range
   | isComparable
   | low
   | lowc
+  | hyperRelExpr
   | old
   | before
   | sConversion
@@ -135,6 +136,8 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 low: LOW L_PAREN expression R_PAREN;
 
 lowc: LOWC L_PAREN R_PAREN;
+
+hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 

@@ -104,4 +104,5 @@ MAYINIT     : 'mayInit' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
 FRIENDPKG   : 'friendPkg';
+REL         : 'rel';
 // NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

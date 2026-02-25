@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relfail02
+
+// ##(--hyperMode extended --enableExperimentalHyperFeatures)
+
+// tests that the literal `i` in `rel(_, i)` must be within range
+
+requires rel(b, 0)
+requires rel(b, 1)
+//:: ExpectedOutput(type_error)
+requires rel(b, 2)
+//:: ExpectedOutput(type_error)
+requires rel(b, 42)
+func foo(b bool)

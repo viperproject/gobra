@@ -6,7 +6,8 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{Config, Hyper, MCE}
+import viper.gobra.frontend.{Config, Hyper, MCE, PackageInfo}
+import viper.gobra.reporting.SIFEncodedViperMessage
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
@@ -19,9 +20,9 @@ import scala.io.Source
 import scala.util.Using
 
 trait ViperBackend {
-  def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
+  def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): ViperVerifier
 
-  protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
+  protected def buildOptions(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): Vector[String] = {
     var options: Vector[String] = Vector.empty
 
     options ++= exePaths
@@ -37,6 +38,13 @@ trait ViperBackend {
       // since Gobra adds gotos to handle return statements, which might jump out of a loop, we cannot use the default
       // encoding of gotos in the SIFExtendedTransformer:
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
+      SIFExtendedTransformer.Config.enableExperimentalFeatures = config.enableExperimentalHyperFeatures
+      // registers a callback to report the encoded Viper program such that we can print it if the user set `--printSIFVpr`:
+      SIFExtendedTransformer.Config.transformedProgramCallback = Some(encodedVpr =>
+        config.reporter.report(SIFEncodedViperMessage(
+          config.taskName,
+          config.packageInfoInputMap(pkgInfo).map(_.name),
+          () => encodedVpr)))
     }
 
     options
@@ -44,8 +52,8 @@ trait ViperBackend {
 }
 
 trait SiliconBasedBackend extends ViperBackend {
-  override protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
-    var options: Vector[String] = super.buildOptions(exePaths, config)
+  override protected def buildOptions(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): Vector[String] = {
+    var options: Vector[String] = super.buildOptions(exePaths, config, pkgInfo)
     options ++= Vector("--logLevel", "ERROR")
     options ++= Vector("--disableCatchingExceptions")
     if (config.conditionalizePermissions) {
@@ -93,8 +101,8 @@ trait SiliconBasedBackend extends ViperBackend {
 }
 
 trait CarbonBasedBackend extends ViperBackend {
-  override protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
-    val options: Vector[String] = super.buildOptions(exePaths, config)
+  override protected def buildOptions(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): Vector[String] = {
+    val options: Vector[String] = super.buildOptions(exePaths, config, pkgInfo)
     // options ++= Vector("--logLevel", "ERROR")
     options
   }
@@ -103,15 +111,15 @@ trait CarbonBasedBackend extends ViperBackend {
 object ViperBackends {
 
   object SiliconBackend extends SiliconBasedBackend {
-    def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Silicon = {
-      val options = buildOptions(exePaths, config)
+    override def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): Silicon = {
+      val options = buildOptions(exePaths, config, pkgInfo)
       new Silicon(options)
     }
   }
 
   object CarbonBackend extends CarbonBasedBackend {
-    def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
-      val options = buildOptions(exePaths, config)
+    override def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): Carbon = {
+      val options = buildOptions(exePaths, config,pkgInfo)
       new Carbon(options)
     }
   }
@@ -122,17 +130,17 @@ object ViperBackends {
     /** abstract method that should return the backend-specific configuration. The configuration will then be passed
       * on to the ViperServer instance.
       */
-    def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig
+    def getViperVerifierConfig(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): ViperVerifierConfig
 
     /** returns a ViperServer instance with an underlying ViperCoreServer. A fresh ViperServer instance should be used
       * for each verification. The underlying ViperCoreServer instance is reused if one already exists.
       */
-    def create(exePaths: Vector[String], config: Config)(implicit executionContext: GobraExecutionContext): ViperServer = {
+    override def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executionContext: GobraExecutionContext): ViperServer = {
       val initializedServer = getOrCreateServer(config)(executionContext)
       val executor = initializedServer.executor
       // the executor used to verify is expected to correspond to the one used by the server:
       assert(executor == executionContext, "a different execution context is used than expected")
-      val verifierConfig = getViperVerifierConfig(exePaths, config)
+      val verifierConfig = getViperVerifierConfig(exePaths, config, pkgInfo)
       new ViperServer(initializedServer, verifierConfig)(executor)
     }
 
@@ -157,15 +165,15 @@ object ViperBackends {
   }
 
   case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with SiliconBasedBackend {
-    override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
-      val options = super.buildOptions(exePaths, config)
+    override def getViperVerifierConfig(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): ViperVerifierConfig = {
+      val options = super.buildOptions(exePaths, config, pkgInfo)
       ViperServerConfig.ConfigWithSilicon(options.toList)
     }
   }
 
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with CarbonBasedBackend {
-    override def getViperVerifierConfig(exePaths: Vector[String], config: Config): ViperVerifierConfig = {
-      val options = super.buildOptions(exePaths, config)
+    override def getViperVerifierConfig(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): ViperVerifierConfig = {
+      val options = super.buildOptions(exePaths, config, pkgInfo)
       ViperServerConfig.ConfigWithCarbon(options.toList)
     }
   }

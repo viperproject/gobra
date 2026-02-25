@@ -8,16 +8,13 @@ package viper.gobra.translator.encodings.typeless
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError, ChannelReceiveError, InsufficientPermissionFromTagError, Source}
+import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.gobra.translator.util.{ViperUtil => vu}
-import viper.silver.verifier.{errors, reasons}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.{refute => vprrefute}
 import viper.silver.plugin.sif._

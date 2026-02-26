@@ -104,6 +104,9 @@ trait Enclosing { this: TypeInfoImpl =>
     cond1 || cond2
   }
 
+  lazy val isEnclosingMagicWand: PNode => Boolean =
+    down(false) { case _: PMagicWand => true }
+
   def isGlobalVarDeclaration(n: PVarDecl): Boolean =
     enclosingCodeRoot(n).isInstanceOf[PPackage]
 

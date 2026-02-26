@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
@@ -22,7 +22,6 @@ import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
 import scala.concurrent.duration.Duration
-import scala.util.Right
 import scala.util.matching.Regex
 
 object LoggerDefaults {
@@ -72,7 +71,6 @@ object ConfigDefaults {
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
   val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
   val DefaultEnableExperimentalHyperFeatures: Boolean = false
-  lazy val DefaultEnableLazyImports: Boolean = false
   val DefaultNoVerify: Boolean = false
   val DefaultNoStreamErrors: Boolean = false
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
@@ -365,8 +363,6 @@ object Config {
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 
   val enableExperimentalHyperFeaturesOptionName = "enableExperimentalHyperFeatures"
-  val enableLazyImportOptionName = "enableLazyImport"
-  val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
 
   /** Options that must not appear in the `other` field of a JSON config because their paths
     * cannot be correctly resolved (they are turned into Source objects before path resolution). */

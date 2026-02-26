@@ -1,0 +1,166 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+preserves acc(x)
+ensures   b ==> *x == newv && old(*x) == oldv
+ensures   !b ==> *x == old(*x) && old(*x) != oldv
+decreases
+atomic func CAS(x *int, oldv int, newv int) (b bool)
+
+preserves acc(x)
+decreases
+atomic func Get(x *int) int
+
+pred Own(x *int) { acc(x) }
+
+requires Invariant(Own!<x!>)
+func fail1(x *int) {
+	var v int
+
+	critical Own!<x!> (
+	unfold Own!<x!>()
+	v = Get(x)
+	// At most one atomic operation may be performed in a critical region.
+	//:: ExpectedOutput(type_error)
+	v = Get(x)
+	fold Own!<x!>()
+	)
+}
+
+requires Invariant(Own!<x!>)
+func fail2(x *int) {
+	var v int
+
+	// Non-atomic non-ghost operations, like the one below, are disallowed.
+	//:: ExpectedOutput(type_error)
+	critical Own!<x!> (
+	unfold Own!<x!>()
+	*x += 1
+	fold Own!<x!>()
+	)
+}
+
+
+requires Invariant(Own!<x!>)
+func fail3(x *int) {
+	var v int
+
+	// The arguments of atomic non-ghost operations called inside critical regions
+	// must not contain non-atomic operations. Valid arguments are of a very restricted
+	// form (they are mostly exclusive variables and constants).
+	//:: ExpectedOutput(type_error)
+	critical Own!<x!> (
+	unfold Own!<x!>()
+	CAS(x, *x, *x+1)
+	fold Own!<x!>()
+	)
+}
+
+func fail4() {
+	// Only arguments of type Pred() may be passed in critical regions.
+	//:: ExpectedOutput(type_error)
+	critical 1 (
+	)
+}
+
+decreases
+func nonAtomicOp()
+
+func fail5() {
+	// Non-atomic functions may not be called from critical regions.
+	//:: ExpectedOutput(type_error)
+	critical PredTrue!<!> (
+		nonAtomicOp()
+	)
+}
+
+ghost
+decreases
+func fail6() {
+	// Ghost functions with critical regions must be marked with `opensInvariants`
+	//:: ExpectedOutput(type_error)
+	critical PredTrue!<!> (
+	)
+}
+
+ghost
+opensInvariants
+decreases
+func ghostOpensInvs()
+
+ghost
+decreases
+func fail7() {
+	// Ghost functions that call ghost functions annotated with `opensInvariants`
+	// must themselves be marked with `opensInvariants`.
+	//:: ExpectedOutput(type_error)
+	ghostOpensInvs()
+}
+
+// Only ghost functions may be annotated with 'opensInvariants'
+//:: ExpectedOutput(type_error)
+opensInvariants
+decreases
+func fail8()
+
+// Only abstract methods may be annotated with 'atomic'
+//:: ExpectedOutput(type_error)
+decreases
+atomic func fail9() {}
+
+func fail10() {
+	// Outlined code may not be annotated with 'atomic'
+	//:: ExpectedOutput(type_error)
+	atomic
+	outline(
+		x := 1
+	)
+}
+
+ghost
+func fail11() {
+	ghost
+	// Outlined code may not be annotated with 'opensInv'
+	//:: ExpectedOutput(type_error)
+	opensInvariants
+	outline(
+		x := 1
+	)
+}
+
+// Atomic functions must terminate.
+//:: ExpectedOutput(type_error)
+atomic func fail12()
+
+ghost
+// Ghost functions cannot be atomic.
+//:: ExpectedOutput(type_error)
+decreases
+atomic func fail13()
+
+type I interface {
+	decreases
+	atomic
+	M()
+}
+
+type T1 struct{}
+
+decreases
+func (t T1) M()
+
+// Atomic interface methods may only be implemented by
+// atomic functions.
+//:: ExpectedOutput(type_error)
+T1 implements I
+
+func fail14() {
+	critical PredTrue!<!> (
+		// Ghost functions marked with `opensInvariants` cannot be called
+		// from a critical region.
+		//:: ExpectedOutput(type_error)
+		ghostOpensInvs()
+	)
+}

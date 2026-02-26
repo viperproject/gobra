@@ -1,0 +1,125 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// abstract functions may be marked as atomic
+preserves acc(x)
+ensures   b ==> *x == newv && old(*x) == oldv
+ensures   !b ==> *x == old(*x) && old(*x) != oldv
+decreases
+atomic func CAS(x *int, oldv int, newv int) (b bool)
+
+preserves acc(x)
+decreases
+atomic func Get(x *int) int
+
+type I interface {
+	// interface methods may also be marked as atomic
+	decreases
+	atomic
+	M()
+}
+
+type T1 struct{}
+
+decreases
+atomic func (t T1) M()
+
+// types with atomic methods may implement interfaces with atomic
+// methods, as long as the atomic interface members are implemented
+// by atomic members.
+T1 implements I
+
+pred Own(x *int) { acc(x) }
+
+requires Invariant(Own!<x!>)
+decreases
+func tryCAS(x *int) {
+	var v int
+	var b bool
+
+	// An invariant may be opened for the duraion of one atomic (non-ghost) operation
+	// and arbitrary ghost code. When an invariant is opened in a critical region,
+	// Gobra first checks that the property is an invariant.
+	critical Own!<x!> (
+	// The invariant is made available inside the critical region.
+	unfold Own!<x!>()
+	v = Get(x)
+	// An invariant must be re-established before the end of the critical region.
+	fold Own!<x!>()
+	)
+
+	vp := v+1
+
+	critical Own!<x!> (
+	unfold Own!<x!>()
+	b = CAS(x, v, vp)
+	fold Own!<x!>()
+	)
+}
+
+// Tests that we can establish an invariant and call a function that depends on it.
+decreases
+func callTryCAS() {
+	x@ := 1
+	fold Own!<&x!>()
+	EstablishInvariant(Own!<&x!>)
+	tryCAS(&x)
+}
+
+// Calls to atomic interface methods are supported in critical regions, even though
+// they are technically not atomic (a call to an interface method causes a lookup on
+// the vtable to dispatch the call, and the effects of this may be observable).
+// Nonetheless, it is safe to call these methods. When a critical region
+// contains a call i.M(), where i is of interface type, reasoning about this program
+// is similar to reasoning about the following:
+// 		critical P!<!>() (
+// 		resolve i.M()         // (1)
+// 		call_resolved i.M()   // (2), atomic
+// 		)
+// Step (1) is "transparent", i.e., its effects cannot be observed, if the value stored
+// in i cannot change between (1) and (2), which guarantees that the method that is called
+// still matches the dynamic type of the value stored in i. That should always be the
+// case:
+// (1) the receiver i is either in an exclusive or shared memory location.
+// (2) If it is exclusive, it may not be changed between (1) and (2) by another thread.
+// (3) If it is shared it may only be modified by another thread. However, to resolve the
+//     call to i.M, there must be at least read permissions to i in the current thread. 
+//     The permissions may either come from from the surrounding environment or from P!<!>().
+// 		a. If they come the former, then no other thread may ever obtain full permission to
+// 		   i and modify it while the call is being performed.
+// 		b. If they come from the latter, another thread could in principle try to open
+// 		   P!<!>() in parallel and modify i in an atomic step. However, there is no way to do
+// 		   so as far as I can tell. Regular assignments to i are not atomic (and thus, 
+// 		   disallowed in critical regions) and the package atomic does not offer a way to
+// 		   atomically mutate a variable of interface type.
+requires i != nil
+requires Invariant(PredTrue!<!>)
+func testInterface(i I) {
+	critical PredTrue!<!> (
+		i.M()
+	)
+}
+
+decreases
+func getRandomBool() bool
+
+// Gobra keeps track of which invariants are open/closed
+// around loops.
+requires Invariant(Own!<x!>)
+func testLoops(x *int) {
+	invariant Invariant(Own!<x!>)
+	for getRandomBool() {
+		critical Own!<x!> (
+			unfold Own!<x!>()
+			assert acc(x)
+			fold Own!<x!>()
+		)
+	}
+	critical Own!<x!> (
+		unfold Own!<x!>()
+		assert acc(x)
+		fold Own!<x!>()
+	)
+}

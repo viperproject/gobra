@@ -9,7 +9,7 @@ package viper.gobra.ast.internal.transform
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.OverflowCheckAnnotation
-import viper.gobra.reporting.Source.Parser.Single
+import viper.gobra.reporting.Source.Parser.{Internal, Single}
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
@@ -192,6 +192,8 @@ object OverflowChecksTransform extends InternalTransform {
   private def createAnnotatedInfo(info: Source.Parser.Info): Source.Parser.Info =
     info match {
       case s: Single => s.createAnnotatedInfo(OverflowCheckAnnotation)
+      // the following is temporary hack that will be discarded when we merge the new support for overflow checking
+      case i@ Internal => i
       case i => violation(s"l.op.info ($i) is expected to be a Single")
     }
 }

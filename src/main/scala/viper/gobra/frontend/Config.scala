@@ -71,6 +71,7 @@ object ConfigDefaults {
   val DefaultDisableNL: Boolean = false
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
   val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
+  val DefaultEnableExperimentalHyperFeatures: Boolean = false
   lazy val DefaultEnableLazyImports: Boolean = false
   val DefaultNoVerify: Boolean = false
   val DefaultNoStreamErrors: Boolean = false
@@ -117,12 +118,26 @@ object MCEConverter extends CliEnumConverter.CliEnum[MCE.Mode] {
 }
 
 object Hyper {
-  sealed trait Mode
+  sealed trait Mode {
+    def name: String
+  }
+  case object Enabled extends Mode {
+    override val name: String = "on"
+  }
   /** uses more complete encoding that does not enforce low guards for control flow */
-  object EnabledExtended extends Mode
-  object Enabled extends Mode
-  object Disabled extends Mode
-  object NoMajor extends Mode
+  case object EnabledExtended extends Mode {
+    override val name: String = "extended"
+  }
+  case object Disabled extends Mode {
+    override val name: String = "off"
+  }
+  case object NoMajor extends Mode {
+    override val name: String = "noMajor"
+  }
+
+  val values: Seq[Mode] = Seq(Enabled, EnabledExtended, Disabled, NoMajor)
+
+  def withName(name: String): Option[Mode] = values.find(_.name == name)
 }
 
 object MoreJoins {
@@ -218,6 +233,7 @@ case class Config(
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
+                   enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
                    noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -272,6 +288,7 @@ case class Config(
         case (l, r) if l == r => l
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
+      enableExperimentalHyperFeatures = enableExperimentalHyperFeatures || input.enableExperimentalHyperFeatures.value.contains(true),
       noVerify = noVerify || input.noVerify.value.contains(true),
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
       requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
@@ -347,6 +364,7 @@ object Config {
   require(header.matches(prettyPrintedHeader))
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 
+  val enableExperimentalHyperFeaturesOptionName = "enableExperimentalHyperFeatures"
   val enableLazyImportOptionName = "enableLazyImport"
   val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
 
@@ -396,6 +414,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       hyperMode: Option[Hyper.Mode] = None,
+                      enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -492,6 +511,7 @@ case class InputConfig(
   mceMode: InputConfigOption[MCE.Mode] = InputConfigOption("mceMode", None),
   respectFunctionPrePermAmounts: InputConfigOption[Boolean] = InputConfigOption("respectFunctionPrePermAmounts", None),
   hyperMode: InputConfigOption[Hyper.Mode] = InputConfigOption("hyperMode", None),
+  enableExperimentalHyperFeatures: InputConfigOption[Boolean] = InputConfigOption(Config.enableExperimentalHyperFeaturesOptionName, None),
   requireTriggers: InputConfigOption[Boolean] = InputConfigOption("requireTriggers", None),
   noVerify: InputConfigOption[Boolean] = InputConfigOption("noVerify", None),
   noStreamErrors: InputConfigOption[Boolean] = InputConfigOption("noStreamErrors", None),
@@ -929,6 +949,7 @@ case class InputConfig(
     disableNL = disableNL.value.getOrElse(ConfigDefaults.DefaultDisableNL),
     mceMode = mceMode.value.getOrElse(ConfigDefaults.DefaultMCEMode),
     hyperMode = hyperMode.value,
+    enableExperimentalHyperFeatures = enableExperimentalHyperFeatures.value.getOrElse(false),
     noVerify = noVerify.value.getOrElse(false),
     noStreamErrors = noStreamErrors.value.getOrElse(false),
     parseAndTypeCheckMode = parseAndTypeCheckMode.value.getOrElse(ConfigDefaults.DefaultParseAndTypeCheckMode),
@@ -1041,6 +1062,7 @@ trait RawConfig {
     disableNL = baseConfig.disableNL,
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
+    enableExperimentalHyperFeatures = baseConfig.enableExperimentalHyperFeatures,
     noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
@@ -1458,6 +1480,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val printSIFVpr: ScallopOption[Boolean] = opt[Boolean](
+    name = "printSIFVpr",
+    descr = "Print the Viper program emitted by the secure information flow (SIF) plugin",
+    default = Some(debug()),
+    noshort = true
+  )
+
   val parseOnly: ScallopOption[Boolean] = opt[Boolean](
     name = "parseOnly",
     descr = "Perform only the parsing step",
@@ -1605,16 +1634,18 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val hyperMode: ScallopOption[Hyper.Mode] = choice(
     name = "hyperMode",
-    choices = Seq("on", "extended", "off", "noMajor"),
-    descr = "Specifies whether hyper properties should be verified while enforcing low control flow (on), with support for non-low control flow (extended), not verified (off), or whether the major checks should be skipped (noMajor).",
+    choices = Hyper.values.map(_.name),
+    descr = s"Specifies whether hyper properties should be verified while enforcing low control flow (${Hyper.Enabled.name}), with support for non-low control flow (${Hyper.EnabledExtended.name}), not verified (${Hyper.Disabled.name}), or whether the major checks should be skipped (${Hyper.NoMajor.name}).",
     default = None,
     noshort = true
-  ).map {
-    case "on" => Hyper.Enabled
-    case "extended" => Hyper.EnabledExtended
-    case "off" => Hyper.Disabled
-    case "noMajor" => Hyper.NoMajor
-  }
+  ).map { Hyper.withName(_).get }
+
+  val enableExperimentalHyperFeatures: ScallopOption[Boolean] = opt[Boolean](
+    name = Config.enableExperimentalHyperFeaturesOptionName,
+    descr = s"Enables certain hyperproperty-related experimental features such as rel expressions.",
+    default = Some(ConfigDefaults.DefaultEnableExperimentalHyperFeatures),
+    noshort = true,
+  )
 
   val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
     name = "requireTriggers",

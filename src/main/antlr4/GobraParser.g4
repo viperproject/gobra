@@ -63,7 +63,8 @@ ghostMember: implementationProof
 ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-  | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | kind=(ASSUME | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | ASSERT expression (BY CONTRA? block)? #assertStatement
   | matchStmt #matchStmt_
   | OPEN_DUP_SINV #pkgInvStatement
   ;
@@ -87,6 +88,7 @@ ghostPrimaryExpr: range
   | isComparable
   | low
   | lowc
+  | hyperRelExpr
   | old
   | before
   | sConversion
@@ -134,6 +136,8 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 low: LOW L_PAREN expression R_PAREN;
 
 lowc: LOWC L_PAREN R_PAREN;
+
+hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 

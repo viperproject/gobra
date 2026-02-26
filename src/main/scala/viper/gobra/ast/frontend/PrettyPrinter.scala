@@ -305,6 +305,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case statement: PGhostStatement => statement match {
       case PExplicitGhostStatement(actual) => "ghost" <+> showStmt(actual)
       case PAssert(exp) => "assert" <+> showExpr(exp)
+      case statement: PAssertBy => statement match {
+        case PAssertByProof(exp, block) => "assert" <+> showExpr(exp) <+> "by" <+> showStmt(block)
+        case PAssertByContra(exp, block) => "assert" <+> showExpr(exp) <+> "by" <+> "contra" <+> showStmt(block)
+      }
       case PRefute(exp) => "refute" <+> showExpr(exp)
       case PAssume(exp) => "assume" <+> showExpr(exp)
       case PExhale(exp) => "exhale" <+> showExpr(exp)
@@ -557,6 +561,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
       case PLow(exp) => "low" <> parens(showExpr(exp))
       case _: PLowContext => "low_context"
+      case PRel(exp, lit) => "rel" <> parens(showExpr(exp) <> "," <+> showExpr(lit))
 
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))

@@ -443,6 +443,13 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
+sealed trait AssertBy extends Stmt {
+  def ass: Assertion
+  def proof: Stmt
+}
+case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -686,6 +693,10 @@ case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class LowContext()(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class Rel(exp: Expr, lit: IntLit)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = exp.typ
 }
 
 /* ** Higher-order predicate expressions */

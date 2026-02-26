@@ -4179,6 +4179,15 @@ object Desugar extends LazyLogging {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor], args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
+        case n: PAssertBy =>
+          for {
+            cond <- exprD(ctx, info)(n.exp)
+            b <- stmtD(ctx, info)(n.block)
+            ass = in.ExprAssertion(cond)(src)
+          } yield n match {
+            case _: PAssertByProof => in.AssertByProof(ass, b)(src)
+            case _: PAssertByContra => in.AssertByContra(ass, b)(src)
+          }
         case POpenDupPkgInv() =>
           // open the current package's invariant.
           val currPkg = info.tree.originalRoot
@@ -4427,6 +4436,10 @@ object Desugar extends LazyLogging {
 
         case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
         case PLowContext() => unit(in.LowContext()(src))
+        case PRel(exp, lit) => for {
+          dExp <- go(exp)
+          dLit <- go(lit)
+        } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
 
         case PElem(left, right) => for {
           dleft <- go(left)

@@ -1494,6 +1494,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("lowContext",  "(", ")") => PLowContext()
   }
 
+  override def visitHyperRelExpr(ctx: HyperRelExprContext): AnyRef = super.visitHyperRelExpr(ctx) match {
+    case Vector("rel", "(", expr: PExpression, ",", lit: PIntLit, ")") => PRel(expr, lit)
+  }
 
   /**
     * Visits the rule
@@ -2214,7 +2217,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
-    * Visist the production
+    * Visit the production
     * fold_stmt=(FOLD | UNFOLD) predicateAccess
     *     */
   override def visitFoldStatement(ctx: FoldStatementContext): PGhostStatement = super.visitFoldStatement(ctx) match {
@@ -2239,12 +2242,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     *     */
   override def visitProofStatement(ctx: ProofStatementContext): PGhostStatement = super.visitProofStatement(ctx) match {
     case Vector(kind : String, expr : PExpression) => kind match {
-      case "assert" => PAssert(expr)
       case "refute" => PRefute(expr)
       case "assume" => PAssume(expr)
       case "inhale" => PInhale(expr)
       case "exhale" => PExhale(expr)
     }
+  }
+
+  /**
+    * Visits the production
+    * ASSERT expression (BY CONTRA? block)? #assertStatement
+    */
+  override def visitAssertStatement(ctx: AssertStatementContext): PGhostStatement = super.visitAssertStatement(ctx) match {
+    case Vector("assert", expr: PExpression) => PAssert(expr)
+    case Vector("assert", expr: PExpression, "by", block: PBlock) => PAssertByProof(expr, block)
+    case Vector("assert", expr: PExpression, "by", "contra", block: PBlock) => PAssertByContra(expr, block)
   }
 
   override def visitStatementWithSpec(ctx: StatementWithSpecContext): PStatement = super.visitStatementWithSpec(ctx) match {

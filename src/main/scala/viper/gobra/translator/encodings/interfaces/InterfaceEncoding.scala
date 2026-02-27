@@ -9,15 +9,18 @@ package viper.gobra.translator.encodings.interfaces
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterfaces, DiamondError, DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
+import viper.gobra.dependencyAnalysis.ImplementationProofSourceInfo
+import viper.gobra.reporting._
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
-import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
+import viper.silicon.dependencyAnalysis.DependencyAnalysisJoinNodeInfo
+import viper.silver.ast.MakeInfoPair
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
@@ -26,10 +29,9 @@ import scala.collection.SortedSet
 
 class InterfaceEncoding extends LeafTypeEncoding {
 
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
-  import viper.gobra.translator.util.ViperWriter.MemberWriter
-  import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
   import viper.gobra.translator.util.TypePatterns._
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import viper.gobra.translator.util.ViperWriter.{MemberWriter, MemberLevel => ml}
 
   private val interfaces: InterfaceComponent = new InterfaceComponentImpl
   private val types: TypeComponent = new TypeComponentImpl
@@ -188,17 +190,18 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
         goE(exp)
 
-      case n@ in.ToInterface(exp, _) =>
+      case n@ in.ToInterface(exp, toType) =>
         val (pos, info, errT) = n.vprMeta
+        val dependencyAnalysisEnhancedInfo = MakeInfoPair(info, DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(exp.typ, toType)))
         if (Comparability.comparable(exp.typ)(ctx.lookup).isDefined) {
           for {
             dynValue <- goE(exp)
             typ = types.typeToExpr(exp.typ)(pos, info, errT)(ctx)
-          } yield boxInterface(dynValue, typ)(pos, info, errT)(ctx)
+          } yield boxInterface(dynValue, typ)(pos, dependencyAnalysisEnhancedInfo, errT)(ctx)
         } else {
           for {
             dynValue <- goE(exp)
-          } yield toInterfaceFunc(Vector(dynValue), exp.typ)(pos, info, errT)(ctx)
+          } yield toInterfaceFunc(Vector(dynValue), exp.typ)(pos, dependencyAnalysisEnhancedInfo, errT)(ctx)
         }
 
       case n@ in.IsBehaviouralSubtype(subtype, supertype) =>
@@ -766,7 +769,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, info, errT))
+    val depAnInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
+
+    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(info, depAnInfo), errT))
   }
 
   /**
@@ -814,7 +819,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    methodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, info, errT))
+    val depAnInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
+
+    methodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnInfo, info), errT))
   }
 
 

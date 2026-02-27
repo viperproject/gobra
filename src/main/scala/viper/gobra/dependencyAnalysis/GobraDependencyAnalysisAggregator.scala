@@ -70,7 +70,7 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
         case _: PInvoke => DependencyType.MethodCall
         case _: PParameter | _: PResult => DependencyType.Internal
-        case _: PExplicitGhostStatement => DependencyType.Ghost
+        case _: PExplicitGhostStatement | _: PImplementationProof => DependencyType.Ghost
         case _ => DependencyType.SourceCode
       }
       val allAvailDepTypes = List(dependencyTypeOuter, dependencyType, Some(pNodeDepType)).filter(_.isDefined).flatten
@@ -123,7 +123,7 @@ object GobraDependencyAnalysisAggregator {
       case PMethodSig(id, args, result, spec, _) => go(Set(id, result, spec) ++ args)
       case PResult(params) => go(params)
       case PExplicitGhostMember(m) => goS(m, Some(DependencyType.Ghost))
-      case PImplementationProof(subT, superT, alias, memberProofs) => go(Set(subT, superT) ++ alias ++ memberProofs, Some(DependencyType.Ghost)) // TODO ake: what to do here?
+      case PImplementationProof(subT, superT, alias, memberProofs) => Set.empty // TODO ake: what to do here?
 
       // TODO ake: closures
       case PClosureDecl(args, result, spec, body) => go(args ++ Set(result, spec)) ++ goOpt(body.map(_._2))

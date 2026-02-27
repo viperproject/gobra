@@ -27,7 +27,7 @@ def plot_result_with_err(ax, result_file, x, width):
   ax.bar(x, values, width, yerr=stdDevs, label=get_pretty_name(result_file))
 
 
-def plot_absolute(result_files: list[str]):
+def plot_absolute(result_files: list[str], output_file: str):
   width = 0.8/len(result_files)
   print(width)
   fig, ax = plt.subplots(figsize=(12, 6))
@@ -49,8 +49,9 @@ def plot_absolute(result_files: list[str]):
   # ax.legend()
 
   plt.tight_layout()
-  plt.savefig("addrPkgRuntimes.png")
+  plt.savefig(output_file)
 
 input_files = input("Input file: ").split(",")
+output_file = input("Output file: ")
 
-plot_absolute(input_files)
+plot_absolute(input_files, output_file)

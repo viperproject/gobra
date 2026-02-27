@@ -97,6 +97,9 @@ trait SiliconBasedBackend extends ViperBackend {
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")
       options ++= Vector("--enableUnsatCores")
     }
+    if(config.dependencyAnalysisExportPath.isDefined){
+      options ++= Vector("--dependencyAnalysisExportPath", config.dependencyAnalysisExportPath.get)
+    }
     if(config.startDependencyAnalysisTool){
       options ++= Vector("--startDependencyAnalysisTool")
     }

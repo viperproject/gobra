@@ -85,6 +85,7 @@ object ConfigDefaults {
   val DefaultEnableDependencyAnalysis: Boolean = false
   val DefaultStartDependencyAnalysisTool: Boolean = false
   val DefaultEnableUnsatCores: Boolean = false
+  val DefaultDependencyAnalysisExportPath: Option[String] = None
 }
 
 // More-complete exhale modes
@@ -199,7 +200,8 @@ case class Config(
                    disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
                    enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
                    startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
-                   enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores
+                   enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
+                   dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath
 ) {
 
   def merge(other: Config): Config = {
@@ -270,6 +272,7 @@ case class Config(
       enableDependencyAnalysis = enableDependencyAnalysis || other.enableDependencyAnalysis,
       startDependencyAnalysisTool = startDependencyAnalysisTool || other.startDependencyAnalysisTool,
       enableUnsatCores = enableUnsatCores || other.enableUnsatCores,
+      dependencyAnalysisExportPath = dependencyAnalysisExportPath orElse other.dependencyAnalysisExportPath,
     )
   }
 
@@ -337,6 +340,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
                       startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
                       enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
+                      dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -405,6 +409,7 @@ trait RawConfig {
     enableDependencyAnalysis = baseConfig.enableDependencyAnalysis,
     startDependencyAnalysisTool = baseConfig.startDependencyAnalysisTool,
     enableUnsatCores = baseConfig.enableUnsatCores,
+    dependencyAnalysisExportPath = baseConfig.dependencyAnalysisExportPath,
   )
 }
 
@@ -955,6 +960,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val dependencyAnalysisExportPath: ScallopOption[String] = opt[String](
+    name = "dependencyAnalysisExportPath",
+    descr = "Dependency analysis: destination path of the exported graph",
+    default = ConfigDefaults.DefaultDependencyAnalysisExportPath,
+    noshort = true
+  )
+
   /**
     * Exception handling
     */
@@ -1171,5 +1183,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     enableDependencyAnalysis = enableDependencyAnalysis(),
     startDependencyAnalysisTool = startDependencyAnalysisTool(),
     enableUnsatCores = enableUnsatCores(),
+    dependencyAnalysisExportPath = dependencyAnalysisExportPath.toOption,
   )
 }

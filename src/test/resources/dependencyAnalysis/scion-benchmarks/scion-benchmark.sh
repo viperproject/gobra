@@ -3,6 +3,7 @@
 BASE_FLAGS=
 ANALYSIS_FLAGS="--enableDependencyAnalysis --disableInfeasibilityChecks"
 ANALYSIS_WITH_INFEAS_FLAGS="--enableDependencyAnalysis"
+BASE_WITH_UNSAT_FLAGS="--enableUnsatCores"
 PATH_TO_VERIFIED_SCION="C:/Users/andre/dev/viper/VerifiedSCION"
 PATH_TO_GOBRA="C:/Users/andre/dev/viper/gobra"
 SCION_PACKAGE=$1
@@ -47,6 +48,8 @@ function run(){
   echo "$1$runtimes" >> $RESULT_FILE
 }
 
-run "baseline" $BASE_FLAGS 
-run "analysis_sound" $ANALYSIS_FLAGS 
-run "analysis_with_infeas_checks" $ANALYSIS_WITH_INFEAS_FLAGS 
+run "baseline" $BASE_FLAGS # warumup
+run "baseline_with_unsat" $BASE_WITH_UNSAT_FLAGS
+run "analysis_sound" $ANALYSIS_FLAGS
+run "analysis_with_infeas_checks" $ANALYSIS_WITH_INFEAS_FLAGS
+run "baseline" $BASE_FLAGS

@@ -84,6 +84,7 @@ object ConfigDefaults {
   val DefaultDisableInfeasibilityChecks: Boolean = false
   val DefaultEnableDependencyAnalysis: Boolean = false
   val DefaultStartDependencyAnalysisTool: Boolean = false
+  val DefaultEnableUnsatCores: Boolean = false
 }
 
 // More-complete exhale modes
@@ -197,7 +198,8 @@ case class Config(
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                    disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
                    enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
-                   startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool
+                   startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
+                   enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores
 ) {
 
   def merge(other: Config): Config = {
@@ -267,6 +269,7 @@ case class Config(
       disableInfeasibilityChecks = disableInfeasibilityChecks || other.disableInfeasibilityChecks,
       enableDependencyAnalysis = enableDependencyAnalysis || other.enableDependencyAnalysis,
       startDependencyAnalysisTool = startDependencyAnalysisTool || other.startDependencyAnalysisTool,
+      enableUnsatCores = enableUnsatCores || other.enableUnsatCores,
     )
   }
 
@@ -333,6 +336,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
                       enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
                       startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
+                      enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -400,6 +404,7 @@ trait RawConfig {
     disableInfeasibilityChecks = baseConfig.disableInfeasibilityChecks,
     enableDependencyAnalysis = baseConfig.enableDependencyAnalysis,
     startDependencyAnalysisTool = baseConfig.startDependencyAnalysisTool,
+    enableUnsatCores = baseConfig.enableUnsatCores,
   )
 }
 
@@ -943,6 +948,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val enableUnsatCores: ScallopOption[Boolean] = opt[Boolean](
+    name = "enableUnsatCores",
+    descr = "Enables UNSAT cores",
+    default = Some(ConfigDefaults.DefaultEnableUnsatCores),
+    noshort = true
+  )
+
   /**
     * Exception handling
     */
@@ -1158,5 +1170,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     disableInfeasibilityChecks = disableInfeasibilityChecks(),
     enableDependencyAnalysis = enableDependencyAnalysis(),
     startDependencyAnalysisTool = startDependencyAnalysisTool(),
+    enableUnsatCores = enableUnsatCores(),
   )
 }

@@ -15,7 +15,8 @@ import viper.silver.{ast => vpr}
 
 class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config) extends ViperTransformer {
 
-  private val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
+  private lazy val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
+  private lazy val gNodes = gobraNodes.map(n => ((n.getPNode, n.getPosition), n)).toMap
   private val positions = typeInfo.tree.root.positions.positions
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
@@ -58,7 +59,6 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
   private def getDependencyAnalysisInfo(pNode: PNode): Option[GobraDependencyAnalysisInfo] = {
     try {
       var pNodes = Vector(pNode)
-      val gNodes = gobraNodes.map(n => ((n.getPNode, n.getPosition), n)).toMap
       var gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN))))
       while (pNodes.nonEmpty && gNodeCandidates.isEmpty) {
         pNodes = pNodes.flatMap(node => typeInfo.tree.parent(node))

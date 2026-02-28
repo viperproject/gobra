@@ -71,7 +71,6 @@ object ConfigDefaults {
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
   val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
   val DefaultEnableExperimentalHyperFeatures: Boolean = false
-  lazy val DefaultEnableLazyImports: Boolean = false
   val DefaultNoVerify: Boolean = false
   val DefaultNoStreamErrors: Boolean = false
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
@@ -84,14 +83,36 @@ object ConfigDefaults {
   val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
+object CliEnumConverter {
+  trait EnumCase {
+    def value: String
+  }
+
+  /** trait for an enum value to configure parsing and serialization of this enum */
+  trait CliEnum[E <: EnumCase] {
+    def values: List[E]
+    def convert(s: String): E = values.find(_.value == s).getOrElse(Violation.violation(s"Unexpected value: $s"))
+  }
+}
+
 // More-complete exhale modes
 object MCE {
-  sealed trait Mode
-  object Disabled extends Mode
+  sealed trait Mode extends CliEnumConverter.EnumCase
+  object Disabled extends Mode {
+    override val value: String = "off"
+  }
   // When running in `OnDemand`, mce will only be enabled when silicon retries a query.
   // More information can be found in https://github.com/viperproject/silicon/pull/682.
-  object OnDemand extends Mode
-  object Enabled extends Mode
+  object OnDemand extends Mode {
+    override val value: String = "od"
+  }
+  object Enabled extends Mode {
+    override val value: String = "on"
+  }
+}
+object MCEConverter extends CliEnumConverter.CliEnum[MCE.Mode] {
+  import MCE._
+  override def values: List[MCE.Mode] = List(Enabled, OnDemand, Disabled)
 }
 
 object Hyper {
@@ -118,21 +139,24 @@ object Hyper {
 }
 
 object MoreJoins {
-  sealed trait Mode {
+  sealed trait Mode extends CliEnumConverter.EnumCase {
     // Option number used by Viper, as described in
     // https://github.com/viperproject/silicon/pull/823
     def viperValue: Int
   }
 
   object Disabled extends Mode {
+    override val value: String = "off"
     override val viperValue = 0
   }
 
   object Impure extends Mode {
+    override val value: String = "impure"
     override val viperValue = 1
   }
 
   object All extends Mode {
+    override val value: String = "all"
     override val viperValue = 2
   }
 
@@ -144,6 +168,17 @@ object MoreJoins {
     }
   }
 }
+object MoreJoinsConverter extends CliEnumConverter.CliEnum[MoreJoins.Mode] {
+  import MoreJoins._
+  override def values: List[MoreJoins.Mode] = List(All, Impure, Disabled)
+}
+
+object ViperBackendConverter extends CliEnumConverter.CliEnum[ViperBackend] {
+  import viper.gobra.backend.ViperBackends._
+  override def values: List[ViperBackend] = List(
+    SiliconBackend, CarbonBackend, ViperServerWithSilicon(), ViperServerWithCarbon())
+}
+
 
 case class Config(
                    gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
@@ -210,73 +245,62 @@ case class Config(
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
 ) {
 
-  def merge(other: Config): Config = {
-    // this config takes precedence over other config
-    val newInputs: Map[PackageInfo, Vector[Source]] = {
-      val keys = packageInfoInputMap.keys ++ other.packageInfoInputMap.keys
-      keys.map(k => k -> (packageInfoInputMap.getOrElse(k, Vector()) ++ other.packageInfoInputMap.getOrElse(k, Vector())).distinct).toMap
-    }
-
-    Config(
-      moduleName = moduleName,
-      taskName = taskName,
-      gobraDirectory = gobraDirectory,
-      packageInfoInputMap = newInputs,
-      projectRoot = projectRoot,
-      includeDirs = (includeDirs ++ other.includeDirs).distinct,
-      reporter = reporter,
-      backend = (backend, other.backend) match {
+  /** Merges values from an InputConfig into this Config.
+    * This Config takes precedence; InputConfig values are used as fallbacks.
+    * Keeps packageInfoInputMap, reporter, and taskName from this Config.
+    * Uses same merge semantics as the old merge method:
+    * - includeDirs: concatenate and deduplicate
+    * - backend/hyperMode: must match if both defined
+    * - packageTimeout/logLevel: take minimum
+    * - Boolean OR fields: use OR
+    * - Others: this Config takes precedence */
+  def applyInputConfig(input: InputConfig): Config = {
+    copy(
+      gobraDirectory = gobraDirectory orElse input.gobraDirectory.value,
+      includeDirs = input.includeDirs.value.map(dirs => (includeDirs ++ dirs).distinct) getOrElse includeDirs,
+      backend = (backend, input.backend.value) match {
         case (l, None) => l
         case (None, r) => r
         case (l, r) if l == r => l
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing backends from in-file configuration options, got $l and $r")
       },
-      isolate = (isolate, other.isolate) match {
-        case (None, r) => r
-        case (l, None) => l
-        case (Some(l), Some(r)) => Some((l ++ r).distinct)
-      },
-      packageTimeout = if(packageTimeout < other.packageTimeout) packageTimeout else other.packageTimeout, // take minimum
-      z3Exe = z3Exe orElse other.z3Exe,
-      boogieExe = boogieExe orElse other.boogieExe,
-      logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
+      packageTimeout = input.packageTimeout.value.map(pt => if (packageTimeout < pt) packageTimeout else pt) getOrElse packageTimeout,
+      z3Exe = z3Exe orElse input.z3Exe.value,
+      boogieExe = boogieExe orElse input.boogieExe.value,
+      logLevel = input.logLevel.value.map(ll => if (logLevel.isGreaterOrEqual(ll)) ll else logLevel) getOrElse logLevel,
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
-      cacheFile = cacheFile orElse other.cacheFile,
-      shouldParse = shouldParse,
-      shouldTypeCheck = shouldTypeCheck,
-      shouldDesugar = shouldDesugar,
-      shouldViperEncode = shouldViperEncode,
-      checkOverflows = checkOverflows || other.checkOverflows,
-      shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit,
-      checkConsistency = checkConsistency || other.checkConsistency,
-      cacheParserAndTypeChecker = cacheParserAndTypeChecker || other.cacheParserAndTypeChecker,
-      onlyFilesWithHeader = onlyFilesWithHeader || other.onlyFilesWithHeader,
-      assumeInjectivityOnInhale = assumeInjectivityOnInhale || other.assumeInjectivityOnInhale,
-      parallelizeBranches = parallelizeBranches,
-      conditionalizePermissions = conditionalizePermissions,
-      z3APIMode = z3APIMode || other.z3APIMode,
-      disableNL = disableNL || other.disableNL,
-      mceMode = mceMode,
-      hyperMode = (hyperMode, other.hyperMode) match {
+      cacheFile = cacheFile orElse input.cacheFile.value,
+      checkOverflows = checkOverflows || input.checkOverflows.value.contains(true),
+      int32bit = int32bit || input.int32bit.value.contains(true),
+      checkConsistency = checkConsistency || input.checkConsistency.value.contains(true),
+      cacheParserAndTypeChecker = cacheParserAndTypeChecker,
+      onlyFilesWithHeader = onlyFilesWithHeader || input.onlyFilesWithHeader.value.contains(true),
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale || input.assumeInjectivityOnInhale.value.contains(true),
+      parallelizeBranches = parallelizeBranches || input.parallelizeBranches.value.contains(true),
+      conditionalizePermissions = conditionalizePermissions || input.conditionalizePermissions.value.contains(true),
+      z3APIMode = z3APIMode || input.z3APIMode.value.contains(true),
+      disableNL = disableNL || input.disableNL.value.contains(true),
+      hyperMode = (hyperMode, input.hyperMode.value) match {
         case (l, None) => l
         case (None, r) => r
         case (l, r) if l == r => l
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
-      enableExperimentalHyperFeatures = enableExperimentalHyperFeatures || other.enableExperimentalHyperFeatures,
-      noVerify = noVerify || other.noVerify,
-      noStreamErrors = noStreamErrors || other.noStreamErrors,
-      parseAndTypeCheckMode = parseAndTypeCheckMode,
-      requireTriggers = requireTriggers || other.requireTriggers,
-      disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
-      unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
-      moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
-      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
-      enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
+      enableExperimentalHyperFeatures = enableExperimentalHyperFeatures || input.enableExperimentalHyperFeatures.value.contains(true),
+      noVerify = noVerify || input.noVerify.value.contains(true),
+      noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
+      requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
+      disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns || input.disableCheckTerminationPureFns.value.contains(true),
+      unsafeWildcardOptimization = unsafeWildcardOptimization || input.unsafeWildcardOptimization.value.contains(true),
+      moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
+      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
+      enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
     )
   }
+
+  val backendOrDefault: ViperBackend = backend getOrElse ConfigDefaults.DefaultBackend
+  val hyperModeOrDefault: Hyper.Mode = hyperMode getOrElse ConfigDefaults.DefaultHyperMode
 
   lazy val typeBounds: TypeBounds =
     if (int32bit) {
@@ -285,8 +309,51 @@ case class Config(
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
 
-  val backendOrDefault: ViperBackend = backend.getOrElse(ConfigDefaults.DefaultBackend)
-  val hyperModeOrDefault: Hyper.Mode = hyperMode.getOrElse(ConfigDefaults.DefaultHyperMode)
+  /** Returns a human-readable summary of the resolved configuration. */
+  def formatted: String = {
+    val entries = Seq(
+      "moduleName" -> moduleName,
+      "projectRoot" -> projectRoot,
+      "includeDirs" -> (if (includeDirs.isEmpty) "(none)" else includeDirs.mkString(", ")),
+      "backend" -> backendOrDefault.value,
+      "choppingUpperBound" -> choppingUpperBound,
+      "packageTimeout" -> packageTimeout,
+      "z3Exe" -> z3Exe.getOrElse("(default)"),
+      "boogieExe" -> boogieExe.getOrElse("(default)"),
+      "logLevel" -> logLevel,
+      "cacheFile" -> cacheFile.map(_.toString).getOrElse("(none)"),
+      "checkOverflows" -> checkOverflows,
+      "checkConsistency" -> checkConsistency,
+      "int32bit" -> int32bit,
+      "onlyFilesWithHeader" -> onlyFilesWithHeader,
+      "gobraDirectory" -> gobraDirectory.map(_.toString).getOrElse("(none)"),
+      "assumeInjectivityOnInhale" -> assumeInjectivityOnInhale,
+      "parallelizeBranches" -> parallelizeBranches,
+      "conditionalizePermissions" -> conditionalizePermissions,
+      "z3APIMode" -> z3APIMode,
+      "disableNL" -> disableNL,
+      "mceMode" -> mceMode.value,
+      "hyperMode" -> hyperModeOrDefault,
+      "enableExperimentalHyperFeatures" -> enableExperimentalHyperFeatures,
+      "requireTriggers" -> requireTriggers,
+      "moreJoins" -> moreJoins.value,
+      "disableSetAxiomatization" -> disableSetAxiomatization,
+      "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
+      "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
+      "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
+      "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
+      "noVerify" -> noVerify,
+      "noStreamErrors" -> noStreamErrors,
+      "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
+    )
+    val maxKeyLen = entries.map(_._1.length).max
+    val lines = entries.map { case (k, v) => s"  ${k.padTo(maxKeyLen, ' ')}  $v" }
+    val packagesStr = if (packageInfoInputMap.isEmpty) "  (none)"
+    else packageInfoInputMap.map { case (pkg, srcs) =>
+      s"  ${pkg.id} -> [${srcs.map(_.name).mkString(", ")}]"
+    }.mkString("\n")
+    (Seq("Gobra Configuration:") ++ lines ++ Seq("  packages:") ++ Seq(packagesStr)).mkString("\n")
+  }
 }
 
 object Config {
@@ -297,11 +364,26 @@ object Config {
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 
   val enableExperimentalHyperFeaturesOptionName = "enableExperimentalHyperFeatures"
-  val enableLazyImportOptionName = "enableLazyImport"
-  val enableLazyImportOptionPrettyPrinted = s"--$enableLazyImportOptionName"
+
+  /** Options that must not appear in the `other` field of a JSON config because their paths
+    * cannot be correctly resolved (they are turned into Source objects before path resolution). */
+  private val disallowedInOther: Set[String] = Set("--input", "-i", "--directory", "-p")
+
+  /** Validates that `other` args do not contain disallowed options. */
+  def validateOtherArgs(args: List[String]): Either[Vector[VerifierError], Unit] = {
+    val found = args.filter(disallowedInOther.contains)
+    if (found.nonEmpty)
+      Left(Vector(ConfigError(
+        s"The 'other' field in the JSON config must not contain ${found.mkString(", ")}. " +
+          "Use the dedicated JSON fields (input_files, pkg_path) instead.")))
+    else Right(())
+  }
 }
 
-// have a look at `Config` to see an inline description of some of these parameters
+/**
+ * BaseConfig holds configuration options that can be shared across different RawConfig modes.
+ * Have a look at `Config` to see an inline description of some of these parameters.
+ */
 case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
@@ -353,6 +435,591 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
     positions match {
       case Nil => None
       case _ => Some(positions.toVector)
+    }
+  }
+}
+
+case class InputConfigOption[T](name: String, value: Option[T]) {
+  /** Transforms the value if present, keeping the same name */
+  def map[U](f: T => U): InputConfigOption[U] = InputConfigOption(name, value.map(f))
+
+  /** Returns this option if it has a value, otherwise returns the other option */
+  def orElse(other: InputConfigOption[T]): InputConfigOption[T] =
+    if (value.isDefined) this else other
+}
+
+object InputConfigOption {
+  /** Implicit class to extend ScallopOption with toInputConfigOption conversion */
+  implicit class ScallopOptionExtension[T](opt: ScallopOption[T]) {
+    /** Converts a ScallopOption to an InputConfigOption using the option's name and value.
+      * Only includes the value if the option was explicitly supplied by the user,
+      * not just set to a default value. */
+    def toInputConfigOption: InputConfigOption[T] =
+      InputConfigOption(opt.name, if (opt.isSupplied) opt.toOption else None)
+  }
+}
+
+/**
+ * InputConfig represents user-provided configuration options where all fields are optional.
+ * This mirrors ScallopGobraConfig's fields but with InputConfigOption[T] for uniform merging
+ * and meaningful error messages (option names are preserved).
+ * Fields are ordered to match the CLI option definitions in ScallopGobraConfig.
+ */
+case class InputConfig(
+  // Input mode fields
+  input: InputConfigOption[List[String]] = InputConfigOption("input", None),
+  cutInputWithIdxs: InputConfigOption[List[(File, List[Int])]] = InputConfigOption("cutInputWithIdxs", None),
+  directory: InputConfigOption[List[File]] = InputConfigOption("directory", None),
+  recursive: InputConfigOption[Boolean] = InputConfigOption("recursive", None),
+  configFile: InputConfigOption[File] = InputConfigOption("configFile", None),
+  printConfig: InputConfigOption[Boolean] = InputConfigOption("printConfig", None),
+  projectRoot: InputConfigOption[File] = InputConfigOption("projectRoot", None),
+  inclPackages: InputConfigOption[List[String]] = InputConfigOption("inclPackages", None),
+  exclPackages: InputConfigOption[List[String]] = InputConfigOption("exclPackages", None),
+  // Configuration options (in CLI definition order)
+  gobraDirectory: InputConfigOption[Path] = InputConfigOption("gobraDirectory", None),
+  moduleName: InputConfigOption[String] = InputConfigOption("moduleName", None),
+  include: InputConfigOption[List[File]] = InputConfigOption("include", None),
+  backend: InputConfigOption[ViperBackend] = InputConfigOption("backend", None),
+  debug: InputConfigOption[Boolean] = InputConfigOption("debug", None),
+  logLevel: InputConfigOption[Level] = InputConfigOption("logLevel", None),
+  eraseGhost: InputConfigOption[Boolean] = InputConfigOption("eraseGhost", None),
+  goify: InputConfigOption[Boolean] = InputConfigOption("goify", None),
+  unparse: InputConfigOption[Boolean] = InputConfigOption("unparse", None),
+  printInternal: InputConfigOption[Boolean] = InputConfigOption("printInternal", None),
+  printVpr: InputConfigOption[Boolean] = InputConfigOption("printVpr", None),
+  parseOnly: InputConfigOption[Boolean] = InputConfigOption("parseOnly", None),
+  choppingUpperBound: InputConfigOption[Int] = InputConfigOption("choppingUpperBound", None),
+  packageTimeout: InputConfigOption[Duration] = InputConfigOption("packageTimeout", None),
+  z3Exe: InputConfigOption[String] = InputConfigOption("z3Exe", None),
+  boogieExe: InputConfigOption[String] = InputConfigOption("boogieExe", None),
+  checkOverflows: InputConfigOption[Boolean] = InputConfigOption("checkOverflows", None),
+  cacheFile: InputConfigOption[Path] = InputConfigOption("cacheFile", None),
+  int32bit: InputConfigOption[Boolean] = InputConfigOption("int32bit", None),
+  onlyFilesWithHeader: InputConfigOption[Boolean] = InputConfigOption("onlyFilesWithHeader", None),
+  checkConsistency: InputConfigOption[Boolean] = InputConfigOption("checkConsistency", None),
+  assumeInjectivityOnInhale: InputConfigOption[Boolean] = InputConfigOption("assumeInjectivityOnInhale", None),
+  parallelizeBranches: InputConfigOption[Boolean] = InputConfigOption("parallelizeBranches", None),
+  conditionalizePermissions: InputConfigOption[Boolean] = InputConfigOption("conditionalizePermissions", None),
+  z3APIMode: InputConfigOption[Boolean] = InputConfigOption("z3APIMode", None),
+  disableNL: InputConfigOption[Boolean] = InputConfigOption("disableNL", None),
+  unsafeWildcardOptimization: InputConfigOption[Boolean] = InputConfigOption("unsafeWildcardOptimization", None),
+  moreJoins: InputConfigOption[MoreJoins.Mode] = InputConfigOption("moreJoins", None),
+  mceMode: InputConfigOption[MCE.Mode] = InputConfigOption("mceMode", None),
+  respectFunctionPrePermAmounts: InputConfigOption[Boolean] = InputConfigOption("respectFunctionPrePermAmounts", None),
+  hyperMode: InputConfigOption[Hyper.Mode] = InputConfigOption("hyperMode", None),
+  enableExperimentalHyperFeatures: InputConfigOption[Boolean] = InputConfigOption(Config.enableExperimentalHyperFeaturesOptionName, None),
+  requireTriggers: InputConfigOption[Boolean] = InputConfigOption("requireTriggers", None),
+  noVerify: InputConfigOption[Boolean] = InputConfigOption("noVerify", None),
+  noStreamErrors: InputConfigOption[Boolean] = InputConfigOption("noStreamErrors", None),
+  disableCheckTerminationPureFns: InputConfigOption[Boolean] = InputConfigOption("disableCheckTerminationPureFns", None),
+  parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
+  disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
+  enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
+) {
+  /** Derived field: extracts just the files from cutInputWithIdxs */
+  val cutInput: InputConfigOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
+
+  /** Derived field: converts include directories to Vector[Path] */
+  val includeDirs: InputConfigOption[Vector[Path]] = include.map(_.map(_.toPath).toVector)
+
+  /** Derived field: converts package timeout string to Duration */
+  val packageTimeoutDuration: InputConfigOption[Duration] = packageTimeout
+
+  /** Combines this config with another, giving precedence to this config's values.
+    * For each field, uses this config's value if defined, otherwise uses other's value. */
+  def orElse(other: InputConfig): InputConfig = InputConfig(
+    input = input orElse other.input,
+    cutInputWithIdxs = cutInputWithIdxs orElse other.cutInputWithIdxs,
+    directory = directory orElse other.directory,
+    recursive = recursive orElse other.recursive,
+    configFile = configFile orElse other.configFile,
+    printConfig = printConfig orElse other.printConfig,
+    projectRoot = projectRoot orElse other.projectRoot,
+    inclPackages = inclPackages orElse other.inclPackages,
+    exclPackages = exclPackages orElse other.exclPackages,
+    gobraDirectory = gobraDirectory orElse other.gobraDirectory,
+    moduleName = moduleName orElse other.moduleName,
+    include = include orElse other.include,
+    backend = backend orElse other.backend,
+    debug = debug orElse other.debug,
+    logLevel = logLevel orElse other.logLevel,
+    eraseGhost = eraseGhost orElse other.eraseGhost,
+    goify = goify orElse other.goify,
+    unparse = unparse orElse other.unparse,
+    printInternal = printInternal orElse other.printInternal,
+    printVpr = printVpr orElse other.printVpr,
+    parseOnly = parseOnly orElse other.parseOnly,
+    choppingUpperBound = choppingUpperBound orElse other.choppingUpperBound,
+    packageTimeout = packageTimeout orElse other.packageTimeout,
+    z3Exe = z3Exe orElse other.z3Exe,
+    boogieExe = boogieExe orElse other.boogieExe,
+    checkOverflows = checkOverflows orElse other.checkOverflows,
+    cacheFile = cacheFile orElse other.cacheFile,
+    int32bit = int32bit orElse other.int32bit,
+    onlyFilesWithHeader = onlyFilesWithHeader orElse other.onlyFilesWithHeader,
+    checkConsistency = checkConsistency orElse other.checkConsistency,
+    assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse other.assumeInjectivityOnInhale,
+    parallelizeBranches = parallelizeBranches orElse other.parallelizeBranches,
+    conditionalizePermissions = conditionalizePermissions orElse other.conditionalizePermissions,
+    z3APIMode = z3APIMode orElse other.z3APIMode,
+    disableNL = disableNL orElse other.disableNL,
+    unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
+    moreJoins = moreJoins orElse other.moreJoins,
+    mceMode = mceMode orElse other.mceMode,
+    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts orElse other.respectFunctionPrePermAmounts,
+    hyperMode = hyperMode orElse other.hyperMode,
+    enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
+    requireTriggers = requireTriggers orElse other.requireTriggers,
+    noVerify = noVerify orElse other.noVerify,
+    noStreamErrors = noStreamErrors orElse other.noStreamErrors,
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
+    parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
+    disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
+    enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
+  )
+
+  /** Merges this config with another, combining values according to Config.merge semantics.
+    * This config takes precedence for most fields, but some fields have special merge behavior:
+    * - List fields (include, input, cutInputWithIdxs, directory): concatenate and deduplicate
+    * - backend, hyperMode: must match if both defined
+    * - packageTimeout: takes minimum
+    * - logLevel: takes minimum (more verbose)
+    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
+    * - moreJoins: uses MoreJoins.merge */
+  def merge(other: InputConfig): InputConfig = {
+    // Helper to merge list options by concatenating and deduplicating
+    def mergeListOption[A](a: InputConfigOption[List[A]], b: InputConfigOption[List[A]]): InputConfigOption[List[A]] =
+      InputConfigOption(a.name, (a.value, b.value) match {
+        case (Some(l1), Some(l2)) => Some((l1 ++ l2).distinct)
+        case (l, None) => l
+        case (None, r) => r
+      })
+
+    // Helper to merge options that must match if both defined
+    def mergeMustMatch[A](a: InputConfigOption[A], b: InputConfigOption[A], fieldName: String): InputConfigOption[A] =
+      InputConfigOption(a.name, (a.value, b.value) match {
+        case (l, None) => l
+        case (None, r) => r
+        case (l, r) if l == r => l
+        case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing $fieldName from configuration options, got $l and $r")
+      })
+
+    // Helper to merge boolean options with OR
+    def mergeOr(a: InputConfigOption[Boolean], b: InputConfigOption[Boolean]): InputConfigOption[Boolean] =
+      InputConfigOption(a.name, (a.value, b.value) match {
+        case (Some(true), _) | (_, Some(true)) => Some(true)
+        case (Some(false), Some(false)) => Some(false)
+        case (l, None) => l
+        case (None, r) => r
+      })
+
+    InputConfig(
+      input = mergeListOption(input, other.input),
+      cutInputWithIdxs = InputConfigOption(cutInputWithIdxs.name, (cutInputWithIdxs.value, other.cutInputWithIdxs.value) match {
+        case (Some(l1), Some(l2)) => Some((l1 ++ l2).distinct)
+        case (l, None) => l
+        case (None, r) => r
+      }),
+      directory = mergeListOption(directory, other.directory),
+      recursive = recursive orElse other.recursive,
+      configFile = configFile orElse other.configFile,
+      printConfig = printConfig orElse other.printConfig,
+      projectRoot = projectRoot orElse other.projectRoot,
+      inclPackages = mergeListOption(inclPackages, other.inclPackages),
+      exclPackages = mergeListOption(exclPackages, other.exclPackages),
+      gobraDirectory = gobraDirectory orElse other.gobraDirectory,
+      moduleName = moduleName orElse other.moduleName,
+      include = mergeListOption(include, other.include),
+      backend = mergeMustMatch(backend, other.backend, "backends"),
+      debug = debug orElse other.debug,
+      logLevel = InputConfigOption(logLevel.name, (logLevel.value, other.logLevel.value) match {
+        case (Some(l), Some(r)) => Some(if (l.isGreaterOrEqual(r)) r else l) // take minimum (more verbose)
+        case (l, None) => l
+        case (None, r) => r
+      }),
+      eraseGhost = eraseGhost orElse other.eraseGhost,
+      goify = goify orElse other.goify,
+      unparse = unparse orElse other.unparse,
+      printInternal = printInternal orElse other.printInternal,
+      printVpr = printVpr orElse other.printVpr,
+      parseOnly = parseOnly orElse other.parseOnly,
+      choppingUpperBound = choppingUpperBound orElse other.choppingUpperBound,
+      packageTimeout = InputConfigOption(packageTimeout.name, (packageTimeout.value, other.packageTimeout.value) match {
+        case (Some(l), Some(r)) => Some(if (l < r) l else r) // take minimum
+        case (l, None) => l
+        case (None, r) => r
+      }),
+      z3Exe = z3Exe orElse other.z3Exe,
+      boogieExe = boogieExe orElse other.boogieExe,
+      checkOverflows = checkOverflows orElse other.checkOverflows,
+      cacheFile = cacheFile orElse other.cacheFile,
+      int32bit = int32bit orElse other.int32bit,
+      onlyFilesWithHeader = onlyFilesWithHeader orElse other.onlyFilesWithHeader,
+      checkConsistency = checkConsistency orElse other.checkConsistency,
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse other.assumeInjectivityOnInhale,
+      parallelizeBranches = parallelizeBranches orElse other.parallelizeBranches,
+      conditionalizePermissions = conditionalizePermissions orElse other.conditionalizePermissions,
+      z3APIMode = z3APIMode orElse other.z3APIMode,
+      disableNL = disableNL orElse other.disableNL,
+      unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
+      moreJoins = InputConfigOption(moreJoins.name, (moreJoins.value, other.moreJoins.value) match {
+        case (Some(l), Some(r)) => Some(MoreJoins.merge(l, r))
+        case (l, None) => l
+        case (None, r) => r
+      }),
+      mceMode = mceMode orElse other.mceMode,
+      respectFunctionPrePermAmounts = mergeOr(respectFunctionPrePermAmounts, other.respectFunctionPrePermAmounts),
+      hyperMode = mergeMustMatch(hyperMode, other.hyperMode, "hyper modes"),
+      enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
+      requireTriggers = requireTriggers orElse other.requireTriggers,
+      noVerify = mergeOr(noVerify, other.noVerify),
+      noStreamErrors = mergeOr(noStreamErrors, other.noStreamErrors),
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
+      parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
+      disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
+      enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
+    )
+  }
+
+  /** Validates the configuration options.
+    * Performs the same checks as ScallopGobraConfig's validation.
+    * @param isInputOptional if true, input mode is optional (mutually exclusive); if false, exactly one is required
+    * @param skipIncludeDirChecks if true, skips file existence checks for include directories
+    * @return Right(()) if validation passes, Left with errors otherwise */
+  def validate(isInputOptional: Boolean = false, skipIncludeDirChecks: Boolean = false): Either[Vector[VerifierError], Unit] = {
+    // to check that no further config options get provided when using `configFile`, we have to use reflection to obtain
+    // all ScallopOptions as Scallop does not seem to provide any built-in functionality to achieve the same:
+    val allOptions = getClass.getDeclaredFields
+      .map(_.get(this)) // get field value
+      .collect { case o : InputConfigOption[_] => o } // filter by InputConfigOption
+
+
+    val isSiliconBasedBackend = backend.value.getOrElse(ConfigDefaults.DefaultBackend) match {
+      case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
+      case _ => false
+    }
+
+    validateConditions(
+      if (isInputOptional) {
+        mutuallyExclusive(input, directory, recursive, configFile)
+      } else {
+        // either `input`, `directory` or `recursive` must be provided but not both.
+        // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
+        requireOne(input, directory, recursive, configFile)
+      },
+      // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
+      // Thus, we restrict their use:
+      conflicts(input, List(projectRoot, inclPackages, exclPackages)),
+      conflicts(directory, List(inclPackages, exclPackages)),
+      // `--configFile` cannot be used with any other options except `--printConfig`:
+      conflicts(configFile, allOptions.toList.filterNot(o => o == configFile || o == printConfig)),
+      if (parallelizeBranches.value.contains(true) && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The selected backend does not support branch parallelization.")))
+      } else {
+        Right(())
+      },
+      if (conditionalizePermissions.value.contains(true) && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The selected backend does not support --conditionalizePermissions.")))
+      } else {
+        Right(())
+      },
+      if (z3APIMode.value.contains(true) && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The selected backend does not support --z3APIMode.")))
+      } else {
+        Right(())
+      },
+      // `mceMode` can only be provided when using a silicon-based backend
+      if (mceMode.value.isDefined && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The flag --mceMode can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      if (unsafeWildcardOptimization.value.isDefined && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The flag --unsafeWildcardOptimization can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      if (moreJoins.value.isDefined && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      // `disableSetAxiomatization` can only be provided when using a silicon-based backend
+      // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
+      // implementation
+      if (disableSetAxiomatization.value.contains(true) && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The selected backend does not support --disableSetAxiomatization.")))
+      } else {
+        Right(())
+      },
+      if (disableNL.value.contains(true) && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("--disableNL can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      if (printConfig.value.contains(true) && configFile.value.isEmpty) {
+        Left(Vector(ConfigError("--printConfig requires --config.")))
+      } else {
+        Right(())
+      },
+
+      // file validations
+      validateFilesExist(cutInput),
+      validateFilesIsFile(cutInput),
+      validateFilesExist(directory),
+      validateFilesIsDirectory(directory),
+      validateFileExists(configFile), // either points to a directory containing a package or a config file
+      validateFileExists(projectRoot),
+      validateFileIsDirectory(projectRoot),
+      if (!skipIncludeDirChecks) validateFilesExist(include) else Right(()),
+      if (!skipIncludeDirChecks) validateFilesIsDirectory(include) else Right(())
+    )
+  }
+
+  /** only one of them is non-none */
+  private def mutuallyExclusive(options: InputConfigOption[_]*): Either[Vector[VerifierError], Unit] = {
+    if (options.count(_.value.isDefined) > 1) {
+      Left(Vector(
+        ConfigError(s"There should be only one or zero of the following options: ${options.map(_.name).mkString(", ")}")))
+    } else {
+      Right(())
+    }
+  }
+
+  /** exactly one of them is non-none */
+  private def requireOne(options: InputConfigOption[_]*): Either[Vector[VerifierError], Unit] = {
+    if (options.count(_.value.isDefined) != 1) {
+      Left(Vector(
+        ConfigError(s"There should be exactly one of the following options: ${options.map(_.name).mkString(", ")}")))
+    } else {
+      Right(())
+    }
+  }
+
+  /** if `opt` is non-none then all in `list` must be none */
+  private def conflicts(opt: InputConfigOption[_], list: List[InputConfigOption[_]]): Either[Vector[VerifierError], Unit] = {
+    val conflictOpt = list.find(_.value.isDefined)
+    conflictOpt match {
+      case Some(conflict) if opt.value.isDefined => Left(Vector(ConfigError(
+        s"Option '${opt.name}' conflicts with option '${conflict.name}'")))
+      case _ => Right(())
+    }
+  }
+
+  private def validateFileExists(option: InputConfigOption[File]): Either[Vector[VerifierError], Unit] = {
+    option.value.fold[Either[Vector[VerifierError], Unit]](Right(())) { file =>
+      if (!file.exists) {
+        Left(Vector(ConfigError(s"File '$file' not found.")))
+      } else {
+        Right(())
+      }
+    }
+  }
+
+  private def validateFileIsDirectory(option: InputConfigOption[File]): Either[Vector[VerifierError], Unit] = {
+    option.value.fold[Either[Vector[VerifierError], Unit]](Right(())) { file =>
+      if (!file.isDirectory) {
+        Left(Vector(ConfigError(s"File '$file' is not a directory.")))
+      } else {
+        Right(())
+      }
+    }
+  }
+
+  private def validateFilesExist(option: InputConfigOption[List[File]]): Either[Vector[VerifierError], Unit] = {
+    option.value.map(files => {
+      val problems = files.filterNot(_.exists)
+      if (problems.nonEmpty) Left(Vector(ConfigError(s"File(s) ${problems.map(_.toString).mkString(", ")} not found.")))
+      else Right(())
+    }).getOrElse(Right(()))
+  }
+
+  private def validateFilesIsFile(option: InputConfigOption[List[File]]): Either[Vector[VerifierError], Unit] = {
+    option.value.map(files => {
+      val problems = files.filterNot(_.isFile)
+      if (problems.nonEmpty) Left(Vector(ConfigError(s"File(s) ${problems.map(_.toString).mkString(", ")} is not a file.")))
+      else Right(())
+    }).getOrElse(Right(()))
+  }
+
+  private def validateFilesIsDirectory(option: InputConfigOption[List[File]]): Either[Vector[VerifierError], Unit] = {
+    option.value.map(files => {
+      val problems = files.filterNot(_.isDirectory)
+      if (problems.nonEmpty) Left(Vector(ConfigError(s"File(s) ${problems.map(_.toString).mkString(", ")} is not a directory.")))
+      else Right(())
+    }).getOrElse(Right(()))
+  }
+
+  /** collects the errors produced by multiple conditions */
+  private def validateConditions(conditions: Either[Vector[VerifierError], Unit]*): Either[Vector[VerifierError], Unit] = {
+    conditions.foldLeft[Either[Vector[VerifierError], Unit]](Right(())) {
+      case (Right(()), cur) => cur
+      case (Left(prevErrs), Left(curErrs)) => Left(prevErrs ++ curErrs)
+      case (prev, _) => prev
+    }
+  }
+
+  /** Constructs a Config from this InputConfig.
+    * First validates the configuration, then constructs the appropriate RawConfig.
+    * @param isInputOptional if true, input mode is optional (mutually exclusive)
+    * @param skipIncludeDirChecks if true, skips include directory validation
+    */
+  def config(isInputOptional: Boolean = false, skipIncludeDirChecks: Boolean = false): Either[Vector[VerifierError], Config] = {
+    validate(isInputOptional, skipIncludeDirChecks).flatMap { _ =>
+      rawConfig(isInputOptional).config
+    }
+  }
+
+  private def rawConfig(isInputOptional: Boolean): RawConfig = {
+    (configFile.value, cutInputWithIdxs.value, directory.value, recursive.value.contains(true)) match {
+      case (Some(cf), _, _, _) => configFileModeConfig(cf)
+      case (None, Some(inputsWithIdxs), None, false) => fileModeConfig(inputsWithIdxs)
+      case (None, None, Some(dirs), false) => packageModeConfig(dirs)
+      case (None, None, None, true) => recursiveModeConfig()
+      case (None, None, None, false) =>
+        Violation.violation(isInputOptional, "the configuration mode should be one of file, package, recursive or config unless inputs are optional")
+        noInputModeConfig()
+      case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")
+    }
+  }
+
+  private def fileModeConfig(cutInputWithIdxs: List[(File, List[Int])]): FileModeConfig = {
+    val cutPathsWithIdxs = cutInputWithIdxs.map { case (file, lineNrs) => (file.toPath, lineNrs) }
+    FileModeConfig(
+      inputFiles = cutPathsWithIdxs.map(_._1).toVector,
+      baseConfig = baseConfig(cutPathsWithIdxs)
+    )
+  }
+
+  private def packageModeConfig(dirs: List[File]): PackageModeConfig = PackageModeConfig(
+    inputDirectories = dirs.map(_.toPath).toVector,
+    projectRoot = projectRoot.value.getOrElse(ConfigDefaults.DefaultProjectRoot).toPath,
+    // we currently do not offer a way via CLI to pass isolate information to Gobra in the package mode
+    baseConfig = baseConfig(ConfigDefaults.DefaultIsolate),
+  )
+
+  private def recursiveModeConfig(): RecursiveModeConfig = RecursiveModeConfig(
+    projectRoot = projectRoot.value.getOrElse(ConfigDefaults.DefaultProjectRoot).toPath,
+    includePackages = inclPackages.value.getOrElse(ConfigDefaults.DefaultIncludePackages),
+    excludePackages = exclPackages.value.getOrElse(ConfigDefaults.DefaultExcludePackages),
+    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
+    baseConfig(ConfigDefaults.DefaultIsolate),
+  )
+
+  private def configFileModeConfig(configFile: File): RawConfig =
+    ConfigFileModeConfig(configFile)
+
+  private def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
+    // we currently do not offer a way via CLI to pass isolate information to Gobra in the no-input mode
+    baseConfig(ConfigDefaults.DefaultIsolate),
+  )
+
+  private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
+    gobraDirectory = gobraDirectory.value,
+    moduleName = moduleName.value.getOrElse(ConfigDefaults.DefaultModuleName),
+    includeDirs = includeDirs.value.getOrElse(ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector),
+    reporter = FileWriterReporter(
+        unparse = unparse.value.getOrElse(false),
+        eraseGhost = eraseGhost.value.getOrElse(false),
+        goify = goify.value.getOrElse(false),
+        debug = debug.value.getOrElse(false),
+        printInternal = printInternal.value.getOrElse(false),
+        printVpr = printVpr.value.getOrElse(false),
+        streamErrs = !noStreamErrors.value.getOrElse(false)),
+    backend = backend.value,
+    isolate = isolate,
+    choppingUpperBound = choppingUpperBound.value.getOrElse(ConfigDefaults.DefaultChoppingUpperBound),
+    packageTimeout = packageTimeoutDuration.value.getOrElse(ConfigDefaults.DefaultPackageTimeout),
+    z3Exe = z3Exe.value,
+    boogieExe = boogieExe.value,
+    logLevel = logLevel.value.getOrElse(ConfigDefaults.DefaultLogLevel),
+    cacheFile = cacheFile.value,
+    shouldParseOnly = parseOnly.value.getOrElse(ConfigDefaults.DefaultParseOnly),
+    checkOverflows = checkOverflows.value.getOrElse(ConfigDefaults.DefaultCheckOverflows),
+    checkConsistency = checkConsistency.value.getOrElse(ConfigDefaults.DefaultCheckConsistency),
+    int32bit = int32bit.value.getOrElse(ConfigDefaults.DefaultInt32bit),
+    cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
+    onlyFilesWithHeader = onlyFilesWithHeader.value.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
+    assumeInjectivityOnInhale = assumeInjectivityOnInhale.value.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
+    parallelizeBranches = parallelizeBranches.value.getOrElse(ConfigDefaults.DefaultParallelizeBranches),
+    conditionalizePermissions = conditionalizePermissions.value.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
+    z3APIMode = z3APIMode.value.getOrElse(ConfigDefaults.DefaultZ3APIMode),
+    disableNL = disableNL.value.getOrElse(ConfigDefaults.DefaultDisableNL),
+    mceMode = mceMode.value.getOrElse(ConfigDefaults.DefaultMCEMode),
+    hyperMode = hyperMode.value,
+    enableExperimentalHyperFeatures = enableExperimentalHyperFeatures.value.getOrElse(false),
+    noVerify = noVerify.value.getOrElse(false),
+    noStreamErrors = noStreamErrors.value.getOrElse(false),
+    parseAndTypeCheckMode = parseAndTypeCheckMode.value.getOrElse(ConfigDefaults.DefaultParseAndTypeCheckMode),
+    requireTriggers = requireTriggers.value.getOrElse(ConfigDefaults.DefaultRequireTriggers),
+    disableSetAxiomatization = disableSetAxiomatization.value.getOrElse(ConfigDefaults.DefaultDisableSetAxiomatization),
+    disableCheckTerminationPureFns = disableCheckTerminationPureFns.value.getOrElse(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
+    unsafeWildcardOptimization = unsafeWildcardOptimization.value.getOrElse(ConfigDefaults.DefaultUnsafeWildcardOptimization),
+    moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
+    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
+    enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
+  )
+}
+
+object InputConfig {
+  /** Creates an InputConfig from a VerificationJobCfg's structured fields.
+    * @param cfg the verification job configuration
+    * @param configDir the directory containing the config file (for resolving relative paths) */
+  def fromVerificationJobCfg(cfg: VerificationJobCfg, configDir: Path): InputConfig = {
+    val resolvedCfg = cfg.resolvePaths(configDir)
+    InputConfig(
+      input = InputConfigOption("input", resolvedCfg.input_files),
+      recursive = InputConfigOption("recursive", resolvedCfg.recursive),
+      projectRoot = InputConfigOption("projectRoot", resolvedCfg.project_root.map(p => new File(p))),
+      moduleName = InputConfigOption("moduleName", resolvedCfg.module),
+      include = InputConfigOption("include", resolvedCfg.includes.map(_.map(p => new File(p)))),
+      backend = InputConfigOption("backend", resolvedCfg.backend.map(_.underlying)),
+      printVpr = InputConfigOption("printVpr", resolvedCfg.print_vpr),
+      choppingUpperBound = InputConfigOption("choppingUpperBound", resolvedCfg.chop),
+      checkOverflows = InputConfigOption("checkOverflows", resolvedCfg.overflow),
+      checkConsistency = InputConfigOption("checkConsistency", resolvedCfg.check_consistency),
+      onlyFilesWithHeader = InputConfigOption("onlyFilesWithHeader", resolvedCfg.only_files_with_header),
+      assumeInjectivityOnInhale = InputConfigOption("assumeInjectivityOnInhale", resolvedCfg.assume_injectivity_inhale),
+      parallelizeBranches = InputConfigOption("parallelizeBranches", resolvedCfg.parallelize_branches),
+      conditionalizePermissions = InputConfigOption("conditionalizePermissions", resolvedCfg.conditionalize_permissions),
+      moreJoins = InputConfigOption("moreJoins", resolvedCfg.more_joins),
+      mceMode = InputConfigOption("mceMode", resolvedCfg.mce_mode),
+      requireTriggers = InputConfigOption("requireTriggers", resolvedCfg.require_triggers),
+    )
+  }
+
+  /** Parses CLI arguments and returns an InputConfig.
+    * @param args the CLI arguments to parse
+    * @return Right(inputConfig) on success, Left(errors) if parsing fails */
+  def fromOtherArgs(args: List[String]): Either[Vector[VerifierError], InputConfig] = {
+    try {
+      val scallopConfig = new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true)
+      Right(scallopConfig.toInputConfig)
+    } catch {
+      case e: Exception => Left(Vector(ConfigError(s"Failed to parse 'other' args: ${e.getMessage}")))
+    }
+  }
+
+  /** Parses CLI arguments and returns an InputConfig with optional path resolution.
+    * Used for parsing in-file configuration annotations.
+    * @param args the CLI arguments to parse
+    * @param resolveTo if provided, resolves relative paths against this directory
+    * @return Right(inputConfig) on success, Left(errors) if parsing fails */
+  def parseCliArgs(args: List[String], resolveTo: Option[Path]): Either[Vector[VerifierError], InputConfig] = {
+    fromOtherArgs(args).map { inputConfig =>
+      resolveTo match {
+        case None => inputConfig
+        case Some(p) =>
+          val absBase = p.toAbsolutePath
+          inputConfig.copy(
+            include = inputConfig.include.map(_.map(d => new File(absBase.resolve(d.toPath.toString).toString))),
+            projectRoot = inputConfig.projectRoot.map(pr => new File(absBase.resolve(pr.toPath.toString).toString)),
+            cacheFile = inputConfig.cacheFile.map(cf => absBase.resolve(cf.toString)),
+            z3Exe = inputConfig.z3Exe.map(z => absBase.resolve(z).toString),
+            boogieExe = inputConfig.boogieExe.map(b => absBase.resolve(b).toString),
+          )
+      }
     }
   }
 }
@@ -493,6 +1160,125 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
   }
 }
 
+case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictLogging {
+  // configFile is in the directory of the package we want to verify.
+  // In the same or some parent directory, there's an additional configuration
+  // file listing settings that are common to the entire module.
+
+  private val VerificationJobConfigFilename = "gobra.json"
+  // A module config file must exist in the directory tree of configFile (i.e., in the same
+  // directory or any parent directory). Without it, Gobra cannot determine the module-level configuration.
+  private val ModuleConfigFilename = "gobra-mod.json"
+
+  /** Resolves the job config file path, if one exists.
+    * Returns `Some(file)` if a job config file was found, `None` otherwise (e.g., because a path to
+    * a package directory has been provided that does not contain a job config file).
+    * Returns `Left` if `configFile` itself does not exist. */
+  private lazy val resolvedJobConfigFile: Either[Vector[VerifierError], Option[File]] = {
+    if (configFile.exists()) {
+      // if the user provides a path to a directory (presumably containing a Go package),
+      // the we want to check whether a config file with the default filename is located within
+      // that package:
+      val candidate = if (configFile.isFile) configFile
+        else new File(configFile, VerificationJobConfigFilename)
+      Right(if (candidate.exists() && candidate.isFile) Some(candidate) else None)
+    } else {
+      Left(Vector(ConfigError(s"The provided config path does not exist: ${configFile.getAbsoluteFile.toString}")))
+    }
+  }
+
+  /** The verification job config is optional */
+  private lazy val verificationJobConfig: Either[Vector[VerifierError], VerificationJobCfg] = {
+    resolvedJobConfigFile.flatMap {
+      case Some(file) =>
+        // provide the generic type argument to avoid weird runtime errors even though the
+        // Scala compiler pretends to not need it!
+        GobraJsonConfigHandler.fromJson[VerificationJobCfg](file)
+      case None =>
+        // No job config file found; return an empty config (all fields None).
+        // Missing fields will be filled from the module config's default_job_cfg.
+        Right(VerificationJobCfg())
+    }
+  }
+
+  /** Returns the module config together with the directory containing the module config file */
+  private lazy val moduleConfigWithDir: Either[Vector[VerifierError], (GobraModuleCfg, Path)] = {
+    var searchDirectory = if (configFile.isFile) configFile.getParentFile else configFile
+    var moduleConfigFile: Option[File] = None
+    while (searchDirectory != null) {
+      val potentialModuleConfigFile = new File(searchDirectory, ModuleConfigFilename)
+      if (potentialModuleConfigFile.exists() && potentialModuleConfigFile.isFile) {
+        moduleConfigFile = Some(potentialModuleConfigFile)
+        searchDirectory = null
+      } else {
+        searchDirectory = searchDirectory.getParentFile
+      }
+    }
+    moduleConfigFile match {
+      case Some(file) =>
+        // provide the generic type argument to avoid weird runtime errors even though the
+        // Scala compiler pretends to not need it!
+        GobraJsonConfigHandler
+          .fromJson[GobraModuleCfg](file)
+          .map(cfg => (cfg, file.getParentFile.toPath))
+      case None =>
+        Left(Vector(ConfigError(s"Could not find module configuration file $ModuleConfigFilename in the directory or a parent directory of ${configFile.getAbsoluteFile.toString}")))
+    }
+  }
+
+  // baseConfig is not used since config is constructed via InputConfig
+  override protected def baseConfig: BaseConfig =
+    Violation.violation("baseConfig should not be accessed in ConfigFileModeConfig")
+
+  override lazy val config: Either[Vector[VerifierError], Config] = {
+    val jobConfigDir: Path = (if (configFile.isDirectory) configFile else configFile.getParentFile).toPath
+    for {
+      moduleWithDir <- moduleConfigWithDir
+      jobCfg <- verificationJobConfig
+      resolvedJobFile <- resolvedJobConfigFile
+      moduleCfg = moduleWithDir._1
+      moduleConfigDir = moduleWithDir._2
+      _ = {
+        logger.info(s"Using module config: ${moduleConfigDir.resolve(ModuleConfigFilename)}")
+        resolvedJobFile match {
+          case Some(f) => logger.info(s"Using job config: ${f.getAbsolutePath}")
+          case None => logger.info("No job config file found; using default-job config only from module config")
+        }
+      }
+      defaultJobCfg: VerificationJobCfg = moduleCfg.default_job_cfg.getOrElse(VerificationJobCfg())
+
+      // Build module-level InputConfig:
+      // 1. Parse module's `other` field via ScallopGobraConfig
+      moduleOtherConfig <- InputConfig.fromOtherArgs(defaultJobCfg.other.getOrElse(List.empty))
+      // 2. Convert module's structured fields to InputConfig
+      moduleStructuredConfig = InputConfig.fromVerificationJobCfg(defaultJobCfg, moduleConfigDir)
+      // 3. Merge structured and other options (structured takes precedence)
+      moduleLevelConfig = moduleStructuredConfig merge moduleOtherConfig
+
+      // Build job-level InputConfig:
+      // 1. Parse job's `other` field via ScallopGobraConfig
+      jobOtherConfig <- InputConfig.fromOtherArgs(jobCfg.other.getOrElse(List.empty))
+      // 2. Convert job's structured fields to InputConfig
+      jobStructuredConfig = InputConfig.fromVerificationJobCfg(jobCfg, jobConfigDir)
+      // 3. Merge structured and other options (structured takes precedence)
+      jobLevelConfig = jobStructuredConfig merge jobOtherConfig
+
+      // Apply precedence: job-level config takes precedence over module-level config
+      mergedConfig = jobLevelConfig orElse moduleLevelConfig
+
+      // Set the input directory for package mode if not specified
+      finalInputConfig = if (mergedConfig.input.value.isEmpty && mergedConfig.recursive.value.isEmpty && mergedConfig.directory.value.isEmpty) {
+        mergedConfig.copy(directory = InputConfigOption("directory", Some(List(jobConfigDir.toFile))))
+      } else {
+        mergedConfig
+      }
+
+      // Validate and convert to Config
+      result <- finalInputConfig.config(isInputOptional = false, skipIncludeDirChecks = false)
+    } yield result
+  }
+}
+
 /**
   * This represents Gobra's CLI interface.
   * The idea is to just perform the necessary validations to convert the inputs into a `RawConfig`.
@@ -540,6 +1326,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
        | Note that --include <directories> is unrelated to the modes above and controls how ${GoVerifier.name} resolves
        | package imports.
        |
+       | Mode 4 (--config):
+       |  Instructs Gobra to read all configuration options from the provided JSON file. The only other permitted CLI option is '--printConfig'.
        |
        | Options:
        |""".stripMargin
@@ -567,8 +1355,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       case _ => (new File(arg), List.empty[Int])
     }
   })
-  /** list of input files without line numbers */
-  val cutInput: ScallopOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
 
   val directory: ScallopOption[List[File]] = opt[List[File]](
     name = "directory",
@@ -580,6 +1366,19 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "recursive",
     descr = "Verify nested packages recursively",
     short = 'r'
+  )
+
+  val configFile:  ScallopOption[File] = opt[File](
+    name = "config",
+    descr = "Reads all configuration options from the provided JSON file. The only other permitted CLI option is '--printConfig'.",
+    noshort = true
+  )
+
+  val printConfig: ScallopOption[Boolean] = opt[Boolean](
+    name = "printConfig",
+    descr = "Print the resolved configuration and exit without verifying. Requires '--config'.",
+    default = Some(false),
+    noshort = true,
   )
 
   val projectRoot: ScallopOption[File] = opt[File](
@@ -622,21 +1421,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
     default = Some(ConfigDefaults.DefaultIncludeDirs)
   )
-  lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
 
   val backend: ScallopOption[ViperBackend] = choice(
-    choices = Seq("SILICON", "CARBON", "VSWITHSILICON", "VSWITHCARBON"),
+    choices = ViperBackendConverter.values.map(_.value),
     name = "backend",
-    descr = "Specifies the used Viper backend. The default is SILICON.",
+    descr = s"Specifies the used Viper backend. The default is ${ConfigDefaults.DefaultBackend.value}.",
     default = None,
     noshort = true
-  ).map{
-    case "SILICON" => ViperBackends.SiliconBackend
-    case "CARBON" => ViperBackends.CarbonBackend
-    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon()
-    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon()
-    case s => Violation.violation(s"Unexpected backend option $s")
-  }
+  ).map(ViperBackendConverter.convert)
 
   val debug: ScallopOption[Boolean] = opt[Boolean](
     name = "debug",
@@ -715,11 +1507,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  lazy val packageTimeoutDuration: Duration = packageTimeout.toOption match {
-    case Some(d) => Duration(d)
-    case _ => Duration.Inf
-  }
-
   val z3Exe: ScallopOption[String] = opt[String](
     name = "z3Exe",
     descr = "The Z3 executable",
@@ -734,11 +1521,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val checkOverflows: ScallopOption[Boolean] = opt[Boolean](
+  val checkOverflows: ScallopOption[Boolean] = toggle(
     name = "overflow",
-    descr = "Find expressions that may lead to integer overflow",
+    descrYes = "Find expressions that may lead to integer overflow",
+    descrNo = "Do not check for integer overflow (default)",
     default = Some(ConfigDefaults.DefaultCheckOverflows),
-    noshort = false
+    noshort = true
   )
 
   val cacheFile: ScallopOption[File] = opt[File](
@@ -814,39 +1602,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   )
 
   val moreJoins: ScallopOption[MoreJoins.Mode] = {
-    val all = "all"
-    val impure = "impure"
-    val off = "off"
     choice(
-      choices = Seq("all", "impure", "off"),
+      choices = MoreJoinsConverter.values.map(_.value),
       name = "moreJoins",
-      descr = s"Specifies if silicon should be run with more joins completely enabled ($all), disabled ($off), or only for impure conditionals ($impure).",
-      default = Some(off),
+      descr = s"Specifies if silicon should be run with more joins completely enabled (${MoreJoins.All.value}), disabled (${MoreJoins.Disabled.value}), or only for impure conditionals (${MoreJoins.Impure.value}).",
+      default = Some(ConfigDefaults.DefaultMoreJoins.value),
       noshort = true
-    ).map {
-      case `all` => MoreJoins.All
-      case `off` => MoreJoins.Disabled
-      case `impure` => MoreJoins.Impure
-      case s => Violation.violation(s"Unexpected mode for moreJoins: $s")
-    }
+    ).map(MoreJoinsConverter.convert)
   }
 
   val mceMode: ScallopOption[MCE.Mode] = {
-    val on = "on"
-    val off = "off"
-    val od = "od"
     choice(
-      choices = Seq("on", "off", "od"),
+      choices = MCEConverter.values.map(_.value),
       name = "mceMode",
-      descr = s"Specifies if silicon should be run with more complete exhale enabled ($on), disabled ($off), or enabled on demand ($od).",
-      default = Some(on),
+      descr = s"Specifies if silicon should be run with more complete exhale enabled (${MCE.Enabled.value}), disabled (${MCE.Disabled.value}), or enabled on demand (${MCE.OnDemand.value}).",
+      default = Some(ConfigDefaults.DefaultMCEMode.value),
       noshort = true
-    ).map{
-      case `on` => MCE.Enabled
-      case `off` => MCE.Disabled
-      case `od` => MCE.OnDemand
-      case s => Violation.violation(s"Unexpected mode for more complete exhale: $s")
-    }
+    ).map(MCEConverter.convert)
   }
 
   val respectFunctionPrePermAmounts: ScallopOption[Boolean] = toggle(
@@ -871,13 +1643,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = Config.enableExperimentalHyperFeaturesOptionName,
     descr = s"Enables certain hyperproperty-related experimental features such as rel expressions.",
     default = Some(ConfigDefaults.DefaultEnableExperimentalHyperFeatures),
-    noshort = true,
-  )
-
-  val enableLazyImports: ScallopOption[Boolean] = opt[Boolean](
-    name = Config.enableLazyImportOptionName,
-    descr = s"Enforces that ${GoVerifier.name} parses depending packages only when necessary. Note that this disables certain language features such as global variables.",
-    default = Some(ConfigDefaults.DefaultEnableLazyImports),
     noshort = true,
   )
 
@@ -935,219 +1700,69 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(ConfigDefaults.DefaultEnableExperimentalFriendClauses),
     noshort = true,
   )
-  /**
-    * Exception handling
-    */
-  /**
-    * Epilogue
-    */
 
-  /** Argument Dependencies */
-  if (isInputOptional) {
-    mutuallyExclusive(input, directory, recursive)
-  } else {
-    // either `input`, `directory` or `recursive` must be provided but not both.
-    // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
-    requireOne(input, directory, recursive)
-  }
-
-  // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
-  // Thus, we restrict their use:
-  conflicts(input, List(projectRoot, inclPackages, exclPackages))
-  conflicts(directory, List(inclPackages, exclPackages))
-
-  // must be a function or lazy to guarantee that this value is computed only during the CLI options validation and not before.
-  private def isSiliconBasedBackend = backend.toOption.getOrElse(ConfigDefaults.DefaultBackend) match {
-    case ViperBackends.SiliconBackend | _: ViperBackends.ViperServerWithSilicon => true
-    case _ => false
-  }
-
-  addValidation {
-    val lazyImportsSet = enableLazyImports.toOption.contains(true)
-    if (lazyImportsSet) {
-      Left(s"The flag ${Config.enableLazyImportOptionPrettyPrinted} was removed in Gobra's PR #797.")
-    } else {
-      Right(())
-    }
-  }
-
-  // `parallelizeBranches` requires a backend that supports branch parallelization (i.e., a silicon-based backend)
-  addValidation {
-    val parallelizeBranchesOn = parallelizeBranches.toOption.contains(true)
-    if (parallelizeBranchesOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support branch parallelization.")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    val conditionalizePermissionsOn = conditionalizePermissions.toOption.contains(true)
-    if (conditionalizePermissionsOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support --conditionalizePermissions.")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    val z3APIModeOn = z3APIMode.toOption.contains(true)
-    if (z3APIModeOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support --z3APIMode.")
-    } else {
-      Right(())
-    }
-  }
-
-  // `mceMode` can only be provided when using a silicon-based backend
-  addValidation {
-    val mceModeSupplied = mceMode.isSupplied
-    if (mceModeSupplied && !isSiliconBasedBackend) {
-      Left("The flag --mceMode can only be used with Silicon or ViperServer with Silicon")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    val unsafeWildcardOptSupplied = unsafeWildcardOptimization.isSupplied
-    if (unsafeWildcardOptSupplied  && !isSiliconBasedBackend) {
-      Left("The flag --unsafeWildcardOptimization can only be used with Silicon or ViperServer with Silicon")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    val moreJoinsOptSupplied = moreJoins.isSupplied
-    if (moreJoinsOptSupplied  && !isSiliconBasedBackend) {
-      Left("The flag --moreJoins can only be used with Silicon or ViperServer with Silicon")
-    } else {
-      Right(())
-    }
-  }
-
-  // `disableSetAxiomatization` can only be provided when using a silicon-based backend
-  // since, at the time of writing, we rely on Silicon's setAxiomatizationFile for the
-  // implementation
-  addValidation {
-    val disableSetAxiomatizationOn = disableSetAxiomatization.toOption.contains(true)
-    if (disableSetAxiomatizationOn && !isSiliconBasedBackend) {
-      Left("The selected backend does not support --disableSetAxiomatization.")
-    } else {
-      Right(())
-    }
-  }
-
-  addValidation {
-    if (!disableNL.toOption.contains(true) || isSiliconBasedBackend) {
-      Right(())
-    } else {
-      Left("--disableNL is not compatible with Carbon")
-    }
-  }
-
-
-  /** File Validation */
-  validateFilesExist(cutInput)
-  validateFilesIsFile(cutInput)
-  validateFilesExist(directory)
-  validateFilesIsDirectory(directory)
-  validateFileExists(projectRoot)
-  validateFileIsDirectory(projectRoot)
-  if (!skipIncludeDirChecks) {
-    validateFilesExist(include)
-    validateFilesIsDirectory(include)
-  }
-
+  // Required by Scallop before accessing option values
   verify()
 
-  lazy val config: Either[Vector[VerifierError], Config] = rawConfig.config
-
-  // note that we use `recursive.isSupplied` instead of `recursive.toOption` because it defaults to `Some(false)` if it
-  // was not provided by the user. Specifying a different default value does not seem to be respected.
-  private lazy val rawConfig: RawConfig = (cutInputWithIdxs.toOption, directory.toOption, recursive.isSupplied) match {
-    case (Some(inputsWithIdxs), None, false) => fileModeConfig(inputsWithIdxs)
-    case (None, Some(dirs), false) => packageModeConfig(dirs)
-    case (None, None, true) => recursiveModeConfig()
-    case (None, None, false) =>
-      Violation.violation(isInputOptional, "the configuration mode should be one of file, package or recursive unless inputs are optional")
-      noInputModeConfig()
-    case _ => Violation.violation(s"multiple modes have been found, which should have been caught by input validation")
-  }
-
-  private def fileModeConfig(cutInputWithIdxs: List[(File, List[Int])]): FileModeConfig = {
-    val cutPathsWithIdxs = cutInputWithIdxs.map { case (file, lineNrs) => (file.toPath, lineNrs) }
-    FileModeConfig(
-      inputFiles = cutPathsWithIdxs.map(_._1).toVector,
-      baseConfig = baseConfig(cutPathsWithIdxs)
+  /** Extracts an InputConfig from CLI options.
+    * Uses `.toInputConfigOption` to get InputConfigOption with the option's name and value.
+    * Fields are ordered to match the CLI option definitions above. */
+  def toInputConfig: InputConfig = {
+    import InputConfigOption.ScallopOptionExtension
+    InputConfig(
+      // Input mode fields
+      input = input.toInputConfigOption,
+      cutInputWithIdxs = cutInputWithIdxs.toInputConfigOption,
+      directory = directory.toInputConfigOption,
+      recursive = InputConfigOption(recursive.name, if (recursive.isSupplied) Some(recursive()) else None),
+      configFile = configFile.toInputConfigOption,
+      printConfig = printConfig.toInputConfigOption,
+      projectRoot = projectRoot.toInputConfigOption,
+      inclPackages = inclPackages.toInputConfigOption,
+      exclPackages = exclPackages.toInputConfigOption,
+      // Configuration options (in CLI definition order)
+      gobraDirectory = gobraDirectory.toInputConfigOption,
+      moduleName = module.toInputConfigOption,
+      include = include.toInputConfigOption,
+      backend = backend.toInputConfigOption,
+      debug = debug.toInputConfigOption,
+      logLevel = logLevel.toInputConfigOption,
+      eraseGhost = eraseGhost.toInputConfigOption,
+      goify = goify.toInputConfigOption,
+      unparse = unparse.toInputConfigOption,
+      printInternal = printInternal.toInputConfigOption,
+      printVpr = printVpr.toInputConfigOption,
+      parseOnly = parseOnly.toInputConfigOption,
+      choppingUpperBound = chopUpperBound.toInputConfigOption,
+      packageTimeout = InputConfigOption(packageTimeout.name, packageTimeout.toOption.map(Duration(_))),
+      z3Exe = z3Exe.toInputConfigOption,
+      boogieExe = boogieExe.toInputConfigOption,
+      checkOverflows = checkOverflows.toInputConfigOption,
+      cacheFile = InputConfigOption(cacheFile.name, cacheFile.toOption.map(_.toPath)),
+      int32bit = int32Bit.toInputConfigOption,
+      onlyFilesWithHeader = onlyFilesWithHeader.toInputConfigOption,
+      checkConsistency = checkConsistency.toInputConfigOption,
+      assumeInjectivityOnInhale = assumeInjectivityOnInhale.toInputConfigOption,
+      parallelizeBranches = parallelizeBranches.toInputConfigOption,
+      conditionalizePermissions = conditionalizePermissions.toInputConfigOption,
+      z3APIMode = z3APIMode.toInputConfigOption,
+      disableNL = disableNL.toInputConfigOption,
+      unsafeWildcardOptimization = unsafeWildcardOptimization.toInputConfigOption,
+      moreJoins = moreJoins.toInputConfigOption,
+      mceMode = mceMode.toInputConfigOption,
+      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.toInputConfigOption,
+      hyperMode = hyperMode.toInputConfigOption,
+      enableExperimentalHyperFeatures = enableExperimentalHyperFeatures.toInputConfigOption,
+      requireTriggers = requireTriggers.toInputConfigOption,
+      noVerify = noVerify.toInputConfigOption,
+      noStreamErrors = noStreamErrors.toInputConfigOption,
+      disableCheckTerminationPureFns = disableCheckTerminationPureFns.toInputConfigOption,
+      parseAndTypeCheckMode = parseAndTypeCheckMode.toInputConfigOption,
+      disableSetAxiomatization = disableSetAxiomatization.toInputConfigOption,
+      enableExperimentalFriendClauses = enableExperimentalFriendClauses.toInputConfigOption,
     )
   }
 
-  private def packageModeConfig(dirs: List[File]): PackageModeConfig = PackageModeConfig(
-    inputDirectories = dirs.map(_.toPath).toVector,
-    projectRoot = projectRoot().toPath,
-    // we currently do not offer a way via CLI to pass isolate information to Gobra in the package mode
-    baseConfig = baseConfig(ConfigDefaults.DefaultIsolate),
-  )
-
-  private def recursiveModeConfig(): RecursiveModeConfig = RecursiveModeConfig(
-    projectRoot = projectRoot().toPath,
-    includePackages = inclPackages(),
-    excludePackages = exclPackages(),
-    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
-    baseConfig(ConfigDefaults.DefaultIsolate),
-  )
-
-  private def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
-    // we currently do not offer a way via CLI to pass isolate information to Gobra in the recursive mode
-    baseConfig(ConfigDefaults.DefaultIsolate),
-  )
-
-  private def baseConfig(isolate: List[(Path, List[Int])]): BaseConfig = BaseConfig(
-    gobraDirectory = gobraDirectory.toOption,
-    moduleName = module(),
-    includeDirs = includeDirs,
-    reporter = FileWriterReporter(
-        unparse = unparse(),
-        eraseGhost = eraseGhost(),
-        goify = goify(),
-        debug = debug(),
-        printInternal = printInternal(),
-        printVpr = printVpr(),
-        printSIFVpr = printSIFVpr(),
-        streamErrs = !noStreamErrors()),
-    backend = backend.toOption,
-    isolate = isolate,
-    choppingUpperBound = chopUpperBound(),
-    packageTimeout = packageTimeoutDuration,
-    z3Exe = z3Exe.toOption,
-    boogieExe = boogieExe.toOption,
-    logLevel = logLevel(),
-    cacheFile = cacheFile.toOption.map(_.toPath),
-    shouldParseOnly = parseOnly(),
-    checkOverflows = checkOverflows(),
-    checkConsistency = checkConsistency(),
-    int32bit = int32Bit(),
-    cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
-    onlyFilesWithHeader = onlyFilesWithHeader(),
-    assumeInjectivityOnInhale = assumeInjectivityOnInhale(),
-    parallelizeBranches = parallelizeBranches(),
-    conditionalizePermissions = conditionalizePermissions(),
-    z3APIMode = z3APIMode(),
-    disableNL = disableNL(),
-    mceMode = mceMode(),
-    hyperMode = hyperMode.toOption,
-    enableExperimentalHyperFeatures = enableExperimentalHyperFeatures(),
-    noVerify = noVerify(),
-    noStreamErrors = noStreamErrors(),
-    parseAndTypeCheckMode = parseAndTypeCheckMode(),
-    requireTriggers = requireTriggers(),
-    disableSetAxiomatization = disableSetAxiomatization(),
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
-    unsafeWildcardOptimization = unsafeWildcardOptimization(),
-    moreJoins = moreJoins(),
-    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
-    enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
-  )
+  lazy val config: Either[Vector[VerifierError], Config] =
+    toInputConfig.config(isInputOptional, skipIncludeDirChecks)
 }

@@ -16,10 +16,11 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.transformers.DependencyAnalysisAnnotationTransformer
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
-import viper.silicon.dependencyAnalysis.DependencyAnalysisJoinNodeInfo
+import viper.silicon.dependencyAnalysis.{AssumptionType, DependencyAnalysisJoinNodeInfo, DependencyType, SimpleFrontendDependencyAnalysisInfo}
 import viper.silver.ast.MakeInfoPair
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
@@ -819,9 +820,11 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
+    val depAnJoinInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
+    val depAnInfo = SimpleFrontendDependencyAnalysisInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT), DependencyType.make(AssumptionType.CustomInternal))
 
-    methodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnInfo, info), errT))
+    val newMethodDummy = methodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    newMethodDummy.map(res => DependencyAnalysisAnnotationTransformer.addDependencyAnalysisAnnotations(res, depAnInfo))
   }
 
 

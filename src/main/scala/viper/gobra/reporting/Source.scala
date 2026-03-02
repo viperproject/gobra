@@ -106,7 +106,7 @@ object Source {
       def getPNode: PNode = pNode
       def getPosition: vpr.Position = pos
 
-      override def createAnalysisSourceInfo(): AnalysisSourceInfo = GobraAnalysisSourceInfo(pNode, pos)
+      override def getAnalysisSourceInfo: AnalysisSourceInfo = GobraAnalysisSourceInfo(pNode, pos)
     }
 
     val noInfo: Info = Info(

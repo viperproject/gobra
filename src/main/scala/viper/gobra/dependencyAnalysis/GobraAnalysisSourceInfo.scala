@@ -17,4 +17,6 @@ case class ImplementationProofSourceInfo(fromType: Type, toType: Type) extends A
   override def getDescription: String = s"Implementation proof from $fromType to $toType"
 
   override def getPosition: Position = NoPosition
+
+  override def toString: String = getDescription
 }

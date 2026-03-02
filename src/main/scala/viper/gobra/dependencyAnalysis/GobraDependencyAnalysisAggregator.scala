@@ -7,6 +7,7 @@ import viper.gobra.reporting.VerifierError
 import viper.silicon.dependencyAnalysis.{AssumptionType, DependencyGraphInterpreter, DependencyType}
 import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.AbstractDependencyGraphInterpreter
+import viper.silver.plugin.standard.termination.PDecreasesClause
 
 object GobraDependencyAnalysisAggregator {
   def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[VerifierError]): GobraDependencyGraphInterpreter = {
@@ -65,12 +66,11 @@ object GobraDependencyAnalysisAggregator {
     def getDependencyType(pNode: PNode, dependencyType: Option[DependencyType]): DependencyType = {
       val pNodeDepType = pNode match {
         case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
-        case _: PAssert | _: PExhale | _: PRefute =>
-          DependencyType.ExplicitAssertion
+        case _: PAssert | _: PExhale | _: PRefute => DependencyType.ExplicitAssertion
         case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
         case _: PInvoke => DependencyType.MethodCall
         case _: PParameter | _: PResult => DependencyType.Internal
-        case _: PExplicitGhostStatement | _: PImplementationProof => DependencyType.Ghost
+        case _: PExplicitGhostStatement | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
         case _ => DependencyType.SourceCode
       }
       val allAvailDepTypes = List(dependencyTypeOuter, dependencyType, Some(pNodeDepType)).filter(_.isDefined).flatten

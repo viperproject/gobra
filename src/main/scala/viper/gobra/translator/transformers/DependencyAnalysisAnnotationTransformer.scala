@@ -8,6 +8,7 @@ import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
+import viper.silicon.dependencyAnalysis.{DependencyType, FrontendDependencyAnalysisInfo}
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
 import viper.silver.verifier.AbstractError
@@ -36,14 +37,14 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       case member: vpr.Member =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
         member.withMeta((member.pos, newInfo, member.errT))
-      case stmt: vpr.Stmt =>
+      case stmt: vpr.Stmt if stmt.info.getUniqueInfo[FrontendDependencyAnalysisInfo].isEmpty =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)
         val annotationInfo = getAnnotationInfo(depInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, stmt.info) else stmt.info
-        val finalInfo = if(annotationInfo.isDefined)  MakeInfoPair(annotationInfo.get, newInfo) else newInfo
+        val finalInfo = if(annotationInfo.isDefined) MakeInfoPair(annotationInfo.get, newInfo) else newInfo
         stmt.withMeta(stmt.pos, finalInfo, stmt.errT)
-      case exp: vpr.Exp =>
+      case exp: vpr.Exp if exp.info.getUniqueInfo[FrontendDependencyAnalysisInfo].isEmpty =>
         val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)
         val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, exp.info) else exp.info
@@ -111,5 +112,20 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
     }
     else None
+  }
+}
+
+object DependencyAnalysisAnnotationTransformer {
+  def addDependencyAnalysisAnnotations(node: vpr.Method, info: vpr.Info): vpr.Method = {
+    ViperStrategy.Slim({
+      case stmt: vpr.Stmt =>
+        val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
+        val finalInfo = if(sourceInfo.isDefined) MakeInfoPair(info, sourceInfo.get) else info
+        stmt.withMeta(stmt.pos, finalInfo, stmt.errT)
+      case exp: vpr.Exp =>
+        val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
+        val finalInfo = if(sourceInfo.isDefined) MakeInfoPair(info, sourceInfo.get) else info
+        exp.withMeta(exp.pos, finalInfo, exp.errT)
+    }).forceCopy().execute(node)
   }
 }

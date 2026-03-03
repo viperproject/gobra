@@ -36,7 +36,16 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     ViperStrategy.Slim({
       case member: vpr.Member =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
-        member.withMeta((member.pos, newInfo, member.errT))
+        if(member.info.getUniqueInfo[Verifier.Info].isDefined){
+          val sourceInfo = member.info.getUniqueInfo[Verifier.Info]
+          val depInfo = getDependencyAnalysisInfo(sourceInfo)
+          val annotationInfo = getAnnotationInfo(depInfo)
+          val newInfo2 = if(depInfo.isDefined) MakeInfoPair(depInfo.get, newInfo) else newInfo
+          val finalInfo = if(annotationInfo.isDefined) MakeInfoPair(annotationInfo.get, newInfo2) else newInfo2
+          member.withMeta(member.pos, finalInfo, member.errT)
+        }else{
+          member.withMeta((member.pos, newInfo, member.errT))
+        }
       case stmt: vpr.Stmt if stmt.info.getUniqueInfo[FrontendDependencyAnalysisInfo].isEmpty =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
         val depInfo = getDependencyAnalysisInfo(sourceInfo)

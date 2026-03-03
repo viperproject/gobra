@@ -71,6 +71,9 @@ object GobraDependencyAnalysisAggregator {
         case _: PInvoke => DependencyType.MethodCall
         case _: PParameter | _: PResult => DependencyType.Internal
         case _: PExplicitGhostStatement | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
+        case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
+        case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
+        case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)
         case _ => DependencyType.SourceCode
       }
       val allAvailDepTypes = List(dependencyTypeOuter, dependencyType, Some(pNodeDepType)).filter(_.isDefined).flatten
@@ -106,9 +109,7 @@ object GobraDependencyAnalysisAggregator {
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)
-      case PInterfaceType(_, methSpecs, _) => {
-        go(methSpecs)
-      }
+      case PInterfaceType(_, methSpecs, _) => go(methSpecs, Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)))
 
       // constants
       case PConstDecl(specs) => go(specs)

@@ -18,3 +18,10 @@ decreases
 pure func (i I) P2() (res bool) {
     return false
 }
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures b
+decreases
+pure func P3(b bool) (res bool) {
+    return false
+}

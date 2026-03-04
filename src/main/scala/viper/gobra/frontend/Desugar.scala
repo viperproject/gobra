@@ -3974,7 +3974,9 @@ object Desugar extends LazyLogging {
     def varD(ctx: FunctionContext, info: TypeInfo)(id: PIdnNode): in.Expr = {
       require(info.regular(id).isInstanceOf[st.Variable])
       ctx(id, info) match {
-        case Some(v : in.Var) => v
+        case Some(v : in.Var) =>
+          val src = meta(id, info)
+          v.withInfo(src)
         case Some(d@in.Deref(_: in.Var, _)) => d
         case Some(v) => violation(s"expected a variable or the dereference of a pointer but got $v")
         case None => localVarContextFreeD(id, info)

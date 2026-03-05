@@ -39,6 +39,7 @@ trait ViperBackend {
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
     }
 
+    options ++= Vector("--disableTerminationPlugin")
     options
   }
 }

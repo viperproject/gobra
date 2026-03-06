@@ -125,7 +125,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 }
 
 object DependencyAnalysisAnnotationTransformer {
-  def addDependencyAnalysisAnnotations(node: vpr.Method, info: vpr.Info): vpr.Method = {
+  def addDependencyAnalysisAnnotations[T <: vpr.Member](node: T, info: vpr.Info): T = {
     ViperStrategy.Slim({
       case stmt: vpr.Stmt =>
         val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]

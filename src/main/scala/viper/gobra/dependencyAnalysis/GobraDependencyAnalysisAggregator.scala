@@ -70,6 +70,7 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
         case _: PInvoke => DependencyType.MethodCall
         case _: PParameter | _: PResult => DependencyType.Internal
+        case _: PPkgInvariant => DependencyType.Invariant
         case _: PExplicitGhostStatement | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
         case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
         case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
@@ -105,7 +106,7 @@ object GobraDependencyAnalysisAggregator {
       case PProgram(packageClause, pkgInvariants, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ imports ++ friends ++ declarations))
       case PPreamble(packageClause, pkgInvariants, imports, friends, _) => go(packageClause +: (pkgInvariants ++ imports ++ friends))
       case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))
-      case PFriendPkgDecl(_, assertion) => goS(assertion)
+      case PFriendPkgDecl(_, assertion) => goS(assertion, Some(DependencyType.Ghost))
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)

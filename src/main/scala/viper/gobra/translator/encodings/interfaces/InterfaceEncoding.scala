@@ -770,9 +770,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
+    val depAnJoinInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
+    val depAnInfo = SimpleFrontendDependencyAnalysisInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT), DependencyType.make(AssumptionType.CustomInternal))
 
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(info, depAnInfo), errT))
+
+    val newMethodDummy = pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    newMethodDummy.map(res => DependencyAnalysisAnnotationTransformer.addDependencyAnalysisAnnotations(res, depAnInfo))
   }
 
   /**

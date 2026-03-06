@@ -69,9 +69,9 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssert | _: PExhale | _: PRefute => DependencyType.ExplicitAssertion
         case _: PAssume | _: PInhale => DependencyType.ExplicitAssumption
         case _: PInvoke => DependencyType.MethodCall
-        case _: PParameter | _: PResult => DependencyType.Internal
+        case _: PParameter | _: PResult | _: PReceiver => DependencyType.Internal
         case _: PPkgInvariant => DependencyType.Invariant
-        case _: PExplicitGhostStatement | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
+        case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
         case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
         case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
         case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)

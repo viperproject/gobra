@@ -36,14 +36,14 @@ object GobraDependencyAnalysisAggregator {
   private def identifyGobraNodes(pNode: PNode, dependencyTypeOuter: Option[DependencyType]=None)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
 
     def go(pNodes: Iterable[PNode], dependencyType: Option[DependencyType]=None) = {
-      pNodes.flatMap(identifyGobraNodes(_, DependencyType.getMaxPriorityType(dependencyTypeOuter.toSet.union(dependencyType.toSet))))
+      pNodes.flatMap(identifyGobraNodes(_, List(dependencyTypeOuter, dependencyType).find(_.isDefined).flatten))
     }
 
     def goS(pNode: PNode, dependencyType: Option[DependencyType]=None) =
-      identifyGobraNodes(pNode, DependencyType.getMaxPriorityType(dependencyTypeOuter.toSet.union(dependencyType.toSet)))
+      identifyGobraNodes(pNode, List(dependencyTypeOuter, dependencyType).find(_.isDefined).flatten)
 
     def goOpt(pNode: Option[PNode], dependencyType: Option[DependencyType]=None) = {
-      pNode.map(identifyGobraNodes(_, DependencyType.getMaxPriorityType(dependencyTypeOuter.toSet.union(dependencyType.toSet)))).getOrElse(Set.empty)
+      pNode.map(identifyGobraNodes(_, List(dependencyTypeOuter, dependencyType).find(_.isDefined).flatten)).getOrElse(Set.empty)
     }
 
     def goSpec(spec: PFunctionSpec, isAbstractFunction: Boolean) = {
@@ -56,8 +56,7 @@ object GobraDependencyAnalysisAggregator {
 
 
     def goTopLevelConjuncts(pNode: PNode, dependencyType: Option[DependencyType]=None): Set[GobraDependencyAnalysisInfo] = {
-      val depType = DependencyType.getMaxPriorityType(dependencyTypeOuter.toSet.union(dependencyType.toSet))
-
+      val depType = List(dependencyTypeOuter, dependencyType).find(_.isDefined).flatten
       pNode match {
         case PAnd(left, right) => goTopLevelConjuncts(left, depType) ++ goTopLevelConjuncts(right, depType)
         case _ => getGobraDependencyAnalysisInfo(pNode, depType)
@@ -78,7 +77,15 @@ object GobraDependencyAnalysisAggregator {
         case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)
         case _ => DependencyType.SourceCode
       }
-      DependencyType.getMaxPriorityType(dependencyTypeOuter.toSet.union(dependencyType.toSet).union(Set(pNodeDepType))).get
+      val allAvailDepTypes = List(dependencyTypeOuter, dependencyType, Some(pNodeDepType)).filter(_.isDefined).flatten
+      val assertionType = allAvailDepTypes.head.assertionType
+      val availAssumptionTypes = allAvailDepTypes.map(_.assumptionType)
+      if(availAssumptionTypes.contains(AssumptionType.Explicit)){
+        DependencyType(AssumptionType.Explicit, assertionType)
+      }else if(availAssumptionTypes.contains(AssumptionType.Internal))
+        DependencyType(AssumptionType.Internal, assertionType)
+      else
+        allAvailDepTypes.head
     }
 
     def getGobraDependencyAnalysisInfo(pNode: PNode, dependencyType: Option[DependencyType]=None): Set[GobraDependencyAnalysisInfo] = {

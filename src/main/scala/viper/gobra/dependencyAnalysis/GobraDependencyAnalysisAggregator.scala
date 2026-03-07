@@ -48,19 +48,8 @@ object GobraDependencyAnalysisAggregator {
       pNode.map(identifyGobraNodes(_, dependencyType)).getOrElse(Set.empty)
     }
 
-    def getPostcondType(isAbstractFunction: Boolean, dependencyType: Option[DependencyType]=dependencyTypeOuter) = {
-      dependencyType.map(_.assertionType match {
-        case AssumptionType.Explicit | AssumptionType.ExplicitPostcondition => AssumptionType.ExplicitPostcondition
-        case AssumptionType.Ghost | AssumptionType.ImplicitPostcondition  => AssumptionType.ImplicitPostcondition
-        case AssumptionType.Internal => AssumptionType.Internal
-        case AssumptionType.CustomInternal => AssumptionType.CustomInternal
-      }).getOrElse(
-        if(isAbstractFunction) AssumptionType.ExplicitPostcondition else AssumptionType.ImplicitPostcondition
-      )
-    }
-
     def goSpec(spec: PFunctionSpec, isAbstractFunction: Boolean, dependencyType: Option[DependencyType]=dependencyTypeOuter) = {
-      val postCondType = getPostcondType(isAbstractFunction, dependencyType)
+      val postCondType = AssumptionType.getPostcondType(isAbstractFunction, dependencyType)
       spec.pres.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Precondition)))) ++
         spec.preserves.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, postCondType)))) ++
         spec.posts.flatMap(goTopLevelConjuncts(_, Some(DependencyType.make(postCondType)))) ++

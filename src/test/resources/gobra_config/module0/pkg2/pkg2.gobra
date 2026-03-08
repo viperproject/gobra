@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// we overwrite the default job configuration such that
+// overflows are not checked in the following program.
+
+package pkg2
+
+import "pkg1"
+
+func UncheckedOverflow(i int) (res int) {
+    res = i + pkg1.GetLargeNumber()
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+    return
+}

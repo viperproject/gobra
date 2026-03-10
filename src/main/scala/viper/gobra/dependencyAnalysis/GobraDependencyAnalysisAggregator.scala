@@ -29,11 +29,14 @@ object GobraDependencyAnalysisAggregator {
    */
   def identifyGobraNodes(typeInfo: TypeInfo): Iterable[GobraDependencyAnalysisInfo] = {
     val positionManager = typeInfo.tree.originalRoot.positions
-    identifyGobraNodes(typeInfo.tree.originalRoot)(positionManager)
+    val importedNodes = typeInfo.getTransitiveTypeInfos(includeThis=false).filterNot(_.pkgName.name.equals("builtin")).flatMap(pkg =>
+      identifyGobraNodes(pkg.getTypeInfo.tree.originalRoot)(pkg.getTypeInfo.tree.originalRoot.positions, isImported=true)
+    )
+    identifyGobraNodes(typeInfo.tree.originalRoot)(positionManager, isImported=false) ++ importedNodes
   }
 
 
-  private def identifyGobraNodes(pNode: PNode, dependencyTypeOuter: Option[DependencyType]=None)(implicit positionManager: PositionManager): Iterable[GobraDependencyAnalysisInfo] = {
+  private def identifyGobraNodes(pNode: PNode, dependencyTypeOuter: Option[DependencyType]=None)(implicit positionManager: PositionManager, isImported: Boolean): Iterable[GobraDependencyAnalysisInfo] = {
 
     val outerOrPathCondition = dependencyTypeOuter.orElse(Some(DependencyType.PathCondition))
 
@@ -49,7 +52,7 @@ object GobraDependencyAnalysisAggregator {
     }
 
     def goSpec(spec: PFunctionSpec, isAbstractFunction: Boolean, dependencyType: Option[DependencyType]=dependencyTypeOuter) = {
-      val postCondType = AssumptionType.getPostcondType(isAbstractFunction, dependencyType)
+      val postCondType = AssumptionType.getPostcondType(isAbstractFunction, dependencyType, isImported)
       spec.pres.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Precondition)))) ++
         spec.preserves.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, postCondType)))) ++
         spec.posts.flatMap(goTopLevelConjuncts(_, Some(DependencyType.make(postCondType)))) ++
@@ -82,6 +85,7 @@ object GobraDependencyAnalysisAggregator {
           case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
           case _: PInvoke => DependencyType.MethodCall
           case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
+          case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)
           case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
           case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
           case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)

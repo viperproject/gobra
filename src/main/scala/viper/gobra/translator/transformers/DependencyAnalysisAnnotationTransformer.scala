@@ -1,5 +1,6 @@
 package viper.gobra.translator.transformers
 
+import org.bitbucket.inkytonik.kiama.util
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
@@ -18,7 +19,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private lazy val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
   private lazy val gNodes = gobraNodes.map(n => ((n.getPNode, n.getPosition), n)).toMap
-  private val positions = typeInfo.tree.root.positions.positions
+  private val allTypeInfos = typeInfo.getTransitiveTypeInfos().filterNot(_.pkgName.name.contains("builtin")).map(typeInfos => typeInfos.getTypeInfo)
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     if(!config.enableDependencyAnalysis) return Right(task)
@@ -68,11 +69,12 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private def getDependencyAnalysisInfo(pNode: PNode): Option[GobraDependencyAnalysisInfo] = {
     try {
+      val typeInfoToUse = allTypeInfos.filter(_.tree.root.positions.positions.getStart(pNode).isDefined).head
       var pNodes = Vector(pNode)
-      var gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN))))
+      var gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN, typeInfoToUse))))
       while (pNodes.nonEmpty && gNodeCandidates.isEmpty) {
-        pNodes = pNodes.flatMap(node => typeInfo.tree.parent(node))
-        gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN))))
+        pNodes = pNodes.flatMap(node => typeInfoToUse.tree.parent(node))
+        gNodeCandidates = pNodes.flatMap(pN => gNodes.get((pN, getPosition(pN, typeInfoToUse))))
       }
 
       gNodeCandidates.headOption
@@ -83,10 +85,11 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
 
   // TODO ake: duplicate! (see GobraDependencyAnalysisAggregator)
-  private def getPosition(pNode: PNode): TranslatedPosition = {
-    val start = positions.getStart(pNode).get
-    val end = positions.getFinish(pNode).get
-    val sourcePosition = TranslatedPosition(typeInfo.tree.root.positions.translate(start, end))
+  private def getPosition(pNode: PNode, typeInfoToUse: TypeInfo): TranslatedPosition = {
+    val positions = typeInfoToUse.tree.originalRoot.positions
+    val start = positions.positions.getStart(pNode).get
+    val end = positions.positions.getFinish(pNode).get
+    val sourcePosition = TranslatedPosition(positions.translate(start, end))
     sourcePosition
   }
 

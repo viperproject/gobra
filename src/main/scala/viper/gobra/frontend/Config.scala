@@ -86,6 +86,7 @@ object ConfigDefaults {
   val DefaultStartDependencyAnalysisTool: Boolean = false
   val DefaultEnableUnsatCores: Boolean = false
   val DefaultDisableTerminationPlugin: Boolean = false
+  val DefaultNumberOfErrorsToReport: Option[Int] = None
   val DefaultDependencyAnalysisExportPath: Option[String] = None
 }
 
@@ -203,6 +204,7 @@ case class Config(
                    startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
                    enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
                    disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
+                   numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
                    dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath
 ) {
 
@@ -275,6 +277,7 @@ case class Config(
       startDependencyAnalysisTool = startDependencyAnalysisTool || other.startDependencyAnalysisTool,
       enableUnsatCores = enableUnsatCores || other.enableUnsatCores,
       disableTerminationPlugin = disableTerminationPlugin || other.disableTerminationPlugin,
+      numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
       dependencyAnalysisExportPath = dependencyAnalysisExportPath orElse other.dependencyAnalysisExportPath,
     )
   }
@@ -344,6 +347,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
                       enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
                       disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
+                      numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
                       dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath,
                      ) {
   def shouldParse: Boolean = true
@@ -414,6 +418,7 @@ trait RawConfig {
     startDependencyAnalysisTool = baseConfig.startDependencyAnalysisTool,
     enableUnsatCores = baseConfig.enableUnsatCores,
     disableTerminationPlugin = baseConfig.disableTerminationPlugin,
+    numberOfErrorsToReport = baseConfig.numberOfErrorsToReport,
     dependencyAnalysisExportPath = baseConfig.dependencyAnalysisExportPath,
   )
 }
@@ -972,6 +977,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val numberOfErrorsToReport: ScallopOption[Int] = opt[Int](
+    name = "numberOfErrorsToReport",
+    descr = "Number of errors per member before the verifier stops. If this number is set to 0, all errors are reported.",
+    default = ConfigDefaults.DefaultNumberOfErrorsToReport,
+    noshort = true
+  )
+
   val dependencyAnalysisExportPath: ScallopOption[String] = opt[String](
     name = "dependencyAnalysisExportPath",
     descr = "Dependency analysis: destination path of the exported graph",
@@ -1196,6 +1208,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     startDependencyAnalysisTool = startDependencyAnalysisTool(),
     enableUnsatCores = enableUnsatCores(),
     disableTerminationPlugin = disableTerminationPlugin(),
+    numberOfErrorsToReport = numberOfErrorsToReport.toOption,
     dependencyAnalysisExportPath = dependencyAnalysisExportPath.toOption,
   )
 }

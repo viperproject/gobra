@@ -101,6 +101,9 @@ trait SiliconBasedBackend extends ViperBackend {
     if(config.disableTerminationPlugin){
       options ++= Vector("--disableTerminationPlugin")
     }
+    if(config.numberOfErrorsToReport.isDefined){
+      options ++= Vector(s"--numberOfErrorsToReport=${config.numberOfErrorsToReport.get}")
+    }
     if(config.dependencyAnalysisExportPath.isDefined){
       options ++= Vector("--dependencyAnalysisExportPath", config.dependencyAnalysisExportPath.get)
     }

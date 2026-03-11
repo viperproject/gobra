@@ -72,7 +72,10 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssert | _: PExhale | _: PRefute => Some(DependencyType.ExplicitAssertion)
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
         case _: PParameter | _: PResult | _: PReceiver => Some(DependencyType.Internal)
+        case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => Some(DependencyType.Rewrite)
         case _: PPkgInvariant => Some(DependencyType.Invariant)
+        case _: PExplicitGhostStatement => Some(DependencyType.Ghost)
+        case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => Some(DependencyType.Annotation)
         case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition))
         case m: PMethodDecl if m.body.isDefined   => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
         case f: PFunctionDecl if f.body.isDefined => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
@@ -86,10 +89,7 @@ object GobraDependencyAnalysisAggregator {
         dependencyType.get
       else
         pNode match {
-          case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
           case _: PInvoke => DependencyType.MethodCall
-          case _: PExplicitGhostStatement => DependencyType.Ghost
-          case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Annotation
           case _: PActualStatement => DependencyType.SourceCode
           case _ => DependencyType.SourceCode
         }
@@ -114,7 +114,7 @@ object GobraDependencyAnalysisAggregator {
       case PProgram(packageClause, pkgInvariants, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ imports ++ friends ++ declarations))
       case PPreamble(packageClause, pkgInvariants, imports, friends, _) => go(packageClause +: (pkgInvariants ++ imports ++ friends))
       case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))
-      case PFriendPkgDecl(_, assertion) => goS(assertion, Some(DependencyType.Ghost))
+      case PFriendPkgDecl(_, assertion) => goS(assertion, Some(DependencyType.Annotation))
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)

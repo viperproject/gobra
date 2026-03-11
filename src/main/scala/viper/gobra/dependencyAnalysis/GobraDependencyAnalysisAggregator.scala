@@ -73,6 +73,10 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
         case _: PParameter | _: PResult | _: PReceiver => Some(DependencyType.Internal)
         case _: PPkgInvariant => Some(DependencyType.Invariant)
+        case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition))
+        case m: PMethodDecl if m.body.isDefined   => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
+        case f: PFunctionDecl if f.body.isDefined => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
+        case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition))
         case _ => None
       }
 
@@ -84,11 +88,8 @@ object GobraDependencyAnalysisAggregator {
         pNode match {
           case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
           case _: PInvoke => DependencyType.MethodCall
-          case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
-          case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)
-          case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
-          case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
-          case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)
+          case _: PExplicitGhostStatement => DependencyType.Ghost
+          case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Annotation
           case _: PActualStatement => DependencyType.SourceCode
           case _ => DependencyType.SourceCode
         }
@@ -149,7 +150,7 @@ object GobraDependencyAnalysisAggregator {
         goS(range, outerOrPathCondition) ++ go(ass, outerOrPathCondition) ++ goS(spec) ++ goS(body)
       case PShortForRange(range, shorts, _, spec, body) =>
         goS(range, outerOrPathCondition) ++ go(shorts, outerOrPathCondition) ++ goS(spec) ++ goS(body)
-      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))) ++ goOpt(terminationMeasure, Some(DependencyType.Invariant))
+      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))) ++ goOpt(terminationMeasure, Some(DependencyType.Annotation))
 
       // switch-case, match TODO ake: should matched expr be a dependency of all clauses?
       case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ goS(exp, outerOrPathCondition) ++ go(cases ++ dflt)

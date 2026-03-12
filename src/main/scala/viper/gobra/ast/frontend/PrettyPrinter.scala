@@ -249,6 +249,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showStmt(stmt: PStatement): Doc = stmt match {
     case stmt: PActualStatement => stmt match {
       case n: PConstDecl => showConstDecl(n)
+      case n: PAnnotatedStmt => showAnnot(n.annot) <+> showStmt(n.stmt)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
@@ -456,6 +457,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExprOrType(subExpr)
   }
 
+  def showAnnot(annotation: PAnnotation): Doc =
+    "@" <> annotation.key <> parens(showList(annotation.values.toVector)(text))
+
 
   def showExpr(expr: PExpression): Doc = expr match {
     case expr: PActualExpression => expr match {
@@ -508,6 +512,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMod(left, right) => showSubExpr(expr, left) <+> "%" <+> showSubExpr(expr, right)
       case PDiv(left, right) => showSubExpr(expr, left) <+> "/" <+> showSubExpr(expr, right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
+      case PAnnotatedExp(exp, annot) => parens(showAnnot(annot) <+> showExpr(exp))
       case PLength(expr) => "len" <> parens(showExpr(expr))
       case PCapacity(expr) => "cap" <> parens(showExpr(expr))
       case PMake(typ, args) => "make" <> parens(showList[PExpressionOrType](typ +: args){

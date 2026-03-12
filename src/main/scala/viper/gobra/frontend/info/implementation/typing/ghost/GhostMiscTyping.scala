@@ -42,6 +42,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case _: PAnnotation => noMessages
+
     case ax: PDomainAxiom =>
       assignableTo.errors(exprType(ax.exp), BooleanT, false)(ax) ++ isPureExpr(ax.exp)
 

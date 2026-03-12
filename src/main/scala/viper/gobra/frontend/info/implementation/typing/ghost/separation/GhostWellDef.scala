@@ -77,6 +77,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PEmptyStmt
       |  _: PBlock
       |  _: PSeq
+      |  _: PAnnotatedStmt
       |  _: PExpressionStmt
       |  _: POutline
       | _: PShortForRange
@@ -117,6 +118,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PBitNegation
        | _: PBinaryExp[_,_]
        | _: PUnfolding
+       | _: PAnnotatedExp
        | _: PLength
        | _: PCapacity
        | _: PLiteral

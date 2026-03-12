@@ -72,14 +72,7 @@ object GobraDependencyAnalysisAggregator {
         case _: PAssert | _: PExhale | _: PRefute => Some(DependencyType.ExplicitAssertion)
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
         case _: PParameter | _: PResult | _: PReceiver => Some(DependencyType.Internal)
-        case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => Some(DependencyType.Rewrite)
         case _: PPkgInvariant => Some(DependencyType.Invariant)
-        case _: PExplicitGhostStatement => Some(DependencyType.Ghost)
-        case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => Some(DependencyType.Annotation)
-        case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition))
-        case m: PMethodDecl if m.body.isDefined   => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
-        case f: PFunctionDecl if f.body.isDefined => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
-        case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => Some(DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition))
         case _ => None
       }
 
@@ -90,6 +83,13 @@ object GobraDependencyAnalysisAggregator {
       else
         pNode match {
           case _: PInvoke => DependencyType.MethodCall
+          case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
+          case _: PExplicitGhostStatement => DependencyType.Ghost
+          case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
+          case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)
+          case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
+          case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
+          case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)
           case _: PActualStatement => DependencyType.SourceCode
           case _ => DependencyType.SourceCode
         }
@@ -118,7 +118,7 @@ object GobraDependencyAnalysisAggregator {
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)
-      case PInterfaceType(_, methSpecs, _) => go(methSpecs, Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)))
+      case PInterfaceType(_, methSpecs, _) => go(methSpecs, Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)))
 
       // constants
       case PConstDecl(specs) => go(specs)
@@ -131,7 +131,7 @@ object GobraDependencyAnalysisAggregator {
       case funcSpec: PFunctionSpec => goSpec(funcSpec, !funcSpec.isTrusted)
       case PMethodSig(id, args, result, spec, _) => go(Set(id, result) ++ args) ++ goSpec(spec, isAbstractFunction=true)
       case PResult(params) => go(params)
-      case PExplicitGhostMember(m) => go(Set(m), Some(DependencyType.Ghost))
+      case PExplicitGhostMember(m) => go(Set(m)) // TODO ake: for ghost code Some(DependencyType.Ghost)
       case PImplementationProof(_, _, _, _) => Set.empty
 
       // TODO ake: closures
@@ -181,9 +181,10 @@ object GobraDependencyAnalysisAggregator {
       case PExhale(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssertion))
       case PRefute(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssertion))
 
-      case PExplicitGhostStatement(stmt) => goS(stmt, Some(DependencyType.Ghost))
-      case PMatchStatement(exp, clauses, _) => goS(exp, Some(DependencyType.Ghost)) ++ go(clauses, Some(DependencyType.Ghost))
-      case PMatchStmtCase(pattern, stmts, _) => goS(pattern, Some(DependencyType.Ghost)) ++ go(stmts,Some(DependencyType.Ghost))
+      // TODO ake: for ghost code Some(DependencyType.Ghost)
+      case PExplicitGhostStatement(stmt) => goS(stmt)
+      case PMatchStatement(exp, clauses, _) => goS(exp) ++ go(clauses)
+      case PMatchStmtCase(pattern, stmts, _) => goS(pattern) ++ go(stmts)
 
       // base case: we arrived at a "primitive" statement or expression. This is the granularity level of the analysis.
       // Importantly, we do not iterate over the children of these statements and expressions.

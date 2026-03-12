@@ -218,6 +218,8 @@ sealed trait PGhostifiableStatement extends PActualStatement with PGhostifiable
 
 case class PLabeledStmt(label: PLabelDef, stmt: PStatement) extends PActualStatement with PGhostifiableStatement
 
+case class PAnnotatedStmt(annot: PAnnotation, stmt: PStatement) extends PActualStatement with PGhostifiableStatement
+
 
 sealed trait PSimpleStmt extends PActualStatement
 
@@ -337,6 +339,11 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
 case class POutline(body: PStatement, spec: PFunctionSpec) extends PActualStatement with PProofAnnotation {
   override def nonGhostChildren: Vector[PNode] = Vector(body)
 }
+/**
+  * Annotations
+  */
+
+case class PAnnotation(key: String, values: Seq[String]) extends PGhostMisc
 
 /**
   * Expressions
@@ -350,8 +357,9 @@ sealed trait PExpression extends PNode with PExpressionOrType with PDeferrable
 
 sealed trait PActualExpression extends PExpression
 
-
-
+case class PAnnotatedExp(exp: PExpression, annotation: PAnnotation) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(exp)
+}
 
 sealed trait PBuildIn extends PActualExpression
 

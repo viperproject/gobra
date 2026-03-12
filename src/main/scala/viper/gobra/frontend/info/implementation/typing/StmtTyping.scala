@@ -27,6 +27,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualStmt(stmt: PActualStatement): Messages = stmt match {
 
+    case PAnnotatedStmt(_, _) =>
+      noMessages
     case PConstDecl(decls) => decls flatMap {
       case n@PConstSpec(typ, right, left) =>
         val mayInit = isEnclosingMayInit(n)

@@ -1924,6 +1924,8 @@ object Desugar extends LazyLogging {
 
           case p: PClosureImplProof => closureImplProofD(ctx)(p)
 
+          case n: PAnnotatedStmt => goS(n.stmt)
+
           case _ => ???
         }
       }
@@ -2729,6 +2731,9 @@ object Desugar extends LazyLogging {
           case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
 
           case l: PLiteral => litD(ctx, info)(l)
+
+          case PAnnotatedExp(exp, annot) =>
+            exprD(ctx, info)(exp)
 
           case PUnfolding(acc, op) =>
             val dAcc = specificationD(ctx, info)(acc).asInstanceOf[in.Access]

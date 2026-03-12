@@ -460,6 +460,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
+      case a: PAnnotatedExp => go(a.exp)
       case _: PLet => true // the well-definedness check makes sure that both sub-expressions are pure.
       case _: POld | _: PLabeledOld | _: PBefore => true
       case f: PForall => go(f.body)

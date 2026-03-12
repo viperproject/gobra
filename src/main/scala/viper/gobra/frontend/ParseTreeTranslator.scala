@@ -847,6 +847,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       (for (expr <- ctx.expression().asScala.view) yield visitAssignee(expr)).toVector.at(ctx)
   }
 
+  override def visitStringList(ctx: GobraParser.StringListContext): Vector[PStringLit] =
+    if (!has(ctx)) Vector.empty else
+      (for (str <- ctx.string_().toVector) yield visitNode[PStringLit](str)).at(ctx)
 
   /**
     * Visit a parse tree produced by `GobraParser`.
@@ -1699,6 +1702,23 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector(op : String, e : PExpression) => getUnaryOp(op, ctx)(e).at(ctx)
   }
 
+  override def visitAnnotation(ctx: AnnotationContext): PAnnotation = {
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val params = visitStringList(ctx.stringList()).map(_.lit)
+    PAnnotation(id.name, params).at(ctx)
+  }
+
+  override def visitAnnotatedExpression(ctx: AnnotatedExpressionContext): PAnnotatedExp = {
+    val annot = visitAnnotation(ctx.annotation())
+    val exp = visitNode[PExpression](ctx.expression())
+    PAnnotatedExp(exp, annot).at(ctx)
+  }
+
+  override def visitAnnotatedStatement(ctx: AnnotatedStatementContext): PAnnotatedStmt = {
+    val annot = visitAnnotation(ctx.annotation())
+    val stmt = visitNode[PStatement](ctx.statement())
+    PAnnotatedStmt(annot, stmt).at(ctx)
+  }
 
   override def visitImplication(ctx: ImplicationContext): PExpression = visitBinaryExpr(ctx)
 

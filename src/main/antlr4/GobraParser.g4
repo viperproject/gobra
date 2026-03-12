@@ -191,6 +191,9 @@ singleBackendAnnotation: backendAnnotationEntry L_PAREN listOfValues? R_PAREN;
 backendAnnotationList: singleBackendAnnotation (COMMA singleBackendAnnotation)*;
 backendAnnotation: BACKEND L_BRACKET backendAnnotationList? R_BRACKET eos;
 
+stringList: string_ (COMMA stringList)*;
+annotation: '@' IDENTIFIER L_PAREN stringList? R_PAREN;
+
 specStatement
   : kind=PRE assertion
   | kind=PRESERVES assertion
@@ -340,8 +343,10 @@ expression:
   | UNFOLDING predicateAccess IN expression #unfolding
   | LET shortVarDecl IN expression #let
   | (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
+  | annotatedExpression #annot
   ;
 
+annotatedExpression: annotation expression;
 
 // Added ghost statements
 statement:
@@ -364,6 +369,7 @@ statement:
   | selectStmt
   | specForStmt
   | deferStmt
+  | annotatedStatement
   | closureImplProofStmt;
 
 applyStmt: APPLY expression;
@@ -371,6 +377,8 @@ applyStmt: APPLY expression;
 packageStmt: PACKAGE expression block?;
 
 specForStmt: loopSpec forStmt;
+
+annotatedStatement: annotation eos? statement;
 
 loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
 

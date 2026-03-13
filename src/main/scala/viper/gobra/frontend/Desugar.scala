@@ -4746,6 +4746,8 @@ object Desugar extends LazyLogging {
               case _ => in.SepForall(newVars, newTriggers, newBody)(src)
             }
 
+        case PAnnotatedExp(e, _) => assertionD(ctx, info)(e)
+
         case _ => exprD(ctx, info)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }

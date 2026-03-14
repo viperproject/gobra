@@ -356,6 +356,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     def validExpression(expr: PExpression): PropertyResult = expr match {
       case invoke: PInvoke => failedProp(s"The call must be $expectedCall", !isExpectedCall(invoke))
       case f: PUnfolding => validExpression(f.op)
+      case e: PAnnotatedExp => validExpression(e.exp)
       case _ => failedProp(s"only unfolding expressions and the call $expectedCall is allowed")
     }
 
@@ -404,13 +405,16 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     var numOfImplemetationCalls = 0
 
-    def validStatements(stmts: Vector[PStatement]): PropertyResult =
-      PropertyResult.bigAnd(stmts.map {
+    def validStatements(stmts: Vector[PStatement]): PropertyResult = {
+      def validStatement(stmt: PStatement): PropertyResult = stmt match {
         case _: PUnfold | _: PFold | _: PAssert | _: PRefute | _: PEmptyStmt => successProp
         case _: PAssume | _: PInhale | _: PExhale => failedProp("Assume, inhale, and exhale are forbidden in implementation proofs")
 
         case b: PBlock => validStatements(b.nonEmptyStmts)
         case seq: PSeq => validStatements(seq.nonEmptyStmts)
+
+        case s: PAnnotatedStmt =>
+          validStatement(s.stmt)
 
         case ass: PAssignment =>
           // Right now, we only allow assignments that are used for the one call
@@ -445,7 +449,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
           } else failedProp(s"A return must be one of ${expectedReturns.mkString(", ")}")
 
         case _ => failedProp("Only fold, unfold, assert, and one call to the implementation are allowed")
-      })
+      }
+      PropertyResult.bigAnd(stmts.map(validStatement))
+    }
 
     val bodyHasRightShape = validStatements(body.nonEmptyStmts)
     val notTooManyCalls = {

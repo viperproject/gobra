@@ -193,7 +193,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
       case n@ in.ToInterface(exp, toType) =>
         val (pos, info, errT) = n.vprMeta
-        val dependencyAnalysisEnhancedInfo = MakeInfoPair(info, DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(exp.typ, toType)))
+        val dependencyAnalysisEnhancedInfo = MakeInfoPair(info, DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(exp.typ, toType), DependencyType.make(AssumptionType.CustomInternal)))
         if (Comparability.comparable(exp.typ)(ctx.lookup).isDefined) {
           for {
             dynValue <- goE(exp)
@@ -770,12 +770,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnJoinInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
-    val depAnInfo = SimpleFrontendDependencyAnalysisInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT), DependencyType.make(AssumptionType.CustomInternal))
+    val depAnJoinInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT), DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
 
-
-    val newMethodDummy = pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnJoinInfo, info), errT))
-    newMethodDummy.map(res => DependencyAnalysisAnnotationTransformer.addDependencyAnalysisAnnotations(res, depAnInfo))
+    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnJoinInfo, info), errT))
   }
 
   /**
@@ -823,11 +820,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnJoinInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT))
-    val depAnInfo = SimpleFrontendDependencyAnalysisInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT), DependencyType.make(AssumptionType.CustomInternal))
+    val depAnJoinInfo = DependencyAnalysisJoinNodeInfo(ImplementationProofSourceInfo(p.receiver.typ, p.superT), DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition))
 
-    val newMethodDummy = methodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnJoinInfo, info), errT))
-    newMethodDummy.map(res => DependencyAnalysisAnnotationTransformer.addDependencyAnalysisAnnotations(res, depAnInfo))
+    methodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, MakeInfoPair(depAnJoinInfo, info), errT))
   }
 
 
@@ -867,8 +862,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
 
-    val (pos, info, errT) = src.vprMeta
-    changedFuncs.withMeta(pos, info, errT)
+//    val (pos, info, errT) = src.vprMeta
+    changedFuncs.withMeta(exp.pos, exp.info, exp.errT) // TODO ake: clarify
   }
 
   private def proofName(subType: in.Type, subProxy: in.MemberProxy, supperProxy: in.MemberProxy): String =

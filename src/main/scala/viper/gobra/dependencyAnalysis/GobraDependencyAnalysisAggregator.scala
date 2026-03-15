@@ -132,7 +132,7 @@ object GobraDependencyAnalysisAggregator {
       case PMethodSig(id, args, result, spec, _) => go(Set(id, result) ++ args) ++ goSpec(spec, isAbstractFunction=true)
       case PResult(params) => go(params)
       case PExplicitGhostMember(m) => go(Set(m)) // TODO ake: for ghost code Some(DependencyType.Ghost)
-      case PImplementationProof(_, _, _, _) => Set.empty
+      case PImplementationProof(_, _, _, methodImplProofs) => go(methodImplProofs)
 
       // TODO ake: closures
       case PClosureDecl(args, result, spec, body) => go(args ++ Set(result)) ++ goOpt(body.map(_._2)) ++ goSpec(spec, body.isEmpty)

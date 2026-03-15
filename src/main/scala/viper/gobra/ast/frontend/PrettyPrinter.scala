@@ -775,6 +775,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case c: PMatchExpDefault => showMatchExpClause(c)
       case c: PMatchExpCase => showMatchExpClause(c)
       case a: PBackendAnnotation => showBackendAnnotation(a)
+      case a: PAnnotation => showAnnot(a)
     }
   }
 

@@ -100,8 +100,8 @@ object CGEdgesTerminationTransform extends InternalTransform {
                             .zip(m.args).toMap
                             .updated(implMethRecv, in.TypeAssertion(m.receiver, subT)(src))
                         val presToAssume = implMethPres.map(_.replace(substs))
-                        val assumesImplPres = presToAssume.map[in.Stmt](in.Assume(_)(src))
                         val annotatedSrc = annotateWithTerminationError(implMethTerm.headOption.map(_.info).getOrElse(src))
+                        val assumesImplPres = presToAssume.map[in.Stmt](in.Assume(_)(annotatedSrc))
                         // looking at a concrete implementation of the method
                         in.If(
                           in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(subT)(src))(src),

@@ -17,7 +17,7 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.translator.util.PrimitiveGenerator
-import viper.gobra.util.Computation
+import viper.gobra.util.{BackendAnnotation, Computation}
 import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
@@ -502,7 +502,7 @@ class BuiltInEncoding extends Encoding {
         )
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector.empty, None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector(BackendAnnotation("enableDependencyAnalysis", Vector("false"))), None)(src)
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
@@ -606,7 +606,7 @@ class BuiltInEncoding extends Encoding {
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postUpdate, postSame)
 
-        in.Function(x.name, args, results, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector.empty, None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.NonItfMethodWildcardMeasure(None)(src)), Vector(BackendAnnotation("enableDependencyAnalysis", Vector("false"))), None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }

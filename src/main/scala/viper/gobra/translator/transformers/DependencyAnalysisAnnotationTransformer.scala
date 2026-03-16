@@ -103,8 +103,21 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
     if(sourceInfo.isDefined && sourceFileOpt.exists(s => !s.equals("builtin.gobra")))
       pNodeMapper(sourceInfo.get.pnode)
-    else
-      default
+    else {
+      var i = node.info.getUniqueInfo[AnnotationInfo]
+      var break = false
+      while (i.isDefined && !break) {
+        val v = i.get
+        break = v.values.contains("enableDependencyAnalysis") && v.values("enableDependencyAnalysis").contains("false")
+        val updated = v.removeUniqueInfo[AnnotationInfo]
+        i = updated.getUniqueInfo[AnnotationInfo]
+      }
+      if (break) {
+        println(s"node has info: $node")
+        node.info
+      } else
+        default
+    }
   }
 
   private def getNewInfo(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
@@ -116,14 +129,38 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     AnnotationInfo(Map(("enableDependencyAnalysis", List("false"))))
   }
 
-  private def getAnnotationInfo(gobraDependencyAnalysisInfo: Option[GobraDependencyAnalysisInfo]): Option[AnnotationInfo] = {
+  private def getAnnotationInfo(gobraDependencyAnalysisInfo: Option[GobraDependencyAnalysisInfo], infoOpt: Option[Verifier.Info] = None): Option[AnnotationInfo] = {
     if(gobraDependencyAnalysisInfo.isEmpty) return None
     val depTypeOpt = gobraDependencyAnalysisInfo.get.dependencyType
-    if(depTypeOpt.isDefined){
-      val depType = depTypeOpt.get
-      Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
+
+    infoOpt match {
+      case None =>
+        if (depTypeOpt.isDefined) {
+          val depType = depTypeOpt.get
+          Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
+        }
+        else None
+
+      case Some(info) =>
+        // TODO: very hacky; ideally, we merge the lists of annotations when enableDependencyAnalysis(false) is not already there
+        var i = info.getUniqueInfo[AnnotationInfo]
+        var break = false
+        while (i.isDefined && !break) {
+          val v = i.get
+          break = v.values.contains("enableDependencyAnalysis") && v.values("enableDependencyAnalysis").contains("false")
+          val updated = v.removeUniqueInfo[AnnotationInfo]
+          i = updated.getUniqueInfo[AnnotationInfo]
+        }
+        if (break) {
+          Some(disableDependencyAnalysis)
+        } else {
+          if (depTypeOpt.isDefined) {
+            val depType = depTypeOpt.get
+            Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
+          }
+          else None
+        }
     }
-    else None
   }
 }
 

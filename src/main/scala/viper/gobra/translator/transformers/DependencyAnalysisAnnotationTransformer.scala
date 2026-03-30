@@ -1,6 +1,5 @@
 package viper.gobra.translator.transformers
 
-import org.bitbucket.inkytonik.kiama.util
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
@@ -9,9 +8,9 @@ import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
-import viper.silicon.dependencyAnalysis.{DependencyType, FrontendDependencyAnalysisInfo}
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
+import viper.silver.dependencyAnalysis.FrontendDependencyAnalysisInfo
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 

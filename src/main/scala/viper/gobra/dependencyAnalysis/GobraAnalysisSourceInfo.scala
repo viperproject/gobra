@@ -2,8 +2,8 @@ package viper.gobra.dependencyAnalysis
 
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.internal.Type
-import viper.silicon.dependencyAnalysis.AnalysisSourceInfo
 import viper.silver.ast.{NoPosition, Position}
+import viper.silver.dependencyAnalysis.AnalysisSourceInfo
 
 case class GobraAnalysisSourceInfo(pNode: PNode, pos: Position) extends AnalysisSourceInfo {
   override def toString: String = getDescription + " (" + super.toString + ")"

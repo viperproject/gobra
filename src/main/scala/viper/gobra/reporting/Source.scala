@@ -11,10 +11,10 @@ import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend, internal}
 import viper.gobra.dependencyAnalysis.GobraAnalysisSourceInfo
 import viper.gobra.util.Violation
-import viper.silicon.dependencyAnalysis.{AnalysisSourceInfo, DependencyType, FrontendDependencyAnalysisInfo}
-import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
 import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
+import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
+import viper.silver.dependencyAnalysis.{AnalysisSourceInfo, DependencyType, FrontendDependencyAnalysisInfo}
 import viper.silver.{ast => vpr}
 
 import java.nio.file.Paths

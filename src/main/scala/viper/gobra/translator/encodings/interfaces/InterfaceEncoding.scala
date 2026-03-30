@@ -16,12 +16,11 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
-import viper.gobra.translator.transformers.DependencyAnalysisAnnotationTransformer
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
-import viper.silicon.dependencyAnalysis.{AssumptionType, DependencyAnalysisJoinNodeInfo, DependencyType, SimpleFrontendDependencyAnalysisInfo}
 import viper.silver.ast.MakeInfoPair
+import viper.silver.dependencyAnalysis.{AssumptionType, DependencyAnalysisJoinNodeInfo, DependencyType}
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}

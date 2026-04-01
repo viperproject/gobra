@@ -10,6 +10,7 @@ type Once interface {
     pred invBefore()
     pred invAfter(n int)
 
+    decreases _
     ghost pure res(n int)int
 }
 

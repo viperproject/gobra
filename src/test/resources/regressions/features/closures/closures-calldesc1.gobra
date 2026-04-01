@@ -16,6 +16,7 @@ type Calls interface {
     pure called(x int)bool
     
     // This describes the properties of the result
+    decreases _
     ghost pure res(x int, res int)bool
 }
 

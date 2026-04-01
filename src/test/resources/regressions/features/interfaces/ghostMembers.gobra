@@ -4,6 +4,7 @@
 package pkg
 
 type someInterface interface {
+    decreases
     ghost pure getValue() int
 }
 

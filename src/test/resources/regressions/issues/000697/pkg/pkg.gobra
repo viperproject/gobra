@@ -10,6 +10,7 @@ type Calls interface {
 ghost
 requires cs != nil
 preserves cs.inv()
+decreases
 func ClosureSpec(ghost cs Calls) (res int)
 
 requires fn implements ClosureSpec{cs}

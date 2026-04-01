@@ -9,6 +9,7 @@ pure func foo1(x int) int {
 }
 
 pure
+decreases
 func foo2(x int) int {
   return x
 }
@@ -16,6 +17,7 @@ func foo2(x int) int {
 pure
 requires x > 0
 ensures  y > 0
+decreases
 func foo3(x int) (y int) {
   return x
 }
@@ -24,6 +26,7 @@ func foo3(x int) (y int) {
 requires x > 0
 pure
 ensures  y > 0
+decreases
 func foo4(x int) (y int) {
   return x
 }
@@ -31,6 +34,7 @@ func foo4(x int) (y int) {
 requires x > 0
 ensures  y > 0
 pure
+decreases
 func foo5(x int) (y int) {
   return x
 }
@@ -50,6 +54,7 @@ pure func (m *myInt) foo7(x int) int {
 }
 
 pure
+decreases
 func (m *myInt) foo8(x int) int {
   return x
 }
@@ -57,6 +62,7 @@ func (m *myInt) foo8(x int) int {
 pure
 requires x > 0
 ensures  y > 0
+decreases
 func (m *myInt) foo9(x int) (y int) {
   return x
 }
@@ -65,6 +71,7 @@ func (m *myInt) foo9(x int) (y int) {
 requires x > 0
 pure
 ensures  y > 0
+decreases
 func (m *myInt) foo10(x int) (y int) {
   return x
 }
@@ -72,6 +79,7 @@ func (m *myInt) foo10(x int) (y int) {
 requires x > 0
 ensures  y > 0
 pure
+decreases
 func (m *myInt) foo11(x int) (y int) {
   return x
 }

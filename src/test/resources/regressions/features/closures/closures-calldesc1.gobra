@@ -24,6 +24,7 @@ ghost
 requires x >= 0 && cs != nil && cs.inv()
 ensures cs.inv() && cs.called(x) && cs.res(x, res)
 ensures forall x int :: old(cs.called(x)) ==> cs.called(x)
+decreases
 func spec(ghost cs Calls, x int) (res int)
 
 requires f implements spec{cs}

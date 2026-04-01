@@ -3,6 +3,7 @@
 
 package main
 
+decreases _
 pure func foo1(x int) int {
   return x
 }
@@ -36,12 +37,14 @@ func foo5(x int) (y int) {
 
 requires x > 0
 ensures  y > 0
+decreases _
 pure func foo6(x int) (y int) {
   return x
 }
 
 type myInt int
 
+decreases _
 pure func (m *myInt) foo7(x int) int {
   return x
 }
@@ -75,6 +78,7 @@ func (m *myInt) foo11(x int) (y int) {
 
 requires x > 0
 ensures  y > 0
+decreases _
 pure func (m *myInt) foo12(x int) (y int) {
   return x
 }

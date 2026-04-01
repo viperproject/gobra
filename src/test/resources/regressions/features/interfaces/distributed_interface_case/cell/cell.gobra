@@ -8,6 +8,7 @@ type cell struct { v int }
 // implementation of cell
 requires acc(c, 1/2)
 ensures res == c.v
+decreases _
 pure func (c *cell) GetVal() (res int) {
     return c.v
 }

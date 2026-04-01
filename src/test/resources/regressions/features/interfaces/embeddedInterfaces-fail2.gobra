@@ -28,6 +28,7 @@ func (x test) g()
 
 // Rejected: method without a termination measure tries to implement method with termination measure
 //:: ExpectedOutput(type_error)
+decreases _
 pure func (x test) h() int
 
 test implements foo

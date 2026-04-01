@@ -3,6 +3,7 @@
 
 package pkg;
 
+decreases _
 pure func test(a int)(res int){
     return a+1
 }

@@ -73,4 +73,5 @@ ghost
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 ensures len(s) == len(xs)
 ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
+decreases _
 pure func toseq (s []int) (xs seq[int])

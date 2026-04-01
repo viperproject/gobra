@@ -3,6 +3,7 @@
 
 package pkg;
 
+decreases _
 pure func foo (n int) bool
 
 requires forall i int :: { foo(i) } 0 < i

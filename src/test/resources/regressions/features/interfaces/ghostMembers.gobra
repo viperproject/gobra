@@ -15,6 +15,7 @@ type someImplementation struct {
 someImplementation implements someInterface
 
 ghost
+decreases _
 pure func (impl someImplementation) getValue() int {
     return impl.value
 }

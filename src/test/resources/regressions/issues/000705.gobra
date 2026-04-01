@@ -16,6 +16,7 @@ pred (l *ListEntry) List() {
 
 ghost
 requires acc(l.List(), _)
+decreases _
 pure func (l *ListEntry) Elems() (res seq[int]) {
     return unfolding acc(l.List(), _) in (
         l.next == nil ? seq[int]{ l.value } :

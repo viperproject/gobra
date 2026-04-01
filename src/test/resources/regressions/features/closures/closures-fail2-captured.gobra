@@ -22,6 +22,7 @@ func test2() {
     cl :=
         //:: ExpectedOutput(type_error)   
         requires acc(&x)
+        decreases _
         pure func(n int)int {
             return n + x
         }
@@ -43,6 +44,7 @@ func test4() {
     // x is not addressable
 
     cl :=
+        decreases _
         pure func(n int)int {
             //:: ExpectedOutput(type_error)   
             return n + x

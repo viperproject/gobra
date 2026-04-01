@@ -5,19 +5,23 @@
 
 package pkg
 
+decreases _
 pure func parent (i int) int {
   return (i - 1) / 2
 }
 
+decreases _
 pure func leftChild (i int) int {
   return 2 * i + 1
 }
 
+decreases _
 pure func rightChild (i int) int {
   return 2 * i + 2
 }
 
 ghost
+decreases _
 pure func descendant (p int, q int) bool {
   return p == q || (p <= q && descendant(p, parent(q)))
 }
@@ -25,6 +29,7 @@ pure func descendant (p int, q int) bool {
 ghost
 requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
 requires 0 <= start && start <= end && end < len(s)
+decreases _
 pure func heap(s []int, start int, end int) bool {
   return forall i int :: start <= parent(i) && i <= end ==> s[i] <= s[parent(i)]
 }
@@ -32,6 +37,7 @@ pure func heap(s []int, start int, end int) bool {
 ghost
 requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
 requires 0 <= start && start <= end && end < len(s)
+decreases _
 pure func almostHeap(s []int, start, end, wrong int) bool {
   return forall j int :: start <= j && j <= end && start <= parent(j) && wrong != parent(j) ==>
     s[j] <= s[parent(j)]
@@ -41,6 +47,7 @@ ghost
 requires 0 <= pos && pos <= end
 requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
 requires end < len(s)
+decreases _
 pure func validParent(s []int, end, pos int) bool {
   return (leftChild(pos) <= end ==> s[leftChild(pos)] <= s[pos]) && (rightChild(pos) <= end ==>  s[rightChild(pos)] <= s[pos])
 }
@@ -51,6 +58,7 @@ requires 0 <= p && p <= q && q <= end && end < len(xs)
 requires heap(xs, p, end)
 requires descendant(p, q)
 ensures res && xs[q] <= xs[p]
+decreases _
 pure func lemma_descendant_order (xs []int, p int, q int, end int) (res bool) {
   return (p < q ==> descendant(p, parent(q)) && lemma_descendant_order(xs, p, parent(q), end))
 }
@@ -58,6 +66,7 @@ pure func lemma_descendant_order (xs []int, p int, q int, end int) (res bool) {
 ghost
 requires 0 <= n
 ensures res && descendant(0, n)
+decreases _
 pure func lemma_descendant_zero (n int) (res bool) {
   return (0 < n ==> lemma_descendant_zero(parent(n)))
 }
@@ -67,6 +76,7 @@ requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j], _)
 requires 0 <= i && i <= end && end < len(xs)
 requires heap(xs, 0, end)
 ensures res && xs[i] <= xs[0]
+decreases _
 pure func lemma_heap_top (xs []int, i int, end int) (res bool) {
   return (lemma_descendant_zero(i) && lemma_descendant_order(xs, 0, i, end))
 }
@@ -76,6 +86,7 @@ requires 0 <= end && end < len(s)
 requires forall j int :: (0 <= j && j < len(s)) ==> acc(&s[j], _)
 requires heap(s, 0, end)
 ensures res 
+decreases _
 pure func lemma_heap_top_all (s []int, end int) (res bool) {
   return (forall i int :: 0 <= i && i <= end && lemma_heap_top(s, i, end) ==> s[i] <= s[0])
 }

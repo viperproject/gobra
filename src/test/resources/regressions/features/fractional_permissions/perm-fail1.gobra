@@ -94,6 +94,7 @@ func test14() {
 	assert getPerm() == writePerm
 }
 
+decreases _
 ghost pure func getPerm() perm {
 	return 3/4
 }

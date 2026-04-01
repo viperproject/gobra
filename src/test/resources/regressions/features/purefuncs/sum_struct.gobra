@@ -9,6 +9,7 @@ type tripleInt struct {
     c int;
 };
 
+decreases _
 pure func test(t tripleInt) (res int) {
     return t.a + t.b + t.c
 }

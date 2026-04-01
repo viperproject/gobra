@@ -8,4 +8,5 @@ package pkg
 import "pkg2"
 
 requires t.mpred(y)
+decreases _
 pure func f(t* pkg2.T, y int) int

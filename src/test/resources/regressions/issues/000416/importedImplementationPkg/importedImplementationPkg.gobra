@@ -16,6 +16,7 @@ pred (r *Rect) mem() {
 }
 
 requires acc(r, _)
+decreases _
 pure func (r *Rect) Size() bool {
   return r.width >= 0 && r.height >= 0
 }
@@ -27,6 +28,7 @@ func (r *Rect) Area() (ret int) {
 }
 
 (*Rect) implements shape.Shape {
+  decreases _
   pure (r *Rect) Size() bool {
     return unfolding acc(r.mem(), 1/2) in r.Size()
   }

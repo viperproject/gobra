@@ -12,6 +12,7 @@ type Calls interface {
     // This describes properties that must be true if a call happened
     ghost
     requires inv()
+    decreases _
     pure called(x int)bool
     
     // This describes the properties of the result
@@ -41,10 +42,12 @@ type Acc struct { accum *int }
 pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 }
 ghost
 requires self.inv()
+decreases _
 pure func (self Acc) called(x int)bool {
     return unfolding self.inv() in (*self.accum >= x)
 }
 ghost
+decreases _
 pure func (self Acc) res(x int, y int)bool {
     return y >= x
 }

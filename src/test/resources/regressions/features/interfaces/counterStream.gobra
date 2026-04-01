@@ -11,6 +11,7 @@ type stream interface {
     pred mem()
 
     requires acc(mem(), 1/2)
+    decreases _
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -28,6 +29,7 @@ pred counterMem(x *counterImpl.counter) { acc(x) }
 
   pred mem := counterMem
 
+  decreases _
   pure (x *counterImpl.counter) hasNext() bool {
     return unfolding acc(counterMem(x), 1/2) in x.hasNext()
   }

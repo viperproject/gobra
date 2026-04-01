@@ -10,6 +10,7 @@ type foo interface {
 }
 
 type bar interface {
+	decreases _
 	pure g()
 }
 

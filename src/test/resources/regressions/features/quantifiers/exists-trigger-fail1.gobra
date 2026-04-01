@@ -5,6 +5,7 @@
 
 package pkg;
 
+decreases _
 pure func foo() int {
   return 42
 }

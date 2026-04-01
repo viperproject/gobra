@@ -4,11 +4,13 @@
 package pkg
 
 type AnInterface interface {
+    decreases _
     pure getVal() int
 }
 
 type AnImplementation struct {}
 
+decreases _
 pure func (impl *AnImplementation) getVal() int {
     return 42
 }

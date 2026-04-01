@@ -8,6 +8,7 @@ type stream interface {
     pred mem()
 
     requires acc(mem(), 1/2)
+    decreases _
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -20,6 +21,7 @@ type cell interface {
     pred mem()
 
     requires acc(mem(), 1/2)
+    decreases _
     pure value() int
 
     requires acc(mem())
@@ -34,11 +36,13 @@ type cell interface {
 type counter struct{ f, max int }
 
 requires acc(x, 1/2)
+decreases _
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
 
 requires acc(x, 1/2)
+decreases _
 pure func (x *counter) value() int {
   return x.f
 }
@@ -66,6 +70,7 @@ pred counterMem(x *counter) { acc(x) }
 
   pred mem := counterMem
 
+  decreases _
   pure (x *counter) hasNext() bool {
     return unfolding acc(counterMem(x), 1/2) in x.hasNext()
   }
@@ -81,6 +86,7 @@ pred counterMem(x *counter) { acc(x) }
 
   pred mem := counterMem
 
+  decreases _
   pure (x *counter) value() int {
     return unfolding acc(counterMem(x), 1/2) in x.value()
   }

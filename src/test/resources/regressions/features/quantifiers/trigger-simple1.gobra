@@ -15,6 +15,7 @@ requires forall c Cell :: { c.val } 0 < c.val
 requires exists c Cell :: { c.val } 0 < c.val
 func example2 () { }
 
+decreases _
 pure func f(ghost n int) int
 
 requires forall x int :: { f(x) } 0 < x
@@ -25,6 +26,7 @@ requires forall x int :: { f(f(x)) } 0 < x
 requires exists x int :: { f(f(x)) } 0 < x
 func example4 () { }
 
+decreases _
 pure func g(ghost c Cell) int
 
 requires forall c Cell :: { f(g(c)) } 0 < c.val

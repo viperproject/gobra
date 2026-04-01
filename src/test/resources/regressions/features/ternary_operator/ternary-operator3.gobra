@@ -14,6 +14,7 @@ pred list(ptr *node) {
 
 ghost
 requires list(ptr);
+decreases _
 pure func first(ptr *node) (res int) {
   return unfolding list(ptr) in (ptr == nil ? -1 : ptr.value);
 };

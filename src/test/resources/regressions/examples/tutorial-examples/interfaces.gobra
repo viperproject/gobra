@@ -38,6 +38,7 @@ func (x *counter) next() (y interface{}) {
 pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
+	decreases _
 	pure (x *counter) hasNext() bool {
 		return unfolding acc(x.mem(), 1/2) in x.hasNext()
 	}

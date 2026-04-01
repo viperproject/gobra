@@ -12,6 +12,7 @@ package pkg
 type foo interface {
 	//:: ExpectedOutput(type_error)
 	opaque
+	decreases _
 	pure bar() (res int)
 }
 

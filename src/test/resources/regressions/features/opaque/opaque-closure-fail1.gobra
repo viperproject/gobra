@@ -10,6 +10,7 @@ func main() {
 	c := preserves acc(&x)
 		 ensures x == old(x) + n && m == x
 		 opaque
+		 decreases _
 		 pure func f(n int) (m int) {
 			x += n;
 			return x

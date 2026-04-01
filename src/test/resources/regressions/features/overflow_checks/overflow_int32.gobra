@@ -34,10 +34,12 @@ func overflowInt32(i int) (res int) {
 // Pure functions can be checked for overflow
 // does not overflow
 requires x < 5
+decreases _
 pure func overflowPureFunc1(x int8) (int8) {
 	return x + 1
 }
 
+decreases _
 pure func overflowPureFunc2(x int8) (int8) {
 	//:: ExpectedOutput(integer_overflow_error)
 	return x + 1
@@ -50,6 +52,7 @@ func multipleReturns(x int) (int, int) {
 }
 
 // Abstract functions are not checked by default
+decreases _
 pure func abstractFunc(x int) (int)
 
 type rect struct {
@@ -62,6 +65,7 @@ func (r rect) area() int {
     return r.width * r.height
 }
 
+decreases _
 pure func (r rect) perim() int {
 	//:: ExpectedOutput(integer_overflow_error)
     return 2 * r.width + 2 * r.height

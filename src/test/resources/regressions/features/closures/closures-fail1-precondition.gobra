@@ -5,6 +5,7 @@ package closuresFail1Precondition
 
 func test1() {
     cl := requires n >= 0
+          decreases _
           pure func s(n int)int {
               return n + 1
           }
@@ -28,6 +29,7 @@ func test2() {
 func test3() {
     x@ := 0
     cl := requires acc(&x) && x >= 0
+          decreases _
           pure func s()int {
             return x + 1
           }
@@ -84,11 +86,13 @@ func test6() {
 }
 
 ensures res >= 0
+decreases _
 pure func pspec()(res int)
 
 func test7() {
     x@ := 1
     cl := requires acc(&x)
+          decreases _
           pure func s()(res int) {
             return x
           }
@@ -115,6 +119,7 @@ func test8() {
 func test9() {
     x@ := 1
     cl := requires acc(&x)
+          decreases _
           pure func s()(res int) {
             return x
           }

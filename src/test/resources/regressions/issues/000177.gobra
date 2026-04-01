@@ -3,6 +3,7 @@
 
 package pkg
 
+decreases _
 pure func f(p int, q int) bool {
 	return true
 }

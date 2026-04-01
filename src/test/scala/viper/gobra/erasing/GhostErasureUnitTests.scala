@@ -31,6 +31,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     modes.foreach(isPure => {
       val input = s"""
         |package pkg
+        |decreases _
         |ghost ${if (isPure) "pure" else ""} func test() (res bool) {
         | return true
         |}
@@ -52,6 +53,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     modes.foreach(isPure => {
       val input = s"""
         |package pkg
+        |decreases _
         |ghost ${if (isPure) "pure" else ""} func test() (res1 bool, res2 int) {
         | return true, 42
         |}
@@ -134,6 +136,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Ghost Erasure: var decls of inferred ghost type from a pure function call should be erased") {
     val input = s"""
       |package pkg
+      |decreases _
       |pure func test(ghost s seq[int]) (ghost res seq[int]) {
       | return s
       |}
@@ -396,7 +399,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         new PackageInfo("pkg", "pkg", false)
       )
       val tree = new Info.GoTree(pkg)
-      val config = Config(disableCheckTerminationPureFns = true)
+      val config = Config()
       val info = new TypeInfoImpl(tree, Map.empty)(config)
       info.errors match {
         case Vector(msgs) => fail(s"Type-checking failed: $msgs")

@@ -36,7 +36,8 @@ func example7(ghost s set[int], ghost t set[int]) (ghost u set[int]) {
   u = s intersection t
 }
 
+ghost
 decreases
-ghost func example8(s set[int], t set[int]) {
+func example8(s set[int], t set[int]) {
   if (s subset t) { }
 }

@@ -7,8 +7,9 @@ func example1(ghost m1 mset[int], ghost m2 mset[int]) {
   ghost m := m1 union m2
 }
 
+ghost
 decreases
-ghost func example2(m1 mset[int], m2 mset[int]) (m mset[int]) {
+func example2(m1 mset[int], m2 mset[int]) (m mset[int]) {
   m = m1 union m2
 }
 

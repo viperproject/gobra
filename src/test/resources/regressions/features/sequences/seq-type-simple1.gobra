@@ -6,8 +6,9 @@ package pkg
 func example1(ghost xs seq[int]) {
 }
 
+ghost
 decreases
-ghost func example2(xs seq[int]) {
+func example2(xs seq[int]) {
 }
 
 func example3() {

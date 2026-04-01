@@ -3,8 +3,9 @@
 
 package pkg
 
+ghost
 decreases
-ghost func example1(xs seq[int], ys seq[int]) {
+func example1(xs seq[int], ys seq[int]) {
   zs := xs ++ ys
 }
 

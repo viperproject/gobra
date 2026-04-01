@@ -29,8 +29,9 @@ func hof(ghost o Once, f func(int)int)(res int) {
 type OnceID struct { accum *int }
 pred (self OnceID) invBefore() { acc(self.accum) && *self.accum == 0 }
 pred (self OnceID) invAfter(n int) { acc(self.accum) && *self.accum == n }
+ghost
 decreases
-ghost pure func (self OnceID) res(n int)int {
+pure func (self OnceID) res(n int)int {
     return n
 }
 

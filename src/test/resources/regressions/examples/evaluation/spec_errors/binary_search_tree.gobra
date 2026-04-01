@@ -86,7 +86,7 @@ func NewTree() (t *Tree) {
 
 requires acc(t.tree(), _)
 ensures res == unfolding acc(t.tree(), _) in t.root == nil
-decreases _
+decreases
 pure func (t *Tree) IsEmpty() (res bool) {
     return unfolding acc(t.tree(), _) in t.root == nil
 }
@@ -108,7 +108,7 @@ func (t *Tree) Contains(value, dividend int) (res bool) {
 
 ghost
 requires acc(t.tree(), _)
-decreases _
+decreases
 pure func (t *Tree) pureContains(value int) bool {
   return unfolding acc(t.tree(), _) in t.root != nil && value elem t.root.sortedValues(none[int], none[int])
 }

@@ -18,7 +18,7 @@ func test2() {
 
     cl :=
         //:: ExpectedOutput(pure_function_not_well_defined:permission_error)
-        decreases _
+        decreases
         pure func(n int)int {
             return n + x
         }
@@ -41,7 +41,7 @@ func test4() {
     cl :=
         //:: ExpectedOutput(contract_not_well_formed:permission_error)   
         requires x == 0
-        decreases _
+        decreases
         pure func(n int)int {
             return n
         }

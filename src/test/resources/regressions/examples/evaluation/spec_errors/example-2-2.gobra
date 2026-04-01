@@ -8,7 +8,7 @@ type stream interface {
     pred mem()
 
     requires acc(mem(), 1/2)
-    decreases _
+    decreases
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -22,7 +22,7 @@ type stream interface {
 type counter struct{ f, max int }
 
 requires acc(x, 1/2)
-decreases _
+decreases
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
@@ -45,7 +45,7 @@ pred (x *counter) mem() { acc(&x.f) }
 
 (*counter) implements stream {
 
-  decreases _
+  decreases
   pure (x *counter) hasNext() bool {
     //:: ExpectedOutput(precondition_error)
     return unfolding acc(x.mem(), 1/2) in x.hasNext()

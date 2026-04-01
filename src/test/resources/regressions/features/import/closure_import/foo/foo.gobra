@@ -4,18 +4,18 @@
 package foo
 
 type I1 interface {
-    decreases _
+    decreases
     pure getx() int
 }
 
 type S1 struct { x int }
 
-decreases _
+decreases
 pure func (self S1) getx() (r int) {
     return self.x
 }
 
-decreases _
+decreases
 pure func ret2() int {
     return 2
 }
@@ -25,7 +25,7 @@ func p2(x int) (r int) {
     return x + 2
 }
 
-decreases _
+decreases
 pure func p1(x int) (r int) {
     return x + 1
 }

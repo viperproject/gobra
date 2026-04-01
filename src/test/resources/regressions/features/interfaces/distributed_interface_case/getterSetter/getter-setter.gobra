@@ -7,7 +7,7 @@ type GetterSetter interface {
     pred mem()
 
     requires acc(mem(), 1/2)
-    decreases _
+    decreases
     pure GetVal() int
 
     requires mem()

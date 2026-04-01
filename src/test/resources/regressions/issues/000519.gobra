@@ -7,7 +7,7 @@ type I interface {
 	pred Mem()
 
 	requires acc(Mem(), _)
-	decreases _
+	decreases
 	pure Value() int
 
 	ensures i != nil
@@ -25,7 +25,7 @@ pred (s *S) Mem() {
 }
 
 requires acc(s.Mem(), _)
-decreases _
+decreases
 pure func (s *S) Value() int {
 	return unfolding acc(s.Mem(), _) in s.value
 }

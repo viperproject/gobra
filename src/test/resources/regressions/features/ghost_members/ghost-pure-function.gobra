@@ -52,13 +52,13 @@ func bar() {
 }
 
 //:: ExpectedOutput(type_error)
-decreases _
+decreases
 pure func test1(s seq[int]) int { // parameter has to be ghost
     return 1
 }
 
 //:: ExpectedOutput(type_error)
-decreases _
+decreases
 pure func test2(ghost s seq[int]) int { // result has to be ghost
     return len(s)
 }
@@ -68,13 +68,13 @@ func test3(ghost s seq[int]) (ghost res int) {
 }
 
 // this function is fine as parameter and result are implicitly ghost
-decreases _
+decreases
 ghost func test4(s seq[int]) int {
     return len(s)
 }
 
 // this function is fine as parameter and result are implicitly ghost
-decreases _
+decreases
 ghost pure func test5(s seq[int]) int {
     return len(s)
 }

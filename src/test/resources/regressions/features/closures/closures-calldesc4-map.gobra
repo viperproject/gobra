@@ -10,7 +10,7 @@ type Inv interface {
 
     ghost
     requires len(calls) > 0
-    decreases _
+    decreases
     pure res(ghost calls seq[int]) int
 }
 
@@ -23,7 +23,7 @@ ghost
 requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i], _)
 ensures len(s) == len(v)
 ensures forall i int :: i >= 0 && i < len(v) ==> s[i] == v[i]
-decreases _
+decreases len(v)
 pure func toSeq(v []int) (s seq[int]) {
     return len(v) == 0 ? seq[int]{} : (toSeq(v[:len(v)-1]) ++ seq[int]{v[len(v)-1]})
 }
@@ -52,7 +52,7 @@ type Times3 struct{}
 pred (self Times3) inv(ghost seq[int]) { true }
 ghost
 requires len(calls) > 0
-decreases _
+decreases
 pure func (self Times3) res(ghost calls seq[int]) int {
     return calls[len(calls)-1] * 3
 }
@@ -81,7 +81,7 @@ type CntFrom struct { c *int; from int }
 pred (self CntFrom) inv(ghost calls seq[int]) { acc(self.c) && *self.c == self.from + len(calls) }
 ghost
 requires len(calls) > 0
-decreases _
+decreases
 pure func (self CntFrom) res(ghost calls seq[int]) int {
     return self.from + len(calls) - 1
 }
@@ -125,7 +125,7 @@ type Acc struct { s *int; from int }
 pred (self Acc) inv(ghost calls seq[int]) { acc(self.s) && *self.s == seqSum(calls) + self.from }
 ghost
 requires len(calls) > 0
-decreases _
+decreases
 pure func (self Acc) res(ghost calls seq[int]) int {
     return self.from + seqSum(calls)
 }

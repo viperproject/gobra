@@ -4,13 +4,13 @@
 package pkg
 
 ghost
-decreases _
+decreases
 pure func bar(m dict[int]int, idx int) option[int] {
     return idx elem domain(m) ? some(m[idx]) : none[int]
 }
 
 ghost
-decreases _
+decreases
 pure func baz(m dict[int]int, idx int) option[int] {
     return match idx elem domain(m){
         case true:

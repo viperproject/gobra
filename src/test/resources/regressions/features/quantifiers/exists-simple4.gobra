@@ -3,7 +3,7 @@
 
 package pkg;
 
-decreases _
+decreases
 pure func foo (n int) bool
 
 requires exists i int :: { foo(i) } 0 < i

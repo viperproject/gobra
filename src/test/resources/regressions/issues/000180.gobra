@@ -10,7 +10,7 @@ type Tree struct {}
 ghost
 ensures res == seq[int] { }
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
-decreases _
+decreases
 pure func (t *Tree) test1() (res seq[int]) {
     return seq[int] { }
 }
@@ -18,21 +18,21 @@ pure func (t *Tree) test1() (res seq[int]) {
 ghost
 ensures res == seq[int] { }
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
-decreases _
+decreases
 pure func test2() (res seq[int]) {
     return seq[int] { }
 }
 
 ensures res == seq[int] { }
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
-decreases _
+decreases
 pure func (t *Tree) test3() (ghost res seq[int]) {
     return seq[int] { }
 }
 
 ensures res == seq[int] { }
 ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
-decreases _
+decreases
 pure func test4() (ghost res seq[int]) {
     return seq[int] { }
 }

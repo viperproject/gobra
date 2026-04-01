@@ -7,7 +7,7 @@ type Shape interface {
    pred mem()
 
    requires acc(mem(), 1/2)
-   decreases _
+   decreases
    pure Size() bool
 
    requires mem()

@@ -6,7 +6,7 @@ package pkg
 func example1(ghost xs seq[int]) {
 }
 
-decreases _
+decreases
 ghost func example2(xs seq[int]) {
 }
 

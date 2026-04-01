@@ -12,7 +12,7 @@ type Calls interface {
 
     ghost
     requires len(calls) > 0
-    decreases _
+    decreases
     pure res(ghost calls seq[int]) int
 }
 
@@ -44,7 +44,7 @@ pred (self Acc) inv(ghost calls seq[int]) {
     acc(self.accum) && *self.accum == seqSum(calls)
 }
 ghost
-decreases _
+decreases
 pure func (self Acc) res(ghost calls seq[int])int {
     return seqSum(calls)
 }

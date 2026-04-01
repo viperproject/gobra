@@ -4,7 +4,7 @@
 package pkg
 
 ghost
-decreases _
+decreases
 pure func f(x int) int {
 	return let y,z := x + 1,x+2 in let y := y + x in y + z
 }

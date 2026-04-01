@@ -18,7 +18,7 @@ func Square(res int) (r Rectangle) {
     return Rectangle{res, res}
 }
 
-decreases _
+decreases
 pure func Square2(res int) (r Rectangle) {
     return Rectangle{res, res}
 }

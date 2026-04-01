@@ -3,25 +3,25 @@
 
 package pkg
 
-decreases _
+decreases
 pure func f(x *int) bool {
 	//:: ExpectedOutput(type_error)
 	return let y := *x in &y == x
 }
 
-decreases _
+decreases
 pure func g1(x *int) int {
 	//:: ExpectedOutput(type_error)
 	return let y := h(x) in y
 }
 
-decreases _
+decreases
 pure func g2(x *int) int {
 	//:: ExpectedOutput(type_error)
 	return let y := x in h(y)
 }
 
-decreases _
+decreases
 pure func g3(x *int) int {
 	//:: ExpectedOutput(type_error)
 	return let y, z := 1, h(x) in y

@@ -52,7 +52,7 @@ func test4() {
     var c@ func(int)int
     c = requires 1 <= n
         preserves acc(&c, 1/2) && c === collatz
-        decreases _
+        decreases
         func collatz(n int)int {
             if n == 1 {
                 return n

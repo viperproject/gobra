@@ -69,7 +69,7 @@ func test8() {
 	assert getPerm() != writePerm
 }
 
-decreases _
+decreases
 ghost pure func getPerm() perm {
 	return 3/4
 }

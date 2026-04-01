@@ -43,7 +43,7 @@ func indexedSlice(x [5]int) int {
 
 // should not overflow
 // It used to throw an overflow error for the same reason as pointerDerefNonOverflow
-decreases _
+decreases
 pure func head(x[5]int) int {
 	return x[0]
 }

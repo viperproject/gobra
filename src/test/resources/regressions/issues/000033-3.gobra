@@ -19,7 +19,7 @@ func (x Rectangle) OtherArea(r Rectangle) (res int) {
     return r.Width * r.Height
 }
 
-decreases _
+decreases
 pure func (x Rectangle) OtherArea2(r Rectangle) (res int) {
     return r.Width * r.Height
 }

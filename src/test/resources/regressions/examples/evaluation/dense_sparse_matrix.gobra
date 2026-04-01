@@ -20,7 +20,7 @@ pred denseMatrix(m *DenseMatrix) {
 
 // number of rows
 requires acc(denseMatrix(m), _)
-decreases _
+decreases
 pure func (m *DenseMatrix) lenX() int {
     return unfolding acc(denseMatrix(m), _) in len(m.values)
 }
@@ -28,7 +28,7 @@ pure func (m *DenseMatrix) lenX() int {
 // number of columns
 requires acc(denseMatrix(m), _)
 requires m.lenX() != 0
-decreases _
+decreases
 pure func (m *DenseMatrix) lenY() int {
     return unfolding acc(denseMatrix(m), _) in len((m.values)[0])
 }
@@ -36,7 +36,7 @@ pure func (m *DenseMatrix) lenY() int {
 requires acc(denseMatrix(m), _)
 requires 0 <= i && i < m.lenX()
 requires 0 <= j && j < m.lenY()
-decreases _
+decreases
 pure func (m *DenseMatrix) lookup(i, j int) (res int) {
     return unfolding acc(denseMatrix(m), _) in (m.values)[i][j]
 }

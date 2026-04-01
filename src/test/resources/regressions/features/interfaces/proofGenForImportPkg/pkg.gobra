@@ -35,7 +35,7 @@ func (impl *SomeImplementation) GetValue() (res int) {
 }
 
 ghost
-decreases _
+decreases
 pure func (impl *SomeImplementation) SomeProperty(val int) bool {
     return val == 42
 }

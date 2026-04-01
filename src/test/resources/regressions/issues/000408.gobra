@@ -5,7 +5,7 @@ package issue408
 
 type T interface{
     f() int
-    decreases _
+    decreases
     pure g() int
 }
 

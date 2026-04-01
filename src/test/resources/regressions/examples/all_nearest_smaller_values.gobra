@@ -16,7 +16,7 @@ pred stack(s *Stack) {
     s != nil ==> acc(&s.value) && acc(&s.next) && stack(s.next)
 }
 
-decreases _
+decreases
 pure func isEmpty(s *Stack) bool {
     return s == nil
 }
@@ -30,7 +30,7 @@ pure func elems(s *Stack) seq[int] {
 
 requires acc(stack(s), _) && !isEmpty(s)
 ensures res in elems(s)
-decreases _
+decreases
 pure func peek(s *Stack) (res int) {
     return unfolding acc(stack(s), _) in s.value
 }
@@ -62,7 +62,7 @@ pure func stackInv(x *Stack, s []int, z int) (res bool) {
 
 ghost
 requires acc(stack(x), 1/4)
-decreases _
+decreases
 pure func stackInvPart1(x *Stack, s []int, z int) bool {
     return x != nil ==> 1 <= getOrZero(x) && getOrZero(x) < len(s) && getOrZero(x) <= z
 }
@@ -71,7 +71,7 @@ ghost
 requires acc(stack(x), 1/4)
 requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
 requires x != nil ==> 1 <= getOrZero(x) && getOrZero(x) < len(s)
-decreases _
+decreases
 pure func stackInvPart2(x *Stack, s []int, z int) bool {
     return x != nil ==> unfolding acc(stack(x), 1/4) in stackInv(x.next, s, x.value)
 }
@@ -81,13 +81,13 @@ requires acc(stack(x), 1/4)
 requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
 requires 1 <= z && z <= len(s)
 requires x != nil ==> 1 <= getOrZero(x)
-decreases _
+decreases
 pure func stackInvPart3(x *Stack, s []int, z int) bool {
     return z < len(s) ==> (forall k int :: { s[k] } getOrZero(x) < k && k <= z ==> s[z] <= s[k])
 }
 
 requires acc(stack(x), 1/4)
-decreases _
+decreases
 pure func getOrZero(x *Stack) int {
     return unfolding acc(stack(x), 1/4) in (x == nil ? 0 : x.value)
 }

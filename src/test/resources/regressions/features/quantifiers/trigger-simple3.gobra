@@ -3,9 +3,9 @@
 
 package pkg
 
-decreases _
+decreases
 pure func foo(ghost n int) bool
-decreases _
+decreases
 pure func bar(ghost n int) bool
 
 // specifying multiple trigger patterns is supported

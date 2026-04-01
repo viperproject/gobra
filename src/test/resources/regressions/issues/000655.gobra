@@ -27,7 +27,7 @@ func foo2() {
 /*
 // should work in the future:
 ghost
-decreases _
+decreases
 pure func foo3(x pkg.Tree) bool {
   return match x {
     case pkg.Tree.Leaf{}: true

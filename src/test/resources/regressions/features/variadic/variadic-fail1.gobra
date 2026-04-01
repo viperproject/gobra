@@ -53,5 +53,5 @@ func test10() {
 // pure methods cannot have variadic arguments, given that calling them may cause
 // a slice allocation
 //:: ExpectedOutput(type_error)
-decreases _
+decreases
 pure func test11(...int)

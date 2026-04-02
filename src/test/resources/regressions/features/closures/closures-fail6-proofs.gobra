@@ -85,6 +85,7 @@ func test4() {
 ghost
 requires x >= 0
 ensures y == x + 2
+decreases
 func spec(x int) (y int)
 
 func test5() {
@@ -139,6 +140,7 @@ func test7() {
 ghost
 requires inv(n) && unfolding inv(n) in (*n >= 0)
 ensures inv1(n)
+decreases
 func permspec(n *int) (y int)
 
 func test8() {

@@ -92,6 +92,7 @@ func test5() {
     cl :=
         requires x >= 10
         ensures y == x + 2
+        decreases
         func plus2(x int)(y int) {
             return x + 2
         }
@@ -99,13 +100,14 @@ func test5() {
     proof cl implements spec {
         //:: ExpectedOutput(precondition_error)
         return cl(x) as plus2
-    } 
+    }
 }
 
 func test6() {
     cl :=
         requires x >= 10
         ensures y == x + 1
+        decreases
         func plus1(x int)(y int) {
             return x + 1
         }
@@ -113,6 +115,7 @@ func test6() {
     cl1 :=
         requires x >= 0
         ensures y == x + 2
+        decreases
         func plus2(x int)(y int) {
             return x + 2
         }
@@ -120,13 +123,14 @@ func test6() {
     proof cl implements spec {
         //:: ExpectedOutput(precondition_error)
         return cl(x) as plus2
-    } 
+    }
 }
 
 func test7() {
     cl :=
         requires x >= 0
         ensures y == x + 1
+        decreases
         func plus1(x int)(y int) {
             return x + 1
         }
@@ -134,7 +138,7 @@ func test7() {
     //:: ExpectedOutput(spec_implementation_post_error:assertion_error)
     proof cl implements spec {
         return cl(x) as plus1
-    } 
+    }
 }
 
 ghost
@@ -149,6 +153,7 @@ func test8() {
     cl :=
         requires acc(&x) && x >= 0
         ensures acc(&x) && x == old(x) + 2 && y == x
+        decreases
         func plus2()(y int) {
             x += 2
             return x
@@ -168,6 +173,7 @@ func test9() {
     cl :=
         requires acc(&x) && x >= 0
         ensures acc(&x) && x == old(x) + 2 && y == x
+        decreases
         func plus2()(y int) {
             x += 2
             return x

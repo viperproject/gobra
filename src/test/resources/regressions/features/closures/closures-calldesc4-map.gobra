@@ -17,6 +17,7 @@ type Inv interface {
 ghost
 requires inv != nil && inv.inv(prev_calls)
 ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int]{x})
+decreases
 func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
 ghost
@@ -60,7 +61,8 @@ pure func (self Times3) res(ghost calls seq[int]) int {
 func test1() {
     v := []int{1,2,3}
 
-    cl :=   pure func t3(ghost seq[int], x int)int {
+    cl :=   decreases
+            pure func t3(ghost seq[int], x int)int {
                 return x * 3
             }
     proof cl implements fspec{Times3{}} {
@@ -92,6 +94,7 @@ func test2() {
     n@ := 7
     cl :=   preserves acc(&n)
             ensures y == old(n) && n == old(n) + 1
+            decreases
             func ctr(ghost seq[int], int)(y int) {
                 y = n
                 n += 1
@@ -136,6 +139,7 @@ func test3() {
     a@ := 2
     cl :=   preserves acc(&a)
             ensures y == a && a == old(a) + x
+            decreases
             func accumulate(ghost seq[int], x int)(y int) {
                 a += x
                 return a

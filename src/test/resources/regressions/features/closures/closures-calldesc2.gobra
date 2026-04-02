@@ -20,6 +20,7 @@ type Calls interface {
 ghost
 requires cs != nil && cs.inv(prev)
 ensures cs.inv(prev ++ seq[int]{x}) && res == cs.res(prev ++ seq[int]{x})
+decreases
 func spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
 
 requires f implements spec{cs}
@@ -53,6 +54,7 @@ func main() {
     accum@ := 0
     cl :=   preserves acc(&accum)
             ensures accum == old(accum) + x && y == accum
+            decreases
             func accumulate(ghost seq[int], x int)(y int) {
                 accum += x
                 return accum

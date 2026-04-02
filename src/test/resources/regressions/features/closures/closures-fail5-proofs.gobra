@@ -85,7 +85,6 @@ func test5() {
     cl :=
         requires x >= 0
         ensures y == x
-        decreases
         pure func id(x int)(y int) {
             return x
         }
@@ -94,7 +93,7 @@ func test5() {
     //:: ExpectedOutput(type_error)
     proof cl implements tpspec {
         return cl(x) as id
-    } 
+    }
 }
 
 ghost

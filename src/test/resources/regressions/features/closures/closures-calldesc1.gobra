@@ -60,6 +60,7 @@ func main() {
     cl :=   requires x >= 0
             preserves acc(&accum) && accum >= 0
             ensures accum == old(accum) + x && y == accum
+            decreases
             func accumulate(x int)(y int) {
                 accum += x
                 return accum

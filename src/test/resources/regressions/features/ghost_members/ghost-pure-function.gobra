@@ -51,14 +51,14 @@ func bar() {
     isNonGhost(gRes5)
 }
 
-//:: ExpectedOutput(type_error)
 decreases
+//:: ExpectedOutput(type_error)
 pure func test1(s seq[int]) int { // parameter has to be ghost
     return 1
 }
 
-//:: ExpectedOutput(type_error)
 decreases
+//:: ExpectedOutput(type_error)
 pure func test2(ghost s seq[int]) int { // result has to be ghost
     return len(s)
 }

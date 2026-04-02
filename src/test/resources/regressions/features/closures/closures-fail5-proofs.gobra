@@ -99,6 +99,7 @@ func test5() {
 
 ghost
 requires x >= 0
+decreases
 func spec(x int) (y int)
 
 func test6() {

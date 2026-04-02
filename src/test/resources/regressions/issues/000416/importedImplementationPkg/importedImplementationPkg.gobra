@@ -28,7 +28,6 @@ func (r *Rect) Area() (ret int) {
 }
 
 (*Rect) implements shape.Shape {
-  decreases
   pure (r *Rect) Size() bool {
     return unfolding acc(r.mem(), 1/2) in r.Size()
   }

@@ -42,7 +42,7 @@ func compute(i int, j int) int {
 }
 
 requires 1 <= n
-decreases n
+decreases _
 func collatz(n int) int {
 	if n == 1 {
 		return n

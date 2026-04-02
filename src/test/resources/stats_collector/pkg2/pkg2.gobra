@@ -27,7 +27,6 @@ func (r *Rect) Area() (ret int) {
 }
 
 (*Rect) implements pkg1.Shape {
-  decreases
   pure (r *Rect) Size() bool {
     return unfolding acc(r.mem(), 1/2) in r.Size()
   }
@@ -59,7 +58,6 @@ func (c *Circle) Area() (ret int) {
 }
 
 (*Circle) implements pkg1.Shape {
-  decreases
   pure (c *Circle) Size() bool {
     return unfolding acc(c.mem(), 1/2) in c.Size()
   }

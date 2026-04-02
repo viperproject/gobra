@@ -6,8 +6,8 @@ package tutorial
 type stream interface {
 	pred mem()
 
-	decreases
 	requires acc(mem(), 1/2)
+	decreases
 	pure hasNext() bool
 
 	requires mem() && hasNext()
@@ -38,7 +38,6 @@ func (x *counter) next() (y interface{}) {
 pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
-	decreases
 	pure (x *counter) hasNext() bool {
 		return unfolding acc(x.mem(), 1/2) in x.hasNext()
 	}

@@ -77,8 +77,8 @@ func test4() {
 }
 
 ghost
-decreases
 requires x >= 0
+decreases
 pure func tpspec(x int) (y int)
 
 func test5() {

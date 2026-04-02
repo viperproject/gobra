@@ -45,7 +45,6 @@ pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
 
-  decreases
   pure (x *counter) hasNext() bool {
     return unfolding acc(x.mem(), 1/2) in x.hasNext()
   }

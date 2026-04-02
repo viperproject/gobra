@@ -13,5 +13,6 @@ type PacketBuilder interface {
 // Stand-alone specification keywords should not need a semicolon
 pure
 trusted
+decreases
 ensures true
 func foo() int

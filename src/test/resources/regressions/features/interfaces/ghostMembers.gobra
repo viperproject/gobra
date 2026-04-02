@@ -4,8 +4,9 @@
 package pkg
 
 type someInterface interface {
+    ghost
     decreases
-    ghost pure getValue() int
+    pure getValue() int
 }
 
 type someImplementation struct {

@@ -10,8 +10,9 @@ type Once interface {
     pred invBefore()
     pred invAfter(n int)
 
+    ghost
     decreases
-    ghost pure res(n int)int
+    pure res(n int)int
 }
 
 requires o != nil && o.invBefore()

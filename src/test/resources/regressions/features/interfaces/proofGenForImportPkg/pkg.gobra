@@ -23,8 +23,9 @@ type SomeInterface interface {
     ensures SomeProperty(res)
     GetValue() (res int)
 
+    ghost
     decreases
-    ghost pure SomeProperty(val int) bool
+    pure SomeProperty(val int) bool
 }
 
 type SomeImplementation struct {}

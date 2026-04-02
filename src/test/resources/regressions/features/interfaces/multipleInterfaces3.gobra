@@ -70,7 +70,6 @@ pred counterMem(x *counter) { acc(x) }
 
   pred mem := counterMem
 
-  decreases
   pure (x *counter) hasNext() bool {
     return unfolding acc(counterMem(x), 1/2) in x.hasNext()
   }
@@ -86,7 +85,6 @@ pred counterMem(x *counter) { acc(x) }
 
   pred mem := counterMem
 
-  decreases
   pure (x *counter) value() int {
     return unfolding acc(counterMem(x), 1/2) in x.value()
   }

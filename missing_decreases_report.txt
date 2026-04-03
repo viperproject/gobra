@@ -1,0 +1,77 @@
+Found 24 pure/ghost functions missing `decreases`:
+
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/all_nearest_smaller_values.gobra
+  Line   105: func convertStackInv(x *Stack, s []int, z, nz int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/evaluation/binary_search_tree.gobra
+  Line    51: func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/evaluation/impl_errors/binary_search_tree.gobra
+  Line    51: func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/evaluation/impl_errors/parallel_sum.gobra
+  Line    23: func (c *Accum) Init(ghost seenSlice ghost []int) {
+  Line   103: func sumExtensional(ghost a []int, ghost b ghost []int) {
+  Line   136: func update(ghost s ghost []int, ghost pos, val int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/evaluation/parallel_sum.gobra
+  Line    23: func (c *Accum) Init(ghost seenSlice ghost []int) {
+  Line   104: func sumExtensional(ghost a []int, ghost b ghost []int) {
+  Line   137: func update(ghost s ghost []int, ghost pos, val int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/evaluation/spec_errors/binary_search_tree.gobra
+  Line    51: func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/examples/evaluation/spec_errors/parallel_sum.gobra
+  Line    23: func (c *Accum) Init(ghost seenSlice ghost []int) {
+  Line   103: func sumExtensional(ghost a []int, ghost b ghost []int) {
+  Line   136: func update(ghost s ghost []int, ghost pos, val int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/closures/closures-calldesc2.gobra
+  Line    23: func spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/closures/closures-calldesc4-map.gobra
+  Line    20: func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/closures/closures-fail4-ghost-args.gobra
+  Line     7: func spec(a int, ghost b int)(c int, ghost d int)
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/closures/closures-simple2.gobra
+  Line     9: func pos(ghost p interface{pred inv();}, a int) (r int)
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/import/ghost_member_import/bar/bar.gobra
+  Line    24: func (r *Rectangle) Area() (res int) {
+  Line    36: func SquaredHypotenuse(r *Rectangle) (res int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/let/let_simple.gobra
+  Line    14: func g(x int) (res int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/maps/maps-nested.gobra
+  Line     7: func foo(){
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/maps/math-maps-simple2.gobra
+  Line    10: func test(m dict[string]int, key string) (value int, resM dict[string]int) {
+
+================================================================================
+File: /home/user/gobra/src/test/resources/regressions/features/slices/slice-type-simple3.gobra
+  Line    18: func bar1(c1, c2 Comp) bool {
+  Line    24: func bar2(c1, c2 Comp) bool {
+
+
+Total: 24 findings across 16 files

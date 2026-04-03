@@ -23,6 +23,7 @@ func GhostArrayRange(p [2]*int) {
 
 // ranging over a pointer or ghost pointer to an array is not yet supported:
 ghost
+decreases
 func GhostPtrArrayRange() {
     arr@ := [2]int{ 0, 1 }
     p := &arr
@@ -32,6 +33,7 @@ func GhostPtrArrayRange() {
 }
 
 ghost
+decreases
 func ActualPtrArrayRange() {
     arr@ := [2]int{ 0, 1 }
     p := &arr

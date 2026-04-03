@@ -11,6 +11,7 @@ pure func f(x int) int {
 
 ghost
 ensures res == 3 * x + 3
+decreases
 func g(x int) (res int) {
 	return f(x)
 }

@@ -102,6 +102,7 @@ requires forall k int :: { s[k] } z < k && k <= nz ==> s[nz] <= s[k]
 ensures acc(stack(x), 1/4)
 ensures forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
 ensures stackInv(x, s, nz)
+decreases
 func convertStackInv(x *Stack, s []int, z, nz int) {
     // the following two assertions are needed such that the postconditions can be proved
     assert stackInvPart2(x, s, z)

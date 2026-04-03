@@ -48,6 +48,7 @@ requires newUpperBound != none[int] ==> oldUpperBound != none[int] && get(oldUpp
 ensures n.tree()
 ensures n.sorted(oldLowerBound, oldUpperBound) && n.sorted(newLowerBound, newUpperBound)
 ensures n.sortedValues(oldLowerBound, oldUpperBound) == n.sortedValues(newLowerBound, newUpperBound)
+decreases _
 func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
     unfold n.tree()
     if (n.left != nil) {

@@ -13,6 +13,7 @@ type ItfcT interface {
 type ImplT struct{}
 
 //:: ExpectedOutput(type_error)
+//:: ExpectedOutput(type_error)
 pure
 ensures n >= 0
 func (i ImplT) f() (n int) {

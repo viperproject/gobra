@@ -24,6 +24,7 @@ var B = newT().f()
 
 ghost
 //:: ExpectedOutput(type_error)
+//:: ExpectedOutput(type_error)
 func init() {}
 
 // Ghost global variables are accepted

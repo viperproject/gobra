@@ -31,8 +31,9 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     modes.foreach(isPure => {
       val input = s"""
         |package pkg
-        |decreases _
-        |ghost ${if (isPure) "pure" else ""} func test() (res bool) {
+        |ghost
+        |${if (isPure) "pure\n        |" else ""}decreases _
+        |func test() (res bool) {
         | return true
         |}
         |func main() {
@@ -53,8 +54,9 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     modes.foreach(isPure => {
       val input = s"""
         |package pkg
-        |decreases _
-        |ghost ${if (isPure) "pure" else ""} func test() (res1 bool, res2 int) {
+        |ghost
+        |${if (isPure) "pure\n        |" else ""}decreases _
+        |func test() (res1 bool, res2 int) {
         | return true, 42
         |}
         |func main() {

@@ -30,14 +30,14 @@ type Equality interface {
 // the following clause should be permitted by the type-checker as intPair implements the interface:
 intPair implements Equality
 
-decreases
 //:: ExpectedOutput(type_error)
+decreases
 pure func (i intPair) hash() int { // receiver cannot be ghost
     return 42 // best implementation of a hash function
 }
 
-decreases
 //:: ExpectedOutput(type_error)
+decreases
 func (i intPair) isEqual(other Equality) bool { // receiver cannot be ghost & ghost result cannot be assigned to actual result
     if typeOf(other) == intPair {
         return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair))

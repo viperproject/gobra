@@ -4,15 +4,16 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphInterpreter, DependencyType, ReadOnlyDependencyGraph}
+import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphInterpreter, DependencyGraphState, ReadOnlyDependencyGraph}
 import viper.silver.ast
 import viper.silver.ast.{Program, TranslatedPosition}
+import viper.silver.dependencyAnalysis.DependencyType
 
 import java.io.PrintWriter
 
 
 
-class GobraDependencyGraphInterpreter(dependencyGraph: ReadOnlyDependencyGraph, typeInfo: TypeInfo, gobraErrors: List[VerifierError] /* TODO */) extends DependencyGraphInterpreter("gobra", dependencyGraph, List.empty, member=None) {
+class GobraDependencyGraphInterpreter[T <: DependencyGraphState](dependencyGraph: ReadOnlyDependencyGraph[T], typeInfo: TypeInfo, gobraErrors: List[VerifierError] /* TODO */) extends DependencyGraphInterpreter("gobra", dependencyGraph, List.empty, member=None) {
 
   private val positionManager = typeInfo.tree.root.positions
 

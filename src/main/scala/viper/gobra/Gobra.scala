@@ -12,9 +12,8 @@ import org.slf4j.LoggerFactory
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.{ConstantPropagation, InternalTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend._
@@ -24,8 +23,6 @@ import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silicon.BuildInfo
-import viper.silicon.dependencyAnalysis.{DependencyAnalysisUserTool, DependencyGraphInterpreter}
-import viper.silver.dependencyAnalysis.AbstractDependencyAnalysisResult
 import viper.silver.{ast => vpr}
 
 import java.nio.file.Paths
@@ -190,17 +187,17 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   // TODO ake: where to call this?
-  def runDependencyAnalysisWorkflow(dependencyAnalysisResult: AbstractDependencyAnalysisResult, result: VerifierResult, config: Config, typeInfo: TypeInfo): Unit = {
-    if(config.enableDependencyAnalysis && config.startDependencyAnalysisTool){
-      val errors = result match {
-        case VerifierResult.Success => Vector.empty
-        case VerifierResult.Failure(errors) => errors
-      }
-      val interpreter = GobraDependencyAnalysisAggregator.convertFromDependencyGraphInterpreter(dependencyAnalysisResult.getFullDependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo, errors.toList)
-      val userTool = new DependencyAnalysisUserTool(interpreter, Seq.empty /* TODO ake */, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
-      userTool.run()
-    }
-  }
+//  def runDependencyAnalysisWorkflow(dependencyAnalysisResult: AbstractDependencyAnalysisResult, result: VerifierResult, config: Config, typeInfo: TypeInfo): Unit = {
+//    if(config.enableDependencyAnalysis && config.startDependencyAnalysisTool){
+//      val errors = result match {
+//        case VerifierResult.Success => Vector.empty
+//        case VerifierResult.Failure(errors) => errors
+//      }
+//      val interpreter = GobraDependencyAnalysisAggregator.convertFromDependencyGraphInterpreter(dependencyAnalysisResult.getFullDependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo, errors.toList)
+//      val userTool = new DependencyAnalysisUserTool(interpreter, Seq.empty /* TODO ake */, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
+//      userTool.run()
+//    }
+//  }
 
   override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance

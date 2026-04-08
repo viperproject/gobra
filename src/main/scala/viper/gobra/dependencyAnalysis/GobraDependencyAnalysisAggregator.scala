@@ -4,15 +4,15 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.DependencyGraphInterpreter
+import viper.silicon.dependencyAnalysis.{DependencyGraphInterpreter, Final}
 import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.{AbstractDependencyGraphInterpreter, AssumptionType, DependencyType}
 import viper.silver.plugin.standard.termination.PDecreasesClause
 
 object GobraDependencyAnalysisAggregator {
-  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[VerifierError]): GobraDependencyGraphInterpreter = {
+  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[VerifierError]): GobraDependencyGraphInterpreter[Final] = {
     interpreter match {
-      case interpreter: DependencyGraphInterpreter => new GobraDependencyGraphInterpreter(interpreter.getGraph, typeInfo, errors)
+      case interpreter: DependencyGraphInterpreter[Final] => new GobraDependencyGraphInterpreter(interpreter.getGraph, typeInfo, errors)
       case _ => throw new Exception(s"Unknown dependency graph interpreter $interpreter")
     }
   }

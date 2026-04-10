@@ -6,7 +6,9 @@
 package asserttimeout
 
 // magic is an abstract ghost pure function (uninterpreted) used only in specification
-ghost pure func magic(i int) int
+ghost
+decreases
+pure func magic(i int) int
 
 func dangerousTriggers() {
 	// Our definition of `magic`, with a matching loop:

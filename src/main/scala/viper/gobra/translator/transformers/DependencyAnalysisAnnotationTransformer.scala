@@ -9,7 +9,7 @@ import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.dependencyAnalysis.AnalysisSourceInfo
+import viper.silver.dependencyAnalysis.{AnalysisSourceInfo, DependencyTypeInfo}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast, ast => vpr}
 
@@ -95,6 +95,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     sourcePosition
   }
 
+	// TODO ake: review
   private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
     val sourceFileOpt = pos match {

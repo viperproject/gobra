@@ -3,7 +3,7 @@ package viper.gobra.dependencyAnalysis
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.silver.ast
-import viper.silver.dependencyAnalysis.{AssumptionType, DependencyType}
+import viper.silver.dependencyAnalysis.{AssumptionType, DependencyType, DependencyTypeInfo}
 import viper.silver.plugin.standard.termination.PDecreasesClause
 
 object GobraDependencyAnalysisAggregator {
@@ -92,7 +92,7 @@ object GobraDependencyAnalysisAggregator {
         val start = positionManager.positions.getStart(pNode).get
         val end = positionManager.positions.getFinish(pNode).get
         val sourcePosition = ast.TranslatedPosition(positionManager.translate(start, end))
-				val depTypeInfo = ast.DependencyTypeInfo(getDependencyTypeForPNode(pNode, dependencyType))
+				val depTypeInfo = DependencyTypeInfo(getDependencyTypeForPNode(pNode, dependencyType))
 				val analysisSourceInfo =  GobraAnalysisSourceInfo(pNode, sourcePosition)
         val info = ast.MakeInfoPair(depTypeInfo,  analysisSourceInfo)
         Set(info)

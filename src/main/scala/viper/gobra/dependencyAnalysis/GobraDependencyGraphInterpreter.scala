@@ -4,12 +4,10 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphInterpreter, DependencyGraphState, ReadOnlyDependencyGraph}
-import viper.silver.ast
-import viper.silver.ast.{Program, TranslatedPosition}
+import viper.silicon.dependencyAnalysis.graphInterpretation.DependencyGraphInterpreter
+import viper.silicon.dependencyAnalysis.{DependencyAnalysisNode, DependencyGraphState, ReadOnlyDependencyGraph}
+import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.DependencyType
-
-import java.io.PrintWriter
 
 
 
@@ -171,18 +169,19 @@ class GobraDependencyGraphInterpreter[T <: DependencyGraphState](dependencyGraph
     PLoopSpec(pruneExpsConjunctLevel(spec.invariants), spec.terminationMeasure.filter(isCrucialNode))
   }
 
-  override def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode], program: Program): (Program, Double) = {
-    val newPkg = getPrunedProgram(crucialNodes)
-    println(newPkg)
-    throw new Exception("whatever") // TODO ake: adjust return type
-  }
-
-  override def pruneProgramAndExport(crucialNodes: Set[DependencyAnalysisNode], program: ast.Program , exportFileName: String): Unit = {
-    val writer = new PrintWriter(exportFileName)
-    val newProgram = getPrunedProgram(crucialNodes)
-    writer.println(newProgram._1.toString())
-    writer.close()
-  }
+	// TODO ake: this functionality was moved to the PruningSupporter
+//  override def getPrunedProgram(crucialNodes: Set[DependencyAnalysisNode], program: Program): (Program, Double) = {
+//    val newPkg = getPrunedProgram(crucialNodes)
+//    println(newPkg)
+//    throw new Exception("whatever") // TODO ake: adjust return type
+//  }
+//
+//  override def pruneProgramAndExport(crucialNodes: Set[DependencyAnalysisNode], program: ast.Program , exportFileName: String): Unit = {
+//    val writer = new PrintWriter(exportFileName)
+//    val newProgram = getPrunedProgram(crucialNodes)
+//    writer.println(newProgram._1.toString())
+//    writer.close()
+//  }
 
 }
 

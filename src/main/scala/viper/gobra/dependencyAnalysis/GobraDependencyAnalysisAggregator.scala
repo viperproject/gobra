@@ -4,7 +4,8 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.{DependencyGraphInterpreter, Final}
+import viper.silicon.dependencyAnalysis.Final
+import viper.silicon.dependencyAnalysis.graphInterpretation.DependencyGraphInterpreter
 import viper.silver.ast.TranslatedPosition
 import viper.silver.dependencyAnalysis.{AbstractDependencyGraphInterpreter, AssumptionType, DependencyType}
 import viper.silver.plugin.standard.termination.PDecreasesClause

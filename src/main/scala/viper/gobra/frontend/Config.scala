@@ -82,6 +82,7 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
+  val DefaultAssertTimeout: Option[Int] = None
 }
 
 // More-complete exhale modes
@@ -208,6 +209,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                   assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
 ) {
 
   def merge(other: Config): Config = {
@@ -275,6 +277,10 @@ case class Config(
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
+      assertTimeout = (assertTimeout, other.assertTimeout) match {
+        case (Some(a), Some(b)) => Some(math.min(a, b))
+        case (a, b) => a.orElse(b)
+      },
     )
   }
 
@@ -340,6 +346,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                      assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -405,6 +412,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
+    assertTimeout = baseConfig.assertTimeout,
   )
 }
 
@@ -929,6 +937,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val assertTimeout: ScallopOption[Int] = opt[Int](
+    name = "assertTimeout",
+    descr = "Sets a timeout (in milliseconds) for assert operations performed by Silicon. Does not have any effect on other backends.",
+    default = ConfigDefaults.DefaultAssertTimeout,
+    noshort = true,
+  )
+
   val enableExperimentalFriendClauses: ScallopOption[Boolean] = opt[Boolean](
     name = "experimentalFriendClauses",
     descr = s"Enables the use of 'friendPkg' clauses (experimental).",
@@ -1047,6 +1062,21 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
   }
 
+  addValidation {
+    if (!assertTimeout.isSupplied || isSiliconBasedBackend) {
+      Right(())
+    } else {
+      Left("The flag --assertTimeout can only be used with Silicon or ViperServer with Silicon")
+    }
+  }
+
+  addValidation {
+    assertTimeout.toOption match {
+      case Some(t) if t <= 0 => Left("--assertTimeout must be a positive integer (milliseconds)")
+      case _ => Right(())
+    }
+  }
+
 
   /** File Validation */
   validateFilesExist(cutInput)
@@ -1149,5 +1179,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     moreJoins = moreJoins(),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
+    assertTimeout = assertTimeout.toOption,
   )
 }

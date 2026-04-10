@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--assertTimeout 1000)
+
+package asserttimeout
+
+// magic is an abstract ghost pure function (uninterpreted) used only in specification
+ghost pure func magic(i int) int
+
+func dangerousTriggers() {
+	// Our definition of `magic`, with a matching loop:
+	// instantiating the quantifier with i=magic(k) produces a new term magic(magic(k)),
+	// which triggers another instantiation, creating an infinite chain.
+	assume forall i int :: { magic(i) } magic(magic(i)) == magic(2*i) + i
+
+	// The following assertion should fail: the matching loop prevents Silicon from
+	// proving this within the assert timeout.
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert magic(magic(10)) == magic(87987978) + 10
+}

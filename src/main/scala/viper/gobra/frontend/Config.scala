@@ -81,6 +81,7 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
+  val DefaultAssertTimeout: Option[Int] = None
 }
 
 object CliEnumConverter {
@@ -243,6 +244,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                   assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
 ) {
 
   /** Merges values from an InputConfig into this Config.
@@ -296,6 +298,10 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
+      assertTimeout = (assertTimeout, input.assertTimeout.value) match {
+        case (Some(l), Some(r)) => Some(math.min(l, r))
+        case (l, r) => l orElse r
+      },
     )
   }
 
@@ -342,6 +348,7 @@ case class Config(
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
+      "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
       "noVerify" -> noVerify,
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
@@ -422,6 +429,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                      assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -505,6 +513,7 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
+  assertTimeout: InputConfigOption[Int] = InputConfigOption("assertTimeout", None),
 ) {
   /** Derived field: extracts just the files from cutInputWithIdxs */
   val cutInput: InputConfigOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
@@ -566,13 +575,14 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
+    assertTimeout = assertTimeout orElse other.assertTimeout,
   )
 
   /** Merges this config with another, combining values according to Config.merge semantics.
     * This config takes precedence for most fields, but some fields have special merge behavior:
     * - List fields (include, input, cutInputWithIdxs, directory): concatenate and deduplicate
     * - backend, hyperMode: must match if both defined
-    * - packageTimeout: takes minimum
+    * - packageTimeout, assertTimeout: takes minimum
     * - logLevel: takes minimum (more verbose)
     * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
     * - moreJoins: uses MoreJoins.merge */
@@ -668,6 +678,11 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
+      assertTimeout = InputConfigOption(assertTimeout.name, (assertTimeout.value, other.assertTimeout.value) match {
+        case (Some(l), Some(r)) => Some(math.min(l, r)) // take minimum
+        case (l, None) => l
+        case (None, r) => r
+      }),
     )
   }
 
@@ -749,6 +764,15 @@ case class InputConfig(
         Left(Vector(ConfigError("--disableNL can only be used with Silicon or ViperServer with Silicon.")))
       } else {
         Right(())
+      },
+      if (assertTimeout.value.isDefined && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The flag --assertTimeout can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      assertTimeout.value match {
+        case Some(t) if t <= 0 => Left(Vector(ConfigError("--assertTimeout must be a positive integer (milliseconds).")))
+        case _ => Right(())
       },
       if (printConfig.value.contains(true) && configFile.value.isEmpty) {
         Left(Vector(ConfigError("--printConfig requires --config.")))
@@ -965,6 +989,7 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
+    assertTimeout = assertTimeout.value,
   )
 }
 
@@ -1090,6 +1115,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
+    assertTimeout = baseConfig.assertTimeout,
   )
 }
 
@@ -1726,6 +1752,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val assertTimeout: ScallopOption[Int] = opt[Int](
+    name = "assertTimeout",
+    descr = "Sets a timeout (in milliseconds) for assert operations performed by Silicon. Does not have any effect on other backends.",
+    default = ConfigDefaults.DefaultAssertTimeout,
+    noshort = true,
+  )
+
   // Required by Scallop before accessing option values
   verify()
 
@@ -1783,6 +1816,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
+    assertTimeout = toInputConfigOption(assertTimeout),
   )
 
   /** Converts a ScallopOption to an InputConfigOption using the option's name and value.

@@ -6,15 +6,11 @@
 
 package viper.gobra.reporting
 
-import org.bitbucket.inkytonik.kiama.util.Position
-import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend, internal}
-import viper.gobra.dependencyAnalysis.GobraAnalysisSourceInfo
 import viper.gobra.util.Violation
+import viper.silver.ast.SourcePosition
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
 import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
-import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
-import viper.silver.dependencyAnalysis.{AnalysisSourceInfo, DependencyType, FrontendDependencyAnalysisInfo}
 import viper.silver.{ast => vpr}
 
 import java.nio.file.Paths
@@ -94,19 +90,6 @@ object Source {
       }
 
       def createAnnotatedInfo(annotation: Annotation): Info = copy(origin = AnnotatedOrigin(origin, annotation))
-    }
-
-    class GobraDependencyAnalysisInfo(pNode: PNode, start: Position, end: Position, _pos: vpr.AbstractSourcePosition, _dependencyType: Option[DependencyType] = None, infoStr: Option[String] = None) extends FrontendDependencyAnalysisInfo {
-      override val info: String = infoStr.getOrElse(pNode.toString)
-      override val pos: AbstractSourcePosition = _pos
-      override val dependencyType: Option[DependencyType] = _dependencyType
-
-      def getStart: Position = start
-      def getEnd: Position = end
-      def getPNode: PNode = pNode
-      def getPosition: vpr.Position = pos
-
-      override def getAnalysisSourceInfo: AnalysisSourceInfo = GobraAnalysisSourceInfo(pNode, pos)
     }
 
     val noInfo: Info = Info(

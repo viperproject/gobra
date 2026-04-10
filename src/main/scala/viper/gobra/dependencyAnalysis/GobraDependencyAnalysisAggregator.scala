@@ -2,21 +2,11 @@ package viper.gobra.dependencyAnalysis
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
-import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
-import viper.gobra.reporting.VerifierError
-import viper.silicon.dependencyAnalysis.Final
-import viper.silicon.dependencyAnalysis.graphInterpretation.DependencyGraphInterpreter
-import viper.silver.ast.TranslatedPosition
-import viper.silver.dependencyAnalysis.{AbstractDependencyGraphInterpreter, AssumptionType, DependencyType}
+import viper.silver.ast
+import viper.silver.dependencyAnalysis.{AssumptionType, DependencyType}
 import viper.silver.plugin.standard.termination.PDecreasesClause
 
 object GobraDependencyAnalysisAggregator {
-  def convertFromDependencyGraphInterpreter(interpreter: AbstractDependencyGraphInterpreter, typeInfo: TypeInfo, errors: List[VerifierError]): GobraDependencyGraphInterpreter[Final] = {
-    interpreter match {
-      case interpreter: DependencyGraphInterpreter[Final] => new GobraDependencyGraphInterpreter(interpreter.getGraph, typeInfo, errors)
-      case _ => throw new Exception(s"Unknown dependency graph interpreter $interpreter")
-    }
-  }
 
   /*
     Identifies the desired Gobra dependency nodes to be presented to the user.
@@ -28,7 +18,7 @@ object GobraDependencyAnalysisAggregator {
     Gobra nodes must not have subnodes, i.e. when statement stmt forms a node, none of its substatements/subexpressions may
     form a node, instead they are associated with stmt's node.
    */
-  def identifyGobraNodes(typeInfo: TypeInfo): Iterable[GobraDependencyAnalysisInfo] = {
+  def identifyGobraNodes(typeInfo: TypeInfo): Iterable[ast.Info] = {
     val positionManager = typeInfo.tree.originalRoot.positions
     val importedNodes = typeInfo.getTransitiveTypeInfos(includeThis=false).filterNot(_.pkgName.name.equals("builtin")).flatMap(pkg =>
       identifyGobraNodes(pkg.getTypeInfo.tree.originalRoot)(pkg.getTypeInfo.tree.originalRoot.positions, isImported=true)
@@ -37,7 +27,7 @@ object GobraDependencyAnalysisAggregator {
   }
 
 
-  private def identifyGobraNodes(pNode: PNode, dependencyTypeOuter: Option[DependencyType]=None)(implicit positionManager: PositionManager, isImported: Boolean): Iterable[GobraDependencyAnalysisInfo] = {
+  private def identifyGobraNodes(pNode: PNode, dependencyTypeOuter: Option[DependencyType]=None)(implicit positionManager: PositionManager, isImported: Boolean): Iterable[ast.Info] = {
 
     val outerOrPathCondition = dependencyTypeOuter.orElse(Some(DependencyType.PathCondition))
 
@@ -61,7 +51,7 @@ object GobraDependencyAnalysisAggregator {
     }
 
 
-    def goTopLevelConjuncts(pNode: PNode, dependencyType: Option[DependencyType]=dependencyTypeOuter): Set[GobraDependencyAnalysisInfo] = {
+    def goTopLevelConjuncts(pNode: PNode, dependencyType: Option[DependencyType]=dependencyTypeOuter): Set[ast.Info] = {
       pNode match {
         case PAnd(left, right) => goTopLevelConjuncts(left, dependencyType) ++ goTopLevelConjuncts(right, dependencyType)
         case _ => getGobraDependencyAnalysisInfo(pNode, dependencyType)
@@ -97,12 +87,14 @@ object GobraDependencyAnalysisAggregator {
 
     }
 
-    def getGobraDependencyAnalysisInfo(pNode: PNode, dependencyType: Option[DependencyType]=dependencyTypeOuter): Set[GobraDependencyAnalysisInfo] = {
+    def getGobraDependencyAnalysisInfo(pNode: PNode, dependencyType: Option[DependencyType]=dependencyTypeOuter): Set[ast.Info] = {
       try {
         val start = positionManager.positions.getStart(pNode).get
         val end = positionManager.positions.getFinish(pNode).get
-        val sourcePosition = TranslatedPosition(positionManager.translate(start, end))
-        val info = new GobraDependencyAnalysisInfo(pNode, start, end, sourcePosition, Some(getDependencyTypeForPNode(pNode, dependencyType)), Some(pNode.toString))
+        val sourcePosition = ast.TranslatedPosition(positionManager.translate(start, end))
+				val depTypeInfo = ast.DependencyTypeInfo(getDependencyTypeForPNode(pNode, dependencyType))
+				val analysisSourceInfo =  GobraAnalysisSourceInfo(pNode, sourcePosition)
+        val info = ast.MakeInfoPair(depTypeInfo,  analysisSourceInfo)
         Set(info)
       } catch {
         case _ => Set.empty

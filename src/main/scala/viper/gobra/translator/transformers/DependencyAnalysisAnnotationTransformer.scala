@@ -3,21 +3,25 @@ package viper.gobra.translator.transformers
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.dependencyAnalysis.GobraDependencyAnalysisAggregator
+import viper.gobra.dependencyAnalysis.{GobraAnalysisSourceInfo, GobraDependencyAnalysisAggregator}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
-import viper.gobra.reporting.Source.Verifier.GobraDependencyAnalysisInfo
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.dependencyAnalysis.FrontendDependencyAnalysisInfo
+import viper.silver.dependencyAnalysis.AnalysisSourceInfo
 import viper.silver.verifier.AbstractError
-import viper.silver.{ast => vpr}
+import viper.silver.{ast, ast => vpr}
+
+import scala.reflect.ClassTag
 
 class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config) extends ViperTransformer {
 
-  private lazy val gobraNodes: Iterable[GobraDependencyAnalysisInfo] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
-  private lazy val gNodes = gobraNodes.map(n => ((n.getPNode, n.getPosition), n)).toMap
+  private lazy val gobraNodes: Iterable[ast.Info] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
+  private lazy val gNodes = gobraNodes.map(n => {
+		val sourceInfo = n.getUniqueInfo[GobraAnalysisSourceInfo].get
+		((sourceInfo.pNode, sourceInfo.getPosition), n)
+	}).toMap
   private val allTypeInfos = typeInfo.getTransitiveTypeInfos().filterNot(_.pkgName.name.contains("builtin")).map(typeInfos => typeInfos.getTypeInfo)
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
@@ -27,46 +31,46 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     Right(task.copy(program = programWithAnalysisSources))
   }
 
-  /**
-    * Adds GobraDependencyAnalysisInfos to the Viper nodes. This info is used to merge lower-level dependency nodes
-    * into Gobra dependency nodes such that soundness of transitive dependencies is guaranteed. Soundness depends on the
-    * correctness of [[GobraDependencyAnalysisAggregator.identifyGobraNodes]].
-   */
+
   private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
     ViperStrategy.Slim({
       case member: vpr.Member =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
-        if(member.info.getUniqueInfo[Verifier.Info].isDefined && member.info.getUniqueInfo[FrontendDependencyAnalysisInfo].isEmpty){
-          val sourceInfo = member.info.getUniqueInfo[Verifier.Info]
-          val depInfo = getDependencyAnalysisInfo(sourceInfo)
-          val annotationInfo = getAnnotationInfo(depInfo)
-          val newInfo2 = if(depInfo.isDefined) MakeInfoPair(depInfo.get, newInfo) else newInfo
-          val finalInfo = if(annotationInfo.isDefined) MakeInfoPair(annotationInfo.get, newInfo2) else newInfo2
-          member.withMeta(member.pos, finalInfo, member.errT)
-        }else{
-          member.withMeta((member.pos, newInfo, member.errT))
-        }
-      case stmt: vpr.Stmt if stmt.info.getUniqueInfo[FrontendDependencyAnalysisInfo].isEmpty =>
-        val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
-        val depInfo = getDependencyAnalysisInfo(sourceInfo)
-        val annotationInfo = getAnnotationInfo(depInfo)
-        val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, stmt.info) else stmt.info
-        val finalInfo = if(annotationInfo.isDefined) MakeInfoPair(annotationInfo.get, newInfo) else newInfo
-        stmt.withMeta(stmt.pos, finalInfo, stmt.errT)
-      case exp: vpr.Exp if exp.info.getUniqueInfo[FrontendDependencyAnalysisInfo].isEmpty =>
-        val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
-        val depInfo = getDependencyAnalysisInfo(sourceInfo)
-        val newInfo = if(depInfo.isDefined) MakeInfoPair(depInfo.get, exp.info) else exp.info
+				val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo)
+				member.withMeta(member.pos, newInfo2, member.errT)
+      case stmt: vpr.Stmt =>
+				val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info)
+        stmt.withMeta(stmt.pos, newInfo, stmt.errT)
+      case exp: vpr.Exp =>
+				val newInfo = getDependencyAnalysisEnhancedInfo(exp.info)
         exp.withMeta(exp.pos, newInfo, exp.errT)
     }).forceCopy().execute(p)
   }
 
-  private def getDependencyAnalysisInfo(sourceInfo: Option[Verifier.Info]): Option[GobraDependencyAnalysisInfo] = {
-    if (sourceInfo.isEmpty) return None
-    getDependencyAnalysisInfo(sourceInfo.get.pnode)
-  }
+	private def getDependencyAnalysisEnhancedInfo(oldInfo: Info) = {
+		val sourceInfo = oldInfo.getUniqueInfo[Verifier.Info]
+		val depInfoOpt = getDependencyAnalysisInfoFromAncestorPNode(sourceInfo)
+		if (depInfoOpt.isDefined) {
+			val depInfo = depInfoOpt.get
+			// do not override existing infos
+			val newInfo = attachInfoIfNotExists[AnalysisSourceInfo](oldInfo, depInfo)
+			val resInfo = attachInfoIfNotExists[DependencyTypeInfo](newInfo, depInfo)
+			resInfo
+		} else
+			oldInfo
+	}
 
-  private def getDependencyAnalysisInfo(pNode: PNode): Option[GobraDependencyAnalysisInfo] = {
+	private def attachInfoIfNotExists[T <: Info : ClassTag](oldInfo: Info, newInfo: Info) = {
+		oldInfo.getUniqueInfo[T] match {
+			case Some(_) =>
+				oldInfo
+			case None    => MakeInfoPair(oldInfo, newInfo.getUniqueInfo[T].getOrElse(NoInfo))
+		}
+	}
+
+	private def getDependencyAnalysisInfoFromAncestorPNode(sourceInfo: Option[Verifier.Info]): Option[ast.Info] = {
+    if (sourceInfo.isEmpty) return None
+		val pNode = sourceInfo.get.pnode
     try {
       val typeInfoToUse = allTypeInfos.filter(_.tree.root.positions.positions.getStart(pNode).isDefined).head
       var pNodes = Vector(pNode)
@@ -78,10 +82,9 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
       gNodeCandidates.headOption
     } catch {
-      case _ => None
+      case _: Throwable => None
     }
   }
-
 
   // TODO ake: duplicate! (see GobraDependencyAnalysisAggregator)
   private def getPosition(pNode: PNode, typeInfoToUse: TypeInfo): TranslatedPosition = {
@@ -126,54 +129,5 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private def disableDependencyAnalysis: AnnotationInfo = {
     AnnotationInfo(Map(("enableDependencyAnalysis", List("false"))))
-  }
-
-  private def getAnnotationInfo(gobraDependencyAnalysisInfo: Option[GobraDependencyAnalysisInfo], infoOpt: Option[Verifier.Info] = None): Option[AnnotationInfo] = {
-    if(gobraDependencyAnalysisInfo.isEmpty) return None
-    val depTypeOpt = gobraDependencyAnalysisInfo.get.dependencyType
-
-    infoOpt match {
-      case None =>
-        if (depTypeOpt.isDefined) {
-          val depType = depTypeOpt.get
-          Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
-        }
-        else None
-
-      case Some(info) =>
-        // TODO: very hacky; ideally, we merge the lists of annotations when enableDependencyAnalysis(false) is not already there
-        var i = info.getUniqueInfo[AnnotationInfo]
-        var break = false
-        while (i.isDefined && !break) {
-          val v = i.get
-          break = v.values.contains("enableDependencyAnalysis") && v.values("enableDependencyAnalysis").contains("false")
-          val updated = v.removeUniqueInfo[AnnotationInfo]
-          i = updated.getUniqueInfo[AnnotationInfo]
-        }
-        if (break) {
-          Some(disableDependencyAnalysis)
-        } else {
-          if (depTypeOpt.isDefined) {
-            val depType = depTypeOpt.get
-            Some(AnnotationInfo(Map(("assumptionType", List(depType.assumptionType.toString)), ("assertionType", List(depType.assertionType.toString)))))
-          }
-          else None
-        }
-    }
-  }
-}
-
-object DependencyAnalysisAnnotationTransformer {
-  def addDependencyAnalysisAnnotations[T <: vpr.Member](node: T, info: vpr.Info): T = {
-    ViperStrategy.Slim({
-      case stmt: vpr.Stmt =>
-        val sourceInfo = stmt.info.getUniqueInfo[Verifier.Info]
-        val finalInfo = if(sourceInfo.isDefined) MakeInfoPair(info, sourceInfo.get) else info
-        stmt.withMeta(stmt.pos, finalInfo, stmt.errT)
-      case exp: vpr.Exp =>
-        val sourceInfo = exp.info.getUniqueInfo[Verifier.Info]
-        val finalInfo = if(sourceInfo.isDefined) MakeInfoPair(info, sourceInfo.get) else info
-        exp.withMeta(exp.pos, finalInfo, exp.errT)
-    }).forceCopy().execute(node)
   }
 }

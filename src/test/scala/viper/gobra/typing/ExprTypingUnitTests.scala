@@ -15,7 +15,7 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
+import viper.gobra.util.TypeBounds.{DefaultInt, SignedInteger8, UnboundedInteger}
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -3356,6 +3356,40 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.exprType(expr)(Vector()) should matchPattern {
       case Type.BooleanT =>
     }
+  }
+
+
+  test("TypeChecker: integer literal subexpressions in a binary expression should get the context type") {
+    val one = PIntLit(1)
+    val two = PIntLit(2)
+    val add = PAdd(one, two)
+    // singleExprTypeInfo wraps in `n := 1 + 2`, giving DEFAULT_INTEGER_TYPE (int) as context
+    val typeInfo = frontend.singleExprTypeInfo(Vector(), add)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(DefaultInt) => }
+    typeInfo.exprType(two) should matchPattern { case Type.IntT(DefaultInt) => }
+  }
+
+  test("TypeChecker: integer literal subexpressions in nested binary expressions should get the context type") {
+    val one   = PIntLit(1)
+    val two   = PIntLit(2)
+    val three = PIntLit(3)
+    val inner = PAdd(one, two)
+    val outer = PAdd(inner, three)
+    val typeInfo = frontend.singleExprTypeInfo(Vector(), outer)
+    typeInfo.exprType(one)   should matchPattern { case Type.IntT(DefaultInt) => }
+    typeInfo.exprType(two)   should matchPattern { case Type.IntT(DefaultInt) => }
+    typeInfo.exprType(three) should matchPattern { case Type.IntT(DefaultInt) => }
+  }
+
+  test("TypeChecker: typed sibling should prevent outer context from overriding untyped literal type") {
+    // In `n := 1 + y` where y: int8, `1` must adapt to int8 (via typeMerge), not to int.
+    // So the overall expression should have type int8.
+    val one = PIntLit(1)
+    val y   = PNamedOperand(PIdnUse("y"))
+    val add = PAdd(one, y)
+    val inArgs = Vector((PNamedParameter(PIdnDef("y"), PInt8Type()), false))
+    val typeInfo = frontend.singleExprTypeInfo(inArgs, add)
+    typeInfo.exprType(add) should matchPattern { case Type.IntT(SignedInteger8) => }
   }
 
 

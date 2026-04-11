@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+// Regression test: integer literal subexpressions in binary expressions must receive the
+// concrete type imposed by the surrounding context rather than the internal unbounded-int
+// type (UNTYPED_INT_CONST). The fix ensures that both operands of `1 + 2` are typed as
+// `int` (or the relevant concrete type) when a typed context is present.
+
+func testBinaryExprLiteralTypes() {
+	// Both `1` and `2` should be typed as `int` here.
+	var a int = 1 + 2
+	assert(a == 3)
+
+	// Both `1` and `2` should be typed as `int8` here.
+	var b int8 = 1 + 2
+	assert(b == 3)
+
+	// Nested binary expressions: all literals should get `int`.
+	var c int = 1 + 2 + 3
+	assert(c == 6)
+}
+
+func testShiftExprLiteralTypes() {
+	// The left operand of a shift follows the context type.
+	var d int = 1 << 2
+	assert(d == 4)
+}

@@ -1021,6 +1021,29 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
+        // For unary bit negation: the operand takes the same type as the negation expression,
+        // so propagate the negation's own context upward.
+        case bNeg: PBitNegation => getTypeFromCtxt(bNeg)
+
+        // For shift expressions: the left operand (value being shifted) follows the context type
+        // of the shift expression itself. The right operand (shift count) gets no type from context.
+        case bExpr: PShiftLeft  =>
+          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) else None
+        case bExpr: PShiftRight =>
+          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) else None
+
+        // For other numeric binary expressions (+ - * / % & | ^ &^):
+        // If the sibling operand is itself a pure untyped integer constant expression, the outer
+        // context type (obtained by walking up to the parent of the binary expression) should be
+        // propagated down to this subexpression.
+        // If the sibling already has a concrete type, we return None so that typeMerge at the
+        // binary expression level can do the right thing (e.g. `1 + y` where y: int8 → 1 adapts
+        // to int8, not to whatever the outer context says).
+        case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression] =>
+          val sibling: PExpressionOrType =
+            if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
+          if (isUntypedIntConst(sibling)) getTypeFromCtxt(bExpr) else None
+
         case e: PMisc => e match {
           // The following case infers the type of an literal expression when it occurs inside a composite literal.
           // For example, it infers that the expression `1/2` in `seq[perm]{ 1/2 }` has type perm. Notice that the whole
@@ -1067,6 +1090,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case x => violation("blank identifier not supported in node " + x)
     }
     case _ => violation("blank identifier always has a parent")
+  }
+
+  /**
+    * Structurally determines whether an expression is a pure untyped integer constant expression,
+    * i.e. one composed solely of integer literals, iota, bit-negation, shifts, and arithmetic on
+    * such expressions. Unlike [[numExprType]], this predicate never calls [[exprType]] and is
+    * therefore cycle-free. It is used by [[getTypeFromCtxt]] to decide whether the outer context
+    * type should be propagated to a literal that appears as a subexpression of a binary expression.
+    */
+  private def isUntypedIntConst(expr: PExpressionOrType): Boolean = expr match {
+    case _: PIntLit | _: PIota                                                  => true
+    case PBitNegation(op)                                                        => isUntypedIntConst(op)
+    case bExpr: PShiftLeft                                                       => isUntypedIntConst(bExpr.left)
+    case bExpr: PShiftRight                                                      => isUntypedIntConst(bExpr.left)
+    case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression]          =>
+      isUntypedIntConst(bExpr.left) && isUntypedIntConst(bExpr.right)
+    case _                                                                       => false
   }
 
   private def numExprType(expr: PNumExpression): Type = {

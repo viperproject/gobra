@@ -27,3 +27,14 @@ func testShiftExprLiteralTypes() {
 	var d int = 1 << 2
 	assert(d == 4)
 }
+
+func testTypedSiblingLiteralTypes() {
+	// When a literal appears next to a typed operand, it should receive that operand's type.
+	var x uint8 = 1
+	var y uint8 = 1 + x  // `1` should get type uint8 from sibling `x`
+	assert(y == 2)
+
+	var a int8 = 3
+	var b int8 = 2 + a  // `2` should get type int8 from sibling `a`
+	assert(b == 5)
+}

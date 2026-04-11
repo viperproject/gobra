@@ -1033,16 +1033,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) else None
 
         // For other numeric binary expressions (+ - * / % & | ^ &^):
-        // If the sibling operand is itself a pure untyped integer constant expression, the outer
-        // context type (obtained by walking up to the parent of the binary expression) should be
-        // propagated down to this subexpression.
-        // If the sibling already has a concrete type, we return None so that typeMerge at the
-        // binary expression level can do the right thing (e.g. `1 + y` where y: int8 → 1 adapts
-        // to int8, not to whatever the outer context says).
+        // If the sibling operand is itself a pure untyped integer constant expression, propagate
+        // the outer context type down to this subexpression.
+        // If the sibling has a concrete integer type T (e.g. `1 + y` where y: int8), return
+        // Some(T) so that this literal also gets type T — the same rule Go uses for untyped
+        // constants in mixed expressions.
+        // If the sibling has any other type (e.g. float, bool), return None and let the
+        // well-definedness checker report the type error through the normal path.
         case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression] =>
           val sibling: PExpressionOrType =
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
-          if (isUntypedIntConst(sibling)) getTypeFromCtxt(bExpr) else None
+          if (isUntypedIntConst(sibling)) getTypeFromCtxt(bExpr)
+          else exprOrTypeType(sibling) match {
+            case t @ Type.IntT(_) if t != UNTYPED_INT_CONST => Some(t)
+            case _ => None
+          }
 
         case e: PMisc => e match {
           // The following case infers the type of an literal expression when it occurs inside a composite literal.

@@ -3381,14 +3381,15 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     typeInfo.exprType(three) should matchPattern { case Type.IntT(DefaultInt) => }
   }
 
-  test("TypeChecker: typed sibling should prevent outer context from overriding untyped literal type") {
-    // In `n := 1 + y` where y: int8, `1` must adapt to int8 (via typeMerge), not to int.
-    // So the overall expression should have type int8.
+  test("TypeChecker: untyped literal next to a typed sibling gets the sibling's type") {
+    // In `n := 1 + y` where y: int8, both `1` and the overall expression must have type int8,
+    // not the outer DEFAULT_INTEGER_TYPE (int) that the short-var-decl context would supply.
     val one = PIntLit(1)
     val y   = PNamedOperand(PIdnUse("y"))
     val add = PAdd(one, y)
     val inArgs = Vector((PNamedParameter(PIdnDef("y"), PInt8Type()), false))
     val typeInfo = frontend.singleExprTypeInfo(inArgs, add)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(SignedInteger8) => }
     typeInfo.exprType(add) should matchPattern { case Type.IntT(SignedInteger8) => }
   }
 

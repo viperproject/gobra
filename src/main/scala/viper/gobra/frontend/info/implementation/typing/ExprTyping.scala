@@ -1045,7 +1045,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
           if (isUntypedIntConst(sibling)) getTypeFromCtxt(bExpr)
           else exprOrTypeType(sibling) match {
-            case t @ Type.IntT(_) if t != UNTYPED_INT_CONST => Some(t)
+            case t @ IntT(_) if t != UNTYPED_INT_CONST => Some(t)
             case _ => None
           }
 

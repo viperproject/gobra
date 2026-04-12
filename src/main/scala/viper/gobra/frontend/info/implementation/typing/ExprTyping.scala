@@ -1023,14 +1023,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         // For unary bit negation: the operand takes the same type as the negation expression,
         // so propagate the negation's own context upward.
-        case bNeg: PBitNegation => getTypeFromCtxt(bNeg)
+        case bNeg: PBitNegation => getTypeFromCtxt(bNeg) match {
+          case result @ Some(_: InterfaceT) => None
+          case result => result
+        }
 
         // For shift expressions: the left operand (value being shifted) follows the context type
         // of the shift expression itself. The right operand (shift count) gets no type from context.
         case bExpr: PShiftLeft  =>
-          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) else None
+          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) match {
+            case result @ Some(_: InterfaceT) => None
+            case result => result
+          } else None
         case bExpr: PShiftRight =>
-          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) else None
+          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) match {
+            case result @ Some(_: InterfaceT) => None
+            case result => result
+          } else None
 
         // For other numeric binary expressions (+ - * / % & | ^ &^):
         // If the sibling operand is itself a pure untyped integer constant expression, propagate
@@ -1043,8 +1052,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression] =>
           val sibling: PExpressionOrType =
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
-          if (isUntypedIntConst(sibling)) getTypeFromCtxt(bExpr)
-          else exprOrTypeType(sibling) match {
+          if (isUntypedIntConst(sibling)) {
+            // Propagate the outer context only if it is a concrete integer type (not an interface).
+            // If the context is interface{}, return None so that bounds checking happens only once
+            // at the binary expression level (not additionally at each literal subexpression).
+            getTypeFromCtxt(bExpr) match {
+              case result @ Some(_: InterfaceT) => None
+              case result => result
+            }
+          } else exprOrTypeType(sibling) match {
             case t @ IntT(_) if t != UNTYPED_INT_CONST => Some(t)
             case _ => None
           }

@@ -148,6 +148,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
+  def showOpensInvs: Doc = "opensInvariants" <> line
+  def showAtomic: Doc = "atomic" <> line
   def showTrusted: Doc = "trusted" <> line
   def showMayInit: Doc = "mayInit" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
@@ -164,11 +166,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, mayInit) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit) =>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
+      (if (opensInvs) showOpensInvs else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       (if (mayInit) showMayInit else emptyDoc) <>
+      (if (isAtomic) showAtomic else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
       hcat(preserves map (showPreserves(_) <> line)) <>
       hcat(posts map (showPost(_) <> line)) <>
@@ -300,6 +304,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBlock(stmts) => block(showStmtList(stmts))
       case PSeq(stmts) => showStmtList(stmts)
       case POutline(body, spec) => showSpec(spec) <> "outline" <> parens(nest(line <> showStmt(body)) <> line)
+      case PCritical(expr, stmts) =>
+        "critical" <> showExpr(expr) <> parens(nest(line <> showStmtList(stmts)) <> line)
       case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
     }
     case statement: PGhostStatement => statement match {

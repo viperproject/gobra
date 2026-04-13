@@ -325,6 +325,8 @@ case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScop
   }
 }
 
+case class PCritical(expr: PExpression, stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement
+
 case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement {
   def nonEmptyStmts: Vector[PStatement] = stmts.filterNot {
     case _: PEmptyStmt => true
@@ -894,6 +896,8 @@ case class PFunctionSpec(
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
+                          isAtomic: Boolean = false,
+                          opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
                       ) extends PSpecification
 

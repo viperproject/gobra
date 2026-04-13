@@ -162,7 +162,7 @@ pure func (b BoundedMonotonicSet) toSetAux(start uint16) set[uint16] {
 }
 
 ghost
-requires 0 < p
+requires p > noPerm
 requires acc(b.Inv(), p)
 requires b.Contains(v)
 ensures  acc(b.Inv(), p)
@@ -203,7 +203,7 @@ func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 }
 
 ghost
-requires  0 < p
+requires  p > noPerm
 preserves acc(b.Inv(), p)
 preserves b.DoesNotContain(v)
 ensures   !(v elem b.ToSet())

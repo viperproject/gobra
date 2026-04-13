@@ -248,9 +248,20 @@ trait TypeEncoding extends Generator {
     */
   def assertion(@unused ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
+  /**
+    * Returns true if `target` is found at any depth within the subtree of `root`,
+    * using the same equality criterion as [[BackTranslator.RichErrorMessage.causedBy]].
+    * This handles cases where Viper reports a sub-expression as the offending node
+    * (e.g. FractionalPerm(1, 0) inside a FieldAccessPredicate) rather than the
+    * top-level contract expression.
+    */
+  private def offendingNodeIn(target: vpr.Node, root: vpr.Node): Boolean =
+    (target == root && target.pos == root.pos) ||
+      root.subnodes.exists(offendingNodeIn(target, _))
+
   final def invariant(ctx: Context): in.Assertion ==> (CodeWriter[Unit], vpr.Exp) = {
     def invErr(inv: vpr.Exp): ErrorTransformer = {
-      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
+      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if offendingNodeIn(e.offendingNode, inv) =>
         info.origin match {
           case Source.AnnotatedOrigin(_, _:Source.NoPermissionToRangeExpressionAnnotation) =>
             NoPermissionToRangeExpressionError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
@@ -272,7 +283,7 @@ trait TypeEncoding extends Generator {
 
   final private def contract(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     def contractErr(inv: vpr.Exp): ErrorTransformer = {
-      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
+      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if offendingNodeIn(e.offendingNode, inv) =>
         MethodContractNotWellFormedError(info)
           .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
     }

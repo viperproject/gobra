@@ -30,7 +30,7 @@ func spawnThreads(n int) {
 	invariant acc(wg.WaitGroupP(), perm(1, 2))
 	invariant acc(wg.WaitGroupStarted(), perm(1, 2))
 	invariant !wg.WaitMode()
-	invariant acc(wg.Token(PredTrue!<!>), (i + 1)/1)
+	invariant acc(wg.Token(PredTrue!<!>), perm(i + 1, 1))
 	for i := 0; i < n; i++ {
 		// {
 		//   acc(wg.WaitGroupP(), 1/2) &&

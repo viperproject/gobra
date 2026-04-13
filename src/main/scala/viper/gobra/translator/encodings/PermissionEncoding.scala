@@ -11,6 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.util.FunctionGeneratorWithoutContext
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -18,6 +19,37 @@ class PermissionEncoding extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
+
+  /**
+    * Generates the Viper function `$newPerm(x: Int, y: Int): Perm { x / y }` on demand.
+    */
+  private val newPermGen = new FunctionGeneratorWithoutContext[Unit] {
+    override def genFunction(x: Unit): vpr.Function = {
+      val xDecl = vpr.LocalVarDecl("x", vpr.Int)()
+      val yDecl = vpr.LocalVarDecl("y", vpr.Int)()
+      val pre   = vpr.NeCmp(yDecl.localVar, vpr.IntLit(0)())()
+      val body  = vpr.FractionalPerm(xDecl.localVar, yDecl.localVar)()
+      vpr.Function("$newPerm", Seq(xDecl, yDecl), vpr.Perm, Seq(pre), Seq.empty, Some(body))()
+    }
+  }
+
+  /**
+    * Generates the Viper function `$newPermFromPerm(x: Perm, y: Int): Perm { x / y }` on demand.
+    */
+  private val newPermFromPermGen = new FunctionGeneratorWithoutContext[Unit] {
+    override def genFunction(x: Unit): vpr.Function = {
+      val xDecl = vpr.LocalVarDecl("x", vpr.Perm)()
+      val yDecl = vpr.LocalVarDecl("y", vpr.Int)()
+      val pre   = vpr.NeCmp(yDecl.localVar, vpr.IntLit(0)())()
+      val body  = vpr.PermDiv(xDecl.localVar, yDecl.localVar)()
+      vpr.Function("$newPermFromPerm", Seq(xDecl, yDecl), vpr.Perm, Seq(pre), Seq.empty, Some(body))()
+    }
+  }
+
+  override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    newPermGen.finalize(addMemberFn)
+    newPermFromPermGen.finalize(addMemberFn)
+  }
 
   /**
     * Translates a type into a Viper type.
@@ -63,6 +95,16 @@ class PermissionEncoding extends LeafTypeEncoding {
       case ps@ in.PermSub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermSub(vl, vr), ps)
       case pm@ in.PermMul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermMul(vl, vr), pm)
       case pd@ in.PermDiv(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermDiv(vl, vr), pd)
+
+      case pc: in.PermConstructorFromInt =>
+        val (pos, info, errT) = pc.vprMeta
+        for { vn <- goE(pc.num); vd <- goE(pc.den) }
+          yield newPermGen(Vector(vn, vd), ())(pos, info, errT)
+
+      case pc: in.PermConstructorFromPerm =>
+        val (pos, info, errT) = pc.vprMeta
+        for { vp <- goE(pc.p); vd <- goE(pc.den) }
+          yield newPermFromPermGen(Vector(vp, vd), ())(pos, info, errT)
 
       // Perm comparisons
       case lt@in.PermLtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLtCmp(vl, vr), lt)

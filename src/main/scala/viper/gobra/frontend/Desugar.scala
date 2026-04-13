@@ -4920,21 +4920,22 @@ object Desugar extends LazyLogging {
               // the well-definedness checker ensures that there is exactly one argument
               arg <- permissionD(ctx, info)(n.args.head)
             } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
+          case Some(ap.FractionalPermConstructor(num, den)) =>
+            if (info.typ(num) == PermissionT)
+              Some(for { vp <- permissionD(ctx, info)(num); vd <- goE(den) } yield in.PermConstructorFromPerm(vp, vd)(src))
+            else
+              Some(for { vn <- goE(num); vd <- goE(den) } yield in.PermConstructorFromInt(vn, vd)(src))
           case _ => None
         }
         case PFullPerm() => Some(unit(in.FullPerm(src)))
         case PNoPerm() => Some(unit(in.NoPerm(src)))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
-        case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
-          case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx, info)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
-          case (IntT(_), IntT(_)) => Some(for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src))
-          case err => violation(s"This case should be unreachable, but got $err")
-        }
+        case PDiv(l, r) if info.typ(l) == PermissionT =>
+          Some(for { vl <- permissionD(ctx, info)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
         case PNegation(exp) => Some(for {e <- permissionD(ctx, info)(exp)} yield in.PermMinus(e)(src))
         case PAdd(l, r) => Some(for { vl <- permissionD(ctx, info)(l); vr <- permissionD(ctx, info)(r) } yield in.PermAdd(vl, vr)(src))
         case PSub(l, r) => Some(for { vl <- permissionD(ctx, info)(l); vr <- permissionD(ctx, info)(r) } yield in.PermSub(vl, vr)(src))
         case PMul(l, r) => Some(for {vl <- goE(l); vr <- permissionD(ctx, info)(r)} yield in.PermMul(vl, vr)(src))
-        case x if info.typ(x).isInstanceOf[IntT] => Some(for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src))
         case _ => None
       }
     }

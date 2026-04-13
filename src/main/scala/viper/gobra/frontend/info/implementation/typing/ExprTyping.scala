@@ -255,6 +255,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             isExpr(p.arg).out ++
             argWithinBounds
 
+        case (Right(_), Some(fc: ap.FractionalPermConstructor)) =>
+          // perm(num, den): num must be Int or perm; den must be Int
+          val numT = exprType(fc.num)
+          val numOk = if (numT == PermissionT) noMessages
+                      else assignableTo.errors(numT, UNTYPED_INT_CONST, mayInit)(fc.num)
+          val denOk = assignableTo.errors(exprType(fc.den), UNTYPED_INT_CONST, mayInit)(fc.den)
+          isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
+
         case (Left(callee), Some(c: ap.FunctionCall)) =>
           val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
             case base: ap.Symbolic => base.symb match {
@@ -504,8 +512,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(UnboundedFloatT, Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
+          case (_: PAdd | _: PSub | _: PMul | _: PMod, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
+              assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
+          case (_: PDiv, l, r)
+            if l == PermissionT || r == PermissionT =>
               assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
             val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
@@ -730,6 +741,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
+      case (Right(_), Some(_: ap.FractionalPermConstructor)) => PermissionT
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
@@ -1052,11 +1064,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val sibling: PExpressionOrType =
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
           if (isUntypedIntConst(sibling)) {
-            // Propagate the outer context only if it is a concrete integer type (not an interface).
-            // If the context is interface{}, return None so that bounds checking happens only once
-            // at the binary expression level (not additionally at each literal subexpression).
+            // Propagate the outer context only if it is a concrete integer type (not an interface
+            // and not perm). If the context is interface{}, return None so that bounds checking
+            // happens only once at the binary expression level (not additionally at each literal
+            // subexpression). If the context is perm, return None so that integer literal
+            // subexpressions of x/y are not given type PermissionT (which would break Desugar).
             getTypeFromCtxt(bExpr) match {
               case result @ Some(_: InterfaceT) => None
+              case Some(PermissionT)            => None
               case result => result
             }
           } else {

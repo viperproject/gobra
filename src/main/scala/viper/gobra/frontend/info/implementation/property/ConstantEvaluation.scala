@@ -163,16 +163,13 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
   lazy val permConstantEval: PExpression => Option[(BigInt, BigInt)] = {
     attr[PExpression, Option[(BigInt, BigInt)]] {
-      case PDiv(a, b) =>
-        // Here, we support the cases where 'a' and 'b' are int. In the future, this can be expanded to also
-        // support 'a' of type perm.
-        for {
-          dividend <- intConstantEval(a)
-          divisor  <- intConstantEval(b)
-        } yield (dividend, divisor)
-
       case inv: PInvoke => resolve(inv) match {
         case Some(ap.Conversion(t, e)) if underlyingTypeP(t).contains(PPermissionType()) => permConstantEval(e)
+        case Some(ap.FractionalPermConstructor(num, den)) =>
+          for {
+            n <- intConstantEval(num)
+            d <- intConstantEval(den)
+          } yield (n, d)
         case _ => None
       }
 

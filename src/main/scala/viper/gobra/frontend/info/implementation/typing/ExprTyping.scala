@@ -515,9 +515,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PAdd | _: PSub | _: PMul | _: PMod, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
-          case (_: PDiv, l, r)
-            if l == PermissionT || r == PermissionT =>
-              assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
+          case (_: PDiv, l, r) if l == PermissionT =>
+              // perm / n: divisor must be an integer (PermDiv); do not require it to be perm
+              assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
             val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
             val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
@@ -1182,6 +1182,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case bExpr: PBinaryExp[_, _] =>
         bExpr match {
           case _: PShiftLeft | _: PShiftRight => exprOrTypeType(bExpr.left)
+          case _: PDiv =>
+            val typeLeft = exprOrTypeType(bExpr.left)
+            // perm / int → PermDiv, result type is Perm
+            if (typeLeft == PermissionT) PermissionT
+            else typeMerge(typeLeft, exprOrTypeType(bExpr.right)).getOrElse(UnknownType)
           case _ =>
             val typeLeft = exprOrTypeType(bExpr.left)
             val typeRight = exprOrTypeType(bExpr.right)

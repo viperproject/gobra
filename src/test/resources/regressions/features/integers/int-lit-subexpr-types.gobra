@@ -38,3 +38,26 @@ func testTypedSiblingLiteralTypes() {
 	var b int8 = 2 + a  // `2` should get type int8 from sibling `a`
 	assert(b == 5)
 }
+
+type S struct { field uint8 }
+
+func getUint8() uint8 { return 42 }
+func (s *S) method() uint8 { return s.field }
+
+func testFunctionCallSibling() {
+	// f() + (1 - 2): `1` and `2` should get type uint8 from f()'s return type
+	x := getUint8() + 1
+	assert(x == 43)
+}
+
+func testMethodCallSibling(s *S) {
+	// s.method() + 1: `1` should get type uint8 from the method's return type
+	x := s.method() + 1
+	assert(x >= 0)
+}
+
+func testFieldAccessSibling(s S) {
+	// s.field + 1: `1` should get type uint8 from the field's type
+	x := s.field + 1
+	assert(x >= 0)
+}

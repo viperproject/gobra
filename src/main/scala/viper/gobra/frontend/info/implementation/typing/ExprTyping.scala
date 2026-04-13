@@ -1075,42 +1075,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               case result => result
             }
           } else {
-            // We must NOT call exprType(sibling) here — that would cause a Kiama attribute
-            // evaluation cycle. For example, wellDefExpr(A op B) may call getTypeFromCtxt(A)
-            // which would call exprType(B), whose safe() check calls wellDefExpr(B), which may
-            // call getTypeFromCtxt(B) → exprType(A) → wellDefExpr(A) — but wellDefExpr(A op B)
-            // is still being evaluated, so wellDefExpr(A) is also in-progress → CYCLE.
-            //
-            // Instead, read the sibling's declared type directly from the symbol table, which is
-            // cycle-safe. We handle only named operands (the common case for `1 + x`); for other
-            // expressions, typeMerge at the binary expression level handles the type correctly.
-            def intTypeOf(t: Type): Option[IntT] = t match {
-              case it: IntT if it != UNTYPED_INT_CONST => Some(it)
-              case _ => None
-            }
+            // sibling is not a pure untyped integer constant, so its type is
+            // context-independent. Calling exprType(sibling) is cycle-safe here:
+            // the cycle risk (exprType(A) → getTypeFromCtxt(A) → exprType(B) →
+            // getTypeFromCtxt(B) → exprType(A)) only arises when isUntypedIntConst
+            // holds for *both* sides; since isUntypedIntConst(sibling) = false,
+            // the sibling has a fixed type and calling exprType on it cannot cause
+            // a re-entrant call to getTypeFromCtxt(sibling) → exprType(expr).
             sibling match {
-              case named: PNamedOperand =>
-                entity(named.id) match {
-                  case st.InParameter(p, _, _, ctx)        => intTypeOf(ctx.symbType(p.typ))
-                  case st.ReceiverParameter(p, _, _, ctx)  => intTypeOf(ctx.symbType(p.typ))
-                  case st.OutParameter(p, _, _, ctx)       => intTypeOf(ctx.symbType(p.typ))
-                  case st.SingleLocalVariable(_, Some(typ), _, _, _, ctx) => intTypeOf(ctx.symbType(typ))
-                  case GlobalVariable(_, _, _, Some(typ), _, _, _, ctx)   => intTypeOf(ctx.symbType(typ))
-                  case _ => None
-                }
-              case inv: PInvoke =>
-                // Handle `f() + (1 - 2)` where `f` returns a typed integer.
-                // We look up the callee's declared result type directly (cycle-safe).
-                inv.base match {
-                  case called: PNamedOperand =>
-                    entity(called.id) match {
-                      case s: st.WithResult =>
-                        s.result.outs match {
-                          case Vector(out) => intTypeOf(s.context.symbType(out.typ))
-                          case _ => None
-                        }
-                      case _ => None
-                    }
+              case e: PExpression =>
+                exprType(e) match {
+                  case it: IntT if it != UNTYPED_INT_CONST => Some(it)
                   case _ => None
                 }
               case _ => None

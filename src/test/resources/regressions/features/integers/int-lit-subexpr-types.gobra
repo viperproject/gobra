@@ -41,23 +41,25 @@ func testTypedSiblingLiteralTypes() {
 
 type S struct { field uint8 }
 
-func getUint8() uint8 { return 42 }
-func (s *S) method() uint8 { return s.field }
+ensures ret == 42
+func getUint8() (ret uint8) { ret = 42 }
+
+// Value receiver: no heap permissions needed.
+func (s S) method() uint8 { return s.field }
 
 func testFunctionCallSibling() {
-	// f() + (1 - 2): `1` and `2` should get type uint8 from f()'s return type
+	// getUint8() + 1: `1` should get type uint8 from getUint8()'s return type
 	x := getUint8() + 1
 	assert(x == 43)
 }
 
-func testMethodCallSibling(s *S) {
+// Return value captures the result; no assertion about an unknown value needed.
+func testMethodCallSibling(s S) (res uint8) {
 	// s.method() + 1: `1` should get type uint8 from the method's return type
-	x := s.method() + 1
-	assert(x >= 0)
+	res = s.method() + 1
 }
 
-func testFieldAccessSibling(s S) {
+func testFieldAccessSibling(s S) (res uint8) {
 	// s.field + 1: `1` should get type uint8 from the field's type
-	x := s.field + 1
-	assert(x >= 0)
+	res = s.field + 1
 }

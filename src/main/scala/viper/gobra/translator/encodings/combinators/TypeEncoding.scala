@@ -249,14 +249,20 @@ trait TypeEncoding extends Generator {
   def assertion(@unused ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
-    * Returns true if `target` is found at any depth within the subtree of `root`.
-    * Uses reference equality (`eq`) so that distinct but structurally identical nodes
-    * at different source positions are never confused. This handles cases where Viper
-    * reports a sub-expression as the offending node (e.g. FractionalPerm(1, 0) inside a
-    * FieldAccessPredicate) rather than the top-level contract expression.
+    * Returns true if `target` matches `root` or any subnode of `root`.
+    * Node matching uses the same condition as [[viper.gobra.reporting.BackTranslator.RichErrorMessage.causedBy]]:
+    * structural equality (`==`) plus position equality for Positioned nodes.
+    * This handles cases where Viper reports a sub-expression as the offending node
+    * (e.g. FractionalPerm(1, 0) inside a FieldAccessPredicate) rather than the
+    * top-level contract expression.
     */
-  private def offendingNodeIn(target: vpr.Node, root: vpr.Node): Boolean =
-    (target eq root) || root.subnodes.exists(offendingNodeIn(target, _))
+  private def offendingNodeIn(target: vpr.Node, root: vpr.Node): Boolean = {
+    val topMatch = target == root && ((target, root) match {
+      case (t: vpr.Positioned, r: vpr.Positioned) => t.pos == r.pos
+      case _ => true
+    })
+    topMatch || root.subnodes.exists(offendingNodeIn(target, _))
+  }
 
   final def invariant(ctx: Context): in.Assertion ==> (CodeWriter[Unit], vpr.Exp) = {
     def invErr(inv: vpr.Exp): ErrorTransformer = {

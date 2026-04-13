@@ -133,6 +133,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => noMessages
+      case (Right(_), Some(_: ap.FractionalPermConstructor)) => noMessages
       case (Left(_), Some(call: ap.FunctionCall)) =>
         error(n, "ghost error: Found call to non-ghost impure function in ghost code",
           // call must be in a ghost context and callee must be actual and impure

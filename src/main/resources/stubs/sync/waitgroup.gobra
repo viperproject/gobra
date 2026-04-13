@@ -36,7 +36,7 @@ decreases _
 func (g *WaitGroup) UnsetWaitMode()
 
 ghost
-requires p > 0
+requires p > noPerm
 requires acc(g.WaitGroupP(), p)
 requires !g.WaitMode() && g.UnitDebt(P)
 ensures g.UnitDebt(P) && acc(g.WaitGroupStarted(), p)
@@ -44,9 +44,9 @@ decreases _
 func (g *WaitGroup) Start(ghost p perm, ghost P pred())
 
 ghost
-requires p >= 0
-requires q > 0
-requires p + q == 1
+requires p >= noPerm
+requires q > noPerm
+requires p + q == writePerm
 requires acc(g.WaitGroupP(), p)
 requires acc(g.WaitGroupStarted(), q)
 ensures g.WaitGroupP() && g.WaitMode()
@@ -77,15 +77,15 @@ decreases _
 func (g *WaitGroup) GenerateToken(ghost R pred())
 
 // Simplified version of Add as proposed in page 8 of Martin's latest document (as of 21/01/2021)
-requires p >= 0
-requires n > 0 && p > 0 ==> acc(g.WaitGroupP(), p) && !g.WaitMode()
-requires (n > 0 && p == 0) ==> g.UnitDebt(P)
+requires p >= noPerm
+requires n > 0 && p > noPerm ==> acc(g.WaitGroupP(), p) && !g.WaitMode()
+requires (n > 0 && p == noPerm) ==> g.UnitDebt(P)
 requires n < 0 ==> acc(g.UnitDebt(PredTrue!<!>), -n/1)
-ensures (n > 0 && p > 0) ==> acc(g.WaitGroupP(), p)
-ensures (n > 0 && p == 0) ==> g.UnitDebt(P)
+ensures (n > 0 && p > noPerm) ==> acc(g.WaitGroupP(), p)
+ensures (n > 0 && p == noPerm) ==> g.UnitDebt(P)
 ensures n > 0 ==> acc(g.UnitDebt(PredTrue!<!>), n/1)
 // this is actually necessary, otherwise Gobra cannot prove that Add does not modify the wait mode
-ensures (n > 0 && p > 0) ==> g.WaitMode() == old(g.WaitMode())
+ensures (n > 0 && p > noPerm) ==> g.WaitMode() == old(g.WaitMode())
 decreases _
 func (g *WaitGroup) Add(n int, ghost p perm, ghost P pred())
 
@@ -93,10 +93,10 @@ requires g.UnitDebt(PredTrue!<!>)
 decreases _
 func (g *WaitGroup) Done()
 
-requires p > 0
+requires p > noPerm
 requires acc(g.WaitGroupP(), p)
 requires g.WaitMode()
-requires forall i int :: 0 <= i && i < len(P) ==> g.TokenById(P[i], i) 
+requires forall i int :: 0 <= i && i < len(P) ==> g.TokenById(P[i], i)
 ensures forall i int :: 0 <= i && i < len(P) ==> InjEval(P[i], i)
 ensures acc(g.WaitGroupP(), p)
 func (g *WaitGroup) Wait(ghost p perm, ghost P seq[pred()])
@@ -113,7 +113,7 @@ pred CollectFractions(ghost P seq[pred()], ghost perms seq[perm]) {
 	len(P) == len(perms) &&
 	// P is injective:
 	(forall i, j int :: 0 <= i && i < j && j < len(P) ==> P[i] != P[j]) &&
-	(forall i int :: 0 <= i && i < len(P) ==> perms[i] >= 0 && acc(P[i](), perms[i]))
+	(forall i int :: 0 <= i && i < len(P) ==> perms[i] >= noPerm && acc(P[i](), perms[i]))
 }
 
 // Special case of the debt redistribution rule
@@ -131,8 +131,8 @@ ghost
 requires len(P) == len(permsP)
 requires len(P) == len(permsQ)
 requires len(P) == len(permsR)
-requires forall i int :: 0 <= i && i < len(P) ==> permsP[i] >= 0
-requires forall i int :: 0 <= i && i < len(P) ==> permsQ[i] >= 0
+requires forall i int :: 0 <= i && i < len(P) ==> permsP[i] >= noPerm
+requires forall i int :: 0 <= i && i < len(P) ==> permsQ[i] >= noPerm
 requires g.UnitDebt(CollectFractions!<P, permsR!>)
 requires g.UnitDebt(PredTrue!<!>)
 requires forall i int :: 0 <= i && i < len(P) ==> permsP[i] + permsQ[i] == permsR[i]

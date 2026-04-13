@@ -10,9 +10,9 @@ type cell struct{
 const divisor = 0
 
 //:: ExpectedOutput(contract_not_well_formed)
-requires acc(&x.val, 1/0) && x.val == 42
+requires acc(&x.val, perm(1, 0)) && x.val == 42
 func zeroDividend1(x *cell) {}
 
 //:: ExpectedOutput(contract_not_well_formed)
-requires acc(&x.val, 1/divisor) && x.val == 42
+requires acc(&x.val, perm(1, divisor)) && x.val == 42
 func zeroDividend2(x *cell) {}

@@ -20,7 +20,7 @@ func main() {
   }
 }
 
-requires acc(c.SendChannel(), 1/2)
+requires acc(c.SendChannel(), perm(1, 2))
 requires c.SendGivenPerm() == vIsOne!<_!>
 requires c.SendGotPerm() == PredTrue!<!>
 requires v == 1

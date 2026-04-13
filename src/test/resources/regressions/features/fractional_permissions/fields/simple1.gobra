@@ -14,8 +14,8 @@ func main() {
     assert x.val == 42
 }
 
-requires acc(&x.val, 1/2) && x.val == 42
-ensures acc(&x.val, 1/2)
+requires acc(&x.val, perm(1, 2)) && x.val == 42
+ensures acc(&x.val, perm(1, 2))
 func test(x *cell) {
     assert x.val == 42
 }

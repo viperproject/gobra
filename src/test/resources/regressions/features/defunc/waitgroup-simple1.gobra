@@ -13,13 +13,13 @@ func spawnThreads(n int) {
 	// { acc(wg) && *wg == WaitGroup{} }
 	wg.Init()
 	// { wg.WaitGroupP() && !wg.WaitMode() }
-	wg.Add(1, 1/1, PredTrue!<!>)
+	wg.Add(1, perm(1, 1), PredTrue!<!>)
 	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) }
 	fold PredTrue!<!>()
 	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && PredTrue!<!>() }
 	wg.GenerateTokenAndDebt(PredTrue!<!>)
 	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) }
-	wg.Start(1/2, PredTrue!<!>)
+	wg.Start(perm(1, 2), PredTrue!<!>)
 	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) }
 	fold PredTrue!<!>()
 	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) && PredTrue!<!>() }
@@ -27,8 +27,8 @@ func spawnThreads(n int) {
 	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.Token(PredTrue!<!>) }
 
 	invariant 0 <= i && i <= n
-	invariant acc(wg.WaitGroupP(), 1/2)
-	invariant acc(wg.WaitGroupStarted(), 1/2)
+	invariant acc(wg.WaitGroupP(), perm(1, 2))
+	invariant acc(wg.WaitGroupStarted(), perm(1, 2))
 	invariant !wg.WaitMode()
 	invariant acc(wg.Token(PredTrue!<!>), (i + 1)/1)
 	for i := 0; i < n; i++ {
@@ -39,7 +39,7 @@ func spawnThreads(n int) {
 		//   acc(wg.Token(PredTrue!<!>), i + 1) &&
 		//   i < n
 		// }
-		wg.Add(1, 1/2, PredTrue!<!>)
+		wg.Add(1, perm(1, 2), PredTrue!<!>)
 		// {
 		//   acc(wg.WaitGroupP(), 1/2) &&
 		//   acc(wg.WaitGroupStarted(), 1/2) &&
@@ -77,7 +77,7 @@ func spawnThreads(n int) {
 	//   !wg.WaitMode() &&
 	//   acc(wg.Token(PredTrue!<!>), n + 1) // slightly simplified
 	// }
-	wg.SetWaitMode(1/2, 1/2)
+	wg.SetWaitMode(perm(1, 2), perm(1, 2))
 	// {
 	//   wg.WaitGroupP() &&
 	//   wg.WaitMode() &&
@@ -86,7 +86,7 @@ func spawnThreads(n int) {
 
 	// This example is simple and we do not need to perform any token redistribution before calling wait. This is not
 	// true in general
-	wg.Wait(1/1, seq[pred()]{ })
+	wg.Wait(perm(1, 1), seq[pred()]{ })
 	// {
 	//   wg.WaitGroupP() &&
 	//   PredTrue!<!>()

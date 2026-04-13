@@ -6,7 +6,7 @@ package main
 func intSeq() {
 	i@ := 0
 	tmp :=
-		preserves acc(&i, 1/10)
+		preserves acc(&i, perm(1, 10))
 		func f() int {
 			return i
 		}
@@ -17,7 +17,7 @@ func intSeq() {
 	return
 }
 
-preserves acc(x, 1/2)
+preserves acc(x, perm(1, 2))
 func spec(x *int) int {
 	return *x
 }

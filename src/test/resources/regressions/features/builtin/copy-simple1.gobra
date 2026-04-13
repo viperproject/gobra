@@ -7,7 +7,7 @@ func test1() {
 	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
 	var s = make([]int, 6)
 	
-	p := perm(1/2)
+	p := perm(1, 2)
 	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 	assert forall i int :: 0 <= i && i < len(a) ==> acc(&a[i])
 	n1 := copy(s, a[0:], p)

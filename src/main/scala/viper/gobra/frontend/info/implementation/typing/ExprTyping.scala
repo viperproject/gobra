@@ -1044,11 +1044,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // For other numeric binary expressions (+ - * / % & | ^ &^):
         // If the sibling operand is itself a pure untyped integer constant expression, propagate
         // the outer context type down to this subexpression.
-        // If the sibling has a concrete integer type T (e.g. `1 + y` where y: int8), return
-        // Some(T) so that this literal also gets type T — the same rule Go uses for untyped
-        // constants in mixed expressions.
-        // If the sibling has any other type (e.g. float, bool), return None and let the
-        // well-definedness checker report the type error through the normal path.
+        // If the sibling is a named operand with a declared integer type T (e.g. `1 + y` where
+        // y: int8), return Some(T) so that this literal also gets type T — the same rule Go uses
+        // for untyped constants in mixed expressions.
+        // Otherwise, return None and let typeMerge at the binary expression level handle it.
         case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression] =>
           val sibling: PExpressionOrType =
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
@@ -1060,9 +1059,32 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               case result @ Some(_: InterfaceT) => None
               case result => result
             }
-          } else exprOrTypeType(sibling) match {
-            case t @ IntT(_) if t != UNTYPED_INT_CONST => Some(t)
-            case _ => None
+          } else {
+            // We must NOT call exprType(sibling) here — that would cause a Kiama attribute
+            // evaluation cycle. For example, wellDefExpr(A op B) may call getTypeFromCtxt(A)
+            // which would call exprType(B), whose safe() check calls wellDefExpr(B), which may
+            // call getTypeFromCtxt(B) → exprType(A) → wellDefExpr(A) — but wellDefExpr(A op B)
+            // is still being evaluated, so wellDefExpr(A) is also in-progress → CYCLE.
+            //
+            // Instead, read the sibling's declared type directly from the symbol table, which is
+            // cycle-safe. We handle only named operands (the common case for `1 + x`); for other
+            // expressions, typeMerge at the binary expression level handles the type correctly.
+            sibling match {
+              case named: PNamedOperand =>
+                def intTypeOf(t: Type): Option[IntT] = t match {
+                  case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                  case _ => None
+                }
+                entity(named.id) match {
+                  case st.InParameter(p, _, _, ctx)        => intTypeOf(ctx.symbType(p.typ))
+                  case st.ReceiverParameter(p, _, _, ctx)  => intTypeOf(ctx.symbType(p.typ))
+                  case st.OutParameter(p, _, _, ctx)       => intTypeOf(ctx.symbType(p.typ))
+                  case st.SingleLocalVariable(_, Some(typ), _, _, _, ctx) => intTypeOf(ctx.symbType(typ))
+                  case GlobalVariable(_, _, _, Some(typ), _, _, _, ctx)   => intTypeOf(ctx.symbType(typ))
+                  case _ => None
+                }
+              case _ => None
+            }
           }
 
         case e: PMisc => e match {

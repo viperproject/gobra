@@ -176,7 +176,7 @@ func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 
 	assert unfolding b.Contains(v) in 0 <= v && v < 256
 
-	invariant acc(b.Inv(), p/2)
+	invariant acc(b.Inv(), perm(p, 2))
 	invariant b.Contains(v)
 	invariant 0 <= i && i <= 256
 	invariant v < i ==> found
@@ -216,7 +216,7 @@ func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v uint
 
 	assert unfolding b.DoesNotContain(v) in 0 <= v && v < 256
 
-	invariant acc(b.Inv(), p/2)
+	invariant acc(b.Inv(), perm(p, 2))
 	invariant b.DoesNotContain(v)
 	invariant 0 <= i && i <= 256
 	invariant !found

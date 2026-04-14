@@ -2724,8 +2724,20 @@ object Desugar extends LazyLogging {
           case PBitOr(left, right) => for {l <- go(left); r <- go(right)} yield in.BitOr(l, r)(src)
           case PBitXor(left, right) => for {l <- go(left); r <- go(right)} yield in.BitXor(l, r)(src)
           case PBitClear(left, right) => for {l <- go(left); r <- go(right)} yield in.BitClear(l, r)(src)
-          case PShiftLeft(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftLeft(l, r)(src)
-          case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
+          case e: PShiftLeft =>
+            // Shift operations are encoded as uninterpreted Viper functions that Silicon cannot
+            // reason about (e.g., `intShiftLeft(1, 2)` is opaque to Z3). Constant-fold when
+            // both operands are statically evaluable so that `var d int = 1 << 2` becomes
+            // `d := 4` in Viper, making `assert(d == 4)` provable.
+            info.intConstantEvaluation(e) match {
+              case Some(v) => unit(in.IntLit(v)(src))
+              case None => for {l <- go(e.left); r <- go(e.right)} yield in.ShiftLeft(l, r)(src)
+            }
+          case e: PShiftRight =>
+            info.intConstantEvaluation(e) match {
+              case Some(v) => unit(in.IntLit(v)(src))
+              case None => for {l <- go(e.left); r <- go(e.right)} yield in.ShiftRight(l, r)(src)
+            }
           case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
 
           case l: PLiteral => litD(ctx, info)(l)

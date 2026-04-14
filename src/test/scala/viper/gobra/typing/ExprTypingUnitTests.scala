@@ -15,7 +15,7 @@ import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.TypeBounds.{DefaultInt, SignedInteger8, UnboundedInteger}
+import viper.gobra.util.TypeBounds.{DefaultInt, SignedInteger8, UnboundedInteger, UnsignedInteger8}
 
 class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -3393,6 +3393,55 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     typeInfo.exprType(add) should matchPattern { case Type.IntT(SignedInteger8) => }
   }
 
+  test("TypeChecker: integer literal subexpressions should get the int8 type from a typed declaration context") {
+    // `var b int8 = 1 + 2`: both 1 and 2 should receive int8, driven by the declared type
+    val one = PIntLit(1)
+    val two = PIntLit(2)
+    val add = PAdd(one, two)
+    val typeInfo = frontend.singleExprTypedTypeInfo(PInt8Type(), Vector(), add)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(SignedInteger8) => }
+    typeInfo.exprType(two) should matchPattern { case Type.IntT(SignedInteger8) => }
+  }
+
+  test("TypeChecker: left operand of a shift expression should get the context type") {
+    // `n := 1 << 2`: the left operand 1 should receive int (from short-var-decl context)
+    val one = PIntLit(1)
+    val shiftLeft = PShiftLeft(one, PIntLit(2))
+    val typeInfo = frontend.singleExprTypeInfo(Vector(), shiftLeft)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(DefaultInt) => }
+  }
+
+  test("TypeChecker: untyped literal next to a uint8 sibling gets type uint8") {
+    // `n := 1 + x` where x: uint8 → 1 should receive uint8 from the sibling
+    val one    = PIntLit(1)
+    val x      = PNamedOperand(PIdnUse("x"))
+    val add    = PAdd(one, x)
+    val inArgs = Vector((PNamedParameter(PIdnDef("x"), PUInt8Type()), false))
+    val typeInfo = frontend.singleExprTypeInfo(inArgs, add)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(UnsignedInteger8) => }
+    typeInfo.exprType(add) should matchPattern { case Type.IntT(UnsignedInteger8) => }
+  }
+
+  test("TypeChecker: untyped literal next to a function-call sibling gets the function's return type") {
+    // `n := getUint8() + 1` where getUint8 returns uint8 → 1 should receive uint8
+    val one  = PIntLit(1)
+    val call = PInvoke(PNamedOperand(PIdnUse("getUint8")), Vector(), None)
+    val add  = PAdd(call, one)
+    val typeInfo = frontend.singleExprWithFuncTypeInfo("getUint8", PUInt8Type(), Vector(), add)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(UnsignedInteger8) => }
+  }
+
+  test("TypeChecker: untyped literal next to a field-access sibling gets the field's type") {
+    // `n := s.field + 1` where s.field has type uint8 → 1 should receive uint8
+    val one        = PIntLit(1)
+    val structType = PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("field"), PUInt8Type())))))
+    val fieldAccess = PDot(PNamedOperand(PIdnUse("s")), PIdnUse("field"))
+    val add        = PAdd(fieldAccess, one)
+    val inArgs     = Vector((PNamedParameter(PIdnDef("s"), structType), false))
+    val typeInfo   = frontend.singleExprTypeInfo(inArgs, add)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(UnsignedInteger8) => }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 
@@ -3419,6 +3468,54 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
 
     def singleExprTypeInfo(inArgs: Vector[(PParameter, Boolean)], expr : PExpression) : TypeInfoImpl = {
       val program = singleExprProgram(inArgs, expr)
+      val positions = new Positions
+      val pkg = PPackage(
+        PPackageClause(PPkgDef("pkg")),
+        Vector(program),
+        new PositionManager(positions),
+        new PackageInfo("pkg", "pkg", false)
+      )
+      val tree = new Info.GoTree(pkg)
+      val config = Config()
+      new TypeInfoImpl(tree, Map.empty)(config)
+    }
+
+    /** Wraps `expr` in `var n <typ> = expr`, providing `typ` as the declaration context. */
+    def singleExprTypedTypeInfo(typ: PType, inArgs: Vector[(PParameter, Boolean)], expr: PExpression): TypeInfoImpl = {
+      val stmt = PVarDecl(Some(typ), Vector(expr), Vector(PIdnDef("n")), Vector(false))
+      val program = stubProgram(inArgs, stmt)
+      val positions = new Positions
+      val pkg = PPackage(
+        PPackageClause(PPkgDef("pkg")),
+        Vector(program),
+        new PositionManager(positions),
+        new PackageInfo("pkg", "pkg", false)
+      )
+      val tree = new Info.GoTree(pkg)
+      val config = Config()
+      new TypeInfoImpl(tree, Map.empty)(config)
+    }
+
+    /** Wraps `expr` in `n := expr` inside a method, alongside a no-body function declaration
+      * `func <funcName>() <retType>`, so that a call to `funcName` in `expr` is resolvable. */
+    def singleExprWithFuncTypeInfo(funcName: String, retType: PType, inArgs: Vector[(PParameter, Boolean)], expr: PExpression): TypeInfoImpl = {
+      val funcDecl = PFunctionDecl(
+        PIdnDef(funcName),
+        Vector(),
+        PResult(Vector(PUnnamedParameter(retType))),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = false),
+        None
+      )
+      val stmt = PShortVarDecl(Vector(expr), Vector(PIdnUnk("n")), Vector(false))
+      val methodDecl = PMethodDecl(
+        PIdnDef("foo"),
+        PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
+        inArgs.map(_._1),
+        PResult(Vector()),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = true),
+        Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(stmt)))
+      )
+      val program = PProgram(PPackageClause(PPkgDef("pkg")), Vector(), Vector(), Vector(), Vector(funcDecl, methodDecl))
       val positions = new Positions
       val pkg = PPackage(
         PPackageClause(PPkgDef("pkg")),

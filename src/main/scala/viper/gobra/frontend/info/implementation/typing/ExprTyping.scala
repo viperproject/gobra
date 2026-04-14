@@ -530,12 +530,25 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 // mergedType must exist because, otherwise typesAreMergeable.isEmpty would not hold
                 val mergedType = typeMerge(l, r).get
 
-                // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
-                // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
-                // which are also rejected by the go compiler
-                intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
-                  intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
+                // Go evaluates constant expressions with arbitrary precision: intermediate values are
+                // not required to fit in the declared type, only the final result is. For example,
+                // `const MaxISD uint16 = (1 << 16) - 1` is valid because the final value 65535 fits
+                // in uint16, even though the intermediate value 65536 does not.
+                // When the whole expression is a pure untyped integer constant (no explicit type
+                // conversions anywhere in the tree, as determined by isUntypedIntConst), only check
+                // the final result against the declared type. The per-operand checks are kept for
+                // expressions that carry explicit types (e.g. `uint8(1) * (-1)` or `300 + y` where
+                // y : uint8) where they are necessary to reject individual out-of-range operands.
+                if (isUntypedIntConst(n)) {
                   intExprWithinTypeBounds(n, mergedType)
+                } else {
+                  // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
+                  // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
+                  // which are also rejected by the go compiler
+                  intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
+                    intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
+                    intExprWithinTypeBounds(n, mergedType)
+                }
               } else noMessages
             }
             lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds

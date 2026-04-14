@@ -1075,14 +1075,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               case result => result
             }
           } else {
-            // sibling is not a pure untyped integer constant, so its type is
-            // context-independent. Calling exprType(sibling) is cycle-safe here:
-            // the cycle risk (exprType(A) → getTypeFromCtxt(A) → exprType(B) →
-            // getTypeFromCtxt(B) → exprType(A)) only arises when isUntypedIntConst
-            // holds for *both* sides; since isUntypedIntConst(sibling) = false,
-            // the sibling has a fixed type and calling exprType on it cannot cause
-            // a re-entrant call to getTypeFromCtxt(sibling) → exprType(expr).
+            // sibling is not a pure literal integer constant (isUntypedIntConst = false),
+            // but it may still be an untyped expression (e.g. x*x where x is an untyped
+            // named constant). We must not call exprType(sibling) when sibling is a
+            // PNumExpression: exprType on a PNumExpression calls getNonInterfaceTypeFromCtxt
+            // → getTypeFromCtxt(sibling) → exprType(expr) → cycle.
+            // Instead, use numExprType for PNumExpression siblings: it calls exprType only on
+            // sub-nodes of the sibling (not on the sibling itself) and never calls
+            // getTypeFromCtxt on the sibling, so it is cycle-safe.
+            // For non-PNumExpression siblings (variables, method calls, field accesses, …)
+            // exprType is safe because those branches in actualExprType do not call
+            // getTypeFromCtxt on the expression itself.
             sibling match {
+              case e: PNumExpression =>
+                numExprType(e) match {
+                  case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                  case _ => None
+                }
               case e: PExpression =>
                 exprType(e) match {
                   case it: IntT if it != UNTYPED_INT_CONST => Some(it)

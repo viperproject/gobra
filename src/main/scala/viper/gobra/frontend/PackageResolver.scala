@@ -357,8 +357,12 @@ object PackageResolver {
       FileResource(path.resolve(pathComponent))
 
     override def listContent(): Vector[FileResource] = {
-      Files.newDirectoryStream(path).asScala.toVector
-        .map(p => FileResource(p, builtin))
+      val stream = Files.newDirectoryStream(path)
+      try {
+        stream.asScala.toVector.map(p => FileResource(p, builtin))
+      } finally {
+        stream.close()
+      }
     }
 
     override def asSource(): FromFileSource = FromFileSource(path, builtin)
@@ -368,8 +372,14 @@ object PackageResolver {
     override def resolve(pathComponent: String): JarResource =
       JarResource(filesystem, path.resolve(pathComponent).toString, builtin)
 
-    override def listContent(): Vector[JarResource] =
-      Files.newDirectoryStream(path).asScala.toVector.map(p => JarResource(filesystem, p.toString, builtin))
+    override def listContent(): Vector[JarResource] = {
+      val stream = Files.newDirectoryStream(path)
+      try {
+        stream.asScala.toVector.map(p => JarResource(filesystem, p.toString, builtin))
+      } finally {
+        stream.close()
+      }
+    }
 
     override val path: Path = filesystem.getPath(pathString)
 

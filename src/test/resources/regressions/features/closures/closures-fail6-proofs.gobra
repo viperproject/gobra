@@ -55,7 +55,7 @@ func test3() {
 
     cl :=
         requires acc(&x) && x >= 0
-        decreases
+        decreases _
         pure func getx() int {
             return x
         }
@@ -71,7 +71,7 @@ func test4() {
 
     cl :=
         requires acc(&x) && x >= 0
-        decreases
+        decreases _
         pure func getx() int {
             return x
         }

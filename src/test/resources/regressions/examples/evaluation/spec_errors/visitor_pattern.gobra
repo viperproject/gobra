@@ -8,7 +8,7 @@ type node interface {
 
     requires 1 <= u && acc(mem(), 1/u) && acc(v.mem2(), 1/u)
     requires v != nil
-    decreases
+    decreases _
     pure accept(v visitor, ghost u int) int
 }
 
@@ -76,7 +76,7 @@ type visitor interface {
   pure visitConstant(c *constant, ghost u int) int
 
   requires 1 <= u && acc(mem2(), 1/u)
-  decreases
+  decreases _
   pure visitAddition(a *addition, ghost u int) int
 }
 

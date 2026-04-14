@@ -16,7 +16,7 @@ func main() {
 	x@ := 10
 	c := requires acc(&x, _)
 		 ensures m == x + n
-		 decreases
+		 decreases _
 		 pure func f(n int) (m int) {
 		    return x + n
          }

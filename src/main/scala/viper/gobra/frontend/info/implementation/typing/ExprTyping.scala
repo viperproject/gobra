@@ -1071,7 +1071,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // However, Go requires that an untyped constant operand be representable in the
         // type of the other operand (e.g. `x < 1000` where x: uint8 must reject 1000).
         // Propagate the sibling's concrete integer type to this operand.
-        case bExpr @ (_: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast) =>
+        case bExpr: PBinaryExp[_, _]
+          if bExpr.isInstanceOf[PEquals] || bExpr.isInstanceOf[PUnequals] ||
+             bExpr.isInstanceOf[PLess]   || bExpr.isInstanceOf[PAtMost]   ||
+             bExpr.isInstanceOf[PGreater]|| bExpr.isInstanceOf[PAtLeast] =>
           val sibling: PExpressionOrType =
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
           sibling match {

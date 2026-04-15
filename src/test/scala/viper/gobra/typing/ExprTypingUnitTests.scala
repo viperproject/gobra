@@ -3431,6 +3431,35 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     typeInfo.exprType(one) should matchPattern { case Type.IntT(UnsignedInteger8) => }
   }
 
+  test("TypeChecker: untyped literal in a comparison gets the sibling's type") {
+    // `n := x == 1` where x: uint8 → 1 should receive uint8 from the sibling
+    val one = PIntLit(1)
+    val x   = PNamedOperand(PIdnUse("x"))
+    val cmp = PEquals(x, one)
+    val inArgs = Vector((PNamedParameter(PIdnDef("x"), PUInt8Type()), false))
+    val typeInfo = frontend.singleExprTypeInfo(inArgs, cmp)
+    typeInfo.exprType(one) should matchPattern { case Type.IntT(UnsignedInteger8) => }
+  }
+
+  test("TypeChecker: untyped literal in a less-than comparison gets the sibling's type") {
+    // `n := x < 100` where x: int8 → 100 should receive int8 from the sibling
+    val hundred = PIntLit(100)
+    val x       = PNamedOperand(PIdnUse("x"))
+    val cmp     = PLess(x, hundred)
+    val inArgs  = Vector((PNamedParameter(PIdnDef("x"), PInt8Type()), false))
+    val typeInfo = frontend.singleExprTypeInfo(inArgs, cmp)
+    typeInfo.exprType(hundred) should matchPattern { case Type.IntT(SignedInteger8) => }
+  }
+
+  test("TypeChecker: comparison with overflowing literal is rejected") {
+    // `x < 1000` where x: uint8 → 1000 overflows uint8, should be rejected
+    val thousand = PIntLit(1000)
+    val x        = PNamedOperand(PIdnUse("x"))
+    val cmp      = PLess(x, thousand)
+    val inArgs   = Vector((PNamedParameter(PIdnDef("x"), PUInt8Type()), false))
+    assert(!frontend.wellDefExpr(cmp)(inArgs).valid)
+  }
+
   test("TypeChecker: untyped literal next to a field-access sibling gets the field's type") {
     // `n := s.field + 1` where s.field has type uint8 → 1 should receive uint8
     val one        = PIntLit(1)

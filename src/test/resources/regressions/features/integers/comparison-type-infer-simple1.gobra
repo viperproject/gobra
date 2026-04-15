@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// Regression test: integer literal operands of comparison operators should
+// have their type inferred from the sibling operand, just like in Go.
+// All comparisons here involve literals that are representable in the
+// sibling's type, so they should pass type-checking.
+
+func testComparisonTypeInfer(x uint8, y int8, z int16) {
+	assert x == 255
+	assert x != 0
+	assert x < 200
+	assert x <= 255
+	assert x > 0
+	assert x >= 1
+
+	assert y == 127
+	assert y != -128
+	assert y < 100
+	assert y >= -128
+
+	assert z == 32767
+	assert z != -32768
+	assert z < 10000
+	assert z >= -10000
+}

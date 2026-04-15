@@ -1066,6 +1066,28 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case result => result
           } else None
 
+        // For comparison binary expressions (== != < <= > >=):
+        // Comparisons return bool, so there is no outer context type to propagate.
+        // However, Go requires that an untyped constant operand be representable in the
+        // type of the other operand (e.g. `x < 1000` where x: uint8 must reject 1000).
+        // Propagate the sibling's concrete integer type to this operand.
+        case bExpr @ (_: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast) =>
+          val sibling: PExpressionOrType =
+            if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
+          sibling match {
+            case e: PNumExpression =>
+              numExprType(e) match {
+                case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                case _ => None
+              }
+            case e: PExpression =>
+              exprType(e) match {
+                case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                case _ => None
+              }
+            case _ => None
+          }
+
         // For other numeric binary expressions (+ - * / % & | ^ &^):
         // If the sibling operand is itself a pure untyped integer constant expression, propagate
         // the outer context type down to this subexpression.

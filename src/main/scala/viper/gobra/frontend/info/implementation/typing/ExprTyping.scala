@@ -345,7 +345,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PBitNegation(op) =>
       val mayInit = isEnclosingMayInit(n)
-      isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST, mayInit)(op)
+      val opType = typ(op)
+      val notUnbounded = error(n, "bitwise operations are not defined for the `integer` type",
+        !isUntypedIntConst(op) && opType == IntT(UnboundedInteger))
+      isExpr(op).out ++ assignableTo.errors(opType, UNTYPED_INT_CONST, mayInit)(op) ++ notUnbounded
 
     case n@PIndexedExp(base, index) =>
       val mayInit = isEnclosingMayInit(n)
@@ -518,7 +521,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PDiv, l, r) if l == PermissionT =>
               // perm / n: divisor must be an integer (PermDiv); do not require it to be perm
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
+          case (op @ (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear), l, r) =>
             val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
             val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val typesAreMergeable = mergeableTypes.errors(l, r)(n)
@@ -551,13 +554,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 }
               } else noMessages
             }
-            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
+            // Bitwise operations are not defined for the ghost `integer` type (unbounded precision)
+            val bitwiseOnUnbounded = op match {
+              case _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear =>
+                error(n, "bitwise operations are not defined for the `integer` type",
+                  !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger)) ++
+                error(n, "bitwise operations are not defined for the `integer` type",
+                  !isUntypedIntConst(n.right) && r == IntT(UnboundedInteger))
+              case _ => noMessages
+            }
+            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds ++ bitwiseOnUnbounded
           case (_: PShiftLeft, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
+            val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
+              !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              intConstantEval(n.right.asInstanceOf[PExpression]) match {
-                case Some(v) =>
+              shiftOnUnbounded ++ intConstantEval(n.right.asInstanceOf[PExpression]).map { v =>
                   // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
                   // of the type of the left operand (or 512 if there is an untyped const on the left)
                   val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
@@ -568,21 +581,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)
                   lowerBound ++ upperBound
-
-                case None => noMessages
-              }
-            } else integerOperands
+              }.getOrElse(noMessages)
+            } else integerOperands ++ shiftOnUnbounded
           case (_: PShiftRight, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
+            val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
+              !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              (intConstantEval(n.right.asInstanceOf[PExpression]) match {
+              shiftOnUnbounded ++ (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
                   // The Go compiler only checks that the RHS of (>>) is non-negative
                   error(n, s"constant $r overflows uint", v < 0)
                 case None => noMessages
               })
-            } else integerOperands
+            } else integerOperands ++ shiftOnUnbounded
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 

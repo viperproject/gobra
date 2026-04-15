@@ -8,6 +8,7 @@ package viper.gobra.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
+import viper.gobra.util.TypeBounds.{BoundedIntegerKind, IntegerKind}
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
@@ -181,7 +182,39 @@ object Names {
   // built-in members
   def builtInMember: String = "built_in"
 
-  // ints
+  // ints (unbounded / ghost `integer` type — these are concrete functions over vpr.Int)
+  def integerAdd: String = "integerAdd"
+  def integerSub: String = "integerSub"
+  def integerMul: String = "integerMul"
+  def integerDiv: String = "integerDiv"
+  def integerMod: String = "integerMod"
+  def integerNeg: String = "integerNeg"
+
+  // bounded integer domains: one domain per IntegerKind
+  def boundedIntDomain(k: IntegerKind): String = k.name
+  // bounded integer functions (abstract, with contracts)
+  def boundedIntFrom(k: IntegerKind): String   = s"${k.name}$$from"
+  def boundedIntTo(k: IntegerKind): String     = s"${k.name}$$to"
+  def boundedIntAdd(k: IntegerKind): String    = s"${k.name}$$add"
+  def boundedIntSub(k: IntegerKind): String    = s"${k.name}$$sub"
+  def boundedIntMul(k: IntegerKind): String    = s"${k.name}$$mul"
+  def boundedIntDiv(k: IntegerKind): String    = s"${k.name}$$div"
+  def boundedIntMod(k: IntegerKind): String    = s"${k.name}$$mod"
+  def boundedIntNeg(k: IntegerKind): String    = s"${k.name}$$neg"
+  def boundedIntBand(k: IntegerKind): String   = s"${k.name}$$band"
+  def boundedIntBor(k: IntegerKind): String    = s"${k.name}$$bor"
+  def boundedIntBxor(k: IntegerKind): String   = s"${k.name}$$bxor"
+  def boundedIntBclear(k: IntegerKind): String = s"${k.name}$$bclear"
+  def boundedIntBneg(k: IntegerKind): String   = s"${k.name}$$bneg"
+  def boundedIntShl(k: IntegerKind): String    = s"${k.name}$$shl"
+  def boundedIntShr(k: IntegerKind): String    = s"${k.name}$$shr"
+  // cross-type conversion: k1 → k2
+  def boundedIntConv(from: IntegerKind, to: IntegerKind): String = s"${from.name}$$to_${to.name}"
+  // unbounded → bounded conversion
+  def integerToBounded(to: BoundedIntegerKind): String = s"integer$$to_${to.name}"
+
+  // kept for legacy uses (bitwise ops on unbounded integers are now a type error; only kept for
+  // shift / bitwise functions on bounded integer types which use the bounded naming above)
   def bitwiseAnd: String = "intBitwiseAnd"
   def bitwiseOr: String = "intBitwiseOr"
   def bitwiseXor: String = "intBitwiseXor"

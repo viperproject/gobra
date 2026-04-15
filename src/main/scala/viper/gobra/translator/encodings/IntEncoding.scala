@@ -36,9 +36,10 @@ class IntEncoding extends LeafTypeEncoding {
 
   /**
     * Translates a type into a Viper type.
+    * Only handles unbounded integers; bounded integers are handled by BoundedIntEncoding.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.Int() / m =>
+    case ctx.UnboundedInt() / m =>
       m match {
         case Exclusive => vpr.Int
         case Shared    => vpr.Ref
@@ -68,29 +69,30 @@ class IntEncoding extends LeafTypeEncoding {
     }
 
     default(super.expression(ctx)){
-      case (e: in.DfltVal) :: ctx.Int() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
+      case (e: in.DfltVal) :: ctx.UnboundedInt() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
       case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
 
-      case e@ in.Add(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
-      case e@ in.Sub(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
-      case e@ in.Mul(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) :: ctx.Int() =>
+      case e@ in.Add(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
+      case e@ in.Sub(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
+      case e@ in.Mul(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
+      case e@ in.Mod(l, r) :: ctx.UnboundedInt() =>
         // We currently implement our own modulo algorithm to mimic what Go does. The default modulo implementation in
         // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
         // https://github.com/viperproject/silver/issues/297
         for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntMod, Seq(vl, vr)), e)
-      case e@ in.Div(l, r) :: ctx.Int() =>
+      case e@ in.Div(l, r) :: ctx.UnboundedInt() =>
         // We currently implement our own division algorithm to mimic what Go does. The default division implementation in
         // Viper does not match Go's semantics. Check https://github.com/viperproject/gobra/issues/858 and
         // https://github.com/viperproject/silver/issues/297
         for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(goIntDiv, Seq(vl, vr)), e)
-      case e@ in.BitAnd(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
-      case e@ in.BitOr(l, r)  :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
-      case e@ in.BitXor(l, r) :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
-      case e@ in.BitClear(l, r)   :: ctx.Int() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
-      case e@ in.ShiftLeft(l, r)  :: ctx.Int() => withSrc(handleShift(shiftLeft)(l, r), e)
-      case e@ in.ShiftRight(l, r) :: ctx.Int() => withSrc(handleShift(shiftRight)(l, r), e)
-      case e@ in.BitNeg(exp) :: ctx.Int()  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
+      case e@ in.BitAnd(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
+      case e@ in.BitOr(l, r)  :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
+      case e@ in.BitXor(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
+      case e@ in.BitClear(l, r)   :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
+      case e@ in.ShiftLeft(l, r)  :: ctx.UnboundedInt() => withSrc(handleShift(shiftLeft)(l, r), e)
+      case e@ in.ShiftRight(l, r) :: ctx.UnboundedInt() => withSrc(handleShift(shiftRight)(l, r), e)
+      // BitNeg always has UnboundedInteger result type; for bounded operands, BoundedIntEncoding handles it
+      case e@ in.BitNeg(exp :: ctx.UnboundedInt()) => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
     }
   }
 

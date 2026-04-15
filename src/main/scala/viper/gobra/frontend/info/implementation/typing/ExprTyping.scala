@@ -1079,8 +1079,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
           sibling match {
             case e: PNumExpression =>
-              numExprType(e) match {
-                case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+              tryNumExprType(e) match {
+                case Some(it: IntT) if it != UNTYPED_INT_CONST => Some(it)
                 case _ => None
               }
             case e: PExpression =>
@@ -1126,8 +1126,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             // getTypeFromCtxt on the expression itself.
             sibling match {
               case e: PNumExpression =>
-                numExprType(e) match {
-                  case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                tryNumExprType(e) match {
+                  case Some(it: IntT) if it != UNTYPED_INT_CONST => Some(it)
                   case _ => None
                 }
               case e: PExpression =>
@@ -1240,6 +1240,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => violation(s"unexpected type $typ")
     }
   }
+
+  /**
+   * Like [[numExprType]], but returns None instead of throwing a [[Violation.LogicException]]
+   * when the expression is ill-typed (e.g. `len` applied to a non-collection argument).
+   * Used in [[getTypeFromCtxt]] to safely peek at a sibling's type without crashing on
+   * programs that already have other type errors.
+   */
+  private def tryNumExprType(e: PNumExpression): Option[Type] =
+    try Some(numExprType(e))
+    catch { case _: Violation.LogicException => None }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))

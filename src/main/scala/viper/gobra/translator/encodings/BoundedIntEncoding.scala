@@ -207,7 +207,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       // (2) bounded → unbounded: extract the Int value via from
       case conv @ in.Conversion(_, expr :: ctx.BoundedInt(k))
         if ctx.UnboundedInt.unapply(conv.typ) =>
-        for { ve <- goE(expr) } yield withSrc(fromApp(k, ve), conv)
+        for { ve <- goE(expr) } yield withSrc(vpr.FuncApp(funcsOf(k).from, Seq(ve)), conv)
 
       // (3) unbounded → bounded
       case conv @ in.Conversion(_, expr)

@@ -32,8 +32,8 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val input = s"""
         |package pkg
         |ghost
-        |${if (isPure) "pure\n        |" else ""}decreases _
-        |func test() (res bool) {
+        |decreases
+        |${if (isPure) "pure" else ""} func test() (res bool) {
         | return true
         |}
         |func main() {
@@ -55,8 +55,8 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val input = s"""
         |package pkg
         |ghost
-        |${if (isPure) "pure\n        |" else ""}decreases _
-        |func test() (res1 bool, res2 int) {
+        |decreases
+        |${if (isPure) "pure" else ""} func test() (res1 bool, res2 int) {
         | return true, 42
         |}
         |func main() {
@@ -138,7 +138,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Ghost Erasure: var decls of inferred ghost type from a pure function call should be erased") {
     val input = s"""
       |package pkg
-      |decreases _
+      |decreases
       |pure func test(ghost s seq[int]) (ghost res seq[int]) {
       | return s
       |}

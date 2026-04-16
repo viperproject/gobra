@@ -64,6 +64,7 @@ func test3() {
 ghost
 decreases
 func SetGhost(ghost a ...int)
+
 func test4() {
 	SetGhost()
 

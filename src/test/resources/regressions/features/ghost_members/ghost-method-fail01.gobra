@@ -9,11 +9,13 @@ ghost type GhostStruct ghost struct {
     Value int
 }
 
+decreases
 //:: ExpectedOutput(type_error)
 func (a GhostStruct) ActualMethodForNonPointerReceiver() int { // fails as this _actual_ method has a _ghost_ receiver
     return 42
 }
 
+decreases
 //:: ExpectedOutput(type_error)
 func (a *GhostStruct) ActualMethodForPointerReceiver() int { // fails as this _actual_ method has a _ghost_ receiver
     return 42

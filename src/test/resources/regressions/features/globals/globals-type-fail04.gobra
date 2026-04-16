@@ -23,7 +23,7 @@ func newT() T
 var B = newT().f()
 
 ghost
-//:: ExpectedOutput(type_error)
+decreases
 //:: ExpectedOutput(type_error)
 func init() {}
 

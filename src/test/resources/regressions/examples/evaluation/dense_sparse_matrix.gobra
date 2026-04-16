@@ -94,7 +94,7 @@ pred sparseMatrix(m *SparseMatrix, maxRow, maxColumn int) {
 
 ghost
 requires acc(sparseMatrix(m, maxRow, maxColumn), _)
-decreases _
+decreases sparseMatrix(m, maxRow, maxColumn)
 pure func LookupL(m *SparseMatrix, maxRow, maxColumn, i, j int) int {
     return unfolding acc(sparseMatrix(m, maxRow, maxColumn), _) in (m == nil ? 0 : unfolding acc(entry(m.entry, maxRow, maxColumn), _) in (m.entry.row == i && m.entry.column == j) ? m.entry.value : LookupL(m.next, maxRow, maxColumn, i, j))
 }

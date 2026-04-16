@@ -14,7 +14,7 @@ pred (start *List) Mem() {
 
 ghost
 requires start.Mem()
-decreases _
+decreases start.Mem()
 pure func elems(start *List) (res seq[int]) {
 	return unfolding start.Mem() in (start.next == nil? seq[int]{start.val} : (seq[int]{start.val} ++ elems(start.next)))
 }

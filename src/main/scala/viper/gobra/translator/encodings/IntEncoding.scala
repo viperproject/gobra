@@ -70,7 +70,7 @@ class IntEncoding extends LeafTypeEncoding {
 
     default(super.expression(ctx)){
       case (e: in.DfltVal) :: ctx.UnboundedInt() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
-      case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
+      case lit: in.IntLit if ctx.UnboundedInt.unapply(lit.typ) => unit(withSrc(vpr.IntLit(lit.v), lit))
 
       case e@ in.Add(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
       case e@ in.Sub(l, r) :: ctx.UnboundedInt() => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)

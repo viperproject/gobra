@@ -69,8 +69,6 @@ case class GobraModuleCfg(
 }
 
 case class GobraInstallCfg(
-                            jar_path: Option[String] = None,
-                            jvm_options: Option[List[String]] = None,
                             z3_path: Option[String] = None,
                           ) extends Resolvable {
   type R = GobraInstallCfg
@@ -78,7 +76,6 @@ case class GobraInstallCfg(
   /** resolves all relative paths in relation to `basePath` */
   override def resolvePaths(basePath: Path): GobraInstallCfg =
     copy(
-      jar_path = resolveOptPath(basePath, jar_path),
       z3_path = resolveOptPath(basePath, z3_path),
     )
 }
@@ -95,11 +92,28 @@ case class VerificationJobCfg(
                                mce_mode: Option[MCE.Mode] = None,
                                module: Option[String] = None,
                                more_joins: Option[MoreJoins.Mode] = None,
-                               pkg_path: Option[String] = None, // TODO: what is this?
+                               /**
+                                * `pkg_path` specifies the directory in which the package is located, which becomes
+                                * `--directory`). This option could potentially be dropped in the future if we assume
+                                * that the config file is in the same directory as the package.
+                                * `ConfigFileModeConfig.config` automatically sets `--directory` to the directory in
+                                * which the config file resides if no `input_files`, `pkg_path` or `recursive` is provided.
+                                */
+                               pkg_path: Option[String] = None,
                                parallelize_branches: Option[Boolean] = None,
                                print_vpr: Option[Boolean] = None,
                                project_root: Option[String] = None,
-                               recursive: Option[Boolean] = None, // TODO: why would a package specify recursion?
+                               /**
+                                * `recursive` closely mirrors Gobra's current config options. However, it would make
+                                * more sense to make `recursive` a field in `GobraModuleCfg`. When doing so, we should
+                                * revisit the meaning of recursively verifying a module as today, one cannot mix
+                                * `recursive` and `input_files`. However, recursively verifying a module could mean that
+                                * packages therein are recursively visited while each package is verified according to
+                                * its package config. In such a setting, it would make a lot of sense to allow mixing
+                                * `recursive` with `input_files` as a particular package could specify the (subset of)
+                                * files that constitute this package.
+                                */
+                               recursive: Option[Boolean] = None,
                                require_triggers: Option[Boolean] = None,
                                chop: Option[Int] = None,
                                other: Option[List[String]] = None,

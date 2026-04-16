@@ -367,7 +367,7 @@ object Config {
 
   /** Options that must not appear in the `other` field of a JSON config because their paths
     * cannot be correctly resolved (they are turned into Source objects before path resolution). */
-  private val disallowedInOther: Set[String] = Set("--input", "-i", "--directory", "-p")
+  private val disallowedInOther: Set[String] = Set("--input", "-i", "--directory", "-p", "--include", "-I", "--projectRoot")
 
   /** Validates that `other` args do not contain disallowed options. */
   def validateOtherArgs(args: List[String]): Either[Vector[VerifierError], Unit] = {
@@ -446,17 +446,6 @@ case class InputConfigOption[T](name: String, value: Option[T]) {
   /** Returns this option if it has a value, otherwise returns the other option */
   def orElse(other: InputConfigOption[T]): InputConfigOption[T] =
     if (value.isDefined) this else other
-}
-
-object InputConfigOption {
-  /** Implicit class to extend ScallopOption with toInputConfigOption conversion */
-  implicit class ScallopOptionExtension[T](opt: ScallopOption[T]) {
-    /** Converts a ScallopOption to an InputConfigOption using the option's name and value.
-      * Only includes the value if the option was explicitly supplied by the user,
-      * not just set to a default value. */
-    def toInputConfigOption: InputConfigOption[T] =
-      InputConfigOption(opt.name, if (opt.isSupplied) opt.toOption else None)
-  }
 }
 
 /**
@@ -970,6 +959,7 @@ object InputConfig {
     val resolvedCfg = cfg.resolvePaths(configDir)
     InputConfig(
       input = InputConfigOption("input", resolvedCfg.input_files),
+      directory = InputConfigOption("directory", resolvedCfg.pkg_path.map(p => List(new File(p)))),
       recursive = InputConfigOption("recursive", resolvedCfg.recursive),
       projectRoot = InputConfigOption("projectRoot", resolvedCfg.project_root.map(p => new File(p))),
       moduleName = InputConfigOption("moduleName", resolvedCfg.module),
@@ -1707,61 +1697,64 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   /** Extracts an InputConfig from CLI options.
     * Uses `.toInputConfigOption` to get InputConfigOption with the option's name and value.
     * Fields are ordered to match the CLI option definitions above. */
-  def toInputConfig: InputConfig = {
-    import InputConfigOption.ScallopOptionExtension
-    InputConfig(
-      // Input mode fields
-      input = input.toInputConfigOption,
-      cutInputWithIdxs = cutInputWithIdxs.toInputConfigOption,
-      directory = directory.toInputConfigOption,
-      recursive = InputConfigOption(recursive.name, if (recursive.isSupplied) Some(recursive()) else None),
-      configFile = configFile.toInputConfigOption,
-      printConfig = printConfig.toInputConfigOption,
-      projectRoot = projectRoot.toInputConfigOption,
-      inclPackages = inclPackages.toInputConfigOption,
-      exclPackages = exclPackages.toInputConfigOption,
-      // Configuration options (in CLI definition order)
-      gobraDirectory = gobraDirectory.toInputConfigOption,
-      moduleName = module.toInputConfigOption,
-      include = include.toInputConfigOption,
-      backend = backend.toInputConfigOption,
-      debug = debug.toInputConfigOption,
-      logLevel = logLevel.toInputConfigOption,
-      eraseGhost = eraseGhost.toInputConfigOption,
-      goify = goify.toInputConfigOption,
-      unparse = unparse.toInputConfigOption,
-      printInternal = printInternal.toInputConfigOption,
-      printVpr = printVpr.toInputConfigOption,
-      parseOnly = parseOnly.toInputConfigOption,
-      choppingUpperBound = chopUpperBound.toInputConfigOption,
-      packageTimeout = InputConfigOption(packageTimeout.name, packageTimeout.toOption.map(Duration(_))),
-      z3Exe = z3Exe.toInputConfigOption,
-      boogieExe = boogieExe.toInputConfigOption,
-      checkOverflows = checkOverflows.toInputConfigOption,
-      cacheFile = InputConfigOption(cacheFile.name, cacheFile.toOption.map(_.toPath)),
-      int32bit = int32Bit.toInputConfigOption,
-      onlyFilesWithHeader = onlyFilesWithHeader.toInputConfigOption,
-      checkConsistency = checkConsistency.toInputConfigOption,
-      assumeInjectivityOnInhale = assumeInjectivityOnInhale.toInputConfigOption,
-      parallelizeBranches = parallelizeBranches.toInputConfigOption,
-      conditionalizePermissions = conditionalizePermissions.toInputConfigOption,
-      z3APIMode = z3APIMode.toInputConfigOption,
-      disableNL = disableNL.toInputConfigOption,
-      unsafeWildcardOptimization = unsafeWildcardOptimization.toInputConfigOption,
-      moreJoins = moreJoins.toInputConfigOption,
-      mceMode = mceMode.toInputConfigOption,
-      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.toInputConfigOption,
-      hyperMode = hyperMode.toInputConfigOption,
-      enableExperimentalHyperFeatures = enableExperimentalHyperFeatures.toInputConfigOption,
-      requireTriggers = requireTriggers.toInputConfigOption,
-      noVerify = noVerify.toInputConfigOption,
-      noStreamErrors = noStreamErrors.toInputConfigOption,
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns.toInputConfigOption,
-      parseAndTypeCheckMode = parseAndTypeCheckMode.toInputConfigOption,
-      disableSetAxiomatization = disableSetAxiomatization.toInputConfigOption,
-      enableExperimentalFriendClauses = enableExperimentalFriendClauses.toInputConfigOption,
-    )
-  }
+  def toInputConfig: InputConfig = InputConfig(
+    // Input mode fields
+    input = toInputConfigOption(input),
+    cutInputWithIdxs = toInputConfigOption(cutInputWithIdxs),
+    directory = toInputConfigOption(directory),
+    recursive = InputConfigOption(recursive.name, if (recursive.isSupplied) Some(recursive()) else None),
+    configFile = toInputConfigOption(configFile),
+    printConfig = toInputConfigOption(printConfig),
+    projectRoot = toInputConfigOption(projectRoot),
+    inclPackages = toInputConfigOption(inclPackages),
+    exclPackages = toInputConfigOption(exclPackages),
+    // Configuration options (in CLI definition order)
+    gobraDirectory = toInputConfigOption(gobraDirectory),
+    moduleName = toInputConfigOption(module),
+    include = toInputConfigOption(include),
+    backend = toInputConfigOption(backend),
+    debug = toInputConfigOption(debug),
+    logLevel = toInputConfigOption(logLevel),
+    eraseGhost = toInputConfigOption(eraseGhost),
+    goify = toInputConfigOption(goify),
+    unparse = toInputConfigOption(unparse),
+    printInternal = toInputConfigOption(printInternal),
+    printVpr = toInputConfigOption(printVpr),
+    parseOnly = toInputConfigOption(parseOnly),
+    choppingUpperBound = toInputConfigOption(chopUpperBound),
+    packageTimeout = InputConfigOption(packageTimeout.name, packageTimeout.toOption.map(Duration(_))),
+    z3Exe = toInputConfigOption(z3Exe),
+    boogieExe = toInputConfigOption(boogieExe),
+    checkOverflows = toInputConfigOption(checkOverflows),
+    cacheFile = InputConfigOption(cacheFile.name, cacheFile.toOption.map(_.toPath)),
+    int32bit = toInputConfigOption(int32Bit),
+    onlyFilesWithHeader = toInputConfigOption(onlyFilesWithHeader),
+    checkConsistency = toInputConfigOption(checkConsistency),
+    assumeInjectivityOnInhale = toInputConfigOption(assumeInjectivityOnInhale),
+    parallelizeBranches = toInputConfigOption(parallelizeBranches),
+    conditionalizePermissions = toInputConfigOption(conditionalizePermissions),
+    z3APIMode = toInputConfigOption(z3APIMode),
+    disableNL = toInputConfigOption(disableNL),
+    unsafeWildcardOptimization = toInputConfigOption(unsafeWildcardOptimization),
+    moreJoins = toInputConfigOption(moreJoins),
+    mceMode = toInputConfigOption(mceMode),
+    respectFunctionPrePermAmounts = toInputConfigOption(respectFunctionPrePermAmounts),
+    hyperMode = toInputConfigOption(hyperMode),
+    enableExperimentalHyperFeatures = toInputConfigOption(enableExperimentalHyperFeatures),
+    requireTriggers = toInputConfigOption(requireTriggers),
+    noVerify = toInputConfigOption(noVerify),
+    noStreamErrors = toInputConfigOption(noStreamErrors),
+    disableCheckTerminationPureFns = toInputConfigOption(disableCheckTerminationPureFns),
+    parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
+    disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
+    enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
+  )
+
+  /** Converts a ScallopOption to an InputConfigOption using the option's name and value.
+   * Only includes the value if the option was explicitly supplied by the user,
+   * not just set to a default value. */
+  def toInputConfigOption[T](opt: ScallopOption[T]): InputConfigOption[T] =
+    InputConfigOption(opt.name, if (opt.isSupplied) opt.toOption else None)
 
   lazy val config: Either[Vector[VerifierError], Config] =
     toInputConfig.config(isInputOptional, skipIncludeDirChecks)

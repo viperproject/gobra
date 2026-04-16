@@ -191,7 +191,10 @@ object Names {
   def integerNeg: String = "integerNeg"
 
   // bounded integer domains: one domain per IntegerKind
-  def boundedIntDomain(k: IntegerKind): String = k.name
+  // Use a "Bounded_" prefix to avoid clashing with Viper's built-in Int sort when
+  // the kind name (e.g. "int") would otherwise produce a sort named "int~_int",
+  // which Silicon conflates with "Int~_Int" (Viper's built-in mathematical integer).
+  def boundedIntDomain(k: IntegerKind): String = s"Bounded_${k.name}"
   // bounded integer functions (abstract, with contracts)
   def boundedIntFrom(k: IntegerKind): String   = s"${k.name}$$from"
   def boundedIntTo(k: IntegerKind): String     = s"${k.name}$$to"

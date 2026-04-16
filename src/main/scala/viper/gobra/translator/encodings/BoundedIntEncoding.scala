@@ -76,6 +76,30 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     case ctx.BoundedInt(_) / Shared    => vpr.Ref
   }
 
+  // ===== Assignment: normalise RHS to the domain type of the LHS =====
+  // Needed because Gobra's internal AST allows unbounded-integer RHS expressions (e.g. IntLit
+  // with kind=UnboundedInteger) to be assigned to bounded-integer variables without explicit
+  // conversion. The default encoding would produce a Viper type mismatch (Int → DomainType).
+
+  override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] =
+    default(super.assignment(ctx)) {
+      case (in.Assignee((v: in.BodyVar) :: t / Exclusive), rhs, src)
+        if ctx.BoundedInt.unapply(t).isDefined && !ctx.BoundedInt.unapply(rhs.typ).isDefined =>
+        val k = ctx.BoundedInt.unapply(t).get
+        val (pos, info, errT) = src.vprMeta
+        for { vRhs <- ctx.expression(rhs) } yield
+          vpr.LocalVarAssign(variable(ctx)(v).localVar, asDomain(ctx)(k, rhs, vRhs))(pos, info, errT)
+
+      case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src)
+        if ctx.BoundedInt.unapply(t).isDefined && !ctx.BoundedInt.unapply(rhs.typ).isDefined =>
+        val k = ctx.BoundedInt.unapply(t).get
+        val (pos, info, errT) = src.vprMeta
+        for {
+          vRhs <- ctx.expression(rhs)
+          vLoc <- ctx.expression(loc).map(_.asInstanceOf[vpr.FieldAccess])
+        } yield vpr.FieldAssign(vLoc, asDomain(ctx)(k, rhs, vRhs))(pos, info, errT)
+    }
+
   // ===== Equal: use from(lhs) == from/rhs to compare domain values mathematically =====
 
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] =
@@ -94,12 +118,12 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
 
-    def handleBoundedBinOp(func: vpr.Function)(left: in.Expr, right: in.Expr, src: in.Node): CodeWriter[vpr.Exp] = {
+    def handleBoundedBinOp(k: BoundedIntegerKind, func: vpr.Function)(left: in.Expr, right: in.Expr, src: in.Node): CodeWriter[vpr.Exp] = {
       val (pos, info, errT) = src.vprMeta
       for {
         vl <- goE(left)
         vr <- goE(right)
-        app = vpr.FuncApp(func, Seq(vl, vr))(pos, info, errT)
+        app = vpr.FuncApp(func, Seq(asDomain(ctx)(k, left, vl), asDomain(ctx)(k, right, vr)))(pos, info, errT)
         _ <- if (checkOverflows) errorT {
           case e @ err.PreconditionInAppFalse(Source(info), _, _) if e.causedBy(app) =>
             OverflowError(info)
@@ -120,33 +144,34 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
         unit(vpr.FuncApp(funcsOf(k).to, Seq(vpr.IntLit(lit.v)()))(pos, info, errT))
 
       // Arithmetic
-      case e @ in.Add(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(funcsOf(k).add)(l, r, e)
-      case e @ in.Sub(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(funcsOf(k).sub)(l, r, e)
-      case e @ in.Mul(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(funcsOf(k).mul)(l, r, e)
-      case e @ in.Div(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(funcsOf(k).div)(l, r, e)
-      case e @ in.Mod(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(funcsOf(k).mod)(l, r, e)
+      case e @ in.Add(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).add)(l, r, e)
+      case e @ in.Sub(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).sub)(l, r, e)
+      case e @ in.Mul(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).mul)(l, r, e)
+      case e @ in.Div(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).div)(l, r, e)
+      case e @ in.Mod(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).mod)(l, r, e)
 
       // Bitwise binary
       case e @ in.BitAnd(l, r)   :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).band,   Seq(vl, vr)), e)
+        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).band,   Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
       case e @ in.BitOr(l, r)    :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bor,    Seq(vl, vr)), e)
+        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bor,    Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
       case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bxor,   Seq(vl, vr)), e)
+        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bxor,   Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
       case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bclear, Seq(vl, vr)), e)
+        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bclear, Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
 
       // Bitwise unary NOT — BitNeg.typ is always UnboundedInteger; apply from to the operand
+      // (operand is bounded by pattern, so ve is a domain value)
       case e @ in.BitNeg(op :: ctx.BoundedInt(k)) =>
         for { ve <- goE(op) } yield withSrc(vpr.FuncApp(funcsOf(k).bneg, Seq(fromApp(k, ve))), e)
 
-      // Shifts — right operand must be Int; convert via asInt if bounded
+      // Shifts — left operand must be domain; right operand must be Int (extract via asInt if bounded).
       case e @ in.ShiftLeft(l, r) :: ctx.BoundedInt(k) =>
         val (pos, info, errT) = e.vprMeta
         for {
           vl <- goE(l)
           vr <- goE(r)
-          app = vpr.FuncApp(funcsOf(k).shl, Seq(vl, asInt(ctx)(r, vr)))(pos, info, errT)
+          app = vpr.FuncApp(funcsOf(k).shl, Seq(asDomain(ctx)(k, l, vl), asInt(ctx)(r, vr)))(pos, info, errT)
           _ <- errorT {
             case e2 @ err.PreconditionInAppFalse(Source(info2), _, _) if e2.causedBy(app) =>
               ShiftPreconditionError(info2)
@@ -158,7 +183,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
         for {
           vl <- goE(l)
           vr <- goE(r)
-          app = vpr.FuncApp(funcsOf(k).shr, Seq(vl, asInt(ctx)(r, vr)))(pos, info, errT)
+          app = vpr.FuncApp(funcsOf(k).shr, Seq(asDomain(ctx)(k, l, vl), asInt(ctx)(r, vr)))(pos, info, errT)
           _ <- errorT {
             case e2 @ err.PreconditionInAppFalse(Source(info2), _, _) if e2.causedBy(app) =>
               ShiftPreconditionError(info2)
@@ -255,6 +280,22 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   /** Apply the `from` function of kind k to a domain-typed Viper expression. */
   private def fromApp(k: BoundedIntegerKind, v: vpr.Exp): vpr.Exp =
     vpr.FuncApp(funcsOf(k).from, Seq(v))()
+
+  /**
+    * Normalise a Viper expression to the domain type of kind `k`. If the source Gobra
+    * expression is already a bounded integer (any kind), its Viper translation is already
+    * a domain value — return it unchanged. Otherwise the Viper value is an `Int` (produced
+    * by IntEncoding) and must be wrapped with `to` to obtain a domain value.
+    *
+    * This is needed because Gobra's internal AST mixes unbounded-integer `IntLit`s with
+    * bounded operands (e.g. `u + 1` where `u: int`, `1: UnboundedInteger`) without inserting
+    * explicit conversions.
+    */
+  private def asDomain(ctx: Context)(k: BoundedIntegerKind, expr: in.Expr, v: vpr.Exp): vpr.Exp =
+    ctx.BoundedInt.unapply(expr.typ) match {
+      case Some(_) => v
+      case None    => vpr.FuncApp(funcsOf(k).to, Seq(v))()
+    }
 
   /**
     * If `expr` has a bounded integer type, wrap `v` with `from`; otherwise return `v` unchanged.

@@ -208,6 +208,7 @@ object Names {
   def boundedIntBneg(k: IntegerKind): String   = s"${k.name}$$bneg"
   def boundedIntShl(k: IntegerKind): String    = s"${k.name}$$shl"
   def boundedIntShr(k: IntegerKind): String    = s"${k.name}$$shr"
+  def boundedIntWrap(k: IntegerKind): String   = s"${k.name}$$wrap"
   // cross-type conversion: k1 → k2
   def boundedIntConv(from: IntegerKind, to: IntegerKind): String = s"${from.name}$$to_${to.name}"
   // unbounded → bounded conversion

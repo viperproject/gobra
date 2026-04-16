@@ -45,21 +45,22 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   private case class KindFunctions(
     from:   vpr.Function,  // (x: domType): Int   — ensures inRange(result)
     to:     vpr.Function,  // (x: Int): domType   — requires inRange(x); ensures from(result)==x
-    add:    vpr.Function,  // (x y: domType): domType
-    sub:    vpr.Function,
-    mul:    vpr.Function,
-    div:    vpr.Function,
-    mod:    vpr.Function,
-    band:   vpr.Function,
-    bor:    vpr.Function,
-    bxor:   vpr.Function,
-    bclear: vpr.Function,
+    wrap:   vpr.Function,  // (x: Int): domType   — no precondition; ensures inRange(x) ==> from(result)==x
+    add:    vpr.Function,  // (x y: domType): Int
+    sub:    vpr.Function,  // (x y: domType): Int
+    mul:    vpr.Function,  // (x y: domType): Int
+    div:    vpr.Function,  // (x y: domType): Int
+    mod:    vpr.Function,  // (x y: domType): Int
+    band:   vpr.Function,  // (x y: domType): Int
+    bor:    vpr.Function,  // (x y: domType): Int
+    bxor:   vpr.Function,  // (x y: domType): Int
+    bclear: vpr.Function,  // (x y: domType): Int
     bneg:   vpr.Function,  // (x: Int): Int  — BitNeg result type is always UnboundedInteger
-    shl:    vpr.Function,  // (x: domType, shift: Int): domType
-    shr:    vpr.Function
+    shl:    vpr.Function,  // (x: domType, shift: Int): Int
+    shr:    vpr.Function   // (x: domType, shift: Int): Int
   ) {
     def all: Seq[vpr.Function] =
-      Seq(from, to, add, sub, mul, div, mod, band, bor, bxor, bclear, bneg, shl, shr)
+      Seq(from, to, wrap, add, sub, mul, div, mod, band, bor, bxor, bclear, bneg, shl, shr)
   }
 
   private val kindCache:         mutable.Map[BoundedIntegerKind, KindFunctions]                   = mutable.Map.empty
@@ -128,7 +129,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
           case e @ err.PreconditionInAppFalse(Source(info), _, _) if e.causedBy(app) =>
             OverflowError(info)
         } else unit(())
-      } yield app
+      } yield vpr.FuncApp(funcsOf(k).wrap, Seq(app))(pos, info, errT)
     }
 
     default(super.expression(ctx)) {
@@ -150,15 +151,11 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       case e @ in.Div(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).div)(l, r, e)
       case e @ in.Mod(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).mod)(l, r, e)
 
-      // Bitwise binary
-      case e @ in.BitAnd(l, r)   :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).band,   Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
-      case e @ in.BitOr(l, r)    :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bor,    Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
-      case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bxor,   Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
-      case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.FuncApp(funcsOf(k).bclear, Seq(asDomain(ctx)(k, l, vl), asDomain(ctx)(k, r, vr))), e)
+      // Bitwise binary — wrap Int result back to domain
+      case e @ in.BitAnd(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).band)(l, r, e)
+      case e @ in.BitOr(l, r)    :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bor)(l, r, e)
+      case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bxor)(l, r, e)
+      case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bclear)(l, r, e)
 
       // Bitwise unary NOT — BitNeg.typ is always UnboundedInteger; apply from to the operand
       // (operand is bounded by pattern, so ve is a domain value)
@@ -166,6 +163,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
         for { ve <- goE(op) } yield withSrc(vpr.FuncApp(funcsOf(k).bneg, Seq(fromApp(k, ve))), e)
 
       // Shifts — left operand must be domain; right operand must be Int (extract via asInt if bounded).
+      // Shift funcs return Int; wrap result back to domain.
       case e @ in.ShiftLeft(l, r) :: ctx.BoundedInt(k) =>
         val (pos, info, errT) = e.vprMeta
         for {
@@ -176,7 +174,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
             case e2 @ err.PreconditionInAppFalse(Source(info2), _, _) if e2.causedBy(app) =>
               ShiftPreconditionError(info2)
           }
-        } yield app
+        } yield vpr.FuncApp(funcsOf(k).wrap, Seq(app))(pos, info, errT)
 
       case e @ in.ShiftRight(l, r) :: ctx.BoundedInt(k) =>
         val (pos, info, errT) = e.vprMeta
@@ -188,7 +186,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
             case e2 @ err.PreconditionInAppFalse(Source(info2), _, _) if e2.causedBy(app) =>
               ShiftPreconditionError(info2)
           }
-        } yield app
+        } yield vpr.FuncApp(funcsOf(k).wrap, Seq(app))(pos, info, errT)
 
       // Comparisons — MemoryEncoding is guarded to skip bounded-int operands,
       // so we must handle them here using from(lhs) cmp from/rhs
@@ -285,16 +283,16 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     * Normalise a Viper expression to the domain type of kind `k`. If the source Gobra
     * expression is already a bounded integer (any kind), its Viper translation is already
     * a domain value — return it unchanged. Otherwise the Viper value is an `Int` (produced
-    * by IntEncoding) and must be wrapped with `to` to obtain a domain value.
+    * by IntEncoding) and must be wrapped to obtain a domain value.
     *
-    * This is needed because Gobra's internal AST mixes unbounded-integer `IntLit`s with
-    * bounded operands (e.g. `u + 1` where `u: int`, `1: UnboundedInteger`) without inserting
-    * explicit conversions.
+    * Uses `wrap` (not `to`) so there is no precondition to discharge. This matters because
+    * Gobra's internal AST mixes unbounded-integer `IntLit`s with bounded operands (e.g.
+    * `u + 1` where `u: int`, `1: UnboundedInteger`) without inserting explicit conversions.
     */
   private def asDomain(ctx: Context)(k: BoundedIntegerKind, expr: in.Expr, v: vpr.Exp): vpr.Exp =
     ctx.BoundedInt.unapply(expr.typ) match {
       case Some(_) => v
-      case None    => vpr.FuncApp(funcsOf(k).to, Seq(v))()
+      case None    => vpr.FuncApp(funcsOf(k).wrap, Seq(v))()
     }
 
   /**
@@ -343,35 +341,53 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       )()
     }
 
-    // Binary arithmetic: args and result are domTyp; contracts use fromE
+    // wrap: total conversion from Int to domTyp. Unlike `to`, it has no precondition;
+    // its postcondition is conditional on the input being in range. Used to lift Int
+    // results of arithmetic/bitwise/shift functions back into the domain type.
+    val wrapFn = {
+      val xDecl  = vpr.LocalVarDecl("x", vpr.Int)()
+      val x      = xDecl.localVar
+      val result = vpr.Result(domTyp)()
+      vpr.Function(
+        name       = Names.boundedIntWrap(k),
+        formalArgs = Seq(xDecl),
+        typ        = domTyp,
+        pres       = Seq(decreases),
+        posts      = Seq(vpr.Implies(inRange(k, x), vpr.EqCmp(fromE(result), x)())()),
+        body       = None
+      )()
+    }
+
+    // Binary arithmetic: args are domTyp; result is Int (avoids domain term proliferation
+    // during MBQI). Contracts relate the Int result to from(x) <op> from(y).
     def binaryArithFunc(name: String, compute: (vpr.Exp, vpr.Exp) => vpr.Exp,
                         extraPres: Seq[vpr.Exp] = Seq.empty): vpr.Function = {
       val xDecl    = vpr.LocalVarDecl("x", domTyp)()
       val yDecl    = vpr.LocalVarDecl("y", domTyp)()
       val computed = compute(fromE(xDecl.localVar), fromE(yDecl.localVar))
-      val result   = vpr.Result(domTyp)()
+      val result   = vpr.Result(vpr.Int)()
       val rangeOk  = inRange(k, computed)
 
       val pres = if (checkOverflows) extraPres ++ Seq(rangeOk, decreases)
                  else                extraPres :+ decreases
 
-      val posts = if (checkOverflows) Seq(vpr.EqCmp(fromE(result), computed)())
-                  else                Seq(vpr.Implies(rangeOk, vpr.EqCmp(fromE(result), computed)())())
+      val posts = if (checkOverflows) Seq(vpr.EqCmp(result, computed)())
+                  else                Seq(vpr.Implies(rangeOk, vpr.EqCmp(result, computed)())())
 
-      vpr.Function(name, Seq(xDecl, yDecl), domTyp, pres, posts, None)()
+      vpr.Function(name, Seq(xDecl, yDecl), vpr.Int, pres, posts, None)()
     }
 
     val addFn = binaryArithFunc(Names.boundedIntAdd(k), (x, y) => vpr.Add(x, y)())
     val subFn = binaryArithFunc(Names.boundedIntSub(k), (x, y) => vpr.Sub(x, y)())
     val mulFn = binaryArithFunc(Names.boundedIntMul(k), (x, y) => vpr.Mul(x, y)())
 
-    // div: Go truncation-towards-zero semantics
+    // div: Go truncation-towards-zero semantics; returns Int.
     val divFn = {
       val xDecl    = vpr.LocalVarDecl("x", domTyp)()
       val yDecl    = vpr.LocalVarDecl("y", domTyp)()
       val fx       = fromE(xDecl.localVar)
       val fy       = fromE(yDecl.localVar)
-      val result   = vpr.Result(domTyp)()
+      val result   = vpr.Result(vpr.Int)()
       val yNonZero = vpr.NeCmp(fy, zero)()
       val truncDiv = vpr.CondExp(
         vpr.LeCmp(zero, fx)(),
@@ -381,18 +397,18 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       val rangeOk = inRange(k, truncDiv)
       val pres    = if (checkOverflows) Seq(yNonZero, rangeOk, decreases)
                     else                Seq(yNonZero, decreases)
-      val posts   = if (checkOverflows) Seq(vpr.EqCmp(fromE(result), truncDiv)())
-                    else                Seq(vpr.Implies(rangeOk, vpr.EqCmp(fromE(result), truncDiv)())())
-      vpr.Function(Names.boundedIntDiv(k), Seq(xDecl, yDecl), domTyp, pres, posts, None)()
+      val posts   = if (checkOverflows) Seq(vpr.EqCmp(result, truncDiv)())
+                    else                Seq(vpr.Implies(rangeOk, vpr.EqCmp(result, truncDiv)())())
+      vpr.Function(Names.boundedIntDiv(k), Seq(xDecl, yDecl), vpr.Int, pres, posts, None)()
     }
 
-    // mod: Go truncation-towards-zero semantics
+    // mod: Go truncation-towards-zero semantics; returns Int.
     val modFn = {
       val xDecl    = vpr.LocalVarDecl("x", domTyp)()
       val yDecl    = vpr.LocalVarDecl("y", domTyp)()
       val fx       = fromE(xDecl.localVar)
       val fy       = fromE(yDecl.localVar)
-      val result   = vpr.Result(domTyp)()
+      val result   = vpr.Result(vpr.Int)()
       val yNonZero = vpr.NeCmp(fy, zero)()
       val absY     = vpr.CondExp(vpr.LeCmp(zero, fy)(), fy, vpr.Minus(fy)())()
       val truncMod = vpr.CondExp(
@@ -403,19 +419,19 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       val rangeOk = inRange(k, truncMod)
       val pres    = if (checkOverflows) Seq(yNonZero, rangeOk, decreases)
                     else                Seq(yNonZero, decreases)
-      val posts   = if (checkOverflows) Seq(vpr.EqCmp(fromE(result), truncMod)())
-                    else                Seq(vpr.Implies(rangeOk, vpr.EqCmp(fromE(result), truncMod)())())
-      vpr.Function(Names.boundedIntMod(k), Seq(xDecl, yDecl), domTyp, pres, posts, None)()
+      val posts   = if (checkOverflows) Seq(vpr.EqCmp(result, truncMod)())
+                    else                Seq(vpr.Implies(rangeOk, vpr.EqCmp(result, truncMod)())())
+      vpr.Function(Names.boundedIntMod(k), Seq(xDecl, yDecl), vpr.Int, pres, posts, None)()
     }
 
-    // Bitwise binary: abstract, result postcondition via fromE
+    // Bitwise binary: abstract; result is Int with inRange postcondition.
     def bitwiseBinaryFunc(name: String): vpr.Function = {
       val xDecl  = vpr.LocalVarDecl("x", domTyp)()
       val yDecl  = vpr.LocalVarDecl("y", domTyp)()
-      val result = vpr.Result(domTyp)()
-      vpr.Function(name, Seq(xDecl, yDecl), domTyp,
+      val result = vpr.Result(vpr.Int)()
+      vpr.Function(name, Seq(xDecl, yDecl), vpr.Int,
         pres  = Seq(decreases),
-        posts = Seq(inRange(k, fromE(result))),
+        posts = Seq(inRange(k, result)),
         body  = None)()
     }
 
@@ -434,21 +450,21 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
         body  = None)()
     }
 
-    // shifts: (x: domTyp, shift: Int): domTyp
+    // shifts: (x: domTyp, shift: Int): Int
     def shiftFn(name: String): vpr.Function = {
       val xDecl     = vpr.LocalVarDecl("x",     domTyp)(info = vpr.Synthesized)
       val shiftDecl = vpr.LocalVarDecl("shift",  vpr.Int)(info = vpr.Synthesized)
-      val result    = vpr.Result(domTyp)()
-      vpr.Function(name, Seq(xDecl, shiftDecl), domTyp,
+      val result    = vpr.Result(vpr.Int)()
+      vpr.Function(name, Seq(xDecl, shiftDecl), vpr.Int,
         pres  = Seq(vpr.GeCmp(shiftDecl.localVar, zero)(), decreases),
-        posts = Seq(inRange(k, fromE(result))),
+        posts = Seq(inRange(k, result)),
         body  = None)()
     }
 
     val shlFn = shiftFn(Names.boundedIntShl(k))
     val shrFn = shiftFn(Names.boundedIntShr(k))
 
-    KindFunctions(fromFn, toFn, addFn, subFn, mulFn, divFn, modFn,
+    KindFunctions(fromFn, toFn, wrapFn, addFn, subFn, mulFn, divFn, modFn,
       bandFn, borFn, bxorFn, bclearFn, bnegFn, shlFn, shrFn)
   }
 

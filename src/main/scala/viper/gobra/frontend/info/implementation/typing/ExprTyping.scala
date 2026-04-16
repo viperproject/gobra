@@ -1079,6 +1079,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case result => result
           } else None
 
+        // For comparison binary expressions (== != < <= > >=):
+        // Comparisons return bool, so there is no outer context type to propagate.
+        // However, Go requires that an untyped constant operand be representable in the
+        // type of the other operand (e.g. `x < 1000` where x: uint8 must reject 1000).
+        // Propagate the sibling's concrete integer type to this operand.
+        case bExpr: PBinaryExp[_, _]
+          if bExpr.isInstanceOf[PEquals] || bExpr.isInstanceOf[PUnequals] ||
+             bExpr.isInstanceOf[PLess]   || bExpr.isInstanceOf[PAtMost]   ||
+             bExpr.isInstanceOf[PGreater]|| bExpr.isInstanceOf[PAtLeast] =>
+          val sibling: PExpressionOrType =
+            if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
+          sibling match {
+            case e: PNumExpression =>
+              tryNumExprType(e) match {
+                case Some(it: IntT) if it != UNTYPED_INT_CONST => Some(it)
+                case _ => None
+              }
+            case e: PExpression =>
+              exprType(e) match {
+                case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                case _ => None
+              }
+            case _ => None
+          }
+
         // For other numeric binary expressions (+ - * / % & | ^ &^):
         // If the sibling operand is itself a pure untyped integer constant expression, propagate
         // the outer context type down to this subexpression.
@@ -1095,7 +1120,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             // happens only once at the binary expression level (not additionally at each literal
             // subexpression). If the context is perm, return None so that integer literal
             // subexpressions of x/y are not given type PermissionT (which would break Desugar).
-            getTypeFromCtxt(bExpr) match {
+            //
+            // Special case: PSub(PIntLit(0), expr) is Gobra's AST representation of unary
+            // negation (parsed from "-expr" in source). Do NOT propagate the parent context type
+            // to `expr` in that case. The constant-value bounds check is performed at the PSub
+            // level (value = 0 - lit = -lit), which is correct. Propagating would check `lit`
+            // itself, producing a false positive for the minimum signed value — e.g.
+            // PSub(0, 128) = -128 fits in int8, but 128 > 127 would trigger a spurious error.
+            val isUnaryNegOperand = bExpr.isInstanceOf[PSub] && {
+              val sub = bExpr.asInstanceOf[PSub]
+              (sub.left: PExpressionOrType).eq(sibling) &&   // expr is the right operand
+              (sibling match { case PIntLit(v, _) => v == BigInt(0); case _ => false })
+            }
+            if (isUnaryNegOperand) None
+            else getTypeFromCtxt(bExpr) match {
               case result @ Some(_: InterfaceT) => None
               case Some(PermissionT)            => None
               case result => result
@@ -1114,8 +1152,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             // getTypeFromCtxt on the expression itself.
             sibling match {
               case e: PNumExpression =>
-                numExprType(e) match {
-                  case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                tryNumExprType(e) match {
+                  case Some(it: IntT) if it != UNTYPED_INT_CONST => Some(it)
                   case _ => None
                 }
               case e: PExpression =>
@@ -1228,6 +1266,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => violation(s"unexpected type $typ")
     }
   }
+
+  /**
+   * Like [[numExprType]], but returns None instead of throwing a [[Violation.LogicException]]
+   * when the expression is ill-typed (e.g. `len` applied to a non-collection argument).
+   * Used in [[getTypeFromCtxt]] to safely peek at a sibling's type without crashing on
+   * programs that already have other type errors.
+   */
+  private def tryNumExprType(e: PNumExpression): Option[Type] =
+    try Some(numExprType(e))
+    catch { case _: Violation.LogicException => None }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))

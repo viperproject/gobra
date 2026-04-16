@@ -81,26 +81,6 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       ml.unit(inRange(k, vParam))
   }
 
-  // ===== Equal: handle mixed bounded/unbounded comparisons =====
-
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] =
-    default(super.equal(ctx)) {
-      // Handle comparisons between bounded integers and unbounded integers (e.g. `x == 0` where x: int, 0: integer)
-      case (lhs :: ctx.BoundedInt(_), rhs :: ctx.UnboundedInt(), src) =>
-        val (pos, info, errT) = src.vprMeta
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT): vpr.Exp
-
-      case (lhs :: ctx.UnboundedInt(), rhs :: ctx.BoundedInt(_), src) =>
-        val (pos, info, errT) = src.vprMeta
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT): vpr.Exp
-    }
-
   // ===== Expression encoding =====
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {

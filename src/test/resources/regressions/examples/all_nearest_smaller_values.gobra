@@ -23,7 +23,7 @@ pure func isEmpty(s *Stack) bool {
 
 ghost
 requires acc(stack(s), _)
-decreases _
+decreases acc(stack(s), _)
 pure func elems(s *Stack) seq[int] {
     return isEmpty(s) ? seq[int] { } : unfolding acc(stack(s), _) in seq[int] { s.value } ++ elems(s.next)
 }
@@ -47,7 +47,7 @@ ghost
 requires acc(stack(x), 1/4)
 requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
 requires 1 <= z && z <= len(s)
-decreases _
+decreases acc(stack(x), 1/4), 1
 pure func stackInv(x *Stack, s []int, z int) (res bool) {
     *//* the following code causes unexpected Z3 output and a crash in Silicon
     return x != nil ? unfolding acc(stack(x), 1/4) in (

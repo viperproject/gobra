@@ -230,7 +230,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val configString = configs.flatMap(_.split(" ")).toList
-        InputConfig.parseCliArgs(configString, Some(Paths.get(input.name).getParent)).map(Some(_))
+        val basePath = Paths.get(input.name).toAbsolutePath.getParent
+        InputConfig.parseCliArgs(configString, Option(basePath)).map(Some(_))
       }
     })
     val (errors, inFileInputConfigs) = inFileEitherInputConfigs.partitionMap(identity)

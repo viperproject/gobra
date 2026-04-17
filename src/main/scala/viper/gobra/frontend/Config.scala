@@ -693,9 +693,12 @@ case class InputConfig(
       if (isInputOptional) {
         mutuallyExclusive(input, directory, recursive, configFile)
       } else {
-        // either `input`, `directory` or `recursive` must be provided but not both.
+        // either `input`, `directory`, `recursive` or `configFile` must be provided but not more than one.
         // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
         requireOne(input, directory, recursive, configFile)
+        nonEmptyIfDefined(input)
+        nonEmptyIfDefined(directory)
+        nonFalseIfDefined(recursive)
       },
       // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
       // Thus, we restrict their use:
@@ -783,6 +786,20 @@ case class InputConfig(
         ConfigError(s"There should be exactly one of the following options: ${options.map(_.name).mkString(", ")}")))
     } else {
       Right(())
+    }
+  }
+
+  private def nonEmptyIfDefined[T](opt: InputConfigOption[List[T]]): Either[Vector[VerifierError], Unit] = {
+    opt.value match {
+      case Some(List()) => Left(Vector(ConfigError(s"There should be at least one element for option '${opt.name}' but zero were provided")))
+      case _ => Right(())
+    }
+  }
+
+  private def nonFalseIfDefined(opt: InputConfigOption[Boolean]): Either[Vector[VerifierError], Unit] = {
+    opt.value match {
+      case Some(false) => Left(Vector(ConfigError(s"Option '${opt.name}' cannot be set to false but must be omitted instead")))
+      case _ => Right(())
     }
   }
 
@@ -952,6 +969,17 @@ case class InputConfig(
 }
 
 object InputConfig {
+  /** Creates an InputConfig from a GobraInstallCfg's fields.
+   * @param cfg the installation configuration
+   * @param configDir the directory containing the config file (for resolving relative paths) */
+  def fromGobraInstallCfg(cfg: GobraInstallCfg, configDir: Path): InputConfig = {
+    val resolvedCfg = cfg.resolvePaths(configDir)
+    InputConfig(
+      z3Exe = InputConfigOption("z3Exe", resolvedCfg.z3_path),
+      boogieExe = InputConfigOption("boogieExe", resolvedCfg.boogie_path),
+    )
+  }
+
   /** Creates an InputConfig from a VerificationJobCfg's structured fields.
     * @param cfg the verification job configuration
     * @param configDir the directory containing the config file (for resolving relative paths) */
@@ -1235,19 +1263,26 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
           case None => logger.info("No job config file found; using default-job config only from module config")
         }
       }
+      installCfg: GobraInstallCfg = moduleCfg.installation_cfg.getOrElse(GobraInstallCfg())
       defaultJobCfg: VerificationJobCfg = moduleCfg.default_job_cfg.getOrElse(VerificationJobCfg())
 
       // Build module-level InputConfig:
       // 1. Parse module's `other` field via ScallopGobraConfig
-      moduleOtherConfig <- InputConfig.fromOtherArgs(defaultJobCfg.other.getOrElse(List.empty))
-      // 2. Convert module's structured fields to InputConfig
+      moduleOtherArgs = defaultJobCfg.other.getOrElse(List.empty)
+      _ <- Config.validateOtherArgs(moduleOtherArgs)
+      moduleOtherConfig <- InputConfig.fromOtherArgs(moduleOtherArgs)
+      // 2. Convert installCfg to InputConfig
+      installConfig = InputConfig.fromGobraInstallCfg(installCfg, moduleConfigDir)
+      // 3. Convert module's structured fields to InputConfig
       moduleStructuredConfig = InputConfig.fromVerificationJobCfg(defaultJobCfg, moduleConfigDir)
-      // 3. Merge structured and other options (structured takes precedence)
-      moduleLevelConfig = moduleStructuredConfig merge moduleOtherConfig
+      // 4. Merge install, structured and other options (precedence: install > structured > other)
+      moduleLevelConfig = installConfig merge moduleStructuredConfig merge moduleOtherConfig
 
       // Build job-level InputConfig:
       // 1. Parse job's `other` field via ScallopGobraConfig
-      jobOtherConfig <- InputConfig.fromOtherArgs(jobCfg.other.getOrElse(List.empty))
+      jobOtherArgs = jobCfg.other.getOrElse(List.empty)
+      _ <- Config.validateOtherArgs(jobOtherArgs)
+      jobOtherConfig <- InputConfig.fromOtherArgs(jobOtherArgs)
       // 2. Convert job's structured fields to InputConfig
       jobStructuredConfig = InputConfig.fromVerificationJobCfg(jobCfg, jobConfigDir)
       // 3. Merge structured and other options (structured takes precedence)
@@ -1257,7 +1292,7 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
       mergedConfig = jobLevelConfig orElse moduleLevelConfig
 
       // Set the input directory for package mode if not specified
-      finalInputConfig = if (mergedConfig.input.value.isEmpty && mergedConfig.recursive.value.isEmpty && mergedConfig.directory.value.isEmpty) {
+      finalInputConfig = if (mergedConfig.input.value.isEmpty && !mergedConfig.recursive.value.contains(true) && mergedConfig.directory.value.isEmpty) {
         mergedConfig.copy(directory = InputConfigOption("directory", Some(List(jobConfigDir.toFile))))
       } else {
         mergedConfig

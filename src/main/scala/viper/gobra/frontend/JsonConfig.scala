@@ -70,6 +70,7 @@ case class GobraModuleCfg(
 
 case class GobraInstallCfg(
                             z3_path: Option[String] = None,
+                            boogie_path: Option[String] = None,
                           ) extends Resolvable {
   type R = GobraInstallCfg
 
@@ -77,6 +78,7 @@ case class GobraInstallCfg(
   override def resolvePaths(basePath: Path): GobraInstallCfg =
     copy(
       z3_path = resolveOptPath(basePath, z3_path),
+      boogie_path = resolveOptPath(basePath, boogie_path),
     )
 }
 

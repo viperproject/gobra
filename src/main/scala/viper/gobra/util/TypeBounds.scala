@@ -6,7 +6,7 @@
 
 package viper.gobra.util
 
-import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
+import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UntypedConstInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
 import viper.gobra.util.Violation.violation
 
 /**
@@ -23,7 +23,7 @@ case class TypeBounds(Int: IntegerKind = DefaultInt,
                       UInt32: IntegerKind = UnsignedInteger32,
                       UInt64: IntegerKind = UnsignedInteger64,
                       UIntPtr: IntegerKind = UIntPtr,
-                      UntypedConst: IntegerKind = UnboundedInteger,
+                      UntypedConst: IntegerKind = UntypedConstInteger,
                       Byte: IntegerKind = Byte,
                       Rune: IntegerKind = Rune)
 
@@ -33,7 +33,16 @@ case class TypeBounds(Int: IntegerKind = DefaultInt,
 object TypeBounds {
   sealed abstract case class IntegerKind(name: String)
 
+  /** The explicit `integer` ghost type — mathematical (unbounded) integers used in specs. */
   object UnboundedInteger extends IntegerKind("integer")
+
+  /**
+    * Type kind used for an untyped integer constant (literal) before context-driven type
+    * inference. Distinct from [[UnboundedInteger]] so that the type-checker can apply Go's
+    * permissive untyped-constant assignability rules to literals while keeping the explicit
+    * `integer` type strict (no implicit coercion to/from bounded kinds).
+    */
+  object UntypedConstInteger extends IntegerKind("untyped_int_const")
 
   sealed abstract class BoundedIntegerKind(override val name: String, val nbits: Int) extends IntegerKind(name) {
     val upper: BigInt
@@ -79,8 +88,12 @@ object TypeBounds {
 
   def merge(integerKind1: IntegerKind, integerKind2: IntegerKind): IntegerKind = (integerKind1, integerKind2) match {
     case (a, b) if a == b => a
-    case (a, UnboundedInteger) => a
-    case (UnboundedInteger, b) => b
+    // Untyped int constants adapt to their typed sibling.
+    case (a, UntypedConstInteger) => a
+    case (UntypedConstInteger, b) => b
+    // The explicit `integer` ghost type does NOT auto-merge with bounded kinds — that would
+    // hide real type errors (e.g. `byte == integer`). It only merges with itself or with an
+    // untyped constant (handled above).
     case _ => violation(s"kinds $integerKind1 and $integerKind2 cannot be merged")
   }
 }

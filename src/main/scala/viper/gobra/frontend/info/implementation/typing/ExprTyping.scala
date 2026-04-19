@@ -587,7 +587,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
                   val nBits = underlyingType(exprOrTypeType(n.left)) match {
                     case IntT(t: BoundedIntegerKind) => t.nbits
-                    case IntT(UnboundedInteger) => MAX_SHIFT
+                    case IntT(UnboundedInteger | TypeBounds.UntypedConstInteger) => MAX_SHIFT
                     case t => violation(s"unexpected type $t")
                   }
                   val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)

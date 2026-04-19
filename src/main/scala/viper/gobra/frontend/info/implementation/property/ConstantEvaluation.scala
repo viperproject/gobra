@@ -99,7 +99,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
               val constEval = intConstantEval(op)
               constEval map { constValue =>
                 t match {
-                  case UnboundedInteger | _: Signed => ~constValue
+                  case UnboundedInteger | UntypedConstInteger | _: Signed => ~constValue
                   case u: Unsigned => ~constValue mod (u.upper + 1)
                 }
               }
@@ -131,7 +131,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
               }
             case _: PShiftRight => exprType(l) match {
               case IntT(t) => t match {
-                case UnboundedInteger | _: Signed =>
+                case UnboundedInteger | UntypedConstInteger | _: Signed =>
                   aux(l, r){
                     x => y =>
                       // The type system ensures that y is convertible to int

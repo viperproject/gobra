@@ -90,11 +90,11 @@ object TypePatterns {
         }
     }
 
-    /** Matches the ghost `integer` type (unbounded mathematical integers). */
+    /** Matches the ghost `integer` type and untyped integer constants (both encode as vpr.Int). */
     object UnboundedInt {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx) match {
-          case in.IntT(_, TypeBounds.UnboundedInteger) => true
+          case in.IntT(_, TypeBounds.UnboundedInteger | TypeBounds.UntypedConstInteger) => true
           case _ => false
         }
     }

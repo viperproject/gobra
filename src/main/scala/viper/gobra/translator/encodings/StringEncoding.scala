@@ -391,7 +391,10 @@ class StringEncoding extends LeafTypeEncoding {
       val info = Source.Parser.Internal
       val param1T = in.StringT(Addressability.Exclusive)
       val param1 = in.Parameter.In("s", param1T)(info)
-      val param2T = in.IntT(Addressability.Exclusive, TypeBounds.DefaultInt)
+      // Index is mathematical (the encoding's bound variables for string positions are
+      // unbounded `integer`). Declaring the formal as bounded `int` would produce a Viper
+      // sort mismatch when the call site passes a vpr.Int.
+      val param2T = in.IntT(Addressability.Exclusive, TypeBounds.UnboundedInteger)
       val param2 = in.Parameter.In("i", param2T)(info)
       val resT = in.IntT(Addressability.Exclusive, TypeBounds.Byte)
       val res = in.Parameter.Out("res", resT)(info)

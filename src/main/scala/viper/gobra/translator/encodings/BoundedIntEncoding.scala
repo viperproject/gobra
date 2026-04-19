@@ -73,8 +73,13 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   // ===== Type translation =====
 
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.BoundedInt(k) / Exclusive => domainType(k)
-    case ctx.BoundedInt(_) / Shared    => vpr.Ref
+    case ctx.BoundedInt(k) / Exclusive =>
+      // Touch the cache so finalize emits the domain — otherwise a kind referenced only via
+      // its type (e.g. a `byte` function parameter that's never used in arithmetic) would
+      // produce a Viper file mentioning `Bounded_byte` without declaring the domain.
+      funcsOf(k)
+      domainType(k)
+    case ctx.BoundedInt(_) / Shared => vpr.Ref
   }
 
   // ===== Assignment: normalise RHS to the domain type of the LHS =====

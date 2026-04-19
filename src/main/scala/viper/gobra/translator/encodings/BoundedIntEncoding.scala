@@ -274,6 +274,62 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     for ((_, fns) <- kindCache)       fns.topLevelFns.foreach(addMemberFn)
     for ((_, fn)  <- convCache)       addMemberFn(fn)
     for ((_, fn)  <- intToBoundedCache) addMemberFn(fn)
+    // Emit a well-founded order domain for each kind so termination measures over
+    // bounded-int values type-check. Mirrors the shape of `IntWellFoundedOrder` from
+    // Silver's `import <decreases/int.vpr>`, but the underlying order is the Int order
+    // on `from(x)`, and `bounded` is unconditional (every domain value satisfies
+    // `lower <= from(x)` by the range axiom).
+    for (k <- kindCache.keys) addMemberFn(buildWellFoundedOrderDomain(k))
+  }
+
+  /** Build a `<Bounded_k>WellFoundedOrder` domain with `decreasing`/`bounded` axioms. */
+  private def buildWellFoundedOrderDomain(k: BoundedIntegerKind): vpr.Domain = {
+    val domTyp = domainType(k)
+    val wfDomName = Names.boundedIntDomain(k) + "WellFoundedOrder"
+
+    def wfApp(name: String, args: Seq[vpr.Exp]): vpr.DomainFuncApp =
+      vpr.DomainFuncApp(
+        funcname = name,
+        args = args,
+        typVarMap = Map(vpr.TypeVar("T") -> domTyp)
+      )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = "WellFoundedOrder", vpr.NoTrafos)
+
+    val xDecl = vpr.LocalVarDecl("x", domTyp)()
+    val yDecl = vpr.LocalVarDecl("y", domTyp)()
+    val x     = xDecl.localVar
+    val y     = yDecl.localVar
+    val fx    = fromApp(k, x)
+    val fy    = fromApp(k, y)
+
+    // forall x, y: D :: { decreasing(x, y) } from(x) < from(y) ==> decreasing(x, y)
+    val decAxiom = vpr.NamedDomainAxiom(
+      name = s"${k.name}$$dec_ax",
+      exp  = vpr.Forall(
+        Seq(xDecl, yDecl),
+        Seq(vpr.Trigger(Seq(wfApp("decreasing", Seq(x, y))))()),
+        vpr.Implies(vpr.LtCmp(fx, fy)(), wfApp("decreasing", Seq(x, y)))()
+      )()
+    )(domainName = wfDomName)
+
+    // forall x: D :: { bounded(x) } bounded(x)
+    // (Every domain value's `from`-image is >= `lower` by the range axiom, so the
+    // standard `lower <= from(x) ==> bounded(x)` simplifies to an unconditional
+    // `bounded(x)`. Termination is sound because the Int order on `[lower, upper]`
+    // is well-founded.)
+    val boundedAxiom = vpr.NamedDomainAxiom(
+      name = s"${k.name}$$bounded_ax",
+      exp  = vpr.Forall(
+        Seq(xDecl),
+        Seq(vpr.Trigger(Seq(wfApp("bounded", Seq(x))))()),
+        wfApp("bounded", Seq(x))
+      )()
+    )(domainName = wfDomName)
+
+    vpr.Domain(
+      name = wfDomName,
+      functions = Seq.empty,
+      axioms = Seq(decAxiom, boundedAxiom)
+    )()
   }
 
   // ===== Viper AST helpers =====

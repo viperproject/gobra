@@ -47,7 +47,7 @@ class DefaultPureMethodEncoding extends Encoding {
 
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.precondition))
-      posts <- sequence(vResultPosts ++ meth.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
+      posts <- sequence(vResultPosts.map(_.map(fixResultvar)) ++ meth.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
       measures <- sequence(meth.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
       body <- option(meth.body map { b =>
@@ -93,7 +93,7 @@ class DefaultPureMethodEncoding extends Encoding {
 
     for {
       pres <- sequence(vArgPres ++ func.pres.map(ctx.precondition))
-      posts <- sequence(vResultPosts ++ func.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
+      posts <- sequence(vResultPosts.map(_.map(fixResultvar)) ++ func.posts.map(ctx.postcondition(_).map(fixResultvar(_))))
       measures <- sequence(func.terminationMeasures.map(e => pure(ctx.assertion(e))(ctx)))
 
       body <- option(func.body map { b =>

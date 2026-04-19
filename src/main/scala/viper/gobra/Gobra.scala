@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
@@ -295,18 +295,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   /**
-    * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
-    * be easily extended to perform more transformations
+    * Applies transformations to programs in the internal language.
     */
   private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
-    // constant propagation does not cause duplication of verification errors caused
-    // by overflow checks (if enabled) because all overflows in constant declarations 
-    // can be found by the well-formedness checks.
     val startMs = System.currentTimeMillis()
-    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
-    if (config.checkOverflows) {
-      transformations :+= OverflowChecksTransform
-    }
+    val transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
     val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
     logger.debug {
       val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"

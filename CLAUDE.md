@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Gobra
 
-Gobra is a prototype verifier for Go programs built on the [Viper verification infrastructure](http://www.pm.inf.ethz.ch/research/viper.html). It takes annotated Go programs (`.gobra` files) and formally verifies them using symbolic execution (Silicon) or verification condition generation (Carbon) as backends, with Z3 as the SMT solver.
+Gobra is a prototype verifier for Go programs built on the [Viper verification infrastructure](http://www.pm.inf.ethz.ch/research/viper.html). It takes annotated Go programs (`.go` or `.gobra` files) and formally verifies them using symbolic execution (Silicon) or verification condition generation (Carbon) as backends, with Z3 as the SMT solver.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ npx github:viperproject/check-license-header#v1 check --config .github/license-c
 
 Gobra's verification flow:
 
-1. **Parser** (`frontend/Parser.scala`) — ANTLR4 grammar (`src/main/antlr4/`) + Kiama, parses `.gobra` annotated Go files
+1. **Parser** (`frontend/Parser.scala`) — preprocesses `.go` files (`frontend/Gobrafier.scala`) and uses ANTLR4 grammar (`src/main/antlr4/`) + Kiama to parse `.gobra` and the proprocessed `.go` files
 2. **Type Checker / Info** (`frontend/info/`) — semantic analysis, type resolution, scope management
 3. **Desugaring** (`frontend/Desugar.scala`) — lowers frontend AST to internal AST (`ast/internal/`)
 4. **Internal Transforms** (`ast/internal/transform/`) — constant propagation, overflow checks, termination, CG edges
@@ -68,6 +68,7 @@ viperserver/        ← HTTP server + job management
   carbon/           ← VCG backend (requires Boogie/Mono)
     silver/         ← Shared Viper IR (Silver)
 ```
+Note that `silver` is a submodule of both `carbon` and `silicon`. The respective `silver` commit must match and SBT will pick one of the two `silver` submodules for compilation.
 
 ## Parser Regeneration
 

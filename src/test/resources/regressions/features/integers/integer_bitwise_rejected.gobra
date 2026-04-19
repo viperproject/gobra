@@ -1,0 +1,58 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integerBitwiseRejected
+
+// Bitwise operations are only defined on bounded integer kinds. Applying them to
+// values of the ghost `integer` type (mathematical, unbounded precision) is rejected
+// by the type-checker, mirroring Go's rule that bitwise operators require integer
+// types with a fixed bit width.
+
+ghost
+decreases
+pure func bitAndIntegerRejected(a, b integer) integer {
+    //:: ExpectedOutput(type_error)
+    return a & b
+}
+
+ghost
+decreases
+pure func bitOrIntegerRejected(a, b integer) integer {
+    //:: ExpectedOutput(type_error)
+    return a | b
+}
+
+ghost
+decreases
+pure func bitXorIntegerRejected(a, b integer) integer {
+    //:: ExpectedOutput(type_error)
+    return a ^ b
+}
+
+ghost
+decreases
+pure func bitClearIntegerRejected(a, b integer) integer {
+    //:: ExpectedOutput(type_error)
+    return a &^ b
+}
+
+ghost
+decreases
+pure func bitNegIntegerRejected(a integer) integer {
+    //:: ExpectedOutput(type_error)
+    return ^a
+}
+
+ghost
+decreases
+pure func shiftLeftIntegerRejected(a integer, n integer) integer {
+    //:: ExpectedOutput(type_error)
+    return a << n
+}
+
+ghost
+decreases
+pure func shiftRightIntegerRejected(a integer, n integer) integer {
+    //:: ExpectedOutput(type_error)
+    return a >> n
+}

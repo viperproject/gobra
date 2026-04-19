@@ -256,11 +256,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Right(_), Some(fc: ap.FractionalPermConstructor)) =>
-          // perm(num, den): num must be Int or perm; den must be Int
+          // perm(num, den): num must be `integer` (mathematical, unbounded) or `perm`; den
+          // must be `integer`. Bounded integer kinds (int, int8, …) are not auto-coerced —
+          // callers must convert explicitly with `integer(x)`. This matches the conceptual
+          // signature `perm(integer, integer): perm`.
+          val unboundedInt = IntT(UnboundedInteger)
           val numT = exprType(fc.num)
           val numOk = if (numT == PermissionT) noMessages
-                      else assignableTo.errors(numT, UNTYPED_INT_CONST, mayInit)(fc.num)
-          val denOk = assignableTo.errors(exprType(fc.den), UNTYPED_INT_CONST, mayInit)(fc.den)
+                      else error(fc.num,
+                        s"the numerator of `perm` must be of type `integer` or `perm`, but got $numT",
+                        numT != unboundedInt)
+          val denOk = {
+            val denT = exprType(fc.den)
+            error(fc.den,
+              s"the denominator of `perm` must be of type `integer`, but got $denT",
+              denT != unboundedInt)
+          }
           isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>

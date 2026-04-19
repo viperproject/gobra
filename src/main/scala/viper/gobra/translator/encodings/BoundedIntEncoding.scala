@@ -43,7 +43,9 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   // ===== Per-kind generated functions =====
 
   private case class KindFunctions(
-    from:   vpr.Function,  // (x: domType): Int   — ensures inRange(result)
+    from:        vpr.DomainFunc,    // (x: domType): Int  — DOMAIN function; characterised by domain axioms
+    rangeAxiom:  vpr.DomainAxiom,   // forall x: domType :: lower <= from(x) && from(x) <= upper
+    injAxiom:    vpr.DomainAxiom,   // forall x, y: domType :: from(x) == from(y) ==> x == y
     to:     vpr.Function,  // (x: Int): domType   — requires inRange(x); ensures from(result)==x
     wrap:   vpr.Function,  // (x: Int): domType   — no precondition; ensures inRange(x) ==> from(result)==x
     add:    vpr.Function,  // (x y: domType): Int
@@ -59,8 +61,9 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     shl:    vpr.Function,  // (x: domType, shift: Int): Int
     shr:    vpr.Function   // (x: domType, shift: Int): Int
   ) {
-    def all: Seq[vpr.Function] =
-      Seq(from, to, wrap, add, sub, mul, div, mod, band, bor, bxor, bclear, bneg, shl, shr)
+    /** Top-level Viper functions emitted for this kind (not the domain members). */
+    def topLevelFns: Seq[vpr.Function] =
+      Seq(to, wrap, add, sub, mul, div, mod, band, bor, bxor, bclear, bneg, shl, shr)
   }
 
   private val kindCache:         mutable.Map[BoundedIntegerKind, KindFunctions]                   = mutable.Map.empty
@@ -235,7 +238,10 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       // (2) bounded → unbounded: extract the Int value via from
       case conv @ in.Conversion(_, expr :: ctx.BoundedInt(k))
         if ctx.UnboundedInt.unapply(conv.typ) =>
-        for { ve <- goE(expr) } yield withSrc(vpr.FuncApp(funcsOf(k).from, Seq(ve)), conv)
+        for { ve <- goE(expr) } yield {
+          val (pos, info, errT) = conv.vprMeta
+          vpr.DomainFuncApp(funcsOf(k).from.name, Seq(ve), Map.empty)(pos, info, vpr.Int, Names.boundedIntDomain(k), errT)
+        }
 
       // (3) unbounded → bounded
       case conv @ in.Conversion(_, expr)
@@ -257,10 +263,15 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   // ===== Finalize: emit domains and all generated functions =====
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
-    // Emit one empty domain per kind to define the opaque type
-    for (k <- kindCache.keys)
-      addMemberFn(vpr.Domain(Names.boundedIntDomain(k), Seq.empty, Seq.empty)())
-    for ((_, fns) <- kindCache)       fns.all.foreach(addMemberFn)
+    // Emit one domain per kind, holding `from` and its characterising axioms.
+    for ((k, fns) <- kindCache) {
+      addMemberFn(vpr.Domain(
+        name = Names.boundedIntDomain(k),
+        functions = Seq(fns.from),
+        axioms = Seq(fns.rangeAxiom, fns.injAxiom)
+      )())
+    }
+    for ((_, fns) <- kindCache)       fns.topLevelFns.foreach(addMemberFn)
     for ((_, fn)  <- convCache)       addMemberFn(fn)
     for ((_, fn)  <- intToBoundedCache) addMemberFn(fn)
   }
@@ -280,9 +291,9 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       vpr.LeCmp(e, vpr.IntLit(k.upper)())()
     )()
 
-  /** Apply the `from` function of kind k to a domain-typed Viper expression. */
+  /** Apply the `from` domain function of kind k to a domain-typed Viper expression. */
   private def fromApp(k: BoundedIntegerKind, v: vpr.Exp): vpr.Exp =
-    vpr.FuncApp(funcsOf(k).from, Seq(v))()
+    vpr.DomainFuncApp(funcsOf(k).from, Seq(v), Map.empty)()
 
   /**
     * Normalise a Viper expression to the domain type of kind `k`. If the source Gobra
@@ -314,23 +325,51 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
 
   private def buildKindFunctions(k: BoundedIntegerKind): KindFunctions = {
     val domTyp = domainType(k)
+    val domName = Names.boundedIntDomain(k)
 
     // Build `from` first — all other function contracts reference it.
     // IMPORTANT: use a local `fromE` helper rather than funcsOf(k).from to avoid recursion.
     val fromFn = {
-      val xDecl  = vpr.LocalVarDecl("x", domTyp)()
-      val result = vpr.Result(vpr.Int)()
-      vpr.Function(
+      val xDecl = vpr.LocalVarDecl("x", domTyp)()
+      vpr.DomainFunc(
         name       = Names.boundedIntFrom(k),
         formalArgs = Seq(xDecl),
-        typ        = vpr.Int,
-        pres       = Seq(decreases),
-        posts      = Seq(inRange(k, result)),
-        body       = None
-      )()
+        typ        = vpr.Int
+      )(domainName = domName)
     }
 
-    def fromE(e: vpr.Exp): vpr.Exp = vpr.FuncApp(fromFn, Seq(e))()
+    def fromE(e: vpr.Exp): vpr.Exp = vpr.DomainFuncApp(fromFn, Seq(e), Map.empty)()
+
+    // Axiom: forall x: domType :: lower <= from(x) && from(x) <= upper.
+    // This replaces the old `from` postcondition: every domain value's image under `from`
+    // lies inside the kind's range.
+    val rangeAxiom = {
+      val xDecl = vpr.LocalVarDecl("x", domTyp)()
+      val fx    = fromE(xDecl.localVar)
+      val body  = inRange(k, fx)
+      vpr.NamedDomainAxiom(
+        name = s"${k.name}$$from_in_range",
+        exp  = vpr.Forall(Seq(xDecl), Seq(vpr.Trigger(Seq(fx))()), body)()
+      )(domainName = domName)
+    }
+
+    // Axiom: forall x, y: domType :: from(x) == from(y) ==> x == y.
+    // Together with `to`'s postcondition `from(to(n)) == n` for in-range n, this makes
+    // `from` a bijection between the domain and the [lower, upper] subset of Int.
+    val injAxiom = {
+      val xDecl = vpr.LocalVarDecl("x", domTyp)()
+      val yDecl = vpr.LocalVarDecl("y", domTyp)()
+      val fx    = fromE(xDecl.localVar)
+      val fy    = fromE(yDecl.localVar)
+      val body  = vpr.Implies(
+        vpr.EqCmp(fx, fy)(),
+        vpr.EqCmp(xDecl.localVar, yDecl.localVar)()
+      )()
+      vpr.NamedDomainAxiom(
+        name = s"${k.name}$$from_injective",
+        exp  = vpr.Forall(Seq(xDecl, yDecl), Seq(vpr.Trigger(Seq(fx, fy))()), body)()
+      )(domainName = domName)
+    }
 
     val toFn = {
       val xDecl  = vpr.LocalVarDecl("x", vpr.Int)()
@@ -469,7 +508,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     val shlFn = shiftFn(Names.boundedIntShl(k))
     val shrFn = shiftFn(Names.boundedIntShr(k))
 
-    KindFunctions(fromFn, toFn, wrapFn, addFn, subFn, mulFn, divFn, modFn,
+    KindFunctions(fromFn, rangeAxiom, injAxiom, toFn, wrapFn, addFn, subFn, mulFn, divFn, modFn,
       bandFn, borFn, bxorFn, bclearFn, bnegFn, shlFn, shrFn)
   }
 
@@ -487,9 +526,9 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     val toDomTyp   = domainType(toKind)
     val xDecl      = vpr.LocalVarDecl("x", fromDomTyp)()
     val x          = xDecl.localVar
-    val fx         = vpr.FuncApp(funcsOf(fromKind).from, Seq(x))()
+    val fx         = fromApp(fromKind, x)
     val result     = vpr.Result(toDomTyp)()
-    val fResult    = vpr.FuncApp(funcsOf(toKind).from, Seq(result))()
+    val fResult    = fromApp(toKind, result)
 
     val pres  = if (checkOverflows) Seq(inRange(toKind, fx), decreases) else Seq(decreases)
     val posts = if (checkOverflows) Seq(vpr.EqCmp(fResult, fx)())
@@ -503,7 +542,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     val xDecl    = vpr.LocalVarDecl("x", vpr.Int)()
     val x        = xDecl.localVar
     val result   = vpr.Result(toDomTyp)()
-    val fResult  = vpr.FuncApp(funcsOf(toKind).from, Seq(result))()
+    val fResult  = fromApp(toKind, result)
 
     val pres  = if (checkOverflows) Seq(inRange(toKind, x), decreases) else Seq(decreases)
     val posts = if (checkOverflows) Seq(vpr.EqCmp(fResult, x)())

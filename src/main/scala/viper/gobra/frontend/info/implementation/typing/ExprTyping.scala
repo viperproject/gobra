@@ -1018,6 +1018,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
 
+        // If expr is an operand of a comparison whose other operand has a bounded integer type,
+        // pin expr's context type to that bounded type. This mirrors Go's implicit conversion of
+        // untyped constants in comparisons and avoids mixed-sort operands reaching later stages.
+        case cmp: PEquals        => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PUnequals      => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PLess          => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PAtMost        => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PGreater       => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PAtLeast       => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PGhostEquals   => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+        case cmp: PGhostUnequals => boundedCtxFromComparison(cmp.left, cmp.right, expr)
+
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
@@ -1056,6 +1068,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => None
       }
       case c => Violation.violation(s"Only the root has no parent, but got $c")
+    }
+  }
+
+  private def boundedCtxFromComparison(
+      left: PExpressionOrType,
+      right: PExpressionOrType,
+      expr: PExpression): Option[Type] = {
+    val other: PExpressionOrType = if (left eq expr) right else left
+    val otherType = exprOrTypeType(other)
+    underlyingType(otherType) match {
+      case IntT(_: BoundedIntegerKind) => Some(otherType)
+      case _ => None
     }
   }
 

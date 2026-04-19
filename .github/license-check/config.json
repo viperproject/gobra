@@ -99,7 +99,8 @@
       "artifact/content/tutorial.md",
       "artifact/evaluation/**",
       "src/main/java/**/*.java",
-      "CLAUDE.md"
+      "CLAUDE.md",
+      "AGENTS.md"
     ]
   },
   {

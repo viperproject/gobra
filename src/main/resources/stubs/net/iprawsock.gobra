@@ -57,7 +57,7 @@ pred (a *IPAddr) Mem() {
 ensures res == "ip"
 func (a *IPAddr) Network() (res string) { return "ip" }
 
-preserves a != nil ==> acc(a.Mem(), 1/1000)
+preserves a != nil ==> acc(a.Mem(), perm(1, 1000))
 func (a *IPAddr) String() string // {
 //	if a == nil {
 //		return "<nil>"
@@ -180,10 +180,10 @@ func (c *IPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
 //}
 
 // WriteToIP acts like WriteTo but takes an IPAddr.
-requires c.Mem() && acc(addr.Mem(), 1/1000)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
-ensures c.Mem() && acc(addr.Mem(), 1/1000)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+requires c.Mem() && acc(addr.Mem(), perm(1, 1000))
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], perm(1, 1000))
+ensures c.Mem() && acc(addr.Mem(), perm(1, 1000))
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], perm(1, 1000))
 func (c *IPConn) WriteToIP(b []byte, addr *IPAddr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
@@ -196,10 +196,10 @@ func (c *IPConn) WriteToIP(b []byte, addr *IPAddr) (int, error) // {
 //}
 
 // WriteTo implements the PacketConn WriteTo method.
-requires c.Mem() && acc(addr.Mem(), 1/1000)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
-ensures c.Mem() && acc(addr.Mem(), 1/1000)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+requires c.Mem() && acc(addr.Mem(), perm(1, 1000))
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], perm(1, 1000))
+ensures c.Mem() && acc(addr.Mem(), perm(1, 1000))
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], perm(1, 1000))
 func (c *IPConn) WriteTo(b []byte, addr Addr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL

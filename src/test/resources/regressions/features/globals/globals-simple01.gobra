@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-pkgInvariant acc(&A) && acc(&B) && acc(&C, 1/2)
+pkgInvariant acc(&A) && acc(&B) && acc(&C, perm(1, 2))
 package pkg
 
 import (
@@ -23,8 +23,8 @@ mayInit
 decreases
 func g() interface{}
 
-requires acc(&A, 1/2) && A == 1
-ensures  acc(&A, 1/2)
+requires acc(&A, perm(1, 2)) && A == 1
+ensures  acc(&A, perm(1, 2))
 func testRead() {
 	var v1 int = A
 	assert v1 == 1

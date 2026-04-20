@@ -7,7 +7,7 @@ pred PkgInv() {
 	acc(&ids) &&
 	acc(&allocs) &&
 	(forall c *Client :: { c elem allocs } c elem allocs ==>
-		acc(&c.id, 1/2)) &&
+		acc(&c.id, perm(1, 2))) &&
 	(forall c *Client :: { c elem allocs } c elem allocs ==>
 		c.id < ids) &&
 	(forall c1, c2 *Client :: { c1 elem allocs, c2 elem allocs } c1 elem allocs && c2 elem allocs && c1 != c2 ==>
@@ -23,7 +23,7 @@ pure func (c *Client) Allocated() bool {
 }
 
 pred (c *Client) Inv() {
-	acc(&c.id, 1/2) &&
+	acc(&c.id, perm(1, 2)) &&
 	acc(&c.name)
 }
 
@@ -37,13 +37,13 @@ pure func (c *Client) Id() int {
 
 
 ghost
-preserves acc(PkgInv(), 1/4)
+preserves acc(PkgInv(), perm(1, 4))
 preserves c1.Inv() && c2.Inv()
 preserves c1.Allocated() && c2.Allocated()
 ensures   c1.Id() != c2.Id()
 decreases
 func TwoDiffInstancesHaveDiffIds(c1 *Client, c2 *Client) {
-	assert unfolding acc(PkgInv(), 1/4) in
+	assert unfolding acc(PkgInv(), perm(1, 4)) in
 		unfolding c1.Inv() in
 		unfolding c2.Inv() in
 		c1.id != c2.id

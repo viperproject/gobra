@@ -12,7 +12,7 @@ pred sendInvariant(v ChannelMsgType) {
     true
 }
 
-requires acc(channel.SendChannel(), 1/2)
+requires acc(channel.SendChannel(), perm(1, 2))
 requires channel.SendGivenPerm() == sendInvariant!<_!>
 requires channel.SendGotPerm() == PredTrue!<!>
 func sendMsg1(channel chan ChannelMsgType) {
@@ -23,7 +23,7 @@ func sendMsg1(channel chan ChannelMsgType) {
     channel <- ChannelMsg1
 }
 
-requires acc(channel.SendChannel(), 1/2)
+requires acc(channel.SendChannel(), perm(1, 2))
 requires channel.SendGivenPerm() == sendInvariant!<_!>
 requires channel.SendGotPerm() == PredTrue!<!>
 func sendMsg2(channel chan ChannelMsgType) {

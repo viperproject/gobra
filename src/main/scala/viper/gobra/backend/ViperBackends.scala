@@ -95,6 +95,9 @@ trait SiliconBasedBackend extends ViperBackend {
 
       options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
     }
+    config.assertTimeout.foreach { timeout =>
+      options ++= Vector(s"--assertTimeout=$timeout")
+    }
 
     options
   }

@@ -5,17 +5,20 @@ package closureRefineInterface
 
 type I1 interface {
     ensures r % 2 == 0
+    decreases
     pure f(n int) (r int)
 }
 
 type S1 struct{ x int }
 
+decreases
 pure func (self S1) f(n int) int {
     return 2*n + 2*self.x
 }
 
 ghost
 ensures r >= 2*n && r % 2 == 0
+decreases
 pure func more(n int) (r int)
 
 requires i != nil && i.f implements more

@@ -6,5 +6,5 @@ package pkg
 type IP []byte
 
 requires len(x) <= cap(x)
-decreases _
+decreases
 pure func foo(x IP) bool

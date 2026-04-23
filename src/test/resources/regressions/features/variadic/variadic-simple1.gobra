@@ -61,7 +61,10 @@ func test3() {
 	f5([]int{1}, []int{2})
 }
 
-ghost func SetGhost(ghost a ...int)
+ghost
+decreases
+func SetGhost(ghost a ...int)
+
 func test4() {
 	SetGhost()
 

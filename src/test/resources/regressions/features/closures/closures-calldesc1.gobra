@@ -12,16 +12,20 @@ type Calls interface {
     // This describes properties that must be true if a call happened
     ghost
     requires inv()
+    decreases
     pure called(x int)bool
     
     // This describes the properties of the result
-    ghost pure res(x int, res int)bool
+    ghost
+    decreases
+    pure res(x int, res int)bool
 }
 
 ghost
 requires x >= 0 && cs != nil && cs.inv()
 ensures cs.inv() && cs.called(x) && cs.res(x, res)
 ensures forall x int :: old(cs.called(x)) ==> cs.called(x)
+decreases
 func spec(ghost cs Calls, x int) (res int)
 
 requires f implements spec{cs}
@@ -41,10 +45,12 @@ type Acc struct { accum *int }
 pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 }
 ghost
 requires self.inv()
+decreases
 pure func (self Acc) called(x int)bool {
     return unfolding self.inv() in (*self.accum >= x)
 }
 ghost
+decreases
 pure func (self Acc) res(x int, y int)bool {
     return y >= x
 }
@@ -54,6 +60,7 @@ func main() {
     cl :=   requires x >= 0
             preserves acc(&accum) && accum >= 0
             ensures accum == old(accum) + x && y == accum
+            decreases
             func accumulate(x int)(y int) {
                 accum += x
                 return accum

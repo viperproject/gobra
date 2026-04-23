@@ -20,6 +20,7 @@ requires *c.sum == 0
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> seenSlice[i] == 0
 ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv!<c.sum, seenSlice!>)
+decreases
 func (c *Accum) Init(ghost seenSlice ghost []int) {
 	assume GhostSum(seenSlice) == 0
 	fold AccInv!<c.sum, seenSlice!>()
@@ -100,6 +101,7 @@ requires forall j int :: 0 <= j && j < len(b) ==> acc(&b[j], 1/4) && b[j] == a[j
 ensures old(Sum(a) - GhostSum(b)) == 0
 ensures forall j int :: 0 <= j && j < len(a) ==> acc(&a[j], 1/2)
 ensures forall j int :: 0 <= j && j < len(b) ==> acc(&b[j], 1/4)
+decreases len(a)
 func sumExtensional(ghost a []int, ghost b ghost []int) {
 	if len(a) != 0 {
 		sumExtensional(a[:len(a)-1], b[:len(b)-1])
@@ -113,12 +115,14 @@ pred locHasVal(loc gpointer[int], val int) {
 
 ghost
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+decreases len(s)
 pure func Sum(ghost s []int) int {
 	return len(s) == 0? 0 : s[len(s) - 1] + Sum(s[:len(s)-1])
 }
 
 ghost
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+decreases len(s)
 pure func GhostSum(ghost s ghost []int) int {
 	return len(s) == 0? 0 : s[len(s) - 1] + GhostSum(s[:len(s)-1])
 }
@@ -131,6 +135,7 @@ ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/4)
 ensures acc(&s[pos], 3/4)
 ensures GhostSum(s) == old(GhostSum(s)) + val
 ensures s[pos] == old(s[pos]) + val
+decreases len(s)
 func update(ghost s ghost []int, ghost pos, val int) {
 	if pos == len(s)-1 {
 		s[pos] += val

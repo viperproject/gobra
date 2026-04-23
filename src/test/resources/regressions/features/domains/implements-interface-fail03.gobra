@@ -21,6 +21,7 @@ ghost type intPair domain {
 }
 
 type Equality interface {
+    decreases
     pure hash() int
 
     isEqual(other Equality) bool
@@ -36,6 +37,7 @@ pure func (i intPair) hash() int { // receiver cannot be ghost
 }
 
 decreases
+//:: ExpectedOutput(type_error)
 //:: ExpectedOutput(type_error)
 func (i intPair) isEqual(other Equality) bool { // receiver cannot be ghost & ghost result cannot be assigned to actual result
     if typeOf(other) == intPair {

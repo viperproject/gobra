@@ -77,7 +77,6 @@ object ConfigDefaults {
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   val DefaultRequireTriggers: Boolean = false
   val DefaultDisableSetAxiomatization: Boolean = false
-  val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
@@ -203,7 +202,6 @@ case class Config(
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
@@ -270,7 +268,6 @@ case class Config(
       parseAndTypeCheckMode = parseAndTypeCheckMode,
       requireTriggers = requireTriggers || other.requireTriggers,
       disableSetAxiomatization = disableSetAxiomatization || other.disableSetAxiomatization,
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns || other.disableCheckTerminationPureFns,
       unsafeWildcardOptimization = unsafeWildcardOptimization && other.unsafeWildcardOptimization,
       moreJoins = MoreJoins.merge(moreJoins, other.moreJoins),
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || other.respectFunctionPrePermAmounts,
@@ -335,7 +332,6 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
@@ -400,7 +396,6 @@ trait RawConfig {
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
-    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
@@ -902,13 +897,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
-    name = "disablePureFunctsTerminationRequirement",
-    descr = "Do not enforce that all pure functions must have termination measures",
-    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
-    noshort = true,
-  )
-
   val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
     name = "parseAndTypeCheckMode",
     choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
@@ -1144,7 +1132,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = parseAndTypeCheckMode(),
     requireTriggers = requireTriggers(),
     disableSetAxiomatization = disableSetAxiomatization(),
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns(),
     unsafeWildcardOptimization = unsafeWildcardOptimization(),
     moreJoins = moreJoins(),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts(),

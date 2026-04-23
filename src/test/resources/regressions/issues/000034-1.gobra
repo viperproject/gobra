@@ -7,6 +7,7 @@ package main
 // not only those whose underlying type is a struct.
 type DeclaredInt int
 
+decreases
 pure func (i DeclaredInt) Increment() DeclaredInt {
     return i + 1
 }

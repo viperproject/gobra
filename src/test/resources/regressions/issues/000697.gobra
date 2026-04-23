@@ -18,6 +18,7 @@ func main() {
     x@ := 0
 
     cl :=   preserves acc(&x)
+            decreases
             func closureImpl() int {
                 x += 42
                 return x

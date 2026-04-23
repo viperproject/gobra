@@ -20,6 +20,7 @@ pred denseMatrix(m *DenseMatrix) {
 
 // number of rows
 requires acc(denseMatrix(m), _)
+decreases
 pure func (m *DenseMatrix) lenX() int {
     return unfolding acc(denseMatrix(m), _) in len(m.values)
 }
@@ -27,6 +28,7 @@ pure func (m *DenseMatrix) lenX() int {
 // number of columns
 requires acc(denseMatrix(m), _)
 requires m.lenX() != 0
+decreases
 pure func (m *DenseMatrix) lenY() int {
     return unfolding acc(denseMatrix(m), _) in len((m.values)[0])
 }
@@ -34,6 +36,7 @@ pure func (m *DenseMatrix) lenY() int {
 requires acc(denseMatrix(m), _)
 requires 0 <= i && i < m.lenX()
 requires 0 <= j && j < m.lenY()
+decreases
 pure func (m *DenseMatrix) lookup(i, j int) (res int) {
     return unfolding acc(denseMatrix(m), _) in (m.values)[i][j]
 }
@@ -91,6 +94,7 @@ pred sparseMatrix(m *SparseMatrix, maxRow, maxColumn int) {
 
 ghost
 requires acc(sparseMatrix(m, maxRow, maxColumn), _)
+decreases sparseMatrix(m, maxRow, maxColumn)
 pure func LookupL(m *SparseMatrix, maxRow, maxColumn, i, j int) int {
     return unfolding acc(sparseMatrix(m, maxRow, maxColumn), _) in (m == nil ? 0 : unfolding acc(entry(m.entry, maxRow, maxColumn), _) in (m.entry.row == i && m.entry.column == j) ? m.entry.value : LookupL(m.next, maxRow, maxColumn, i, j))
 }

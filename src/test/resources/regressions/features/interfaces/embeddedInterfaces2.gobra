@@ -16,6 +16,7 @@ type bar interface {
 	pred Mem()
 
 	ensures res == 5
+	decreases
 	pure g() (res int)
 }
 
@@ -28,6 +29,7 @@ pred (x test) Mem()
 pred (x test) FooMem()
 
 ensures res == 5
+decreases
 pure func (x test) g() (res int)
 
 test implements foo

@@ -6,6 +6,7 @@
 package functions
 
 requires false
+decreases
 pure func foo() bool {
     return true
 }

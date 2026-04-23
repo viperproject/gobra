@@ -22,7 +22,9 @@ func newT() T
 //:: ExpectedOutput(type_error)
 var B = newT().f()
 
+// Rejected: ghost init() functions are not allowed.
 ghost
+decreases
 //:: ExpectedOutput(type_error)
 func init() {}
 

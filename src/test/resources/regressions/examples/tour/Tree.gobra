@@ -16,6 +16,8 @@ pred tree(self *Tree) {
 }
 
 requires self != nil ==> tree(self)
+decreases tree(self) if self != nil
+decreases _ if self == nil
 pure func (self *Tree) Contains(v int) bool {
   return self != nil && (unfolding tree(self) in self.Value == v || (self.Left.Contains(v) || self.Right.Contains(v)))
 }

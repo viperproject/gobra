@@ -5,6 +5,7 @@ package closuresRecursion1Simple
 
 ghost
 requires n >= 0
+decreases n
 pure func fact(n int)int {
     return n == 0 ? 1 : n * fact(n-1)
 }

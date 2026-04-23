@@ -6,6 +6,7 @@ package closuresSimple2
 ghost
 requires p.inv() && a >= 0
 ensures p.inv() && r >= 0
+decreases
 func pos(ghost p interface{pred inv();}, a int) (r int)
 
 type proof1 struct { x *int }
@@ -15,6 +16,7 @@ func main() {
 	x@ := 0
 	c := preserves acc(&x)
 		 ensures x == old(x) + n && m == x
+		 decreases
 		 func f(n int) (m int) {
             x += n;
 		    return x

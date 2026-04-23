@@ -21,6 +21,7 @@ ensures RectMem(r)
 ensures res == unfolding RectMem(r) in (r.Width * r.Height)
 ensures unfolding RectMem(r) in (r.Width) == old(unfolding RectMem(r) in r.Width)
 ensures unfolding RectMem(r) in (r.Height) == old(unfolding RectMem(r) in r.Height)
+decreases
 func (r *Rectangle) Area() (res int) {
     unfold RectMem(r)
     res := r.Width * r.Height
@@ -33,6 +34,7 @@ ensures RectMem(r)
 ensures res == unfolding RectMem(r) in (r.Width * r.Width + r.Height * r.Height)
 ensures unfolding RectMem(r) in (r.Width) == old(unfolding RectMem(r) in r.Width)
 ensures unfolding RectMem(r) in (r.Height) == old(unfolding RectMem(r) in r.Height)
+decreases
 func SquaredHypotenuse(r *Rectangle) (res int) {
     unfold RectMem(r)
     res := r.Width * r.Width + r.Height * r.Height
@@ -41,12 +43,14 @@ func SquaredHypotenuse(r *Rectangle) (res int) {
 
 ghost
 requires RectMem(r)
+decreases
 pure func (r *Rectangle) GetWidth() (res int) {
     return unfolding RectMem(r) in r.Width
 }
 
 ghost
 requires RectMem(r)
+decreases
 pure func Height(r *Rectangle) (res int) {
     return unfolding RectMem(r) in r.Height
 }

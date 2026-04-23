@@ -3,7 +3,10 @@
 
 package pkg
 
+decreases
 pure func foo(ghost n int) bool
+
+decreases
 pure func bar(ghost n int) bool
 
 // specifying multiple trigger patterns is supported

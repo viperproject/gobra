@@ -7,6 +7,7 @@ ghost
 requires key elem domain(m)
 ensures  value elem range(m)
 ensures  m == resM
+decreases
 func test(m dict[string]int, key string) (value int, resM dict[string]int) {
     value := m[key]
     resM := m

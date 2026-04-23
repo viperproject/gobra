@@ -27,6 +27,7 @@ pred (n *node) tree() {
 
 ghost
 requires n.tree()
+decreases n.tree()
 pure func (n *node) orderedValues() (res seq[int]) {
     return unfolding n.tree() in ((n.left == nil) ? seq[int] { } : n.left.orderedValues()) ++ seq[int] { n.value } ++ ((n.right == nil) ? seq[int] { } : n.right.orderedValues())
 }

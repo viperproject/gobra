@@ -23,7 +23,9 @@ type SomeInterface interface {
     ensures SomeProperty(res)
     GetValue() (res int)
 
-    ghost pure SomeProperty(val int) bool
+    ghost
+    decreases
+    pure SomeProperty(val int) bool
 }
 
 type SomeImplementation struct {}
@@ -35,6 +37,7 @@ func (impl *SomeImplementation) GetValue() (res int) {
 }
 
 ghost
+decreases
 pure func (impl *SomeImplementation) SomeProperty(val int) bool {
     return val == 42
 }

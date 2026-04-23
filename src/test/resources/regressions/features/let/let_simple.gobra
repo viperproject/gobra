@@ -4,12 +4,14 @@
 package pkg
 
 ghost
+decreases
 pure func f(x int) int {
 	return let y,z := x + 1,x+2 in let y := y + x in y + z
 }
 
 ghost
 ensures res == 3 * x + 3
+decreases
 func g(x int) (res int) {
 	return f(x)
 }

@@ -8,6 +8,7 @@ type T struct {
 }
 
 requires acc(&t.f)
+decreases
 pure func (t *T) getF() (ret int){
     return t.f
 }
@@ -18,6 +19,7 @@ func (t *T) setF(i int) {
     t.f = i
 }
 
+decreases
 pure func (t T) isEven() bool {
     return t.f % 2 == 0
 }
@@ -73,6 +75,7 @@ func lostPermissionGoMethod() {
 
 requires x > 0 && y > 0
 ensures ret > 0
+decreases
 pure func sumAbs(x int, y int) (ret int) {
 	return x + y
 }

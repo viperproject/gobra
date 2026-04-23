@@ -5,6 +5,7 @@ package closuresFail5Proofs
 
 ghost
 requires x >= 0
+decreases
 pure func pspec(x int) (y int)
 
 func test1() {
@@ -26,6 +27,7 @@ func test2() {
     cl :=
         requires x >= 0
         ensures y == x
+        decreases
         pure func id(x int)(y int) {
             return x
         }
@@ -39,6 +41,7 @@ func test3() {
     cl :=
         requires x >= 0
         ensures y == x
+        decreases
         pure func id(x int)(y int) {
             return x
         }
@@ -53,6 +56,7 @@ func test4() {
     cl :=
         requires x >= 10
         ensures y == x
+        decreases
         pure func id(x int)(y int) {
             return x
         }
@@ -60,6 +64,7 @@ func test4() {
     cl1 :=
         requires x >= 0
         ensures y == x
+        decreases
         pure func id1(x int)(y int) {
             return x
         }
@@ -72,8 +77,8 @@ func test4() {
 }
 
 ghost
-decreases
 requires x >= 0
+decreases
 pure func tpspec(x int) (y int)
 
 func test5() {
@@ -88,11 +93,12 @@ func test5() {
     //:: ExpectedOutput(type_error)
     proof cl implements tpspec {
         return cl(x) as id
-    } 
+    }
 }
 
 ghost
 requires x >= 0
+decreases
 func spec(x int) (y int)
 
 func test6() {

@@ -8,11 +8,13 @@
 package pkg
 
 ghost
+decreases
 pure func max (a int, b int) int {
   return a < b ? b : a
 }
 
 ghost
+decreases
 pure func min (a int, b int) int {
   return a < b ? a : b
 }
@@ -21,9 +23,11 @@ ghost
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 ensures len(s) == len(xs)
 ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
+decreases
 pure func toseq (s []int) (xs seq[int])
 
 ghost
+decreases
 pure func sorted (xs seq[int]) (b bool) {
   return forall i,j int :: 0 <= i && i < j && j < len(xs) ==> xs[i] <= xs[j]
 }

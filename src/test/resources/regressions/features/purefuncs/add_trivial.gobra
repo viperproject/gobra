@@ -4,6 +4,7 @@
 package pkg;
 
 ensures res == a + b
+decreases
 pure func test(a, b int) (res int) {
     return a + b
 }

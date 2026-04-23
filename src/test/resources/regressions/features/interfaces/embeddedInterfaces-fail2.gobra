@@ -22,12 +22,12 @@ type test int
 
 func (x test) f()
 
-// The methodImplMightImplementSpec error for g() is masked by h()'s wellFoundedIfNeeded error,
-// because wellImplementationProofs is skipped when partialRes is non-empty.
+// Rejected: method without a termination measure tries to implement method with termination measure.
+//:: ExpectedOutput(type_error)
 func (x test) g()
 
-// Rejected: pure function without termination measure (wellFoundedIfNeeded).
-//:: ExpectedOutput(type_error)
+// h() has a termination measure so it satisfies the interface's termination requirement.
+decreases
 pure func (x test) h() int
 
 test implements foo

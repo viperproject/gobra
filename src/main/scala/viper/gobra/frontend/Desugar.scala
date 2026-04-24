@@ -2231,7 +2231,6 @@ object Desugar extends LazyLogging {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
-                fproxy = getFunctionProxy(base, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
               } yield Left((targets, functionCall(targets, base, convertedArgs, spec)))
             }
@@ -2246,7 +2245,7 @@ object Desugar extends LazyLogging {
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT, expr.reveal))
+              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
                 args <- dArgs

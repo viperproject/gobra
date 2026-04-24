@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// by providing a `gobra.json` with `"other": ["--nooverflow"]`, we override
+// the module-wide overflow setting provided in its `other` field.
+
+package pkg3
+
+import "pkg1"
+
+func UncheckedOverflow(i int) (res int) {
+    res = i + pkg1.GetLargeNumber()
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+    return
+}

@@ -1,0 +1,7 @@
+{
+  "default_job_cfg": {
+    "project_root": ".",
+    "includes": ["."],
+    "other": ["--checkConsistency", "--requireTriggers"]
+  }
+}

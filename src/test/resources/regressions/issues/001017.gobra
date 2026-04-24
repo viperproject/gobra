@@ -35,3 +35,19 @@ func okPost() (r []int) {
 	return []int{}
 }
 
+// the check also applies to pure functions
+//:: ExpectedOutput(type_error)
+requires res
+decreases
+pure func pureReturnInPre() (res bool) {
+	return false
+}
+
+// and to pure methods
+//:: ExpectedOutput(type_error)
+requires res
+decreases
+pure func (t T) pureReturnInPreMethod() (res bool) {
+	return false
+}
+

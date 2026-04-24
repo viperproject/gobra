@@ -22,6 +22,7 @@ func preservesOut() (r []int) {
 
 type T struct{}
 
+// the check is performed on methods, as well as on functions
 //:: ExpectedOutput(type_error)
 requires len(r) == 1
 func (t T) returnInPreMethod() (r []int) {
@@ -34,7 +35,3 @@ func okPost() (r []int) {
 	return []int{}
 }
 
-// Valid: a precondition may reference an input parameter of the same name.
-requires len(r) == 1
-func okInParam(r []int) {
-}

@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001017
+
+// Referencing a named return value in a precondition must be a type error,
+// because output parameters have no meaningful value at function entry.
+
+//:: ExpectedOutput(type_error)
+requires len(r) == 1
+ensures acc(r)
+func returnInPre() (r []int) {
+	return []int{}
+}
+
+// preserves is equivalent to requires + ensures, so it must also be rejected.
+//:: ExpectedOutput(type_error)
+preserves len(r) == 1
+func preservesOut() (r []int) {
+	return []int{}
+}
+
+type T struct{}
+
+//:: ExpectedOutput(type_error)
+requires len(r) == 1
+func (t T) returnInPreMethod() (r []int) {
+	return []int{}
+}
+
+// Valid: the output parameter may be referenced in the postcondition.
+ensures len(r) == 0
+func okPost() (r []int) {
+	return []int{}
+}
+
+// Valid: a precondition may reference an input parameter of the same name.
+requires len(r) == 1
+func okInParam(r []int) {
+}

@@ -227,6 +227,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
+      case id: PIdnUse if entity(id).isInstanceOf[SymbolTable.OutParameter] =>
+        message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
       case _ => noMessages
     }
   }

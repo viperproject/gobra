@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatredeclare
+
+// Declaring a variable whose name already exists in the enclosing scope must
+// be rejected by name resolution (just like an ordinary `var x int`).
+
+func f() {
+	x := 5
+	//:: ExpectedOutput(type_error)
+	var x int |= x > 0
+	//:: ExpectedOutput(type_error)
+	_ = x
+}

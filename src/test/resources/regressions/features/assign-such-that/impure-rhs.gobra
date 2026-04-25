@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatimpurerhs
+
+// The RHS must be a pure expression. A (potentially) impure function call
+// is not pure, so it must be rejected.
+
+requires acc(p)
+func impure(p *int) bool {
+	return *p > 0
+}
+
+func f() {
+	p := new(int)
+	//:: ExpectedOutput(type_error)
+	var x int |= x > 0 && impure(p)
+	_ = x
+}

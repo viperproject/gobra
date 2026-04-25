@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatnotpure
+
+pred P(x *int)
+
+func f() {
+	p := new(int)
+	//:: ExpectedOutput(type_error)
+	var x int |= acc(p) && *p == x
+	_ = x
+}

@@ -42,6 +42,17 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp), mayInit)(c)
         case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
       }) ++ isPureExpr(exp)
+    case n@PAssignSuchThat(lefts, _, triggers, cond) =>
+      // `var x1, ..., xN T |= P` requires that `P` is a pure, boolean expression,
+      // and that all declared identifiers are fresh (no duplicates).
+      val duplicateErrors = lefts.groupBy(_.name).collect {
+        case (_, ids) if ids.size > 1 => error(n, s"duplicate identifier '${ids.head.name}' in assign-such-that")
+      }.toVector.flatten
+      isExpr(cond).out ++
+        comparableTypes.errors(exprType(cond), BooleanT)(cond) ++
+        isPureExpr(cond) ++
+        triggers.flatMap(_.exps).flatMap(e => isExpr(e).out ++ isPureExpr(e)) ++
+        duplicateErrors
   }
 
   private[typing] def wellDefFoldable(acc: PPredicateAccess): Messages = {

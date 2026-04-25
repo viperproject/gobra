@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthattrigger01
+
+// Users may supply triggers between the `|=` and the predicate.
+// Silicon's existence check is trigger-guided; if the body is trivial
+// (or has a helpful ground term) the check succeeds regardless.
+
+requires len(s) > 0
+func f(ghost s set[int]) {
+	var e int |= { e elem s } e elem s
+	assert e elem s
+}

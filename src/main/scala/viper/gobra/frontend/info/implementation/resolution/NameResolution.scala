@@ -60,6 +60,11 @@ trait NameResolution {
               case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
               case _ => UnknownEntity()
             }
+          case decl: PAssignSuchThat =>
+            // Variables declared by `var x T |= P` are always ghost, non-addressable,
+            // and their type is given explicitly by the annotation.
+            SingleLocalVariable(None, Some(decl.typ), decl, ghost = true, addressable = false, this)
+
           case decl: PTypeDef => NamedType(decl, isGhost, this)
           case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
           case decl: PFunctionDecl => Function(decl, isGhost, this)

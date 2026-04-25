@@ -248,6 +248,7 @@ trait Enclosing { this: TypeInfoImpl =>
       val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
         case decl: PVarDecl => decl.left.collect{ case id: PIdnDef => id }
         case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
+        case decl: PAssignSuchThat => decl.lefts
       }.flatten.distinctBy(_.name)
 
       freeVariables(node).filter(l => allDeclared.exists(r => l.name == r.name))

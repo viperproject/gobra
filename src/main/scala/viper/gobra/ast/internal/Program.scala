@@ -450,6 +450,17 @@ sealed trait AssertBy extends Stmt {
 case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
 case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
 
+/**
+  * `var x1, ..., xN T |= { triggers } P`
+  *
+  * Introduces fresh ghost locals `vars`, asserts that some values exist satisfying `cond`,
+  * and then assumes `cond` holds for the chosen witnesses. Encoded as
+  *   declare vars; assert exists vars :: { triggers } cond; inhale cond
+  * where the existential is built by substituting `vars` with fresh bound variables
+  * in `cond` and `triggers`. `cond` is a pure boolean expression.
+  */
+case class AssignSuchThat(vars: Vector[LocalVar], triggers: Vector[Trigger], cond: Expr)(val info: Source.Parser.Info) extends Stmt
+
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op

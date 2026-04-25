@@ -107,29 +107,29 @@ class AssertionEncoding extends Encoding {
     case n@ in.Inhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Inhale(v), n)
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)
 
-    case n@ in.AssignSuchThat(vars, triggers, cond) =>
-      // `var x1, ..., xN T |= { trigs } P` is encoded as
-      //   assert exists x1', ..., xN' : T :: { trigs[xi -> xi'] } P[xi -> xi']
+    case n@ in.AssignSuchThat(v, triggers, cond) =>
+      // `var x T |= { trigs } P` is encoded as
+      //   assert exists x' : T :: { trigs[x -> x'] } P[x -> x']
       //   inhale P
-      // The locals `vars` are already registered as block-level Viper decls by the
-      // desugarer (via `declare`), so they are in scope after the statement.
+      // The local `v` is already registered as a block-level Viper decl by the
+      // desugarer (via `declare`), so it is in scope after the statement.
       //
       // The existential is built directly, *without* `.autoTrigger`, so we emit
       // exactly the user-supplied triggers. For no triggers, Silicon falls back
       // to its own heuristics; it can solve trivial existentials but users should
       // supply explicit triggers when `cond` is non-trivial.
       val (pos, info, errT) = n.vprMeta
-      val boundVars = vars.map(v => in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info))
-      val renaming: Map[in.LocalVar, in.Node] = vars.zip(boundVars).toMap
+      val boundVar = in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info)
+      val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)
       val renamedCond = cond.replace(renaming)
       val renamedTriggers = triggers.map(_.replace(renaming))
       val condAss = in.ExprAssertion(cond)(n.info)
-      val vprBoundVars = boundVars.map(ctx.variable)
+      val vprBoundVar = ctx.variable(boundVar)
       // Build the existential manually so we retain full control over trigger handling.
       for {
         vprTriggers <- sequence(renamedTriggers.map(trigger(_)(ctx)))
         vprBody <- ctx.expression(renamedCond)
-        existsExpr = vpr.Exists(vprBoundVars, vprTriggers, vprBody)(pos, info, errT)
+        existsExpr = vpr.Exists(Seq(vprBoundVar), vprTriggers, vprBody)(pos, info, errT)
         condEnc <- ctx.assertion(condAss)
         assertStmt = withSrc(vpr.Assert(existsExpr), n)
         inhaleStmt = withSrc(vpr.Inhale(condEnc), n)

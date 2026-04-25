@@ -349,8 +349,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
-    case AssignSuchThat(vars, triggers, cond) =>
-      "var" <+> showVarDeclList(vars) <+> "|=" <+>
+    case AssignSuchThat(v, triggers, cond) =>
+      "var" <+> showVarDecl(v) <+> "|=" <+>
         (if (triggers.isEmpty) emptyDoc else ssep(triggers map showTrigger, space) <> space) <>
         showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
@@ -813,8 +813,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
-    case AssignSuchThat(vars, triggers, cond) =>
-      "var" <+> showVarDeclList(vars) <+> "|=" <+>
+    case AssignSuchThat(v, triggers, cond) =>
+      "var" <+> showVarDecl(v) <+> "|=" <+>
         (if (triggers.isEmpty) emptyDoc else ssep(triggers map showTrigger, space) <> space) <>
         showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)

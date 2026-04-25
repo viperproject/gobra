@@ -318,8 +318,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
       case POpenDupPkgInv() => "openDupPkgInv"
-      case PAssignSuchThat(lefts, typ, triggers, cond) =>
-        "var" <+> showList(lefts)(showId) <+> showType(typ) <+> "|=" <+>
+      case PAssignSuchThat(left, typ, triggers, cond) =>
+        "var" <+> showId(left) <+> showType(typ) <+> "|=" <+>
           (if (triggers.isEmpty) emptyDoc else hcat(triggers map showMisc) <> space) <>
           showExpr(cond)
       case PMatchStatement(exp, clauses, _) => "match" <+>

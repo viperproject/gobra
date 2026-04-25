@@ -4212,18 +4212,16 @@ object Desugar extends LazyLogging {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
-        case PAssignSuchThat(lefts, typ, triggers, cond) =>
+        case PAssignSuchThat(left, typ, triggers, cond) =>
           val t = typeD(info.symbType(typ), Addressability.exclusiveVariable)(src)
           for {
-            // Declare the fresh ghost locals using the canonical names of the PIdnDefs,
-            // so subsequent references to them (including inside `cond`) resolve to the
+            // Declare the fresh ghost local using the canonical name of the PIdnDef,
+            // so subsequent references to it (including inside `cond`) resolve to the
             // same LocalVar.
-            locals <- sequence(lefts.map { l =>
-              declaredExclusiveVar(in.LocalVar(idName(l, info), t)(meta(l, info)))
-            })
+            v <- declaredExclusiveVar(in.LocalVar(idName(left, info), t)(meta(left, info)))
             dCond <- exprD(ctx, info)(cond)
             dTriggers <- sequence(triggers.map(triggerD(ctx, info)))
-          } yield in.AssignSuchThat(locals, dTriggers, dCond)(src)
+          } yield in.AssignSuchThat(v, dTriggers, dCond)(src)
 
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
 

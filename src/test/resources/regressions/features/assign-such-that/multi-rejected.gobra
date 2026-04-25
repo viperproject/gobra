@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatmultirejected
+
+// Only a single variable can be declared per `|=` statement.
+// `var x, y int |= ...` must be rejected.
+
+func f() {
+	//:: ExpectedOutput(parser_error)
+	var x, y int |= true
+	_ = x
+	_ = y
+}

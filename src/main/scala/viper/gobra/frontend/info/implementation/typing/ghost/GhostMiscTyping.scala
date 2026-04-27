@@ -205,10 +205,17 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
   }
 
-  private[typing] def isConditional(measure: PTerminationMeasure): Boolean = measure match {
+  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
     case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
     case PWildcardMeasure(cond) => cond.nonEmpty
   }
+
+  private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
+    measures.flatMap { m =>
+      error(m,
+        "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
+        isConditional(m))
+    }
 
   private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
     val tupleMeasureTypes =

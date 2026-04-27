@@ -44,6 +44,21 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     needsMeasureError
   }
 
+  private[typing] def noConditionalMeasureIfGhostOrPure(member: PMember): Messages = {
+    val spec = member match {
+      case m: PMethodDecl => m.spec
+      case f: PFunctionDecl => f.spec
+      case _ => return noMessages
+    }
+    if (spec.isPure || isEnclosingGhost(member)) {
+      spec.terminationMeasures.flatMap { m =>
+        error(m,
+          "Conditional termination measures are not allowed on ghost or pure functions and methods.",
+          isConditional(m))
+      }
+    } else noMessages
+  }
+
   private def pureFunctionsDoNotNeedMayInitMsg = "Pure functions and methods cannot open package invariants," +
     "and thus, they must not be annotated with 'mayInit'."
 

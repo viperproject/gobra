@@ -205,7 +205,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
   }
 
-  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
+  private[typing] def isConditional(measure: PTerminationMeasure): Boolean = measure match {
     case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
     case PWildcardMeasure(cond) => cond.nonEmpty
   }

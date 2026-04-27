@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package conditional_measure_ghost_pure_fail
+
+// Conditional termination measures must be rejected on ghost functions.
+
+ghost
+//:: ExpectedOutput(type_error)
+decreases n if n >= 0
+//:: ExpectedOutput(type_error)
+decreases _ if n < 0
+func ghostFunc(n int) int {
+	if n > 0 {
+		return ghostFunc(n - 1)
+	}
+	return n
+}
+
+// Conditional termination measures must be rejected on pure functions.
+
+//:: ExpectedOutput(type_error)
+decreases n if n >= 0
+//:: ExpectedOutput(type_error)
+decreases _ if n < 0
+pure func pureFunc(n int) int {
+	return n == 0 ? 0 : pureFunc(n - 1)
+}
+
+// Conditional termination measures must be rejected on ghost methods.
+
+type T struct{}
+
+ghost
+//:: ExpectedOutput(type_error)
+decreases n if n >= 0
+//:: ExpectedOutput(type_error)
+decreases _ if n < 0
+func (t T) ghostMethod(n int) int {
+	if n > 0 {
+		return t.ghostMethod(n - 1)
+	}
+	return n
+}
+
+// Conditional termination measures must be rejected on pure methods.
+
+//:: ExpectedOutput(type_error)
+decreases n if n >= 0
+//:: ExpectedOutput(type_error)
+decreases _ if n < 0
+pure func (t T) pureMethod(n int) int {
+	return n == 0 ? 0 : t.pureMethod(n - 1)
+}
+
+// Conditional termination measures must be rejected on ghost interface methods.
+
+type GhostItf interface {
+	ghost
+	//:: ExpectedOutput(type_error)
+	decreases n if n >= 0
+	//:: ExpectedOutput(type_error)
+	decreases _ if n < 0
+	GhostMethod(n int) int
+}
+
+// Conditional termination measures must be rejected on pure interface methods.
+
+type PureItf interface {
+	//:: ExpectedOutput(type_error)
+	decreases n if n >= 0
+	//:: ExpectedOutput(type_error)
+	decreases _ if n < 0
+	pure PureMethod(n int) int
+}

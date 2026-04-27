@@ -184,9 +184,9 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | OPENSINV {$opensInv = true;} |  MAYINIT {$mayInit = true;} | ATOMIC {$atomic = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;
@@ -368,7 +368,10 @@ statement:
   | selectStmt
   | specForStmt
   | deferStmt
+  | criticalStmt
   | closureImplProofStmt;
+
+criticalStmt: CRITICAL expression L_PAREN statementList? R_PAREN;
 
 applyStmt: APPLY expression;
 

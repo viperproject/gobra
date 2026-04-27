@@ -101,8 +101,11 @@ GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
 MAYINIT     : 'mayInit' -> mode(NLSEMI);
+ATOMIC      : 'atomic' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
+CRITICAL    : 'critical';
+OPENSINV    : 'opensInvariants' -> mode(NLSEMI);
 FRIENDPKG   : 'friendPkg';
 REL         : 'rel';
 // NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

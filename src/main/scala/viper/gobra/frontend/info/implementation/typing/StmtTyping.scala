@@ -10,8 +10,9 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
-import viper.gobra.frontend.info.base.Type.{ArrayT, BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, MapT, SetT, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, BooleanT, ChannelModus, ChannelT, FunctionT, InterfaceT, InternalTupleT, MapT, PredT, SetT, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.theory.Addressability
 import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
@@ -185,8 +186,106 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case n: PReturn => error(n, "outline statements must not contain return statements.")
       }
       error(n, s"pure outline statements are not supported.", n.spec.isPure) ++
+        error(n, s"outline statements cannot be marked as atomic.", n.spec.isAtomic) ++
+        error(n, s"outline statements cannot be marked with 'opensInvariants'.", n.spec.opensInvs) ++
         error(n, "Opaque outline statements are not supported.", n.spec.isOpaque) ++
         invalidNodes.flatten
+
+    case n: PCritical =>
+      def validArgAtomicFuncCall(e: PExpression): Boolean = e match {
+        case e if isExprGhost(e) =>
+          // ghost params are always ok
+          true
+        case _: PIntLit | _: PFloatLit | _: PStringLit | _: PNilLit =>
+          true
+        case v: PNamedOperand if addressability(v) == Addressability.Exclusive =>
+          // exclusive variables cannot be concurrently modified during an atomic operation and thus, are ok
+          true
+        case p: PDot =>
+          // if p is a package name, an exclusive var, or a type
+          addressability(p) == Addressability.Exclusive &&
+            (p.base match {
+            case _: PType => true
+            case e: PExpression =>
+              e match {
+                case _: PNamedOperand => true
+                case _ => false
+              }
+            })
+        case _ =>
+          false
+      }
+
+      def nonGhostAtomicFuncCall(i: PInvoke): Boolean = {
+        resolve(i.base) match {
+          case Some(f: ap.Function) =>
+            val decl = f.symb.decl
+            val isGhost = f.symb.ghost
+            val isAtomic = decl.spec.isAtomic
+            val argsAreFine = i.args.forall(validArgAtomicFuncCall)
+            !isGhost && isAtomic && argsAreFine
+          case Some(m: ap.ReceivedMethod) =>
+            val spec = m.symb match {
+              case impl: st.MethodImpl => impl.decl.spec
+              case spec: st.MethodSpec => spec.spec.spec
+            }
+            val isGhost = m.symb.ghost
+            val isAtomic = spec.isAtomic
+            val recvIsFine = validArgAtomicFuncCall(i.base.asInstanceOf[PDot].base.asInstanceOf[PExpression])
+            val argsAreFine = i.args.forall(validArgAtomicFuncCall)
+            !isGhost && isAtomic && recvIsFine && argsAreFine
+          case _ => false
+        }
+      }
+
+      // the only non-ghost operations that are allowed are calls to atomic functions. The parameters to these functions
+      // are severely restricted. These restrictions ensure that the values of the parameters cannot change concurrently
+      // to the atomic call.
+      def notGhostAtomicOp(s: PStatement): Boolean = s match {
+        case e: PExpressionStmt => e.exp match {
+          case i: PInvoke =>
+            nonGhostAtomicFuncCall(i)
+          case _ => false
+        }
+        case a: PAssignment =>
+          // we only allow a very limited form of assignments to be able to read the out parameters of a call to
+          // an atomic function
+          a.left.forall {
+            case n: PNamedOperand => addressability(n) == Addressability.Exclusive
+            case _: PBlankIdentifier => true
+            case _ => false
+          } &&
+          a.right.length == 1 &&
+          a.right(0).isInstanceOf[PInvoke] &&
+          nonGhostAtomicFuncCall(a.right(0).asInstanceOf[PInvoke])
+        case l: PLabeledStmt =>
+          notGhostAtomicOp(l.stmt)
+        case d: PShortVarDecl =>
+          // we only allow a very limited form of assignments to be able to read the out parameters of a call to
+          // an atomic function
+          d.left.forall(e => addressableVar(e) == Addressability.Exclusive) &&
+            d.right.length == 1 &&
+            d.right(0).isInstanceOf[PInvoke] &&
+            nonGhostAtomicFuncCall(d.right(0).asInstanceOf[PInvoke])
+        case p: PCritical => p.stmts.exists(notGhostAtomicOp)
+        case _ => false
+      }
+
+      val (inGhost, spec) = tryEnclosingFunctionOrMethod(n) match {
+        case Some(f: PFunctionDecl) => (isEnclosingGhost(f), f.spec)
+        case Some(m: PMethodDecl) => (isEnclosingGhost(m), m.spec)
+        case _ => violation("Unexpected case reached")
+      }
+      // all ops are either ghost or non-ghost atomic operations
+      val invalidOpOpt = n.stmts.find(s => !notGhostAtomicOp(s) && !isStmtGhost(s))
+
+      val exprT = exprType(n.expr)
+      val nonGhostAtomicOps = n.stmts.filter(notGhostAtomicOp)
+      error(n.expr, s"Expression ${n.expr} is of type $exprT but it should be of type pred()",
+        exprT != PredT(Vector.empty)) ++
+      invalidOpOpt.toVector.flatMap(e => error(n, s"Found invalid operation $e in a critical region.")) ++
+      nonGhostAtomicOps.lift(1).toVector.flatMap(e => error(e, s"At most one atomic operation is allowed in a critical region.")) ++
+      error(n, s"Only ghost members marked with 'opensInvariants' may open invariants.", inGhost && !spec.opensInvs)
 
     case _: PEmptyStmt => noMessages
     case _: PGoto => ???

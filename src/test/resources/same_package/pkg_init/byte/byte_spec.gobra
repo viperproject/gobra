@@ -5,12 +5,10 @@ package byte
 
 pred StaticInv() {
 	acc(&byteCache, _) &&
-	// for now, we need the redundant constraints below: 0 <= i && i <= 255
-	// for injectivity checks:
-	(forall j, k byte :: 0 <= j && j < k && k <= 255  ==>
+	(forall j, k integer :: 0 <= j && j < k && k <= 255  ==>
 		byteCache[j] != byteCache[k]) &&
-	(forall i byte :: 0 <= i && i <= 255 ==>
-		acc(byteCache[i], _) && byteCache[i].value == i)
+	(forall i integer :: 0 <= i && i <= 255 ==>
+		acc(byteCache[i], _) && byteCache[i].value == byte(i))
 }
 
 pred (b *Byte) Mem() {

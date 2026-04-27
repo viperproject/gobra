@@ -10,6 +10,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.context.Context
+import viper.gobra.util.TypeBounds
 
 import scala.annotation.tailrec
 
@@ -78,6 +79,24 @@ object TypePatterns {
     object Int {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.IntT]
+    }
+
+    /** Matches bounded integer types (int8, uint8, int32, etc.) and extracts the kind. */
+    object BoundedInt {
+      def unapply(arg: in.Type): Option[TypeBounds.BoundedIntegerKind] =
+        underlyingType(arg)(ctx) match {
+          case in.IntT(_, k: TypeBounds.BoundedIntegerKind) => Some(k)
+          case _ => None
+        }
+    }
+
+    /** Matches the ghost `integer` type and untyped integer constants (both encode as vpr.Int). */
+    object UnboundedInt {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx) match {
+          case in.IntT(_, TypeBounds.UnboundedInteger | TypeBounds.UntypedConstInteger) => true
+          case _ => false
+        }
     }
 
     object Void {

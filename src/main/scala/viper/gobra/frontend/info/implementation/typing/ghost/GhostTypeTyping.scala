@@ -11,12 +11,14 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation
 
 trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
     case _: PPermissionType => noMessages
+    case _: PIntegerGhostType => noMessages
     case PSequenceType(elem) => isType(elem).out
     case PSetType(elem) => isType(elem).out
     case PMultisetType(elem) => isType(elem).out
@@ -40,6 +42,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
     case PPermissionType() => PermissionT
+    case PIntegerGhostType() => IntT(TypeBounds.UnboundedInteger)
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))

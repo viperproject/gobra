@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integerGhostType
+
+// Tests for the ghost `integer` type, which represents unbounded mathematical integers.
+// The `integer` type is available in ghost code and specifications.
+
+// Ghost variables can be of type `integer`.
+ghost
+decreases
+func useGhostInteger() {
+    ghost var x integer = 42
+    ghost var y integer = x + 1
+    assert y == 43
+}
+
+// Ghost functions can take and return `integer`.
+ghost
+ensures result == a + b
+decreases
+pure func addIntegers(a, b integer) (result integer) {
+    return a + b
+}
+
+// `integer` arithmetic has exact semantics (no overflow).
+ghost
+ensures result == n * 1000000000
+decreases
+pure func largeMultiply(n integer) (result integer) {
+    return n * 1000000000
+}
+
+// Equality on `integer` type.
+ghost
+ensures (a == b) == (b == a)
+decreases
+pure func integerEqSym(a, b integer) (result bool) {
+    return a == b
+}
+
+// Large literal: larger than any bounded integer type.
+ghost
+decreases
+func largeLiteral() {
+    ghost var big integer = 9223372036854775808 // 2^63, exceeds int64 max
+    assert big > 0
+}

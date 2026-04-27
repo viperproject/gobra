@@ -663,6 +663,8 @@ sealed abstract class PGhostPredeclaredType(override val name: String) extends P
 case class PBoolType() extends PActualPredeclaredType("bool")
 case class PStringType() extends PActualPredeclaredType("string")
 case class PPermissionType() extends PGhostPredeclaredType("perm")
+/** Ghost integer type with arbitrary (mathematical) precision. */
+case class PIntegerGhostType() extends PGhostPredeclaredType("integer") with PIntegerType
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PActualPredeclaredType("int") with PIntegerType

@@ -24,7 +24,7 @@ decreases n if n >= 0
 //:: ExpectedOutput(type_error)
 decreases _ if n < 0
 pure func pureFunc(n int) int {
-	return n == 0 ? 0 : pureFunc(n - 1)
+	return n
 }
 
 // Conditional termination measures must be rejected on ghost methods.
@@ -50,7 +50,7 @@ decreases n if n >= 0
 //:: ExpectedOutput(type_error)
 decreases _ if n < 0
 pure func (t T) pureMethod(n int) int {
-	return n == 0 ? 0 : t.pureMethod(n - 1)
+	return n
 }
 
 // Conditional termination measures must be rejected on ghost interface methods.

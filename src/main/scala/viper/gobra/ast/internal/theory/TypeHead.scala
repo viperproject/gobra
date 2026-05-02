@@ -195,5 +195,12 @@ object TypeHead {
     case t: PredHD => t.arity
   }
 
+  def isZeroSize(t: Type)(ctx: LookupTable): Boolean = isZeroSize(typeTree(t))(ctx)
 
+  def isZeroSize(t: RoseTree[TypeHead])(ctx: LookupTable): Boolean = t match {
+    case RoseTree(_: StructHD, children) => children.forall(isZeroSize(_)(ctx))
+    case RoseTree(hd: ArrayHD, children) => hd.size == 0 || children.forall(isZeroSize(_)(ctx))
+    case RoseTree(hd: DefinedHD, _) => isZeroSize(ctx.lookup(DefinedT(hd.name, Addressability.Exclusive)))(ctx)
+    case _ => false
+  }
 }

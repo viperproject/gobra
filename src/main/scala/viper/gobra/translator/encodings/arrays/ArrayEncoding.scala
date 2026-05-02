@@ -109,14 +109,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     *
     * [lhs: [n]T == rhs: [n]T] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
     *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
-    *
-    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [x: *[0]T° == x: *[0]T] -> true
-    * [lhs: *[0]T° == rhs: *[0]T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
-    *
-    * [lhs: *[n]T° == rhs: *[n]T] -> [lhs] == [rhs]
     */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)){
     case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
@@ -126,27 +120,6 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         body = (idx: in.BoundVar) => ctx.equal(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info))(src)
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
-
-    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
-      if (len == 0) {
-        val (pos, info, errT) = src.vprMeta
-        if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
-        else {
-          for {
-            vLhs <- ctx.expression(lhs)
-            vRhs <- ctx.expression(rhs)
-            vNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
-            eq1 = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
-            eq2 = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
-            vUnk = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info ,errT)
-          } yield vpr.CondExp(eq1, eq2, vUnk)(pos, info, errT)
-        }
-      } else {
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-      }
   }
 
   /**

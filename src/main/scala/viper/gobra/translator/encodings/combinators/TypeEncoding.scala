@@ -192,6 +192,21 @@ trait TypeEncoding extends Generator {
     * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     */
   def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.*(t@ctx.ZeroSize()) / Exclusive, rhs :: ctx.*(s), src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
+      val (pos, info, errT) = src.vprMeta
+      if (lhs == rhs) {
+        unit(vpr.TrueLit()(pos, info, errT))
+      } else {
+        for {
+          vLhs <- ctx.expression(lhs)
+          vRhs <- ctx.expression(rhs)
+          vNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
+          rhsIsNil = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
+          ptrsEqual = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+          unknown = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info, errT)
+        } yield vpr.CondExp(rhsIsNil, ptrsEqual, unknown)(pos, info, errT)
+      }
+
     case (lhs :: t, rhs :: s, src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {

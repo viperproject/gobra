@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func structPointersMayDiffer(x, y *struct{}) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y
+}
+
+func emptyArrayPointersMayDiffer(x, y *[0]int) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y
+}
+
+func zeroSizedArrayPointersMayDiffer(x, y *[1]struct{}) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y
+}
+
+func namedZeroSizedPointersMayDiffer(x, y *Z) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y
+}
+
+type Z struct {
+	a [1]struct{}
+}

@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//usr/local/bin/**)",
-      "Bash(java -jar .genparser/antlr-4.13.1-complete.jar)",
-      "Bash(./genparser.sh)"
-    ]
-  }
-}

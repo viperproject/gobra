@@ -455,11 +455,11 @@ case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.I
   *
   * Introduces a fresh ghost local `v`, asserts that some value exists satisfying `cond`,
   * and then assumes `cond` holds for the chosen witness. Encoded as
-  *   declare v; assert exists v :: { triggers } cond; inhale cond
+  *   declare v; assert exists v :: cond; inhale cond
   * where the existential is built by substituting `v` with a fresh bound variable
-  * in `cond` and `triggers`. `cond` is a pure boolean expression.
+  * in `cond`. `cond` is a pure boolean expression.
   */
-case class AssignSuchThat(v: LocalVar, triggers: Vector[Trigger], cond: Expr)(val info: Source.Parser.Info) extends Stmt
+case class AssignSuchThat(v: LocalVar, cond: Expr)(val info: Source.Parser.Info) extends Stmt
 
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])

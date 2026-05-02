@@ -4215,9 +4215,6 @@ object Desugar extends LazyLogging {
         case PAssignSuchThat(left, typ, cond) =>
           val t = typeD(info.symbType(typ), Addressability.exclusiveVariable)(src)
           for {
-            // Declare the fresh ghost local using the canonical name of the PIdnDef,
-            // so subsequent references to it (including inside `cond`) resolve to the
-            // same LocalVar.
             v <- declaredExclusiveVar(in.LocalVar(idName(left, info), t)(meta(left, info)))
             dCond <- exprD(ctx, info)(cond)
           } yield in.AssignSuchThat(v, dCond)(src)

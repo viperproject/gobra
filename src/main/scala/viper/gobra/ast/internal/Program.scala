@@ -450,15 +450,6 @@ sealed trait AssertBy extends Stmt {
 case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
 case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
 
-/**
-  * `var x T |= { triggers } P`
-  *
-  * Introduces a fresh ghost local `v`, asserts that some value exists satisfying `cond`,
-  * and then assumes `cond` holds for the chosen witness. Encoded as
-  *   declare v; assert exists v :: cond; inhale cond
-  * where the existential is built by substituting `v` with a fresh bound variable
-  * in `cond`. `cond` is a pure boolean expression.
-  */
 case class AssignSuchThat(v: LocalVar, cond: Expr)(val info: Source.Parser.Info) extends Stmt
 
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {

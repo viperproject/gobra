@@ -113,7 +113,9 @@ class AssertionEncoding extends Encoding {
       //   inhale P
       // The local `v` is already registered as a block-level Viper decl by the
       // desugarer (via `declare`), so it is in scope after the statement.
-      val (pos, info, errT) = n.vprMeta
+      // The existential carries `cond`'s source info so error messages show
+      // just `P` rather than the whole `var x T |= P` statement.
+      val (condPos, condInfo, condErrT) = cond.vprMeta
       val boundVar = in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info)
       val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)
       val renamedCond = cond.replace(renaming)
@@ -121,7 +123,7 @@ class AssertionEncoding extends Encoding {
       val vprBoundVar = ctx.variable(boundVar)
       seqnUnits(Vector(for {
         vprBody <- ctx.expression(renamedCond)
-        existsExpr = vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(pos, info, errT).autoTrigger
+        existsExpr = vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(condPos, condInfo, condErrT).autoTrigger
         condEnc <- ctx.assertion(condAss)
         _ <- assert(existsExpr,
           (info, _) => AssignSuchThatError(info) dueTo AssignSuchThatNoWitnessError(info)

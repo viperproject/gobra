@@ -188,7 +188,7 @@ case class AssertByError(info: Source.Verifier.Info) extends VerificationError {
 
 case class AssignSuchThatError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "assign_such_that_error"
-  override def localMessage: String = "Assign such that might fail"
+  override def localMessage: String = "Assignment might fail"
 }
 
 case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
@@ -442,7 +442,7 @@ case class AssertByContraBodyError(info: Source.Verifier.Info) extends Verificat
 
 case class AssignSuchThatNoWitnessError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assign_such_that_no_witness_error"
-  override def message: String = s"Witness for ${info.origin.tag.trim} was not found."
+  override def message: String = s"Witness for assertion '${info.origin.tag.trim}' not found."
 }
 
 case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {

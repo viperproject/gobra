@@ -186,10 +186,13 @@ trait TypeEncoding extends Generator {
     * The first and second argument is the left-hand side and right-hand side, respectively.
     * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
+    * Note that according to the Go spec, pointers to distinct zero-sized data may or may not be equal.
     *
     * The default implements:
     * [lhs: T == rhs: T] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
+    * [x: *T° zero-sized == x: *T] -> true
+    * [lhs: *T° zero-sized == rhs: *T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
+    * [lhs: *T° non-zero-sized == rhs: *T] -> [lhs] == [rhs]
     */
   def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.*(t@ctx.ZeroSize()) / Exclusive, rhs :: ctx.*(s), src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>

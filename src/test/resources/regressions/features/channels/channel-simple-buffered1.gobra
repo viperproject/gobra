@@ -9,22 +9,22 @@ pred vIsOne(v int) {
 
 func main() {
   c := make(chan int, 1) // make a buffered channel
-  c.Init(vIsOne!<_!>, PredTrue!<!>)
+  c.Init(vIsOne{_}, PredTrue{})
   go foo(1, c)
 
-  fold PredTrue!<!>()
+  fold PredTrue{}()
   res, ok := <- c
   if (ok) {
-    unfold vIsOne!<_!>(res)
+    unfold vIsOne{_}(res)
     assert res == 1
   }
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == vIsOne!<_!>
-requires c.SendGotPerm() == PredTrue!<!>
+requires c.SendGivenPerm() == vIsOne{_}
+requires c.SendGotPerm() == PredTrue{}
 requires v == 1
 func foo(v int, c chan int) {
-    fold vIsOne!<_!>(v)
+    fold vIsOne{_}(v)
     c <- v
 }

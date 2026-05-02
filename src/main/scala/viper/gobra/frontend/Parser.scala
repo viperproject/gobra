@@ -239,6 +239,7 @@ object Parser extends LazyLogging {
       postprocessors = Seq(
         new ImportPostprocessor(parseAst.positions.positions),
         new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
+        new PredicateConstructorPostprocessor(parseAst.positions.positions),
       )
       postprocessedAst <- postprocessors.foldLeft[Either[Vector[ParserError], PPackage]](Right(parseAst)) {
         case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
@@ -511,6 +512,76 @@ object Parser extends LazyLogging {
         PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls).at(prog)
       })
       // create a new package node with the updated programs
+      Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))
+    }
+  }
+
+  private class PredicateConstructorPostprocessor(override val positions: Positions) extends Postprocessor {
+    /**
+      * Predicate constructors share their `name { args }` surface syntax with composite literals,
+      * so the parser conservatively builds a `PCompositeLit` for `IDENT { ... }` and
+      * `IDENT.IDENT { ... }` shapes. This postprocessor rewrites such literals into
+      * `PPredConstructor` when they are unambiguously predicate constructors:
+      *   1. They contain at least one positional `_` element (illegal in composite literals), or
+      *   2. The named/dotted base resolves syntactically to a top-level predicate declared in
+      *      the current package.
+      *
+      * Cases that depend on cross-package resolution (e.g. `pkg.P{1}()` where `P` is a predicate
+      * declared in `pkg` and not shadowed locally) are left alone and must currently be written
+      * with an explicit parenthesised base, e.g. `(pkg.P){1}()`.
+      */
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[ParserError], PPackage] = {
+      // collect names of all top-level (function and method) predicate declarations
+      val localPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+        case d: PFPredicateDecl => d.id.name
+        case d: PMPredicateDecl => d.id.name
+      }).toSet
+      // also recognise built-in predicate identifiers (e.g. PredTrue, IsChannel, ...)
+      val builtInPredicateNames: Set[String] = viper.gobra.frontend.info.base.BuiltInMemberTag.builtInMembers().collect {
+        case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInPredicateTag => t.identifier
+      }.toSet
+      val predicateNames: Set[String] = localPredicateNames ++ builtInPredicateNames
+
+      def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
+      def hasBlank(lit: PLiteralValue): Boolean = lit.elems.exists {
+        case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => true
+        case _ => false
+      }
+      def isPredName(id: PIdnUse): Boolean = predicateNames.contains(id.name)
+
+      def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
+        // composite literals with keyed elements (e.g. `T{x: 1}`) cannot be predicate constructors
+        if (hasKey(lit)) false
+        else typ match {
+          case PNamedOperand(id) => hasBlank(lit) || isPredName(id)
+          case PDot(_, id) => hasBlank(lit) || isPredName(id)
+          case _ => false
+        }
+      }
+
+      def convertArgs(lit: PLiteralValue): Vector[Option[PExpression]] = lit.elems.map {
+        case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => None
+        case PKeyedElement(None, PExpCompositeVal(e)) => Some(e)
+        case e => Violation.violation(s"unexpected element form in predicate constructor candidate: $e")
+      }
+
+      def buildBase(typ: PLiteralType): PPredConstructorBase = typ match {
+        case op@PNamedOperand(id) => PFPredBase(id).at(op)
+        case d: PDot => PDottedBase(d).at(d)
+        case t => Violation.violation(s"unexpected base for predicate constructor: $t")
+      }
+
+      val rewritePredConstructors: Strategy =
+        strategyWithName[Any]("rewritePredConstructors", {
+          case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit) =>
+            Some(PPredConstructor(buildBase(typ), convertArgs(lit)).at(n))
+          case n => Some(n)
+        })
+
+      val updatedProgs = pkg.programs.map(prog => {
+        val updatedDecls = rewrite(topdown(attempt(rewritePredConstructors)))(prog.declarations)
+        PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls).at(prog)
+      })
       Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))
     }
   }

@@ -22,7 +22,7 @@ pred lockInv() {
 
 pred StaticInv() {
 	acc(lock.LockP(), _) &&
-	lock.LockInv() == lockInv!<!>
+	lock.LockInv() == lockInv{}
 }
 
 // Given that we can always implement a ghost method like the one below to gain

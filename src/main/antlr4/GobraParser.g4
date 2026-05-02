@@ -424,7 +424,7 @@ functionLit: specification closureDecl[$specification.trusted, $specification.pu
 
 closureDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER? (signature blockWithBodyParameterInfo?);
 
-predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
+predConstructArgs: L_CURLY expressionList? COMMA? R_CURLY;
 
 // Added predicate spec and method specifications
 interfaceType:

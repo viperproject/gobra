@@ -450,6 +450,8 @@ sealed trait AssertBy extends Stmt {
 case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
 case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
 
+case class AssignSuchThat(v: LocalVar, cond: Expr)(val info: Source.Parser.Info) extends Stmt
+
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op

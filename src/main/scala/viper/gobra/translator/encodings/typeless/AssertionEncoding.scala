@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.typeless
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError}
+import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError, AssignSuchThatError, AssignSuchThatNoWitnessError}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
@@ -106,6 +106,30 @@ class AssertionEncoding extends Encoding {
     case n@ in.Assume(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Assume(v), n) // Assumes are later rewritten
     case n@ in.Inhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Inhale(v), n)
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)
+
+    case n@ in.AssignSuchThat(v, cond) =>
+      // `var x T |= P` is encoded as
+      //   assert exists x' : T :: P[x -> x']
+      //   inhale P
+      // The local variable `x` is already registered as a block-level Viper decl by the
+      // desugarer (via `declare`), so it is in scope after the statement.
+      // The existential carries `cond`'s source info so error messages show
+      // just `P` rather than the whole `var x T |= P` statement.
+      val (condPos, condInfo, condErrT) = cond.vprMeta
+      val boundVar = in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info)
+      val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)
+      val renamedCond = cond.replace(renaming)
+      val condAss = in.ExprAssertion(cond)(n.info)
+      val vprBoundVar = ctx.variable(boundVar)
+      seqnUnits(Vector(for {
+        vprBody <- ctx.expression(renamedCond)
+        existsExpr = vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(condPos, condInfo, condErrT).autoTrigger
+        condEnc <- ctx.assertion(condAss)
+        _ <- assert(existsExpr,
+          (info, _) => AssignSuchThatError(info) dueTo AssignSuchThatNoWitnessError(info)
+        )
+        _ <- write(withSrc(vpr.Inhale(condEnc), n))
+      } yield ()))
 
     case n: in.AssertByProof =>
       // Dafny-style

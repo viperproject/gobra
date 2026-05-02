@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatwitnessnonzero
+
+// This test makes sure that the encoding does not use Go's default values for
+// initializing `x` before inhaling the expression provided by "assign such that".
+// If `x` were preinitialised to 0, then inhaling `x elem s` (with 0 not in `s`)
+// would inhale `false` and the trailing `assert false` would succeed unexpectedly.
+
+requires len(s) > 0 && !(0 elem s)
+func f(ghost s set[int]) {
+	var x int |= x elem s
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}

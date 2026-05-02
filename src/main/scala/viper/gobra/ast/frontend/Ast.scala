@@ -998,6 +998,8 @@ case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends P
 
 case class PApplyWand(wand: PMagicWand) extends PGhostStatement
 
+case class PAssignSuchThat(left: PIdnDef, typ: PType, cond: PExpression) extends PGhostStatement
+
 case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
 
 case class PMatchStmtCase(pattern: PMatchPattern, stmt: Vector[PStatement], default: Boolean = false) extends PGhostMisc with PScope

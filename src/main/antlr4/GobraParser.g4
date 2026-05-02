@@ -67,6 +67,7 @@ ghostStatement:
   | ASSERT expression (BY CONTRA? block)? #assertStatement
   | matchStmt #matchStmt_
   | OPEN_DUP_SINV #pkgInvStatement
+  | VAR IDENTIFIER type_ PIPE_ASSIGN expression #assignSuchThatStatement
   ;
 
 // Auxiliary statements

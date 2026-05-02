@@ -4211,6 +4211,13 @@ object Desugar extends LazyLogging {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
+        case PAssignSuchThat(left, typ, cond) =>
+          val t = typeD(info.symbType(typ), Addressability.exclusiveVariable)(src)
+          for {
+            v <- declaredExclusiveVar(in.LocalVar(idName(left, info), t)(meta(left, info)))
+            dCond <- exprD(ctx, info)(cond)
+          } yield in.AssignSuchThat(v, dCond)(src)
+
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
 
         case PMatchStatement(exp, clauses, strict) =>

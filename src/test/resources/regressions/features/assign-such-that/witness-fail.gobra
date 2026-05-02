@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatwitnessfail
+
+func f() {
+	//:: ExpectedOutput(assign_such_that_error:assign_such_that_no_witness_error)
+	var x int |= x > 0 && x < 0
+}

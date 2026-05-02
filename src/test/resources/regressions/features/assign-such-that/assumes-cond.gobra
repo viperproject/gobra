@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatassumescond
+
+// After `var x T |= P`, Gobra assumes `P` holds for `x` so subsequent
+// assertions that follow from `P` go through.
+
+requires len(s) > 0
+func f(ghost s set[int]) {
+	var e int |= e elem s
+	// We assumed `e elem s`, so consequences follow.
+	assert e elem s
+	assert s != set[int]{}
+}

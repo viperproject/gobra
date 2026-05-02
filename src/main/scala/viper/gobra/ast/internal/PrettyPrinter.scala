@@ -349,6 +349,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case AssignSuchThat(v, cond) =>
+      "var" <+> showVarDecl(v) <+> "|=" <+> showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, block) => "package" <+> showAss(wand) <+> opt(block)(showStmt)
@@ -809,6 +811,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case AssignSuchThat(v, cond) =>
+      "var" <+> showVarDecl(v) <+> "|=" <+> showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, _) => "package" <+> showAss(wand)

@@ -111,7 +111,7 @@ class AssertionEncoding extends Encoding {
       // `var x T |= P` is encoded as
       //   assert exists x' : T :: P[x -> x']
       //   inhale P
-      // The local `v` is already registered as a block-level Viper decl by the
+      // The local variable `x` is already registered as a block-level Viper decl by the
       // desugarer (via `declare`), so it is in scope after the statement.
       // The existential carries `cond`'s source info so error messages show
       // just `P` rather than the whole `var x T |= P` statement.

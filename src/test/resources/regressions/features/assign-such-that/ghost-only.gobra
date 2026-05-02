@@ -11,5 +11,4 @@ func f() {
 	var x int |= x > 0
 	//:: ExpectedOutput(type_error)
 	y = x
-	_ = y
 }

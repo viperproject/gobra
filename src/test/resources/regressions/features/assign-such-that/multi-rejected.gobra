@@ -9,6 +9,4 @@ package assignsuchthatmultirejected
 func f() {
 	//:: ExpectedOutput(parser_error)
 	var x, y int |= true
-	_ = x
-	_ = y
 }

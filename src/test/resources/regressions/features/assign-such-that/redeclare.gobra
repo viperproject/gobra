@@ -10,6 +10,4 @@ func f() {
 	x := 5
 	//:: ExpectedOutput(type_error)
 	var x int |= x > 0
-	//:: ExpectedOutput(type_error)
-	_ = x
 }

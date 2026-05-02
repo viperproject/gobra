@@ -8,5 +8,4 @@ package assignsuchthatrhsstring
 func f() {
 	//:: ExpectedOutput(type_error)
 	var x int |= "hello"
-	_ = x
 }

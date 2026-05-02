@@ -11,5 +11,4 @@ pred P(x int)
 func f() {
 	//:: ExpectedOutput(type_error)
 	var x int |= P(x)
-	_ = x
 }

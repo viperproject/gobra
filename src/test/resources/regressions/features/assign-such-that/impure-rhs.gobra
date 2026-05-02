@@ -15,5 +15,4 @@ func f() {
 	p := new(int)
 	//:: ExpectedOutput(type_error)
 	var x int |= x > 0 && impure(p)
-	_ = x
 }

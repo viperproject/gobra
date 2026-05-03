@@ -552,6 +552,60 @@ object Parser extends LazyLogging {
         case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInPredicateTag => t.identifier
       }.toSet
 
+    private class Impl(override val positions: Positions) extends PositionedRewriter {
+      def at[N <: AnyRef](node: N, source: PNode): N = { positions.dupPos(source, node); node }
+
+      def run(
+        pkg: PPackage,
+        localPredicateNames: Set[String],
+        importedPredicateNames: String => Set[String],
+      ): PPackage = {
+        def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
+        def hasBlank(lit: PLiteralValue): Boolean = lit.elems.exists {
+          case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => true
+          case _ => false
+        }
+        def isLocalOrBuiltInPredName(name: String): Boolean =
+          localPredicateNames.contains(name) || builtInPredicateNames.contains(name)
+
+        def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
+          if (hasKey(lit)) false
+          else typ match {
+            case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
+            case PDot(qual: PNamedOperand, id) =>
+              hasBlank(lit) || isLocalOrBuiltInPredName(id.name) || importedPredicateNames(qual.id.name).contains(id.name)
+            case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
+            case _ => false
+          }
+        }
+
+        def convertArgs(lit: PLiteralValue): Vector[Option[PExpression]] = lit.elems.map {
+          case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => None
+          case PKeyedElement(None, PExpCompositeVal(e)) => Some(e)
+          case e => Violation.violation(s"unexpected element form in predicate constructor candidate: $e")
+        }
+
+        def buildBase(typ: PLiteralType): PPredConstructorBase = typ match {
+          case op@PNamedOperand(id) => at(PFPredBase(id), op)
+          case d: PDot => at(PDottedBase(d), d)
+          case t => Violation.violation(s"unexpected base for predicate constructor: $t")
+        }
+
+        val rewritePredConstructors: Strategy =
+          strategyWithName[Any]("rewritePredConstructors", {
+            case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit) =>
+              Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
+            case n => Some(n)
+          })
+
+        val updatedProgs = pkg.programs.map { prog =>
+          val updatedDecls = rewrite(topdown(attempt(rewritePredConstructors)))(prog.declarations)
+          at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
+        }
+        at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)
+      }
+    }
+
     /** Runs the rewrite over `pkg`. `localPredicateNames` is the set of top-level predicate
       * names (function and method) declared in `pkg`. `importedPredicateNames(qual)` returns the
       * set of predicate names exposed by the package imported under qualifier `qual`, or an
@@ -560,55 +614,8 @@ object Parser extends LazyLogging {
       pkg: PPackage,
       localPredicateNames: Set[String],
       importedPredicateNames: String => Set[String],
-    )(positions: Positions): PPackage = {
-      val rewriter = new PRewriter(positions)
-
-      def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
-      def hasBlank(lit: PLiteralValue): Boolean = lit.elems.exists {
-        case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => true
-        case _ => false
-      }
-      def isLocalOrBuiltInPredName(name: String): Boolean =
-        localPredicateNames.contains(name) || builtInPredicateNames.contains(name)
-
-      def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
-        if (hasKey(lit)) false
-        else typ match {
-          case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
-          case PDot(qual: PNamedOperand, id) =>
-            hasBlank(lit) || isLocalOrBuiltInPredName(id.name) || importedPredicateNames(qual.id.name).contains(id.name)
-          case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
-          case _ => false
-        }
-      }
-
-      def at[N <: AnyRef](node: N, source: PNode): N = { positions.dupPos(source, node); node }
-
-      def convertArgs(lit: PLiteralValue): Vector[Option[PExpression]] = lit.elems.map {
-        case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => None
-        case PKeyedElement(None, PExpCompositeVal(e)) => Some(e)
-        case e => Violation.violation(s"unexpected element form in predicate constructor candidate: $e")
-      }
-
-      def buildBase(typ: PLiteralType): PPredConstructorBase = typ match {
-        case op@PNamedOperand(id) => at(PFPredBase(id), op)
-        case d: PDot => at(PDottedBase(d), d)
-        case t => Violation.violation(s"unexpected base for predicate constructor: $t")
-      }
-
-      val rewritePredConstructors: Strategy =
-        rewriter.strategyWithName[Any]("rewritePredConstructors", {
-          case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit) =>
-            Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
-          case n => Some(n)
-        })
-
-      val updatedProgs = pkg.programs.map { prog =>
-        val updatedDecls = rewriter.rewrite(rewriter.topdown(rewriter.attempt(rewritePredConstructors)))(prog.declarations)
-        at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
-      }
-      at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)
-    }
+    )(positions: Positions): PPackage =
+      new Impl(positions).run(pkg, localPredicateNames, importedPredicateNames)
   }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){

@@ -126,22 +126,9 @@ class StructEncoding extends TypeEncoding {
     * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
     * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f] (NOTE: f ranges over actual & ghost fields since `equal` corresponds to ghost comparison)
-    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [(x: *Struct{}°) == x: *Struct{}] -> true
-    * [(lhs: *Struct{}°) == rhs: *Struct{}] -> unknown()
-    * [(lhs: *Struct{F}°) == rhs: *Struct{_}] -> [lhs] == [rhs]
     */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = structEqual(ctx, useGoEquality = false) orElse {
-    case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
-      if (lhsFs.isEmpty) {
-        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
-      } else {
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-      }
-  }
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] =
+    default(super.equal(ctx))(structEqual(ctx, useGoEquality = false))
 
   /**
     * Encodes equal operation with go semantics

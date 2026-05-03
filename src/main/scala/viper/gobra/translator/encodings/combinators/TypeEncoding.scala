@@ -248,9 +248,25 @@ trait TypeEncoding extends Generator {
     */
   def assertion(@unused ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
+  /**
+    * Returns true if `target` matches `root` or any subnode of `root`.
+    * Node matching uses the same condition as [[viper.gobra.reporting.BackTranslator.RichErrorMessage.causedBy]]:
+    * structural equality (`==`) plus position equality for Positioned nodes.
+    * This handles cases where Viper reports a sub-expression as the offending node
+    * (e.g. FractionalPerm(1, 0) inside a FieldAccessPredicate) rather than the
+    * top-level contract expression.
+    */
+  private def offendingNodeIn(target: vpr.Node, root: vpr.Node): Boolean = {
+    val topMatch = target == root && ((target, root) match {
+      case (t: vpr.Positioned, r: vpr.Positioned) => t.pos == r.pos
+      case _ => true
+    })
+    topMatch || root.subnodes.exists(offendingNodeIn(target, _))
+  }
+
   final def invariant(ctx: Context): in.Assertion ==> (CodeWriter[Unit], vpr.Exp) = {
     def invErr(inv: vpr.Exp): ErrorTransformer = {
-      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
+      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if offendingNodeIn(e.offendingNode, inv) =>
         info.origin match {
           case Source.AnnotatedOrigin(_, _:Source.NoPermissionToRangeExpressionAnnotation) =>
             NoPermissionToRangeExpressionError(info).dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
@@ -272,7 +288,7 @@ trait TypeEncoding extends Generator {
 
   final private def contract(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     def contractErr(inv: vpr.Exp): ErrorTransformer = {
-      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
+      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if offendingNodeIn(e.offendingNode, inv) =>
         MethodContractNotWellFormedError(info)
           .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
     }

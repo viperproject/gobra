@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.PermissionType
 import viper.gobra.frontend.info.base.Type.{AdtT, FunctionT, ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
@@ -110,6 +111,12 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PInvoke =>
       exprOrType(n.base) match {
         case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
+        case Right(t) if n.args.length == 2 =>
+          resolve(t) match {
+            case Some(ap.BuiltInType(_, st.BuiltInType(PermissionType, _, _))) =>
+              Some(ap.FractionalPermConstructor(n.args(0), n.args(1)))
+            case _ => violation(s"type conversion with ${n.args.length} arguments is not supported")
+          }
         case Left(e) =>
           resolve(e) match {
             case Some(ap.BuiltInType(_, st.BuiltInType(tag, _, _))) if n.args.length == 1 =>

@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// Regression test: constant expressions must be evaluated with arbitrary precision.
+// Go's spec says intermediate values in a constant expression are not required to fit
+// in the declared type; only the final result must be representable.
+// See: https://go.dev/ref/spec#Constant_expressions
+
+// (1 << 16) - 1 = 65535, which fits in uint16, even though the intermediate
+// value 1 << 16 = 65536 exceeds the uint16 range.
+const MaxISD uint16 = (1 << 16) - 1
+
+// Further examples of the same pattern.
+const MaxUint8  uint8  = (1 << 8)  - 1   // 255
+const MaxUint32 uint32 = (1 << 32) - 1   // 4294967295
+const MaxInt8   int8   = (1 << 7)  - 1   // 127
+
+func testConstFolding() {
+	assert MaxISD   == 65535
+	assert MaxUint8 == 255
+	assert MaxInt8  == 127
+}

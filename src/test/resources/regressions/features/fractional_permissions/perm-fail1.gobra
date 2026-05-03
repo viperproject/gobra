@@ -3,15 +3,15 @@
 
 package main
 
-requires acc(i, 1/2)
-requires acc(i, 1/4)
+requires acc(i, perm(1, 2))
+requires acc(i, perm(1, 4))
 //:: ExpectedOutput(postcondition_error)
-ensures acc(i, 1)
+ensures acc(i, writePerm)
 func test1(i *int) {
 	return
 }
 
-requires p >= 0
+requires p >= noPerm
 requires acc(i, p)
 ensures acc(i, p)
 func test2(i *int, ghost p perm) int {
@@ -19,15 +19,15 @@ func test2(i *int, ghost p perm) int {
 	return *i
 }
 
-requires 0 <= p && p < 1/2
+requires noPerm <= p && p < perm(1, 2)
 requires acc(i, p)
-ensures acc(i, 1/2)
+ensures acc(i, perm(1, 2))
 func test3(i *int, ghost p perm) int {
 	//:: ExpectedOutput(assignment_error)
 	return *i
 }
 
-requires p == 0
+requires p == noPerm
 requires acc(i, p)
 ensures acc(i, p)
 func test4(i *int, v int, ghost p perm) {
@@ -44,44 +44,42 @@ func test5(i *int, v int) {
 
 func test6() {
 	m1 := 1/2 + 1/2
-	//:: ExpectedOutput(assert_error)
-	assert m1 == writePerm
+	assert m1 == 0
 }
 
 func test7() {
-	m2 := perm(1/2) + perm(1/2)
+	m2 := perm(1, 2) + perm(1, 2)
 	//:: ExpectedOutput(assert_error)
 	assert m2 == noPerm
 }
 
 func test8() {
-	m3 := perm(1/2) + 1/2
+	m3 := perm(1, 2) + perm(1, 2)
 	//:: ExpectedOutput(assert_error)
-	assert m3 == 1/2
+	assert m3 == perm(1, 2)
 }
 
 func test9() {
 	// the following is interpreted as an int expression (the default type when no type is provided).
 	// as such, it yields the value `0`
 	m4 := 1/2 + 1/2
-	//:: ExpectedOutput(assert_error)
-	assert m4 == writePerm
+	assert m4 == 0
 }
 
 func test10() {
-	ghost var m5 perm = 1/2
+	ghost var m5 perm = perm(1, 2)
 	//:: ExpectedOutput(assert_error)
-	assert m5 + 1/2 == 1/2
+	assert m5 + perm(1, 2) == perm(1, 2)
 }
 
 func test11() {
 	//:: ExpectedOutput(assert_error)
-	assert getPerm() != perm(3/4)
+	assert getPerm() != perm(3, 4)
 }
 
 func test12() {
 	//:: ExpectedOutput(assert_error)
-	assert getPerm() != 3/4
+	assert getPerm() != perm(3, 4)
 }
 
 func test13() {
@@ -95,12 +93,11 @@ func test14() {
 }
 
 ghost pure func getPerm() perm {
-	return 3/4
+	return perm(3, 4)
 }
 
 // behaviour consistent with Viper: the subexpressions of the following perm expression
 // are treated as integer expressions and not as perms
-requires acc(i, (1/2)/2)
-//:: ExpectedOutput(postcondition_error)
-ensures acc(i, 1/4)
+requires acc(i, perm(1, 2) / 2)
+ensures acc(i, perm(1, 4))
 func test15(i *int) {}

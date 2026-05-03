@@ -85,6 +85,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
+        case (Right(_), Some(_: ap.FractionalPermConstructor)) => isGhost // perm(x,y) produces a ghost permission value
         case (Left(_), Some(call: ap.FunctionCall)) =>
           if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
           else calleeGhostTyping(call)
@@ -111,6 +112,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     createGhostTyping[PExpression]{
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
+        case (Right(_), Some(_: ap.FractionalPermConstructor)) => isGhost // perm(x,y) produces a ghost permission value
         case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
         case (Left(_), Some(_: ap.ClosureCall)) => closureCallReturnGhostTyping(n)
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
@@ -281,6 +283,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   override def expectedArgGhostTyping(n: PInvoke): GhostType = {
     (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost
+      case (Right(_), Some(_: ap.FractionalPermConstructor)) => GhostType.notGhost // perm(x,y): integer args are not ghost
       case (Left(_), Some(call: ap.FunctionCall)) => calleeArgGhostTyping(call)
       case (Left(_), Some(call: ap.ClosureCall)) => expectedArgGhostTyping(call.maybeSpec.get)
       case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost

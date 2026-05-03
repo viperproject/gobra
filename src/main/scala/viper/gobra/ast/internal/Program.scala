@@ -624,6 +624,8 @@ sealed trait Permission extends Expr {
 case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
 case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
+case class PermConstructorFromInt(num: Expr, den: Expr)(val info: Source.Parser.Info) extends Permission
+case class PermConstructorFromPerm(p: Expr, den: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
 case class CurrentPerm(acc: Accessible.Predicate)(val info: Source.Parser.Info) extends Permission
 case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission

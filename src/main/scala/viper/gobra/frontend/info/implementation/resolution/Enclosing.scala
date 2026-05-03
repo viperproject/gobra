@@ -175,6 +175,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case p: PExpCompositeVal => Some(expectedMiscType(p))
           case i: PInvoke => (exprOrType(i.base), resolve(i)) match {
             case (Right(target), Some(_: ap.Conversion)) => Some(symbType(target))
+            case (Right(_), Some(_: ap.FractionalPermConstructor)) => None // perm(x,y): no nil args expected
             case (Left(callee), Some(p: ap.FunctionCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
             case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
             case c => Violation.violation(s"This case should be unreachable, but got $c")

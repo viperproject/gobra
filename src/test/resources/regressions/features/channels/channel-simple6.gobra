@@ -72,7 +72,7 @@ func main() {
   }
 }
 
-requires acc(c.SendChannel(), 1/2)
+requires acc(c.SendChannel(), perm(1, 2))
 requires c.SendGivenPerm() == vIsOne!<_!>
 requires c.SendGotPerm() == PredTrue!<!>
 requires v == 1
@@ -92,7 +92,7 @@ func foo(v int, c chan int, p *int) {
     fold someLocation!<p!>()
 
     // close channel
-    assert acc(c.SendChannel(), 1/2) && c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */) && someLocation!<p!>()
+    assert acc(c.SendChannel(), perm(1, 2)) && c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */) && someLocation!<p!>()
     close(c, 1, 2 /* 1/2 */, someLocation!<p!>)
     assert c.Closed()
 }

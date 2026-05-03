@@ -9,12 +9,12 @@ type Inv interface {
 
 type EvenInv struct{ e *func(int)bool; o *func(int)bool }
 pred (self EvenInv) inv() {
-    acc(self.o, 1/2) && *self.o implements odd_spec{OddInv{self.e, self.o}} && OddInv{self.e, self.o}.inv()
+    acc(self.o, perm(1, 2)) && *self.o implements odd_spec{OddInv{self.e, self.o}} && OddInv{self.e, self.o}.inv()
 }
 
 type OddInv struct{ e *func(int)bool; o *func(int)bool }
 pred (self OddInv) inv() {
-    acc(self.e, 1/2) && *self.e implements even_spec{EvenInv{self.e, self.o}} && EvenInv{self.e, self.o}.inv()
+    acc(self.e, perm(1, 2)) && *self.e implements even_spec{EvenInv{self.e, self.o}} && EvenInv{self.e, self.o}.inv()
 }
 
 ghost
@@ -36,7 +36,7 @@ func main() {
     var o@ func(int)bool
 
     e = requires x >= 0
-        preserves acc(&o, 1/2) && OddInv{&e, &o}.inv() && o implements odd_spec{OddInv{&e, &o}}
+        preserves acc(&o, perm(1, 2)) && OddInv{&e, &o}.inv() && o implements odd_spec{OddInv{&e, &o}}
         ensures (x%2 == 0 ==> even) && (even ==> x%2 == 0)
         decreases x
         func is_even(x int)(even bool) {
@@ -54,7 +54,7 @@ func main() {
     }
 
     o = requires y >= 0
-        preserves acc(&e, 1/2) && EvenInv{&e, &o}.inv() && e implements even_spec{EvenInv{&e, &o}}
+        preserves acc(&e, perm(1, 2)) && EvenInv{&e, &o}.inv() && e implements even_spec{EvenInv{&e, &o}}
         ensures (y%2 == 1 ==> odd) && (odd ==> y%2 == 1)
         decreases y
         func is_odd(y int)(odd bool) {

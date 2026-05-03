@@ -12,7 +12,7 @@ type Rect struct {
 }
 
 pred (r *Rect) mem() {
-  acc(r, 1/2)
+  acc(r, perm(1, 2))
 }
 
 requires acc(r, _)
@@ -20,15 +20,15 @@ pure func (r *Rect) Size() bool {
   return r.width >= 0 && r.height >= 0
 }
 
-requires acc(r, 1/2)
-ensures  acc(r, 1/2)
+requires acc(r, perm(1, 2))
+ensures  acc(r, perm(1, 2))
 func (r *Rect) Area() (ret int) {
   return r.width * r.height
 }
 
 (*Rect) implements shape.Shape {
   pure (r *Rect) Size() bool {
-    return unfolding acc(r.mem(), 1/2) in r.Size()
+    return unfolding acc(r.mem(), perm(1, 2)) in r.Size()
   }
 
   (r *Rect) Area() (ret int) {

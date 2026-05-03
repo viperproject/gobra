@@ -10,8 +10,8 @@ pred myPred(x *int) {
 const dividend = 1
 const divisor = 1
 
-requires acc(myPred(x), dividend/divisor)
-ensures acc(myPred(x), dividend/divisor)
+requires acc(myPred(x), perm(dividend, divisor))
+ensures acc(myPred(x), perm(dividend, divisor))
 func exprPerm(x *int) {
     unfold myPred(x)
     assert *x == 42

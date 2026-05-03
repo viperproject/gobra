@@ -562,7 +562,6 @@ object Parser extends LazyLogging {
       importedPredicateNames: String => Set[String],
     )(positions: Positions): PPackage = {
       val rewriter = new PRewriter(positions)
-      import rewriter._
 
       def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
       def hasBlank(lit: PLiteralValue): Boolean = lit.elems.exists {
@@ -598,14 +597,14 @@ object Parser extends LazyLogging {
       }
 
       val rewritePredConstructors: Strategy =
-        strategyWithName[Any]("rewritePredConstructors", {
+        rewriter.strategyWithName[Any]("rewritePredConstructors", {
           case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit) =>
             Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
           case n => Some(n)
         })
 
       val updatedProgs = pkg.programs.map { prog =>
-        val updatedDecls = rewrite(topdown(attempt(rewritePredConstructors)))(prog.declarations)
+        val updatedDecls = rewriter.rewrite(rewriter.topdown(rewriter.attempt(rewritePredConstructors)))(prog.declarations)
         at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
       }
       at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)

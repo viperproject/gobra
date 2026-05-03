@@ -191,7 +191,7 @@ trait TypeEncoding extends Generator {
     * The default implements:
     * [lhs: T == rhs: T] -> [lhs] == [rhs]
     * [x: *T° zero-sized == x: *T] -> true
-    * [lhs: *T° zero-sized == rhs: *T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
+    * [lhs: *T° zero-sized == rhs: *T] -> [lhs] == [nil] || [rhs] == [nil] ? [lhs] == [rhs] : unknown()
     * [lhs: *T° non-zero-sized == rhs: *T] -> [lhs] == [rhs]
     */
   def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
@@ -203,11 +203,13 @@ trait TypeEncoding extends Generator {
         for {
           vLhs <- ctx.expression(lhs)
           vRhs <- ctx.expression(rhs)
-          vNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
-          rhsIsNil = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
+          vlNil <- ctx.expression(in.NilLit(lhs.typ)(src.info))
+          lhsIsNil = vpr.EqCmp(vLhs, vlNil)(pos, info, errT)
+          vrNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
+          rhsIsNil = vpr.EqCmp(vRhs, vrNil)(pos, info, errT)
           ptrsEqual = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
           unknown = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info, errT)
-        } yield vpr.CondExp(rhsIsNil, ptrsEqual, unknown)(pos, info, errT)
+        } yield vpr.CondExp(vpr.Or(lhsIsNil, rhsIsNil)(pos, info, errT), ptrsEqual, unknown)(pos, info, errT)
       }
 
     case (lhs :: t, rhs :: s, src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>

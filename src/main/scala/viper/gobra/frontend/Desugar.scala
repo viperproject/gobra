@@ -2959,7 +2959,7 @@ object Desugar extends LazyLogging {
         case PArrayType(len, elem) =>
           for {
             inElem <- go(elem)
-          } yield in.ArrayTExpr(info.evalInt(len), inElem)(src)
+          } yield in.ArrayTExpr(info.evalIntOrFail(len), inElem)(src)
 
         case PSliceType(elem) =>
           for {

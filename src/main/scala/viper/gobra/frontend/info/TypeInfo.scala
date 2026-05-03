@@ -43,10 +43,10 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def capturedLocalVariables(decl: PClosureDecl): Vector[PIdnNode]
 
-  def evalBool(exp: PExpression): Boolean
-  def evalInt(exp: PExpression): BigInt
-  def evalString(exp: PExpression): String
-  def evalPerm(exp: PExpression): (BigInt, BigInt)
+  def evalBoolOrFail(exp: PExpression): Boolean
+  def evalIntOrFail(exp: PExpression): BigInt
+  def evalStringOrFail(exp: PExpression): String
+  def evalPermOrFail(exp: PExpression): (BigInt, BigInt)
 
   val globalVarDeclsSortedByDeps: PProgram => Vector[PVarDecl]
 }

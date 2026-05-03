@@ -27,7 +27,7 @@ object TypeHead {
   case class FunctionHD(arity: Int) extends TypeHead
   /** 'fields' stores for each field the name and whether the field is ghost. */
   case class StructHD(fields: Vector[(String, Boolean)]) extends TypeHead
-  case object ArrayHD extends TypeHead
+  case class ArrayHD(size: BigInt) extends TypeHead
   case object SliceHD extends TypeHead
   case object MapHD extends TypeHead
   case class InterfaceHD(name: String) extends TypeHead
@@ -74,7 +74,7 @@ object TypeHead {
     case VoidT => UnitHD
     case _: PermissionT => PermHD
     case SortT => SortHD
-    case _: ArrayT => ArrayHD
+    case t: ArrayT => ArrayHD(t.length)
     case _: SliceT => SliceHD
     case _: MapT => MapHD
     case _: SequenceT => SeqHD
@@ -151,7 +151,7 @@ object TypeHead {
     case _: PointerTExpr => PointerHD
     case t: DefinedTExpr => DefinedHD(t.name)
     case t: StructTExpr => StructHD(t.fields.map(t => (t._1, t._3)))
-    case _: ArrayTExpr => ArrayHD
+    case t: ArrayTExpr => ArrayHD(t.length)
     case _: SliceTExpr => SliceHD
     case _: MapTExpr => MapHD
     case _: PermTExpr => PermHD
@@ -174,7 +174,7 @@ object TypeHead {
     case _: DefinedHD => 0
     case t: FunctionHD => t.arity
     case t: StructHD => t.fields.size
-    case ArrayHD => 1
+    case _: ArrayHD => 1
     case SliceHD => 1
     case MapHD => 2
     case _: InterfaceHD => 0

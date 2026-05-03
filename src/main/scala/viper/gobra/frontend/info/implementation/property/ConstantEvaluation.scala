@@ -15,6 +15,22 @@ import viper.gobra.util.Violation.violation
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
+  def evalBoolOrFail(exp: PExpression): Boolean = {
+    boolConstantEval(exp).getOrElse(violation(s"expected constant bool expression, but got $exp"))
+  }
+
+  def evalIntOrFail(exp: PExpression): BigInt = {
+    intConstantEval(exp).getOrElse(violation(s"expected constant int expression, but got $exp"))
+  }
+
+  def evalStringOrFail(exp: PExpression): String = {
+    stringConstantEval(exp).getOrElse(violation(s"expected constant string expression, but got $exp"))
+  }
+
+  def evalPermOrFail(exp: PExpression): (BigInt, BigInt) = {
+    permConstantEval(exp).getOrElse(violation(s"expected constant permission expression, but got $exp"))
+  }
+
   lazy val boolConstantEval: PExpression => Option[Boolean] =
     attr[PExpression, Option[Boolean]] {
       case PBoolLit(lit) => Some(lit)

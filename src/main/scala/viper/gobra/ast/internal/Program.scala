@@ -676,7 +676,7 @@ case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
-case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class ArrayTExpr(length: BigInt, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
@@ -1661,4 +1661,3 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
-

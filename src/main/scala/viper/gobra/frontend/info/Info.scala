@@ -221,6 +221,60 @@ object Info extends LazyLogging {
     } yield typeInfo
   }
 
+  /**
+    * Performs a second-pass rewrite of cross-package predicate constructors.
+    *
+    * The parse-time postprocessor only knows the current package's predicate names and so
+    * leaves expressions like `pkg.P{1}()` -- where `P` is a predicate declared in the imported
+    * package `pkg` -- as `PCompositeLit`. Once `dependentTypeInfo` is available, we know each
+    * import's qualifier name and can ask its `ExternalTypeInfo` whether a given identifier
+    * resolves to a predicate.
+    */
+  private def rewriteCrossPackagePredConstructors(
+    pkg: PPackage,
+    deps: Map[AbstractImport, ExternalTypeInfo],
+  ): PPackage = {
+    import viper.gobra.ast.frontend.PExplicitQualifiedImport
+
+    // Local predicate names (function and method): used to skip work for cases the parse-time
+    // postprocessor already handled.
+    val localPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+      case d: viper.gobra.ast.frontend.PFPredicateDecl => d.id.name
+      case d: viper.gobra.ast.frontend.PMPredicateDecl => d.id.name
+    }).toSet
+
+    // Build a per-program function: qualifier-name -> set of predicate names exposed by the
+    // package imported under that qualifier.
+    val importedByQualifier: Map[String, Set[String]] = pkg.programs.flatMap { prog =>
+      prog.imports.collect {
+        case pi: PExplicitQualifiedImport =>
+          val abstractImport = RegularImport(pi.importPath)
+          deps.get(abstractImport).map { extInfo =>
+            // walk the imported package's declarations and collect top-level predicate names
+            val importedPkg = extInfo.getTypeInfo match {
+              case ti: TypeInfoImpl => Some(ti.tree.root)
+              case _ => None
+            }
+            val names: Set[String] = importedPkg.toVector.flatMap(_.programs.flatMap(_.declarations.collect {
+              case d: viper.gobra.ast.frontend.PFPredicateDecl => d.id.name
+              case d: viper.gobra.ast.frontend.PMPredicateDecl => d.id.name
+            })).toSet
+            pi.qualifier.name -> names
+          }
+      }.flatten
+    }.toMap
+
+    if (importedByQualifier.isEmpty) pkg
+    else {
+      val positions = pkg.positions.positions
+      viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(
+        pkg,
+        localPredicateNames,
+        q => importedByQualifier.getOrElse(q, Set.empty),
+      )(positions)
+    }
+  }
+
   type TypeInfoCacheKey = String
   private val typeInfoCache: ConcurrentMap[TypeInfoCacheKey, TypeInfoImpl] = new ConcurrentHashMap()
 
@@ -255,7 +309,11 @@ object Info extends LazyLogging {
     var cacheHit: Boolean = true
     def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       cacheHit = false
-      val tree = new GoTree(pkg)
+      // Rewrite any remaining `pkg.P{...}` composite literals into predicate constructors when
+      // `P` is a top-level predicate of the imported package. This finishes the disambiguation
+      // started at parse time (see Parser.PredicateConstructorPostprocessor).
+      val rewrittenPkg = rewriteCrossPackagePredConstructors(pkg, dependentTypeInfo)
+      val tree = new GoTree(rewrittenPkg)
       new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
     }
 

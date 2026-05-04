@@ -6,7 +6,7 @@ package getterSetter
 type GetterSetter interface {
     pred mem()
 
-    requires acc(mem(), _)
+    requires mem()
     pure GetVal() int
 
     requires mem()

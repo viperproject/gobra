@@ -7,7 +7,7 @@ package pkg
 type stream interface {
     pred mem()
 
-    requires acc(mem(), _)
+    requires mem()
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -19,7 +19,7 @@ type stream interface {
 type cell interface {
     pred mem()
 
-    requires acc(mem(), _)
+    requires mem()
     pure value() int
 
     requires acc(mem())
@@ -33,12 +33,12 @@ type cell interface {
 
 type counter struct{ f, max int }
 
-requires acc(x, _)
+requires acc(x)
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
 
-requires acc(x, _)
+requires acc(x)
 pure func (x *counter) value() int {
   return x.f
 }
@@ -67,7 +67,7 @@ pred counterMem(x *counter) { acc(x) }
   pred mem := counterMem
 
   pure (x *counter) hasNext() bool {
-    return unfolding acc(counterMem(x), _) in x.hasNext()
+    return unfolding counterMem(x) in x.hasNext()
   }
 
   (x *counter) next() (res interface{}) {
@@ -84,7 +84,7 @@ pred counterMem2(x *counter) { acc(x) }
   pred mem := counterMem2
 
   pure (x *counter) value() int {
-    return unfolding acc(counterMem2(x), _) in x.value()
+    return unfolding counterMem2(x) in x.value()
   }
 
   (x *counter) setValue(i int) {

@@ -7,7 +7,7 @@ package pkg
 type stream interface {
     pred mem()
 
-    requires acc(mem(), _)
+    requires mem()
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -21,7 +21,7 @@ type stream interface {
 type counter struct{ f, max int }
 
 //:: ExpectedOutput(generated_implementation_proof:precondition_error)
-requires acc(x, _)
+requires acc(x)
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }

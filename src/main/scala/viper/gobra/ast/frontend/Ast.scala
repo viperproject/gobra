@@ -1047,6 +1047,8 @@ sealed trait PPermission extends PGhostExpression
 case class PFullPerm() extends PPermission
 case class PNoPerm() extends PPermission
 case class PWildcardPerm() extends PPermission
+/** Inserted by the parser for `acc(x)` with no explicit permission; semantics = fullPerm. */
+case class PImplicitPerm() extends PPermission
 
 case class POld(operand: PExpression) extends PGhostExpression
 

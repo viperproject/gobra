@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PAccess, PBlock, PCodeRootWithResult, PExplicitGhostMember, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PImplicitPerm, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PPredicateAccess, PReturn, PVariadicType, PWildcardPerm, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -65,7 +65,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         isPurePostcondition(member.spec) ++
         pureMembersCannotHavePreserves(member.spec) ++
         nonVariadicArguments(member.args) ++
-        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
+        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit) ++
+        noExplicitPermInPureBody(member)
     } else noMessages
   }
 
@@ -81,7 +82,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureMethodImplementationProof(implProof: PMethodImplementationProof): Messages = {
     if (implProof.isPure) {
-      isSinglePureReturnExpr(implProof) // all other checks are taken care of by super implementation
+      isSinglePureReturnExpr(implProof) ++ // all other checks are taken care of by super implementation
+        noExplicitPermInPureBody(implProof)
     } else noMessages
   }
 
@@ -92,9 +94,31 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         isPurePostcondition(member.spec) ++
         pureMembersCannotHavePreserves(member.spec) ++
         nonVariadicArguments(member.args) ++
-        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
+        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit) ++
+        noExplicitPermInPureBody(member)
     } else noMessages
   }
+
+  private[typing] def noExplicitPermInPureContext(exprs: Vector[PExpression]): Messages =
+    exprs.flatMap { e =>
+      (e +: allChildren(e)).flatMap {
+        case acc: PAccess if !acc.perm.isInstanceOf[PWildcardPerm] && !acc.perm.isInstanceOf[PImplicitPerm] =>
+          error(acc.perm, "Permission amounts are meaningless in pure function contexts; use 'acc(x)' instead.")
+        case acc: PPredicateAccess if !acc.perm.isInstanceOf[PWildcardPerm] && !acc.perm.isInstanceOf[PImplicitPerm] =>
+          error(acc.perm, "Permission amounts are meaningless in pure function contexts; use 'p()' instead.")
+        case _ => noMessages
+      }
+    }
+
+  private def noExplicitPermInPureBody(member: PWithBody): Messages =
+    member.body match {
+      case Some((_, b: PBlock)) =>
+        b.nonEmptyStmts match {
+          case Vector(PReturn(Vector(ret))) => noExplicitPermInPureContext(Vector(ret))
+          case _ => noMessages
+        }
+      case _ => noMessages
+    }
 
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {
     error(member, "For now, pure methods and pure functions must have exactly one result argument", member.result.outs.size != 1)

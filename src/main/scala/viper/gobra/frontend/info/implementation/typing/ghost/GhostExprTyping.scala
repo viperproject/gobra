@@ -247,6 +247,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFullPerm() => noMessages
       case PWildcardPerm() => noMessages
       case PNoPerm() => noMessages
+      case PImplicitPerm() => noMessages
     }
   }
 
@@ -548,7 +549,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PUnpackSlice(s) => go(s)
 
-      case PFullPerm() | PNoPerm() | PWildcardPerm() => true
+      case PFullPerm() | PNoPerm() | PWildcardPerm() | PImplicitPerm() => true
     }
 
     res

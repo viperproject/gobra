@@ -161,7 +161,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
-      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure) ++
+      (if (isPure) noExplicitPermInPureContext(pres) else noMessages)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++

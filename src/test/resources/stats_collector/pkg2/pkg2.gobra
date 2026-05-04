@@ -14,7 +14,7 @@ pred (r *Rect) mem() {
   acc(r, 1/2)
 }
 
-requires acc(r, _)
+requires acc(r)
 pure func (r *Rect) Size() bool {
   return r.width > 0 && r.height > 0
 }
@@ -27,7 +27,7 @@ func (r *Rect) Area() (ret int) {
 
 (*Rect) implements pkg1.Shape {
   pure (r *Rect) Size() bool {
-    return unfolding acc(r.mem(), _) in r.Size()
+    return unfolding r.mem() in r.Size()
   }
   (r *Rect) Area() (ret int) {
     unfold r.mem()
@@ -44,7 +44,7 @@ pred (c *Circle) mem() {
   acc(c, 1/2)
 }
 
-requires acc(c, _)
+requires acc(c)
 pure func (c *Circle) Size() bool {
   return c.radius > 0
 }
@@ -57,7 +57,7 @@ func (c *Circle) Area() (ret int) {
 
 (*Circle) implements pkg1.Shape {
   pure (c *Circle) Size() bool {
-    return unfolding acc(c.mem(), _) in c.Size()
+    return unfolding c.mem() in c.Size()
   }
 
   (c *Circle) Area() (ret int) {

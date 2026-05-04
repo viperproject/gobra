@@ -7,7 +7,7 @@ package pkg
 type stream interface {
     pred mem()
 
-    requires acc(mem(), _)
+    requires mem()
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -38,7 +38,7 @@ pred testP(x *counter, i int) {
 
 type counter struct{ f, max int }
 
-requires acc(x, _)
+requires acc(x)
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
@@ -64,7 +64,7 @@ pred (x *counter) mem() {
 (*counter) implements stream {
 
   pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), _) in x.hasNext()
+    return unfolding x.mem() in x.hasNext()
   }
 
   (x *counter) next() (res interface{}) {

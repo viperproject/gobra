@@ -146,13 +146,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: fold mpredicate call") {
     frontend.parseStmtOrFail("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
-      case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r")))), None, false), PFullPerm())) =>
+      case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r")))), None, false), PImplicitPerm())) =>
     }
   }
 
   test("Parser: fold fpredicate call") {
     frontend.parseStmtOrFail("fold b.RectMem(&r)") should matchPattern {
-      case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r")))), None, false), PFullPerm())) =>
+      case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r")))), None, false), PImplicitPerm())) =>
     }
   }
 

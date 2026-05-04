@@ -1652,7 +1652,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitAccess(ctx: AccessContext): PAccess = {
     visitChildren(ctx) match {
       case Vector("acc", "(", expr : PExpression, ")") =>
-        PAccess(expr, PFullPerm().at(expr)).at(ctx)
+        PAccess(expr, PImplicitPerm().at(expr)).at(ctx)
 
       case Vector("acc", "(", expr : PExpression, ",", blank : PBlankIdentifier, ")") =>
         PAccess(expr, PWildcardPerm().at(blank)).at(ctx)
@@ -2280,7 +2280,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
 
   override def visitPredicateAccess(ctx: PredicateAccessContext): PPredicateAccess = super.visitPredicateAccess(ctx) match {
-    case invoke : PInvoke => PPredicateAccess(invoke, PFullPerm().at(invoke))
+    case invoke : PInvoke => PPredicateAccess(invoke, PImplicitPerm().at(invoke))
     case PAccess(invoke: PInvoke, perm) => PPredicateAccess(invoke, perm)
     case _ => fail(ctx, "Expected invocation")
   }

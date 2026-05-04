@@ -9,5 +9,5 @@ package assignsuchthatwildcardperm
 func f() {
 	p := new(int)
 	//:: ExpectedOutput(type_error)
-	var x int :|= acc(p, _) && *p == x
+	var x int :| acc(p, _) && *p == x
 }

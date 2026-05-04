@@ -6,5 +6,5 @@ package assignsuchthatnotpure
 func f() {
 	p := new(int)
 	//:: ExpectedOutput(type_error)
-	var x int :|= acc(p) && *p == x
+	var x int :| acc(p) && *p == x
 }

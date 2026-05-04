@@ -4,7 +4,7 @@
 package integers
 
 // Checks that Go's bitwise OR-assign operator `|=` is accepted by Gobra.
-// The existential-elimination ghost statement uses `:|=`, so the bare `|=`
+// The existential-elimination ghost statement uses `:|`, so the bare `|=`
 // must continue to be parsed as the compound assignment from Go.
 
 func bitwiseOrAssign() {

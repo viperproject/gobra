@@ -61,7 +61,7 @@ trait NameResolution {
               case _ => UnknownEntity()
             }
           case decl: PAssignSuchThat =>
-            // Variables declared by `var x T :|= P` are always ghost, non-addressable,
+            // Variables declared by `var x T :| P` are always ghost, non-addressable,
             // and their type is given explicitly by the annotation.
             SingleLocalVariable(None, Some(decl.typ), decl, ghost = true, addressable = false, this)
 

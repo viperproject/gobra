@@ -10,7 +10,7 @@ package assignsuchthatwitnessnonzero
 
 requires len(s) > 0 && !(0 elem s)
 func f(ghost s set[int]) {
-	var x int :|= x elem s
+	var x int :| x elem s
 	//:: ExpectedOutput(assert_error:assertion_error)
 	assert false
 }

@@ -8,5 +8,5 @@ package assignsuchthatundeclaredrhs
 
 func f() {
 	//:: ExpectedOutput(type_error)
-	var x int :|= x > y
+	var x int :| x > y
 }

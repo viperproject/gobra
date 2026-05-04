@@ -5,5 +5,5 @@ package assignsuchthatwitnessfail
 
 func f() {
 	//:: ExpectedOutput(assign_such_that_error:assign_such_that_no_witness_error)
-	var x int :|= x > 0 && x < 0
+	var x int :| x > 0 && x < 0
 }

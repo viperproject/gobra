@@ -7,5 +7,5 @@ package assignsuchthatrhsstring
 
 func f() {
 	//:: ExpectedOutput(type_error)
-	var x int :|= "hello"
+	var x int :| "hello"
 }

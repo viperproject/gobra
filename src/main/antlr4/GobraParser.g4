@@ -67,7 +67,7 @@ ghostStatement:
   | ASSERT expression (BY CONTRA? block)? #assertStatement
   | matchStmt #matchStmt_
   | OPEN_DUP_SINV #pkgInvStatement
-  | VAR IDENTIFIER type_ COLON_PIPE_ASSIGN expression #assignSuchThatStatement
+  | VAR IDENTIFIER type_ COLON_PIPE expression #assignSuchThatStatement
   ;
 
 // Auxiliary statements

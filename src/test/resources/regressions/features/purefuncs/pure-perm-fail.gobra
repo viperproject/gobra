@@ -1,0 +1,114 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type counter struct{ f, max int }
+
+pred (x *counter) mem() { acc(x) }
+
+// --- Pure function preconditions: explicit perms must be rejected. ---
+
+//:: ExpectedOutput(type_error)
+requires acc(x, 1/2)
+pure func bad1(x *counter) bool {
+  return x.f < x.max
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(x, writePerm)
+pure func bad2(x *counter) bool {
+  return x.f < x.max
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(x, noPerm)
+pure func bad3(x *counter) bool {
+  return x.f < x.max
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(x.mem(), 1/2)
+pure func bad4(x *counter) bool {
+  return unfolding x.mem() in x.f < x.max
+}
+
+// Explicit perm inside a conjunction must also be flagged.
+//:: ExpectedOutput(type_error)
+requires acc(x.mem(), 1/2) && true
+pure func bad5(x *counter) bool {
+  return unfolding x.mem() in x.f < x.max
+}
+
+// --- Pure function bodies: explicit perms inside `unfolding` must be rejected. ---
+
+requires acc(x.mem())
+pure func bad6(x *counter) bool {
+  //:: ExpectedOutput(type_error)
+  return unfolding acc(x.mem(), 1/2) in x.f < x.max
+}
+
+requires acc(x.mem())
+pure func bad7(x *counter) bool {
+  //:: ExpectedOutput(type_error)
+  return unfolding acc(x.mem(), writePerm) in x.f < x.max
+}
+
+// --- Positive cases: bare acc(...), bare predicate calls, and wildcard perms must be accepted. ---
+
+requires acc(x)
+pure func ok1(x *counter) bool {
+  return x.f < x.max
+}
+
+requires acc(x, _)
+pure func ok2(x *counter) bool {
+  return x.f < x.max
+}
+
+requires x.mem()
+pure func ok3(x *counter) bool {
+  return unfolding x.mem() in x.f < x.max
+}
+
+requires acc(x.mem())
+pure func ok4(x *counter) bool {
+  return unfolding acc(x.mem()) in x.f < x.max
+}
+
+requires acc(x.mem(), _)
+pure func ok5(x *counter) bool {
+  return unfolding acc(x.mem(), _) in x.f < x.max
+}
+
+// --- Non-pure functions: explicit perms must remain valid. ---
+
+requires acc(x, 1/2)
+ensures  acc(x, 1/2)
+func nonPureOk1(x *counter) (r int) {
+  return x.f
+}
+
+requires acc(x.mem(), 1/2)
+ensures  acc(x.mem(), 1/2)
+func nonPureOk2(x *counter) (r int) {
+  return unfolding acc(x.mem(), 1/2) in x.f
+}
+
+// --- Pure interface methods: explicit perms in their preconditions must be rejected. ---
+
+type stream interface {
+  pred mem()
+
+  //:: ExpectedOutput(type_error)
+  requires acc(mem(), 1/2)
+  pure hasNext() bool
+
+  //:: ExpectedOutput(type_error)
+  requires acc(mem(), writePerm)
+  pure peek() int
+
+  // Positive case: bare predicate access in a pure interface method spec is fine.
+  requires mem()
+  pure ok() bool
+}

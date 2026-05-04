@@ -4927,7 +4927,7 @@ object Desugar extends LazyLogging {
             } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
           case _ => None
         }
-        case PFullPerm() | PImplicitPerm() => Some(unit(in.FullPerm(src)))
+        case PFullPerm() => Some(unit(in.FullPerm(src)))
         case PNoPerm() => Some(unit(in.NoPerm(src)))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {

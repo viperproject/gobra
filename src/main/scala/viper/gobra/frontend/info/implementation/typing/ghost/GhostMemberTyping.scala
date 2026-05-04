@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PAccess, PBlock, PCodeRootWithResult, PExplicitGhostMember, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PImplicitPerm, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PPredicateAccess, PReturn, PVariadicType, PWildcardPerm, PWithBody}
+import viper.gobra.ast.frontend.{PAccess, PBlock, PCodeRootWithResult, PExplicitGhostMember, PExpression, PFPredicateDecl, PFullPerm, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PPredicateAccess, PReturn, PVariadicType, PWildcardPerm, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -99,12 +99,22 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
+  // A bare `acc(x)` is parsed as `PAccess(x, PFullPerm().at(x))`, so the synthetic PFullPerm shares
+  // its source position with the inner expression. A user-written perm (e.g. `writePerm`, `1/2`) has
+  // its own distinct position. We use this to distinguish the two without introducing a new AST node.
+  private def isImplicitPerm(perm: PExpression, inner: PExpression): Boolean = perm match {
+    case _: PFullPerm =>
+      val ps = tree.root.positions.positions
+      ps.getStart(perm) == ps.getStart(inner) && ps.getFinish(perm) == ps.getFinish(inner)
+    case _ => false
+  }
+
   private[typing] def noExplicitPermInPureContext(exprs: Vector[PExpression]): Messages =
     exprs.flatMap { e =>
       (e +: allChildren(e)).flatMap {
-        case acc: PAccess if !acc.perm.isInstanceOf[PWildcardPerm] && !acc.perm.isInstanceOf[PImplicitPerm] =>
+        case acc: PAccess if !acc.perm.isInstanceOf[PWildcardPerm] && !isImplicitPerm(acc.perm, acc.exp) =>
           error(acc.perm, "Permission amounts are meaningless in pure function contexts; use 'acc(x)' instead.")
-        case acc: PPredicateAccess if !acc.perm.isInstanceOf[PWildcardPerm] && !acc.perm.isInstanceOf[PImplicitPerm] =>
+        case acc: PPredicateAccess if !acc.perm.isInstanceOf[PWildcardPerm] && !isImplicitPerm(acc.perm, acc.pred) =>
           error(acc.perm, "Permission amounts are meaningless in pure function contexts; use 'p()' instead.")
         case _ => noMessages
       }

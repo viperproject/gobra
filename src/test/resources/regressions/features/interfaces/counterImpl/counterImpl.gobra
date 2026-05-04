@@ -7,7 +7,7 @@ package counterImpl
 
 type counter struct{ f, max int }
 
-requires acc(x, 1/2)
+requires acc(x, _)
 ensures  res == (x.f < x.max) // necessary, because the body of imported functions is removed
 pure func (x *counter) hasNext() (res bool) {
   return x.f < x.max

@@ -79,7 +79,6 @@ object ConfigDefaults {
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
-  val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
 }
 
@@ -241,7 +240,6 @@ case class Config(
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                   respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
 ) {
 
@@ -294,7 +292,6 @@ case class Config(
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || input.disableCheckTerminationPureFns.value.contains(true),
       unsafeWildcardOptimization = unsafeWildcardOptimization || input.unsafeWildcardOptimization.value.contains(true),
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
-      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
     )
   }
@@ -340,7 +337,6 @@ case class Config(
       "disableSetAxiomatization" -> disableSetAxiomatization,
       "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
-      "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
       "noVerify" -> noVerify,
       "noStreamErrors" -> noStreamErrors,
@@ -420,7 +416,6 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                      respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                      ) {
   def shouldParse: Boolean = true
@@ -495,7 +490,6 @@ case class InputConfig(
   unsafeWildcardOptimization: InputConfigOption[Boolean] = InputConfigOption("unsafeWildcardOptimization", None),
   moreJoins: InputConfigOption[MoreJoins.Mode] = InputConfigOption("moreJoins", None),
   mceMode: InputConfigOption[MCE.Mode] = InputConfigOption("mceMode", None),
-  respectFunctionPrePermAmounts: InputConfigOption[Boolean] = InputConfigOption("respectFunctionPrePermAmounts", None),
   hyperMode: InputConfigOption[Hyper.Mode] = InputConfigOption("hyperMode", None),
   enableExperimentalHyperFeatures: InputConfigOption[Boolean] = InputConfigOption(Config.enableExperimentalHyperFeaturesOptionName, None),
   requireTriggers: InputConfigOption[Boolean] = InputConfigOption("requireTriggers", None),
@@ -556,7 +550,6 @@ case class InputConfig(
     unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
     moreJoins = moreJoins orElse other.moreJoins,
     mceMode = mceMode orElse other.mceMode,
-    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts orElse other.respectFunctionPrePermAmounts,
     hyperMode = hyperMode orElse other.hyperMode,
     enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
     requireTriggers = requireTriggers orElse other.requireTriggers,
@@ -574,7 +567,7 @@ case class InputConfig(
     * - backend, hyperMode: must match if both defined
     * - packageTimeout: takes minimum
     * - logLevel: takes minimum (more verbose)
-    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
+    * - noVerify, noStreamErrors, enableExperimentalFriendClauses: OR
     * - moreJoins: uses MoreJoins.merge */
   def merge(other: InputConfig): InputConfig = {
     // Helper to merge list options by concatenating and deduplicating
@@ -658,7 +651,6 @@ case class InputConfig(
         case (None, r) => r
       }),
       mceMode = mceMode orElse other.mceMode,
-      respectFunctionPrePermAmounts = mergeOr(respectFunctionPrePermAmounts, other.respectFunctionPrePermAmounts),
       hyperMode = mergeMustMatch(hyperMode, other.hyperMode, "hyper modes"),
       enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
       requireTriggers = requireTriggers orElse other.requireTriggers,
@@ -963,7 +955,6 @@ case class InputConfig(
     disableCheckTerminationPureFns = disableCheckTerminationPureFns.value.getOrElse(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
     unsafeWildcardOptimization = unsafeWildcardOptimization.value.getOrElse(ConfigDefaults.DefaultUnsafeWildcardOptimization),
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
-    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
   )
 }
@@ -1088,7 +1079,6 @@ trait RawConfig {
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
-    respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
   )
 }
@@ -1646,16 +1636,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     ).map(MCEConverter.convert)
   }
 
-  val respectFunctionPrePermAmounts: ScallopOption[Boolean] = toggle(
-    name = "respectFunctionPrePermAmounts",
-    descrYes = s"Respects precise permission amounts in pure function preconditions instead of only checking read access, as done in older versions of Gobra." +
-      "This option should be used for verifying legacy projects written with the old interpretation of fractional permissions." +
-      "New projects are encouraged to not use this option.",
-    descrNo = s"Use the default interpretation for fractional permissions in pure function preconditions.",
-    default = Some(ConfigDefaults.DefaultRespectFunctionPrePermAmounts),
-    noshort = true,
-  )
-
   val hyperMode: ScallopOption[Hyper.Mode] = choice(
     name = "hyperMode",
     choices = Hyper.values.map(_.name),
@@ -1773,7 +1753,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     unsafeWildcardOptimization = toInputConfigOption(unsafeWildcardOptimization),
     moreJoins = toInputConfigOption(moreJoins),
     mceMode = toInputConfigOption(mceMode),
-    respectFunctionPrePermAmounts = toInputConfigOption(respectFunctionPrePermAmounts),
     hyperMode = toInputConfigOption(hyperMode),
     enableExperimentalHyperFeatures = toInputConfigOption(enableExperimentalHyperFeatures),
     requireTriggers = toInputConfigOption(requireTriggers),

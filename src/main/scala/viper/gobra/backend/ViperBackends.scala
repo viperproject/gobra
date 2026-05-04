@@ -29,9 +29,6 @@ trait ViperBackend extends CliEnumConverter.EnumCase {
     if (config.assumeInjectivityOnInhale) {
       options ++= Vector("--assumeInjectivityOnInhale")
     }
-    if (config.respectFunctionPrePermAmounts) {
-      options ++= Vector("--respectFunctionPrePermAmounts")
-    }
     if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
       // for `Hyper.Enabled`, we do not use the SIFPlugin but a Gobra-internal transformation
       options ++= Vector("--plugin", "viper.silver.plugin.sif.SIFPlugin")

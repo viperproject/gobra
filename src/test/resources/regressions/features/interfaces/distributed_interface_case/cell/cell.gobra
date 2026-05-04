@@ -6,7 +6,7 @@ package cell
 type cell struct { v int }
 
 // implementation of cell
-requires acc(c, 1/2)
+requires acc(c, _)
 ensures res == c.v
 pure func (c *cell) GetVal() (res int) {
     return c.v

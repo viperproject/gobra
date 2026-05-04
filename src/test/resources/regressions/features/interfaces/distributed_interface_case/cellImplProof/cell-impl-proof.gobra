@@ -19,7 +19,7 @@ const USE_IMPLEMENTATION_PROOF = true
   pred mem := m.cellMem
 
   pure (c *cell.cell) GetVal() int {
-    return unfolding acc(m.cellMem(c), 1/2) in c.GetVal()
+    return unfolding acc(m.cellMem(c), _) in c.GetVal()
   }
 
   (c *cell.cell) SetVal(v int) {

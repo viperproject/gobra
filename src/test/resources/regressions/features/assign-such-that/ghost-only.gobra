@@ -3,12 +3,12 @@
 
 package assignsuchthatghostonly
 
-// The variables declared by `var x T |= P` are always ghost, so assigning them
+// The variables declared by `var x T :|= P` are always ghost, so assigning them
 // into an existing non-ghost variable must be rejected by ghost-separation.
 
 func f() {
 	var y int = 0
-	var x int |= x > 0
+	var x int :|= x > 0
 	//:: ExpectedOutput(type_error)
 	y = x
 }

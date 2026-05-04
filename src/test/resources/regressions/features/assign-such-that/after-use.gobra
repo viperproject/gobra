@@ -7,7 +7,7 @@ package assignsuchthatafteruse
 // and can be referenced in further ghost statements and assertions.
 
 func f() {
-	var x int |= true
+	var x int :|= true
 	// `x` is in scope after the statement. We can inhabit it in further specs.
 	assert x == x
 	ghost var y int = x

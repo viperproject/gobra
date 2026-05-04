@@ -8,5 +8,5 @@ package assignsuchthatimpurerhs2
 
 func f() {
 	//:: ExpectedOutput(type_error)
-	var x *int |= acc(x)
+	var x *int :|= acc(x)
 }

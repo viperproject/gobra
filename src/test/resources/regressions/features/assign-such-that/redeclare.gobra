@@ -9,5 +9,5 @@ package assignsuchthatredeclare
 func f() {
 	x := 5
 	//:: ExpectedOutput(type_error)
-	var x int |= x > 0
+	var x int :|= x > 0
 }

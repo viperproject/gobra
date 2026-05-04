@@ -10,7 +10,6 @@ pred mutexInvariant(x *int) {
 	acc(x)
 }
 
-// For now, requires parentheses surrounding exp{...}
 requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant{x}
 ensures acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant{x}
 func foo(pmutex *sync.Mutex, x *int) {

@@ -7,7 +7,6 @@
 package viper.gobra.translator.encodings.closures
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{ReceiverIsNilReason, MethodObjectGetterPreconditionError, Source}
 import viper.gobra.translator.Names

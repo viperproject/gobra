@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package byte
+
+pred StaticInv() {
+	acc(&byteCache, _) &&
+	// for injectivity checks:
+	(forall j, k uint16 :: 0 <= j && j < k && k < 256  ==>
+		byteCache[j] != byteCache[k]) &&
+	(forall i uint16 :: 0 <= i && i < 256 ==>
+		acc(byteCache[i], _) && byteCache[i].value == (byte)(i-128))
+}
+
+pred (b *Byte) Mem() {
+	acc(b, _)
+}

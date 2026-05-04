@@ -7,14 +7,14 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-
-import scala.collection.immutable.ListMap
-import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
-import viper.gobra.frontend.info.base.Type.{StructT, _}
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
+
+import scala.collection.immutable.ListMap
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -36,7 +36,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType | _: PPermissionType => noMessages
+    case _: PBoolType | _: PIntegerType | _: PFloatType | _: PStringType => noMessages
 
     case n @ PArrayType(len, t) => isType(t).out ++ {
       intConstantEval(len) match {
@@ -53,28 +53,67 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PMethodReceiveName => isType(n.typ).out
     case n: PMethodReceivePointer => isType(n.typ).out
     case _: PFunctionType => noMessages // parameters and result is implied by well definedness of children
-    case _: PPredType => noMessages // well definedness implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
       error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key))) ++
-      error(n, s"map key $key cannot contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
+      error(n, s"map key $key can neither be a ghost struct nor contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
 
-    case t: PStructType =>
-      t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
-      t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
-      structMemberSet(structSymbType(t)).errors(t) ++ addressableMethodSet(structSymbType(t)).errors(t) ++
-      error(t, "invalid recursive struct", cyclicStructDef(t))
+    case t: PStructType => t match {
+      case tree.parent(_: PExplicitGhostStructType) => noMessages // this case is handled in `wellDefGhostType`
+      case _ => wellDefStructType(t, isGhost = false)
+    }
 
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
       if (isRecursiveInterface.isEmpty) {
-        addressableMethodSet(InterfaceT(t, this)).errors(t) ++
+        val methodSet = addressableMethodSet(InterfaceT(t, this))
+        val methodsContainMayInit = methodSet.exists {
+          case (_, (m, _)) => m match {
+            case m: SymbolTable.MethodSpec =>
+              m.spec.spec.mayBeUsedInInit
+            case _ => false
+          }
+        }
+
+        // The semantics of wildcard termination measures in interface method specifications is not clear.
+        // Thus, they are rejected.
+        val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
+          sig.spec.terminationMeasures.flatMap {
+            case w: PWildcardMeasure =>
+              error(w, s"Wildcard termination measures are not allowed in the specifications of interface methods.")
+            case _ => noMessages
+          }
+        }
+        val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
+          if (sig.isGhost || sig.spec.isPure)
+            noConditionalMeasureErrors(sig.spec.terminationMeasures)
+          else noMessages
+        }
+        methodSet.errors(t) ++
+          error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
+          sigsWithWildcardMeasuresErrors ++
+          sigsWithConditionalMeasuresErrors ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface
       }
 
     case t: PExpressionAndType => wellDefExprAndType(t).out ++ isType(t).out
+  }
+
+  private[typing] def wellDefStructType(t: PStructType, isGhost: Boolean): Messages = {
+    val noGhostEmbeddings: Messages = {
+      val firstGhostEmbedding: Option[PExplicitGhostStructClause] = t.clauses.collectFirst {
+        case n@PExplicitGhostStructClause(_: PEmbeddedDecl) => n
+      }
+      firstGhostEmbedding.fold(noMessages)(error(_, "embeddings cannot be ghost in a non-ghost struct", !isGhost))
+    }
+
+    t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
+      noGhostEmbeddings ++
+      t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
+      structMemberSet(structSymbType(t, isGhost = isGhost)).errors(t) ++ addressableMethodSet(structSymbType(t, isGhost = isGhost)).errors(t) ++
+      error(t, "invalid recursive struct", cyclicStructDef(t))
   }
 
   def isStructTypeWithGhostFields(t: Type): Boolean = t match {
@@ -123,7 +162,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFloat32() => Float32T
     case PFloat64() => Float64T
     case PStringType() => StringT
-    case PPermissionType() => PermissionT
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)
@@ -142,15 +180,13 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PRecvChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Recv)
 
-    case t: PStructType => structSymbType(t)
+    case t: PStructType => structSymbType(t, isGhost = false)
 
     case PMethodReceiveName(t) => typeSymbType(t)
 
     case PMethodReceiveActualPointer(t) => ActualPointerT(typeSymbType(t))
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
-
-    case PPredType(args) => PredT(args map typeSymbType)
 
     case t: PInterfaceType =>
       val res = InterfaceT(t, this)
@@ -179,22 +215,25 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       }
   }
 
-  private def structSymbType(t: PStructType): Type = {
-    def infoFromFieldDecl(f: PFieldDecl, isGhost: Boolean): StructFieldT = StructFieldT(typeSymbType(f.typ), isGhost)
+  private[typing] def structSymbType(t: PStructType, isGhost: Boolean): StructT = {
+    def infoFromFieldDecl(f: PFieldDecl, isFieldGhost: Boolean): StructFieldT = StructFieldT(typeSymbType(f.typ), isFieldGhost)
 
-    def makeFields(x: PFieldDecls, isGhost: Boolean): ListMap[String, StructClauseT] = {
-      x.fields.foldLeft(ListMap[String, StructClauseT]()) { case (prev, f) => prev + (f.id.name -> infoFromFieldDecl(f, isGhost)) }
+    def makeFields(x: PFieldDecls, areFieldsGhost: Boolean): ListMap[String, StructClauseT] = {
+      x.fields.foldLeft(ListMap[String, StructClauseT]()) { case (prev, f) => prev + (f.id.name -> infoFromFieldDecl(f, areFieldsGhost)) }
     }
-    def makeEmbedded(x: PEmbeddedDecl, isGhost: Boolean): ListMap[String, StructClauseT] =
-      ListMap(x.id.name -> StructEmbeddedT(miscType(x.typ), isGhost))
 
+    def makeEmbedded(x: PEmbeddedDecl, isEmbeddedGhost: Boolean): ListMap[String, StructClauseT] =
+      ListMap(x.id.name -> StructEmbeddedT(miscType(x.typ), isEmbeddedGhost))
+
+    // we do not propagate a struct's ghostness to its fields. This will be taken care of by the access path when
+    // performing a field lookup
     val clauses = t.clauses.foldLeft(ListMap[String, StructClauseT]()) {
-      case (prev, x: PFieldDecls) => prev ++ makeFields(x, isGhost = false)
-      case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x, isGhost = true)
-      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x, isGhost = false)
-      case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x, isGhost = true)
+      case (prev, x: PFieldDecls) => prev ++ makeFields(x, areFieldsGhost = false)
+      case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x, areFieldsGhost = true)
+      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x, isEmbeddedGhost = false)
+      case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x, isEmbeddedGhost = true)
     }
-    StructT(clauses, t, this)
+    StructT(clauses, isGhost = isGhost, t, this)
   }
 
   /**

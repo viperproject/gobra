@@ -24,7 +24,7 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
       val carbonApi: carbon.CarbonFrontendAPI = new CarbonFrontendAPI(reporter)
 
       val startTime = System.currentTimeMillis()
-      carbonApi.initialize(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
+      carbonApi.initialize(commandLineArguments)
       val result = carbonApi.verify(program)
       carbonApi.stop()
 

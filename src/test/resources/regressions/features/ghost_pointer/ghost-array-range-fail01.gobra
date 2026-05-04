@@ -26,16 +26,16 @@ ghost
 func GhostPtrArrayRange() {
     arr@ := [2]int{ 0, 1 }
     p := &arr
-    var elem int
+    var element int
     //:: ExpectedOutput(type_error)
-    for elem = range(p) with i0 {}
+    for element = range(p) with i0 {}
 }
 
 ghost
 func ActualPtrArrayRange() {
     arr@ := [2]int{ 0, 1 }
     p := &arr
-    var elem int
+    var element int
     //:: ExpectedOutput(type_error)
-    for elem = range(p) with i0 {}
+    for element = range(p) with i0 {}
 }

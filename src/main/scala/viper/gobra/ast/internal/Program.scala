@@ -335,6 +335,12 @@ case class MethodBody(
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
 
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
+
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
   * Return statements jump exactly to the end of the encoding of this statement.
@@ -437,6 +443,15 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
+sealed trait AssertBy extends Stmt {
+  def ass: Assertion
+  def proof: Stmt
+}
+case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+
+case class AssignSuchThat(v: LocalVar, cond: Expr)(val info: Source.Parser.Info) extends Stmt
+
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -512,11 +527,27 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Assertion
-case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
-case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
-  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
+sealed trait TerminationMeasure extends Assertion {
+  val cond: Option[Expr]
+  val info: Source.Parser.Info
 }
+
+sealed trait ItfMethodMeasure extends TerminationMeasure
+sealed trait NonItfMethodMeasure extends TerminationMeasure
+sealed trait WildcardMeasure extends TerminationMeasure
+sealed trait TupleTerminationMeasure extends TerminationMeasure {
+  val tuple: Vector[Node]
+  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
+}
+
+case class ItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with WildcardMeasure
+case class NonItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with WildcardMeasure
+case class ItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with TupleTerminationMeasure
+case class NonItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with TupleTerminationMeasure
 
 sealed trait Accessible extends Node {
   def op: Node
@@ -537,8 +568,6 @@ sealed trait PredicateAccess extends Node
 case class FPredicateAccess(pred: FPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extends PredicateAccess
-
-
 
 sealed trait Expr extends Node with Typed with TriggerExpr
 
@@ -563,10 +592,12 @@ case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parse
 
 case class Let(left: LocalVar, right: Expr, in: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ.withAddressability(Addressability.rValue)
+}
 
 case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
-  override val typ: Type = operand.typ
+  override val typ: Type = operand.typ.withAddressability(Addressability.rValue)
 }
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -656,7 +687,19 @@ case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) e
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
+/* ** Information Flow  */
 
+case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class LowContext()(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class Rel(exp: Expr, lit: IntLit)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = exp.typ
+}
 
 /* ** Higher-order predicate expressions */
 
@@ -731,10 +774,12 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
+    case PointerT(t: ArrayT, _) => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
+    case _: StringT => IntT(Addressability.Exclusive, TypeBounds.Byte)
     case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }
@@ -851,12 +896,12 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents a membership expression "`left` in `right`".
+  * Represents a membership expression "`left` elem `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
   * with the one of `left`.
   */
-case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("elem") {
   override val typ : Type = BoolT(Addressability.rValue)
 }
 
@@ -934,6 +979,17 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
+
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
@@ -1184,6 +1240,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseU
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
     case _: SliceT | _: StringT => base.typ
+    case PointerT(t: ArrayT, _) => SliceT(t.elems, Addressability.sliceElement)
     case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }
@@ -1398,14 +1455,6 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   * The (composite) type of maps from type `keys` to type `values`.
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends PrettyType(s"map[$keys]$values") {
-  def hasGhostField(k: Type): Boolean = k match {
-    case StructT(fields, _) => fields exists (_.ghost)
-    case _ => false
-  }
-  // this check must be done here instead of at the type system level because the concrete AST does not support
-  // ghost fields yet
-  require(!hasGhostField(keys))
-  
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
@@ -1524,14 +1573,14 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Pre
 
 // StructT does not have a name because equality of two StructT does not depend at all on their declaration site but
 // only on their structure, i.e. whether the fields (and addressability) are equal
-case class StructT(fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
+case class StructT(fields: Vector[Field], ghost: Boolean, addressability: Addressability) extends PrettyType(fields.mkString(if (ghost) "ghost " else "" + "struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case StructT(otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case StructT(otherFields, otherGhost, _) => ghost == otherGhost && fields.zip(otherFields).forall{ case (l, r) => l.name == r.name && l.ghost == r.ghost && l.typ.equalsWithoutMod(r.typ) }
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
+    StructT(fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), ghost = ghost, newAddressability)
 }
 
 case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {
@@ -1623,4 +1672,3 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
-

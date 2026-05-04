@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatsetelem
+
+// Picks an arbitrary element of a non-empty set.
+
+requires len(s) > 0
+func f(ghost s set[int]) {
+	var e int |= e elem s
+	assert e elem s
+}

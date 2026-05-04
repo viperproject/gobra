@@ -33,7 +33,7 @@ object TranslationHelpers {
     VOCABULARY.getLiteralName(GobraParser.RSHIFT) -> PShiftRight,
     VOCABULARY.getLiteralName(GobraParser.AMPERSAND) -> PBitAnd,
     VOCABULARY.getLiteralName(GobraParser.BIT_CLEAR) -> PBitClear,
-    VOCABULARY.getLiteralName(GobraParser.IN) -> PIn,
+    VOCABULARY.getLiteralName(GobraParser.ELEM) -> PElem,
     VOCABULARY.getLiteralName(GobraParser.MULTI) -> PMultiplicity,
     VOCABULARY.getLiteralName(GobraParser.SUBSET) -> PSubset,
     VOCABULARY.getLiteralName(GobraParser.UNION) -> PUnion,

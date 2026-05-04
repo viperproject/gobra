@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
 import viper.gobra.ast.frontend.{PClosureImplProof, AstPattern => ap, _}
+import viper.gobra.frontend.info.base.Type.BooleanT
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -19,17 +20,33 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PAssert(exp) => assignableToSpec(exp)
     case PRefute(exp) => assignableToSpec(exp)
     case PExhale(exp) => assignableToSpec(exp)
-    case PAssume(exp) => assignableToSpec(exp) ++ isPureExpr(exp)
+    case PAssume(exp) => assignableToSpec(exp)
     case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
+    case n: PAssertByProof =>
+      error(n, "`assert P by { ... }` is currently not supported (cf. Gobra #1000). Use `assert P by contra { ... }` instead.")
+    case n: PAssertBy =>
+      isExpr(n.exp).out ++
+        isPureExpr(n.exp) ++
+        comparableTypes.errors(exprType(n.exp), BooleanT)(n.exp)
+    case POpenDupPkgInv() =>
+      val occursInInitMember = isEnclosingMayInit(stmt)
+      error(stmt, "Opening the package invariant in a function that may execute during initialization is not allowed.", occursInInitMember)
     case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
       error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
     case PApplyWand(wand) => assignableToSpec(wand)
-    case PMatchStatement(exp, clauses, _) => clauses.flatMap(c => c.pattern match {
-      case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp))(c)
-      case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
-    }) ++ isPureExpr(exp)
+    case n@PMatchStatement(exp, clauses, _) =>
+      val mayInit = isEnclosingMayInit(n)
+      clauses.flatMap(c => c.pattern match {
+        case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp), mayInit)(c)
+        case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
+      }) ++ isPureExpr(exp)
+    case PAssignSuchThat(_, _, cond) =>
+      // `var x T |= P` requires that `P` is a pure, boolean expression.
+      isExpr(cond).out ++
+        comparableTypes.errors(exprType(cond), BooleanT)(cond) ++
+        isPureExpr(cond)
   }
 
   private[typing] def wellDefFoldable(acc: PPredicateAccess): Messages = {

@@ -13,7 +13,8 @@ pred list(ptr *node) {
 	(ptr.next != nil ==> list(ptr.next))
 }
 
-requires list(ptr)
+requires  list(ptr)
+decreases list(ptr)
 pure func contains(ptr *node, value interface{}) bool {
 	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }

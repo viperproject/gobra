@@ -14,7 +14,7 @@ func test3(ghost o option[int]) {
   assert o != none[int] ==> seq(o) == seq[int] { get(o) }
 }
 
-requires v in seq(o)
+requires v elem seq(o)
 ensures o == some(v)
 func test4(ghost o option[int], v int) {
   assert o == some(get(o))

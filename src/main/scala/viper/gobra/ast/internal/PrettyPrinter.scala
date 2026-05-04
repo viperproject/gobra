@@ -137,9 +137,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTerminationMeasure(measure: TerminationMeasure): Doc = {
     def showCond(cond: Option[Expr]): Doc = opt(cond)("if" <+> showExpr(_))
     measure match {
-      case WildcardMeasure(cond) => "_" <+> showCond(cond)
-      case TupleTerminationMeasure(tuple, cond) =>
-        hcat(tuple map show) <+> showCond(cond)
+      case m: WildcardMeasure => "_" <+> showCond(m.cond)
+      case m: TupleTerminationMeasure =>
+        hcat(m.tuple map show) <+> showCond(m.cond)
     }
   }
 
@@ -341,10 +341,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case s: AssertBy => s match {
+      case AssertByProof(ass, block) => "assert" <+> showAss(ass) <+> "by" <+> showStmt(block)
+      case AssertByContra(ass, block) => "assert" <+> showAss(ass) <+> "by" <+> "contra" <+> showStmt(block)
+    }
     case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case AssignSuchThat(v, cond) =>
+      "var" <+> showVarDecl(v) <+> "|=" <+> showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, block) => "package" <+> showAss(wand) <+> opt(block)(showStmt)
@@ -478,7 +484,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureLet(left, right, exp) =>
       "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
-    case Old(op, _) => "old" <> parens(showExpr(op))
+    case Old(op) => "old" <> parens(showExpr(op))
 
     case LabeledOld(label, operand) => "old" <> brackets(showProxy(label)) <> parens(showExpr(operand))
 
@@ -531,6 +537,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
     case MapValues(exp, _) => "range" <> parens(showExpr(exp))
+    case MapConversion(exp) => "dict" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -579,6 +586,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case OptionTExpr(elem) => "option" <> brackets(showExpr(elem))
     case TupleTExpr(elem) => parens(showExprList(elem))
     case DefinedTExpr(name) => name
+
+    case Low(exp) => "low" <> parens(showExpr(exp))
+    case LowContext() => "low_context"
+    case Rel(exp, lit) => "rel" <> parens(showExpr(exp) <> "," <+> showExpr(lit))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
@@ -793,10 +804,16 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
+    case s: AssertBy => s match {
+      case AssertByProof(ass, _) => "assert" <+> showAss(ass) <+> "by" <+> "{...}"
+      case AssertByContra(ass, _) => "assert" <+> showAss(ass) <+> "by" <+> "contra" <+> "{...}"
+    }
     case Refute(ass) => "refute" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case AssignSuchThat(v, cond) =>
+      "var" <+> showVarDecl(v) <+> "|=" <+> showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, _) => "package" <+> showAss(wand)

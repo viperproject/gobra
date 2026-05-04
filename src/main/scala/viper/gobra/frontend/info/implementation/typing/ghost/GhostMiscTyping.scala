@@ -43,7 +43,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case ax: PDomainAxiom =>
-      assignableTo.errors(exprType(ax.exp), BooleanT)(ax) ++ isPureExpr(ax.exp)
+      assignableTo.errors(exprType(ax.exp), BooleanT, false)(ax) ++ isPureExpr(ax.exp)
 
     case f: PDomainFunction =>
       error(f, s"Uninterpreted functions must have exactly one return argument", f.result.outs.size != 1) ++
@@ -56,8 +56,9 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case t: AdtClauseT =>
           val fieldTypes = fields.map(typ)
           val clauseFieldTypes = t.fields.map(_._2)
+          val mayInit = isEnclosingMayInit(m)
           error(m, s"Expected ${clauseFieldTypes.size} patterns, but got ${fieldTypes.size}", clauseFieldTypes.size != fieldTypes.size) ++
-            fieldTypes.zip(clauseFieldTypes).flatMap(a => assignableTo.errors(a)(m))
+            fieldTypes.zip(clauseFieldTypes).flatMap{case (a, b) => assignableTo.errors(a, b, mayInit)(m)}
         case _ => violation("Pattern matching only works on ADT Literals")
       }
       case PMatchValue(lit) => isPureExpr(lit)
@@ -150,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque, _) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
       preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
       pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
@@ -179,7 +180,11 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
       error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
     case spec: PClosureSpecInstance if spec.paramKeys.isEmpty =>
-      (spec.paramExprs zip fArgs) flatMap { case (exp, a) => assignableTo.errors((exprType(exp), a._2))(exp) }
+      (spec.paramExprs zip fArgs) flatMap { case (exp, a) =>
+        // we disallow calling closures from initialization code. Thus, it is safe to use the more permissive notion
+        // of assignability here (where mayInit = false).
+        assignableTo.errors((exprType(exp), a._2, false))(exp)
+      }
     case spec@PClosureSpecInstance(fName, ps) if spec.paramKeys.size == ps.size =>
       val argsTypeMap = fArgs.collect {
         case (PNamedParameter(id, _), t) => id.name -> t
@@ -190,7 +195,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }._2
       val wellDefIfCanAssignParams = (spec.paramKeys zip spec.paramExprs zip ps) flatMap {
         case ((k, exp), p) => argsTypeMap.get(k) match {
-          case Some(t: Type) => assignableTo.errors((exprType(exp), t))(exp)
+          case Some(t: Type) =>
+            // we disallow calling closures from initialization code. Thus, it is safe to use the more permissive notion
+            // of assignability here (where mayInit = false).
+            assignableTo.errors((exprType(exp), t, false))(exp)
           case _ => error(p.key.get, s"could not find argument $k in the function $fName")
       }}
       wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.paramExprs.flatMap(exp => isPureExpr(exp))
@@ -202,6 +210,13 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PWildcardMeasure(cond) => cond.nonEmpty
   }
 
+  private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
+    measures.flatMap { m =>
+      error(m,
+        "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
+        isConditional(m))
+    }
+
   private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
     val tupleMeasureTypes =
       measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
@@ -210,7 +225,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   def assignableToSpec(e: PExpression): Messages = {
-    isExpr(e).out ++ assignableTo.errors(exprType(e), AssertionT)(e) ++ isWeaklyPureExpr(e)
+    val mayInit = isEnclosingMayInit(e)
+    isExpr(e).out ++ assignableTo.errors(exprType(e), AssertionT, mayInit)(e) ++ isWeaklyPureExpr(e)
   }
 
   private def illegalPreconditionNode(n: PNode): Messages = {
@@ -218,6 +234,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
+      case id: PIdnUse if entity(id).isInstanceOf[SymbolTable.OutParameter] =>
+        message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
       case _ => noMessages
     }
   }

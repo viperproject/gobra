@@ -10,6 +10,7 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.scalatest.{Args, BeforeAndAfterAll, Status}
+import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
@@ -48,11 +49,11 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
     inputs = inputs :+ source
   }
 
-  private def getConfig(source: Source): Config =
+  protected def getConfig(source: Source): Config =
     Config(
       logLevel = Level.INFO,
       reporter = StringifyReporter,
-      packageInfoInputMap = Map(Source.getPackageInfo(source, Path.of("")) -> Vector(source)),
+      packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,
@@ -68,9 +69,10 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
         val fut = for {
-          parseResult <- Parser.parse(config, pkgInfo)
+          finalConfig <- EitherT.fromEither(Future.successful(gobraInstance.getAndMergeInFileConfig(config, pkgInfo)))
+          parseResult <- Parser.parse(finalConfig, pkgInfo)
           pkg = RegularPackage(pkgInfo.id)
-          typeCheckResult <- Info.check(config, pkg, parseResult)
+          typeCheckResult <- Info.check(finalConfig, pkg, parseResult)
         } yield typeCheckResult
         fut.toEither
       })

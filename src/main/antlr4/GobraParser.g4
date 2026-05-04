@@ -31,24 +31,27 @@ maybeAddressableIdentifierList: maybeAddressableIdentifier (COMMA maybeAddressab
 
 maybeAddressableIdentifier: IDENTIFIER ADDR_MOD?;
 
-// Ghost members
+friendPkgDecl: FRIENDPKG importPath assertion;
 
+// Ghost members
 sourceFile:
-  (initPost eos)* packageClause eos (importDecl eos)* (
-    (specMember | declaration | ghostMember) eos
+  (pkgInvariant eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)* (
+    member eos
   )* EOF;
 
 // `preamble` is a second entry point allowing us to parse only the top of a source.
 // That's also why we don not enforce EOF at the end.
-preamble: (initPost eos)* packageClause eos (importDecl eos)*;
-
-initPost: INIT_POST expression;
+preamble: (pkgInvariant eos)* packageClause eos (friendPkgDecl eos)* (importDecl eos)*;
 
 importPre: IMPORT_PRE expression;
+
+pkgInvariant: DUPLICABLE? PKG_INV assertion;
 
 importSpec: (importPre eos)* alias = (DOT | IDENTIFIER)? importPath;
 
 importDecl: (importPre eos)* (IMPORT importSpec | IMPORT L_PAREN (importSpec eos)* R_PAREN);
+
+member: specMember | declaration | ghostMember;
 
 ghostMember: implementationProof
   | fpredicateDecl
@@ -60,8 +63,11 @@ ghostMember: implementationProof
 ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-  | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | kind=(ASSUME | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | ASSERT expression (BY CONTRA? block)? #assertStatement
   | matchStmt #matchStmt_
+  | OPEN_DUP_SINV #pkgInvStatement
+  | VAR IDENTIFIER type_ PIPE_ASSIGN expression #assignSuchThatStatement
   ;
 
 // Auxiliary statements
@@ -81,6 +87,9 @@ ghostPrimaryExpr: range
   | typeOf
   | typeExpr
   | isComparable
+  | low
+  | lowc
+  | hyperRelExpr
   | old
   | before
   | sConversion
@@ -113,7 +122,7 @@ optionNone: NONE L_BRACKET type_ R_BRACKET;
 
 optionGet: GET L_PAREN expression R_PAREN;
 
-sConversion: kind=(SET | SEQ | MSET) L_PAREN expression R_PAREN;
+sConversion: kind=(SET | SEQ | MSET | DICT) L_PAREN expression R_PAREN;
 
 old: OLD (L_BRACKET oldLabelUse R_BRACKET)? L_PAREN expression R_PAREN;
 
@@ -124,6 +133,12 @@ labelUse: IDENTIFIER;
 before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
+
+low: LOW L_PAREN expression R_PAREN;
+
+lowc: LOWC L_PAREN R_PAREN;
+
+hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
@@ -141,7 +156,7 @@ seqUpdClause: expression ASSIGN expression;
 
 // Ghost Type Literals
 
-ghostTypeLit: sqType | ghostSliceType | ghostPointerType | domainType | adtType;
+ghostTypeLit: sqType | ghostSliceType | ghostPointerType | ghostStructType | domainType | adtType;
 
 domainType: DOM L_CURLY (domainClause eos)* R_CURLY;
 
@@ -157,6 +172,8 @@ ghostSliceType: GHOST L_BRACKET R_BRACKET elementType;
 
 ghostPointerType: GPOINTER L_BRACKET elementType R_BRACKET;
 
+ghostStructType: GHOST structType;
+
 // copy of `fieldDecl` from GoParser.g4 extended with an optional `GHOST` modifier for fields and embedded fields:
 fieldDecl: GHOST? (
 		identifierList type_
@@ -168,9 +185,9 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean opaque = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
+  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;
@@ -306,7 +323,7 @@ expression:
     | SETMINUS
   ) expression #p42Expr
   | expression p41_op = (
-    IN
+    ELEM
     | MULTI
     | SUBSET
   ) expression #p41Expr
@@ -455,13 +472,13 @@ implicitArray: L_BRACKET ELLIPSIS R_BRACKET elementType;
 // distinguish low,high cap
 slice_:
   L_BRACKET (
-    low? COLON high?
-    | low? COLON high COLON cap
+    lowSliceArgument? COLON highSliceArgument?
+    | lowSliceArgument? COLON highSliceArgument COLON capSliceArgument
   ) R_BRACKET;
 
-low : expression;
-high: expression;
-cap: expression;
+lowSliceArgument : expression;
+highSliceArgument: expression;
+capSliceArgument: expression;
 
 
 

@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package p
+
+func t0() {
+	n := 5 % 3
+	assert n == 2
+
+	d := 5 / 3
+	assert d == 1
+}
+
+func t1() {
+	n := (-5) % 3
+	assert n == -2
+
+	d := (-5) / 3
+	assert d == -1
+}
+
+func t2() {
+	n := 5 % (-3)
+	assert n == 2
+
+	d := 5 / (-3)
+	assert d == -1
+}
+
+func t3() {
+	n := (-5) % (-3)
+	assert n == (-2)
+
+	d := (-5) / (-3)
+	assert d == 1
+}
+
+// tests for constant evaluation
+const d1 = 5 / 3
+const n1 = 5 % 3
+
+const d2 = (-5) / 3
+const n2 = (-5) % 3
+
+const d3 = 5 / (-3)
+const n3 = 5 % (-3)
+
+const d4 = (-5) / (-3)
+const n4 = (-5) % (-3)
+
+func t4() {
+    assert d1 == 1 && n1 == 2
+    assert d2 == -1 && n2 == -2
+    assert d3 == -1 && n3 == 2
+    assert d4 == 1 && n4 == -2
+}

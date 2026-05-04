@@ -428,28 +428,28 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     }
   }
 
-  test("Printer: should correctly show a use of the 'in' operator for sequences and (multi)sets") {
-    val expr = PIn(
+  test("Printer: should correctly show a use of the 'elem' operator for sequences and (multi)sets") {
+    val expr = PElem(
       PNamedOperand(PIdnUse("x")),
       PNamedOperand(PIdnUse("xs"))
     )
 
     frontend.show(expr) should matchPattern {
-      case "x in xs" =>
+      case "x elem xs" =>
     }
   }
 
   test("Printer: should correctly show a short 'chain' of seq/set inclusions") {
-    val expr = PIn(
+    val expr = PElem(
       PNamedOperand(PIdnUse("x")),
-      PIn(
+      PElem(
         PNamedOperand(PIdnUse("xs")),
         PNamedOperand(PIdnUse("ys")),
       )
     )
 
     frontend.show(expr) should matchPattern {
-      case "x in xs in ys" =>
+      case "x elem xs elem ys" =>
     }
   }
 
@@ -568,24 +568,24 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a multiset inclusion expression (1)") {
-    val expr = PIn(
+    val expr = PElem(
       PIntLit(42),
       PLiteral.multiset(PIntType(), Vector(PIntLit(12), PIntLit(42)))
     )
 
     frontend.show(expr) should matchPattern {
-      case "42 in mset[int] { 12, 42 }" =>
+      case "42 elem mset[int] { 12, 42 }" =>
     }
   }
 
   test("Printer: should correctly show a multiset inclusion expression (2)") {
-    val expr = PIn(
+    val expr = PElem(
       PLiteral.multiset(PIntType(), Vector(PIntLit(1))),
       PLiteral.multiset(PIntType(), Vector(PIntLit(2), PIntLit(3)))
     )
 
     frontend.show(expr) should matchPattern {
-      case "mset[int] { 1 } in mset[int] { 2, 3 }" =>
+      case "mset[int] { 1 } elem mset[int] { 2, 3 }" =>
     }
   }
 

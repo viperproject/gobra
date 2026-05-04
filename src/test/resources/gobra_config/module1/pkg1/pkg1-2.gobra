@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg1
+
+decreases
+pure func GetLargeNumber() int {
+    return 1000000000
+}

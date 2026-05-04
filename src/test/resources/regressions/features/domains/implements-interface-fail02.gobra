@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks that a domain is not deemed identity preserving if a non-identity preserving type
+// show up as a parameter type in one of its domain functions.
+
+package ImplementsInterfaceFail02
+
+// `NonIdentityPreservingStruct` is not identity preserving as it contains a ghost field
+type NonIdentityPreservingStruct struct {
+    a int
+    ghost g int
+}
+
+ghost type MyDomain domain {
+    func constructor(NonIdentityPreservingStruct) int
+}
+
+//:: ExpectedOutput(type_error)
+MyDomain implements any // should fail as `MyDomain` uses a non-identity preserving type as a parameter type

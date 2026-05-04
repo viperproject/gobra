@@ -85,6 +85,6 @@ trait LeafTypeEncoding extends TypeEncoding {
       for {
         vprPerm <- ctx.expression(p)
         l <- ctx.expression(loc).map(_.asInstanceOf[vpr.FieldAccess])
-      } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
+      } yield vpr.FieldAccessPredicate(l, Some(vprPerm))(pos, info, errT)
   }
 }

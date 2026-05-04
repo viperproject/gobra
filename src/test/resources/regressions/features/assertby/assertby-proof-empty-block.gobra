@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// assert by proof with an empty block should fail
+// because nothing establishes the assertion, unless
+// it's a trivial assertion.
+package assertbyproofemptyblock
+
+func foo(x, y int) {
+    // due to #1000, assert by proof are currently rejected by the type checker
+    //:: ExpectedOutput(type_error)
+    assert true by {}
+
+    // due to #1000, assert by proof are currently rejected by the type checker
+    // ExpectedOutput(assert_by_error:assert_by_proof_body_error)
+    //:: ExpectedOutput(type_error)
+    assert x <= y by {}
+}

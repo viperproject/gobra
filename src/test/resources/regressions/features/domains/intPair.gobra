@@ -3,7 +3,7 @@
 
 package main
 
-type intPair domain {
+ghost type intPair domain {
     func fst(intPair) int
     func snd(intPair) int
     func pair(int, int) intPair

@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatafteruse
+
+// Checks that the declared variable is in scope for the rest of the block
+// and can be referenced in further ghost statements and assertions.
+
+func f() {
+	var x int |= true
+	// `x` is in scope after the statement. We can inhabit it in further specs.
+	assert x == x
+	ghost var y int = x
+	assert y == x
+}

@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// we do not overwrite the default job configuration, i.e.,
+// verification should fail if an overflow can happen.
+
+package pkg1
+
+func AddLargeNumber(i int) int {
+    //:: ExpectedOutput(integer_overflow_error)
+    return i + GetLargeNumber()
+}

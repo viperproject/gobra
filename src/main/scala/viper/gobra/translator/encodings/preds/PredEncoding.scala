@@ -83,7 +83,10 @@ class PredEncoding extends LeafTypeEncoding {
           vArgs <- sequence(args map goE)
           vBase <- goE(p)
           vPerm <- goE(perm)
-        } yield vpr.PredicateAccessPredicate(defunc.instance(vBase, ts, vArgs)(pos, info, errT)(ctx), vPerm)(pos, info, errT) : vpr.Exp
+        } yield vpr.PredicateAccessPredicate(
+          defunc.instance(vBase, ts, vArgs)(pos, info, errT)(ctx),
+          Some(vPerm)
+        )(pos, info, errT) : vpr.Exp
     }
   }
 
@@ -143,7 +146,7 @@ class PredEncoding extends LeafTypeEncoding {
             eval = defunc.instance(ctr, ctrTs, vAccArgs)(pos, info, errT)(ctx)
             // inhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
             vPerm <- goE(perm)
-          } yield vpr.Inhale(vpr.PredicateAccessPredicate(eval, vPerm)(pos, info, errT))(pos, info, errT)
+          } yield vpr.Inhale(vpr.PredicateAccessPredicate(eval, Some(vPerm))(pos, info, errT))(pos, info, errT)
         )
 
       case n@ in.PredExprUnfold(in.PredicateConstructor(q, qT, ctrArgs) :: ctx.Pred(ctrTs), accArgs, perm) =>
@@ -162,7 +165,7 @@ class PredEncoding extends LeafTypeEncoding {
             // eval_S([Q{d1, ..., dk}], [e1], ..., [en])
             eval = defunc.instance(ctr, ctrTs, vAccArgs)(pos, info, errT)(ctx)
             // exhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
-            exhale = vpr.Exhale(vpr.PredicateAccessPredicate(eval, vPerm)(pos, info, errT))(pos, info, errT)
+            exhale = vpr.Exhale(vpr.PredicateAccessPredicate(eval, Some(vPerm))(pos, info, errT))(pos, info, errT)
             _ <- write(exhale)
             _ <- errorT{
               case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy exhale =>

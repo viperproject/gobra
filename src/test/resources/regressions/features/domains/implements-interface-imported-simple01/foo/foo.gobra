@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package foo
+
+// this package provides the domain that `implements-interface-imported-simple01.gobra` uses
+
+ghost type IntPair domain {
+    func fst(IntPair) int
+    func snd(IntPair) int
+    func pair(int, int) IntPair
+
+    axiom {
+      forall p IntPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+    } // pair
+
+    axiom {
+      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+    }
+}

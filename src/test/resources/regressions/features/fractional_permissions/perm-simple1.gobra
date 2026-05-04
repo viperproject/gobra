@@ -52,7 +52,7 @@ func test6() {
 	m4 := 1/2 + 1/2
 	assert m4 == noPerm
 
-	var m5 perm = 1/2
+	ghost var m5 perm = 1/2
 	assert m5 + 1/2 == writePerm
 
 	m6 := perm((1/2)/1)

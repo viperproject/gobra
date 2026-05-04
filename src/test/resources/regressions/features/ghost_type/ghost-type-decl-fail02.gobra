@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeDeclSimple02
+
+// tests that ghost type declarations are treated as being ghost
+
+ghost type NamedGhostStructDef ghost struct {
+    Value int
+}
+ghost type NamedGhostStructAlias = ghost struct {
+    Value int
+}
+ghost type SetDef set[int]
+ghost type SetAlias = set[int]
+
+//:: ExpectedOutput(type_error)
+func actualFn1a(a NamedGhostStructDef) // fails as `a` must be ghost
+
+func actualFn1b(ghost a NamedGhostStructDef)
+
+//:: ExpectedOutput(type_error)
+func actualFn2a(a NamedGhostStructAlias) // fails as `a` must be ghost
+
+func actualFn2b(ghost a NamedGhostStructAlias)
+
+//:: ExpectedOutput(type_error)
+func actualFn3a(a SetDef) // fails as `a` must be ghost
+
+func actualFn3b(ghost a SetDef)
+
+//:: ExpectedOutput(type_error)
+func actualFn4a(a SetAlias) // fails as `a` must be ghost
+
+func actualFn4b(ghost a SetAlias)

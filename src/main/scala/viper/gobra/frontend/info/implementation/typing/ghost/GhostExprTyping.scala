@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -38,11 +39,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       isExpr(n).out ++ isPureExpr(n) ++
         error(n, "before expressions can only be used inside outline statements.", tryEnclosingOutline(n).isEmpty)
 
-    case PConditional(cond, thn, els) =>
+    case n@PConditional(cond, thn, els) =>
+      val mayInit = isEnclosingMayInit(n)
       // check whether all operands are actually expressions indeed
       isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
         // check that `cond` is of type bool
-        assignableTo.errors(exprType(cond), BooleanT)(expr) ++
+        assignableTo.errors(exprType(cond), BooleanT, mayInit)(expr) ++
         // check that `thn` and `els` have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr) ++
         // check that all subexpressions are pure.
@@ -57,17 +59,19 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
     case n@PExists(vars, triggers, body) =>
+      val mayInit = isEnclosingMayInit(n)
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is Boolean
-      assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT)(expr) ++
+      assignableToSpec(body) ++ assignableTo.errors(exprType(body), BooleanT, mayInit)(expr) ++
       // check that the user provided triggers when running with --requireTriggers
       error(n, "found a quantifier without triggers.", config.requireTriggers && triggers.isEmpty)
 
     case n: PImplication =>
+      val mayInit = isEnclosingMayInit(n)
       isExpr(n.left).out ++ isExpr(n.right).out ++
         // check whether the left operand is a Boolean expression
-        assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
+        assignableTo.errors(exprType(n.left), BooleanT, mayInit)(expr) ++
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
 
@@ -84,8 +88,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b))
 
     case n: PAccess =>
+      val mayInit = isEnclosingMayInit(n)
       val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
-        !assignableTo(typ(n.perm), PermissionT))
+        !assignableTo(typ(n.perm), PermissionT, mayInit))
       val expWellDef = resolve(n.exp) match {
         case Some(_: ap.PredicateCall) => noMessages
         case Some(_: ap.PredExprInstance) => noMessages
@@ -107,13 +112,25 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       predWellDef ++ error(n, "Cannot reveal a predicate access.", n.pred.reveal)
 
-    case PTypeOf(e) => isExpr(e).out
+    case PTypeOf(e) =>
+      val isExp = isExpr(e).out
+      if (isExp.isEmpty) {
+        val typ = underlyingType(exprType(e))
+        error(e, s"typeOf expects an argument of an interface type, but got $e instead.", !typ.isInstanceOf[InterfaceT])
+      } else
+        isExp
     case PTypeExpr(t) => isType(t).out
     case n@ PIsComparable(e) => typOfExprOrType(e) match {
       case t if isInterfaceType(t) => noMessages
       case Type.SortT =>  noMessages
       case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
+
+    case PLow(e) => isExpr(e).out
+    case _: PLowContext => noMessages
+    case n: PRel =>
+      error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.", config.hyperModeOrDefault != Hyper.EnabledExtended || !config.enableExperimentalHyperFeatures) ++
+      error(n, s"currently, only 0 and 1 are valid execution identifiers, but ${n.lit.lit} was provided. ", n.lit.lit < 0 || 1 < n.lit.lit)
 
     case n: PGhostEquals =>
       val lType = typ(n.left)
@@ -133,9 +150,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case m@PMatchExp(exp, clauses) =>
+      val mayInit = isEnclosingMayInit(m)
       val sameTypeE = allMergeableTypes.errors(clauses map { c => exprType(c.exp) })(exp)
       val patternE = m.caseClauses.flatMap(c => c.pattern match {
-        case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp))(c)
+        case p: PMatchAdt => assignableTo.errors(miscType(p), exprType(exp), mayInit)(c)
         case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
       })
       val pureExpE = error(exp, "Expression has to be pure", !isPure(exp)(strong = false))
@@ -144,7 +162,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       sameTypeE ++ patternE ++ error(clauses, "Cases cannot be empty", clauses.isEmpty) ++ pureExpE ++ moreThanOneDfltE ++ pureClauses
 
     case expr : PGhostCollectionExp => expr match {
-      case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
+      case PElem(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         underlyingType(exprType(right)) match {
           case t : GhostCollectionType => ghostComparableTypes.errors(exprType(left), t.elem)(expr)
           case t : MapT => ghostComparableTypes.errors(exprType(left), t.key)(expr)
@@ -160,11 +178,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (underlyingType(exprType(seq)) match {
-        case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
-        case MathMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
-        case t => error(seq, s"expected a sequence or mathematical map, but got $t")
-      })
+      case n@PGhostCollectionUpdate(seq, clauses) =>
+        val mayInit = isEnclosingMayInit(n)
+        isExpr(seq).out ++ (underlyingType(exprType(seq)) match {
+          case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _, mayInit))
+          case MathMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _, mayInit))
+          case t => error(seq, s"expected a sequence or mathematical map, but got $t")
+        })
 
       case expr : PSequenceExp => expr match {
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
@@ -216,6 +236,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Single(_: MathMapT | _: MapT) => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
+        case PMathMapConversion(op) => underlyingType(exprType(op)) match {
+          case Single(_: MapT) => isExpr(op).out
+          case t => error(expr, s"expected a map, but got a $t")
+        }
       }
     }
 
@@ -226,17 +250,18 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private[typing] def wellDefMapUpdClause(keys: Type, values : Type, clause : PGhostCollectionUpdateClause) : Messages = {
+  private[typing] def wellDefMapUpdClause(keys: Type, values : Type, clause : PGhostCollectionUpdateClause, mayInit: Boolean) : Messages = {
     isExpr(clause.left).out ++ isExpr(clause.right).out ++
-      assignableTo.errors(exprType(clause.left), keys)(clause.left) ++
-      assignableTo.errors(exprType(clause.right), values)(clause.right)
+      assignableTo.errors(exprType(clause.left), keys, mayInit)(clause.left) ++
+      assignableTo.errors(exprType(clause.right), values, mayInit)(clause.right)
   }
 
-  private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PGhostCollectionUpdateClause) : Messages = exprType(clause.left) match {
-    case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
-      assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
-    case t => error(clause.left, s"expected an integer type but got $t")
-  }
+  private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PGhostCollectionUpdateClause, mayInit: Boolean) : Messages =
+    exprType(clause.left) match {
+      case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
+        assignableTo.errors(exprType(clause.right), seqTyp, mayInit)(clause.right)
+      case t => error(clause.left, s"expected an integer type but got $t")
+    }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
@@ -261,6 +286,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PTypeOf => SortT
     case _: PTypeExpr => SortT
     case _: PIsComparable => BooleanT
+
+    case _: PLow | _: PLowContext => BooleanT
+    case PRel(exp, _) => exprType(exp)
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
@@ -283,7 +311,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
       case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
-      case PIn(_, _) => BooleanT
+      case PElem(_, _) => BooleanT
       case PGhostCollectionUpdate(seq, _) => exprType(seq)
       case expr : PSequenceExp => expr match {
         case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))
@@ -326,6 +354,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Single(t: MathMapT) => SetT(t.elem)
           case Single(t: MapT) => SetT(t.elem)
           case t => violation(s"expected a map, but got $t")
+        }
+        case PMathMapConversion(op) => underlyingType(exprType(op)) match {
+          case MapT(k, v) => MathMapT(k, v)
+          case t => violation(s"expected a map but got $t")
         }
       }
     }
@@ -435,8 +467,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PUnfolding => true
       case _: PLet => true // the well-definedness check makes sure that both sub-expressions are pure.
       case _: POld | _: PLabeledOld | _: PBefore => true
-      case _: PForall => true
-      case _: PExists => true
+      case f: PForall => go(f.body)
+      case e: PExists =>
+        // The type checker currently enforces that all existential quantifiers must be strongly pure, so we wouldn't need to recurse here.
+        // Nonetheless, this implementation is safer in case that ever changes.
+        go(e.body)
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(go)
 
@@ -457,6 +492,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureGhostColUpdClause)
         case PMapKeys(exp) => go(exp)
         case PMapValues(exp) => go(exp)
+        case PMathMapConversion(exp) => go(exp)
       }
 
       case _: PAccess | _: PPredicateAccess => !strong
@@ -467,6 +503,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PTypeExpr => true
       case n: PIsComparable => asExpr(n.exp).forall(go)
 
+      case n: PLow => go(n.exp)
+      case _: PLowContext => true
+      case n: PRel => go(n.exp)
+
       case PCompositeLit(typ, _) => typ match {
         case _: PImplicitSizeArrayType => true
         case UnderlyingPType(t: PLiteralType) => t match {
@@ -474,6 +514,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _: PGhostSliceType => false
             case _: PAdtType | _: PDomainType | _: PMathematicalMapType |
               _: PMultisetType | _: POptionType | _: PSequenceType | _: PSetType => true
+            case _: PExplicitGhostStructType => true
           }
           case _: PArrayType | _: PStructType => true
           case _: PMapType | _: PSliceType => false

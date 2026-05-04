@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Contributed by Patricia Firlejczyk based on one of the examples
+// that do not satisfy Initialization-time Irrelevance as defined in
+// this paper: https://dl.acm.org/doi/10.1145/3622844
+
+package names
+
+// ##(-I ..)
+
+pred NamesInv() { 	
+    acc(&chrs) && len(chrs) == 131072
+}

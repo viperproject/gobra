@@ -96,7 +96,7 @@ class DefaultPredicateEncoding extends Encoding {
         vArgs <- cl.sequence(op.args map ctx.expression)
         pacc = vpr.PredicateAccess(vArgs, op.pred.name)(pos, info, errT)
         vPerm <- ctx.expression(perm)
-      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
+      } yield vpr.PredicateAccessPredicate(pacc, Some(vPerm))(pos, info, errT)
 
     case acc@ in.Access(in.Accessible.Predicate(op: in.MPredicateAccess), perm) =>
       val (pos, info, errT) = acc.vprMeta
@@ -105,7 +105,7 @@ class DefaultPredicateEncoding extends Encoding {
         vArgs <- cl.sequence(op.args map ctx.expression)
         pacc = vpr.PredicateAccess(vRecv +: vArgs, op.pred.uniqueName)(pos, info, errT)
         vPerm <- ctx.expression(perm)
-      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
+      } yield vpr.PredicateAccessPredicate(pacc, Some(vPerm))(pos, info, errT)
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000796
+
+func m1() {
+	//:: ExpectedOutput(type_error)
+	ghost for {
+		
+	}
+}
+
+func m2() {
+	ghost {
+		//:: ExpectedOutput(type_error)
+		for {
+		
+		}
+	}
+}

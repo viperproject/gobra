@@ -8,6 +8,7 @@ type counter struct{ f, max int }
 
 requires acc(x, 1/2)
 ensures  res == (x.f < x.max) // necessary, because the body of imported functions is removed
+decreases
 pure func (x *counter) hasNext() (res bool) {
 	return x.f < x.max
 }

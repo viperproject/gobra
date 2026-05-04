@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ghostmethodsimple01
+
+// tests that ghost methods can have a ghost or actual receiver
+
+type ActualStruct struct {
+    Value int
+}
+
+decreases
+func (a ActualStruct) ActualMethodForNonPointerReceiver() int {
+    return 42
+}
+
+decreases
+func (a *ActualStruct) ActualMethodForPointerReceiver() int {
+    return 42
+}
+
+ghost
+decreases
+func (a ActualStruct) GhostMethodForNonPointerReceiver() int {
+    return 42
+}
+
+ghost
+decreases
+func (a *ActualStruct) GhostMethodForPointerReceiver() int {
+    return 42
+}
+
+ghost type GhostStruct ghost struct {
+    Value int
+}
+
+ghost
+decreases
+func (a GhostStruct) GhostMethodForNonPointerReceiver() int {
+    return 42
+}
+
+ghost
+decreases
+func (a *GhostStruct) GhostMethodForPointerReceiver() int {
+    return 42
+}

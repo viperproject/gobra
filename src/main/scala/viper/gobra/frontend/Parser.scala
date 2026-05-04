@@ -11,14 +11,14 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Source.{FromFileSource, TransformableSource}
+import viper.gobra.frontend.Source.{FromFileSource, TransformableSource, getPackageInfo}
 import viper.gobra.reporting.{Source => _, _}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, DefaultErrorStrategy, ParserRuleContext}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, PreambleContext, SourceFileContext, SpecMemberContext, StmtOnlyContext, TypeOnlyContext}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, MemberContext, PreambleContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 import viper.silver.ast.SourcePosition
@@ -34,7 +34,7 @@ object Parser extends LazyLogging {
 
   type ParseSuccessResult = (Vector[Source], PPackage)
   type ParseResult = Either[Vector[ParserError], ParseSuccessResult]
-  type ImportToSourceOrErrorMap = Vector[(AbstractPackage, Either[Vector[ParserError], Vector[Source]])]
+  type ImportToPkgInfoOrErrorMap = Vector[(AbstractPackage, Either[Vector[ParserError], (Vector[Source], PackageInfo)])]
   type PreprocessedSources = Vector[Source]
 
   class ParseManager(config: Config)(implicit executor: GobraExecutionContext) extends LazyLogging {
@@ -53,7 +53,7 @@ object Parser extends LazyLogging {
       def pkgInfo: PackageInfo
 
       type ImportErrorFactory = String => Vector[ParserError]
-      protected def getImports(importNodes: Vector[PImport], pom: PositionManager): ImportToSourceOrErrorMap = {
+      protected def getImports(importNodes: Vector[PImport], pom: PositionManager): ImportToPkgInfoOrErrorMap = {
         val explicitImports: Vector[(AbstractImport, ImportErrorFactory)] = importNodes
           .map(importNode => {
             val importErrorFactory: ImportErrorFactory = (errMsg: String) => {
@@ -74,13 +74,13 @@ object Parser extends LazyLogging {
 
         val errsOrSources = imports.map { case (directImportTarget, importErrorFactory) =>
           val directImportPackage = AbstractPackage(directImportTarget)(config)
-          val nonEmptyImportedSources = for {
-            resolveSourceResults <- PackageResolver.resolveSources(directImportTarget)(config)
+          val sourcesAndPkgInfo = for {
+            resolveSourceResults <- PackageResolver.resolveSources(directImportTarget)(config).left.map(importErrorFactory)
             importedSources = resolveSourceResults.map(_.source)
-            nonEmptyImportedSources <- if (importedSources.isEmpty) Left(s"No source files for package '$directImportTarget' found") else Right(importedSources)
-          } yield nonEmptyImportedSources
-          val res = nonEmptyImportedSources.left.map(importErrorFactory)
-          (directImportPackage, res)
+            nonEmptyImportedSources <- if (importedSources.isEmpty) Left(importErrorFactory(s"No source files for package '$directImportTarget' found")) else Right(importedSources)
+            pkgInfo <- getPackageInfo(nonEmptyImportedSources.head, config.projectRoot)
+          } yield (nonEmptyImportedSources, pkgInfo)
+          (directImportPackage, sourcesAndPkgInfo)
         }
         errsOrSources
       }
@@ -99,7 +99,7 @@ object Parser extends LazyLogging {
       def specOnly: Boolean
       var preambleParsingDurationMs: Long = 0
 
-      private def getImportsForPackage(preprocessedSources: Vector[Source]): ImportToSourceOrErrorMap = {
+      private def getImportsForPackage(preprocessedSources: Vector[Source]): ImportToPkgInfoOrErrorMap = {
         val preambles = preprocessedSources
           .map(preprocessedSource => processPreamble(preprocessedSource)(config))
           // we ignore imports in files that cannot be parsed:
@@ -115,8 +115,8 @@ object Parser extends LazyLogging {
 
         // add imported packages to manager if not already
         imports.foreach {
-          case (directImportPackage, Right(nonEmptySources)) =>
-            manager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, directImportPackage))
+          case (directImportPackage, Right((nonEmptySources, pkgInfo))) =>
+            manager.addIfAbsent(directImportPackage, ParseSourcesJob(nonEmptySources, pkgInfo))
           case (directImportPackage, Left(errs)) =>
             manager.addIfAbsent(directImportPackage, ParseFailureJob(errs))
         }
@@ -148,9 +148,8 @@ object Parser extends LazyLogging {
     }
 
     /** this job is used to parse all packages that are imported */
-    private case class ParseSourcesJob(override val pkgSources: Vector[Source], pkg: AbstractPackage) extends ParseJob {
+    private case class ParseSourcesJob(override val pkgSources: Vector[Source], override val pkgInfo: PackageInfo) extends ParseJob {
       require(pkgSources.nonEmpty)
-      lazy val pkgInfo: PackageInfo = Source.getPackageInfo(pkgSources.head, config.projectRoot)
       lazy val specOnly: Boolean = true
     }
 
@@ -373,11 +372,11 @@ object Parser extends LazyLogging {
     parser.parse(parser.sourceFile())
   }
 
-  def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
+  def parseMember(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], Vector[PMember]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new SyntaxAnalyzer[SpecMemberContext, PMember](source, ListBuffer.empty[ParserError], pom, specOnly)
-    parser.parse(parser.specMember())
+    val parser = new SyntaxAnalyzer[MemberContext, Vector[PMember]](source, ListBuffer.empty[ParserError], pom, specOnly)
+    parser.parse(parser.member())
   }
 
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
@@ -461,7 +460,7 @@ object Parser extends LazyLogging {
         // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
         // failed strategy application
         val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
-        PProgram(prog.packageClause, prog.initPosts, updatedImports, prog.declarations).at(prog)
+        PProgram(prog.packageClause, prog.pkgInvariants, updatedImports, prog.friends, prog.declarations).at(prog)
       })
       // create a new package node with the updated programs
       val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg)
@@ -493,7 +492,7 @@ object Parser extends LazyLogging {
           case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
           case t => t
         }
-        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.backendAnnotations, spec.isPure, spec.isTrusted)
+        PFunctionSpec(spec.pres, spec.preserves, spec.posts, replacedMeasures, spec.backendAnnotations, spec.isPure, spec.isTrusted, mayBeUsedInInit = spec.mayBeUsedInInit)
       }
 
       val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =
@@ -509,7 +508,7 @@ object Parser extends LazyLogging {
         // apply the replaceTerminationMeasuresForFunctionsAndMethods to declarations until the strategy has succeeded
         // (i.e. has reached PMember nodes) and stop then
         val updatedDecls = rewrite(alltd(replaceTerminationMeasuresForFunctionsAndMethods))(prog.declarations)
-        PProgram(prog.packageClause, prog.initPosts, prog.imports, updatedDecls).at(prog)
+        PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls).at(prog)
       })
       // create a new package node with the updated programs
       Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))

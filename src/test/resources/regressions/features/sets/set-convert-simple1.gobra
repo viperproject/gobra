@@ -16,8 +16,8 @@ ensures set(s union t) == set(s) union set(t)
 func example3(ghost s set[int], ghost t set[int]) {
 }
 
-requires x in s
-ensures x in set(s)
+requires x elem s
+ensures x elem set(s)
 func example4(x int, ghost s set[int]) {
 }
 

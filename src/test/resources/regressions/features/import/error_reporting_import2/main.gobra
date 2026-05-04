@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ErrorReportingImport2
+
+// checks that the error in package "foo" does not result in further errors in this package, e.g., causing errors in
+// fn's postcondition as `ErroneousFunction` might be an invalid identifier due to the type-error in "foo".
+
+// ##(-I ./)
+
+//:: ExpectedOutput(type_error)
+import foo "foo"
+
+ghost
+decreases
+ensures mset[int]{result} == foo.ErroneousFunction()
+pure func fn() (result int) {
+    return 42
+}

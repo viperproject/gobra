@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package pkg
+package tutorial
 
 import "sync"
 
@@ -10,7 +10,7 @@ pred mutexInvariant(x *int) {
 }
 
 requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
-ensures acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
+ensures  acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
 func safeInc(pmutex *sync.Mutex, x *int) {
 	pmutex.Lock()
 	unfold mutexInvariant!<x!>()

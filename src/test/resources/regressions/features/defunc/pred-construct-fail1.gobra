@@ -11,13 +11,12 @@ pred (rec *T) AccInv() {
 	acc(rec)
 }
 
-func f(p pred())
+func f(ghost p pred())
 
 func error1() {
 	v := &T{}
 	fold v.AccInv()
-	//:: ExpectedOutput(type_error)
-	f((*T).AccInv!<v!>) // Predicate expressions are not allowed in predicate constructors
+	f((*T).AccInv!<v!>)
 }
 
 func g(x int)

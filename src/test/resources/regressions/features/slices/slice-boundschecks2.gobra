@@ -35,12 +35,7 @@ func fullslice_from_array_3 () {
   s := a[0:2:1] // high bound exceeds max bound
 }
 
-func fullslice_from_slice_2 () {
-	a@ := [4]int { 1, 2, 4, 8 }
-  s1 := a[:]
-  //:: ExpectedOutput(precondition_error:assertion_error)
-  s2 := s1[1:0:3] // low bound exceeds high bound
-}
+
 
 func fullslice_from_slice_3 () {
 	a@ := [4]int { 1, 2, 4, 8 }

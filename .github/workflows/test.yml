@@ -33,10 +33,10 @@ jobs:
       FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: 'recursive'
-      - name: Check that silicon & carbon reference same silver commit
+      - name: Check that Silicon, Carbon, and SIF Plugin reference same silver commit
         run: |
           SILICON_SILVER_REF=$(git -C viperserver/silicon/silver rev-parse HEAD) && \
           CARBON_SILVER_REF=$(git -C viperserver/carbon/silver rev-parse HEAD) && \
@@ -44,7 +44,7 @@ jobs:
 
       # used to enable Docker caching (see https://github.com/docker/build-push-action)
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Create image creation label
         run: |
@@ -53,7 +53,7 @@ jobs:
 
       - name: Create image metadata
         id: image-metadata
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_ID }}
           labels: |
@@ -76,7 +76,7 @@ jobs:
       - name: Build image up to including stage 'build'
         id: image-build
         # note that the action's name is misleading: this step does NOT push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true # make the built image available in docker (locally)
@@ -185,13 +185,13 @@ jobs:
 
       - name: Upload RAM usage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pidstat.txt
           path: sync/pidstat.txt
 
       - name: Build entire image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true # make the built image available in docker (locally)
@@ -208,7 +208,7 @@ jobs:
         run: |
           docker run \
             ${{ env.IMAGE_TAG }} \
-            -i tutorial-examples/basicAnnotations.gobra
+            -i tutorial-examples/basic-annotations.gobra
 
       - name: Decide whether image should be deployed or not
         run: |
@@ -228,7 +228,7 @@ jobs:
 
       - name: Login to Github Packages
         if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -236,7 +236,7 @@ jobs:
 
       - name: Push entire image
         if: env.SHOULD_DEPLOY == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: workflow-container/Dockerfile

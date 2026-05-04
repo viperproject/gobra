@@ -69,7 +69,7 @@ func test9() {
 }
 
 func test10() {
-	var m5 perm = 1/2
+	ghost var m5 perm = 1/2
 	//:: ExpectedOutput(assert_error)
 	assert m5 + 1/2 == 1/2
 }

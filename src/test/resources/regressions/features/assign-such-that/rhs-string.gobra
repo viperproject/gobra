@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assignsuchthatrhsstring
+
+// The RHS must be of boolean type. A string RHS must be rejected.
+
+func f() {
+	//:: ExpectedOutput(type_error)
+	var x int |= "hello"
+}

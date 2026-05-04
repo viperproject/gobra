@@ -7,7 +7,7 @@ func foo(ghost xs seq[int]) {
   ys := xs[2:3]
   // fails: cannot assign ghost expression to non-ghost parameter
   //:: ExpectedOutput(type_error)
-  test(0 in ys)
+  test(0 elem ys)
 }
 
 func test(b bool) {

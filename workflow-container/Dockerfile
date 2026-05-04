@@ -4,17 +4,25 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM openjdk:11.0.12-slim as build
+FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392 AS build
 
 WORKDIR /build
 
+# Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
+# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
 RUN apt-get update && \
-	apt-get install -y \
-	gnupg2 \
+    apt-get install -y --no-install-recommends \
+    gnupg2 \
 	curl \
 	unzip \
 	git \
-	sysstat
+	sysstat && \
+    # Boogie expects libssl.so.1.1:
+    echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends libssl1.1 && \
+    rm -f /etc/apt/sources.list.d/focal-security.list && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
     curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" | apt-key add && \
@@ -32,7 +40,7 @@ RUN curl -L $Z3_URL --output /z3.zip && \
     cp /z3/$Z3_BIN /usr/bin/ && \
     rm -r /z3
 
-ENV Z3_EXE /usr/bin/z3
+ENV Z3_EXE=/usr/bin/z3
 
 # Download Boogie
 ENV BOOGIE_URL="https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
@@ -48,6 +56,7 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 # Setup Gobra
 WORKDIR /build/gobra/
 COPY build.sbt /build/gobra/
+COPY genparser.sh /build/gobra/
 COPY project /build/gobra/project
 COPY conf /build/gobra/conf
 COPY src /build/gobra/src
@@ -61,7 +70,15 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM openjdk:11-jre-slim
+FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392
+
+# Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
+# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
+RUN echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends libssl1.1 && \
+    rm -f /etc/apt/sources.list.d/focal-security.list && \
+    rm -rf /var/lib/apt/lists/*
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie
@@ -72,7 +89,7 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
 # copy downloaded & unzipped z3
 COPY --from=build /usr/bin/z3 /usr/bin/
-ENV Z3_EXE /usr/bin/z3
+ENV Z3_EXE=/usr/bin/z3
 
 WORKDIR /gobra
 COPY --from=build /build/gobra/target/scala-2.13/gobra.jar .

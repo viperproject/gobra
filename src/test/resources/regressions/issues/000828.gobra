@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue828
+
+type List struct {
+	next *List
+	Value int
+}
+
+pred elems(l *List) {
+    l != nil ==> (acc(l) && elems(l.next))
+}
+
+requires elems(l)
+decreases
+func foo(l *List) {
+    // omitting the following invariant results in the decreases clause becoming erroneous:
+    // invariant elems(l)
+    //:: ExpectedOutput(predicate_instance_no_access_error:permission_error)
+    decreases elems(l)
+    for l != nil {
+        unfold elems(l)
+        l = l.next
+    }
+}

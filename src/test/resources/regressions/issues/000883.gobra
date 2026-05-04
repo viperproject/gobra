@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000883
+
+// ##(--hyperMode on)
+
+// Test 1: Unfolding works properly in the body of impure funcs
+pred IsLow(x int) {
+	low(x) && x >= 0
+}
+
+requires IsLow(x)
+func test1(x int) {
+	assert unfolding IsLow(x) in x >= 0
+}
+
+// Test 2: Unfolding works properly in the specs of impure funcs
+pred Mem(x *int) {
+	acc(x)
+}
+
+requires Mem(x)
+requires unfolding Mem(x) in low(*x)
+func test2(x *int)
+
+// Test 3: Unfolding works properly in the body of predicates
+pred Byte1(b []int) {
+	acc(&b[0])
+}
+
+pred Pred21(b []int) {
+	Byte1(b) &&
+	unfolding Byte1(b) in low(b[0])
+}

@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--noassumeInjectivityOnInhale)
+
+package main
+
+// tests that the contracts provided in sync are valid when the flag
+// --noassumeInjectivityOnInhale is passed.
+
+import "sync"

@@ -16,10 +16,9 @@ decreases
 requires acc(p)
 func GhostArrayAssign(p *[5]int) {
     x := GhostFunc()
-    // assigning to a pointer to an array is neither possible in ghost nor actual code:
-    //:: ExpectedOutput(type_error)
     x[3] = 42
 
+    // assigning to a pointer to an array is not possible in ghost code:
     // not okay:
     //:: ExpectedOutput(type_error)
     p[0] = 42
@@ -30,8 +29,6 @@ func GhostArrayAssign(p *[5]int) {
 decreases
 requires acc(p)
 func ActualArrayAssign(p *[5]int) {
-    // assigning to a pointer to an array is neither possible in ghost nor actual code:
-    //:: ExpectedOutput(type_error)
     p[3] = 42
     (*p)[4] = 42
 }

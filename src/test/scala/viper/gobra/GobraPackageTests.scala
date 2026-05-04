@@ -69,7 +69,7 @@ class GobraPackageTests extends GobraTests {
           ))
         } yield config
 
-        val pkgInfo = Source.getPackageInfo(FromFileSource(input.files.head), currentDir)
+        val pkgInfo = Source.getPackageInfoOrCrash(FromFileSource(input.files.head), currentDir)
 
         val config = Config(
           logLevel = Level.INFO,
@@ -103,7 +103,7 @@ class GobraPackageTests extends GobraTests {
       .collectFirst { case m if m.group(1) != null => m.group(1) }
   }
 
-  private def createConfig(args: Array[String]): Option[Config] = {
+  protected def createConfig(args: Array[String]): Option[Config] = {
     try {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)

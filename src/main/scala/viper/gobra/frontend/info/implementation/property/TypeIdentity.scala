@@ -40,9 +40,9 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (l: DomainT, r: DomainT) => l == r
       case (l: AdtT, r: AdtT) => l == r
 
-      case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
-        contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
-          case ((lId, lc), (rId, rc)) => lId == rId && identicalTypes(lc.typ, rc.typ) && ((lc, rc) match {
+      case (StructT(clausesL, isGhostL, _, contextL), StructT(clausesR, isGhostR, _, contextR)) =>
+        isGhostL == isGhostR && contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
+          case ((lId, lc), (rId, rc)) => lId == rId && lc.isGhost == rc.isGhost && identicalTypes(lc.typ, rc.typ) && ((lc, rc) match {
             case (_: StructFieldT, _: StructFieldT) => true
             case (_: StructEmbeddedT, _: StructEmbeddedT) => true
             case _ => false

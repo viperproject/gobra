@@ -105,7 +105,6 @@ class ContextImpl(
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this
-
 }
 
 object ContextImpl {

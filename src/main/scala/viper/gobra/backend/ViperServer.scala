@@ -82,7 +82,8 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig)(i
     // we do not only need to return a future but also forward all messages to the reporter
     val promise: Promise[VerificationResult] = Promise()
     val clientActor = executor.actorSystem.actorOf(Props(new GlueActor(reporter, promise)))
-    server.streamMessages(handle, clientActor)
+    // We do not perform an AST job before verification. Thus, we pass "false" as the value of include_ast.
+    server.streamMessages(handle, clientActor, include_ast = false)
     promise.future
   }
 }

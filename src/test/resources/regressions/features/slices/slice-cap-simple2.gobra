@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type IP []byte
+
+requires len(x) <= cap(x)
+decreases _
+pure func foo(x IP) bool

@@ -59,6 +59,7 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ keySet(e: map[K]V) ] -> [ e ] == null? 0 : MapDomain(getCorrespondingMap([ e ]))
     * R[ valueSet(e: map[K]V) ] -> [ e ] == null? 0 : MapRange(getCorrespondingMap([ e ]))
     * R[ k in (e: map[K]V) ] -> [ e ] == null? false : MapContains([ k ], getCorrespondingMap([ e ]))
+    * R[ dict(e: map[K]V) ] -> getCorrespondingMap([ e ])
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -124,6 +125,9 @@ class MapEncoding extends LeafTypeEncoding {
             correspondingMapRange
           ), v)
         } yield res
+
+      case in.MapConversion(exp :: ctx.Map(keys, values)) =>
+        getCorrespondingMap(exp, keys, values)(ctx)
     }
   }
 
@@ -287,7 +291,8 @@ class MapEncoding extends LeafTypeEncoding {
             vpr.Inhale(
               vpr.FieldAccessPredicate(
                 vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx)(lit.keys, lit.values))(pos, info, errT),
-                vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
+                Some(vpr.FullPerm()(pos, info, errT))
+              )(pos, info, errT))(pos, info, errT))
           // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
           ass <- ctx.assignment(in.Assignee.Var(lit.target), res)(lit)
@@ -339,7 +344,10 @@ class MapEncoding extends LeafTypeEncoding {
         for {
           vE <- goE(exp)
           vP <- goE(perm)
-        } yield vpr.FieldAccessPredicate(vpr.FieldAccess(vE, underlyingMapField(ctx)(keys, values))(pos, info, errT), vP)(pos, info, errT)
+        } yield vpr.FieldAccessPredicate(
+          vpr.FieldAccess(vE, underlyingMapField(ctx)(keys, values))(pos, info, errT),
+          Some(vP)
+        )(pos, info, errT)
     }
   }
 

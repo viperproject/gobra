@@ -221,6 +221,71 @@ object Info extends LazyLogging {
     } yield typeInfo
   }
 
+  /**
+    * Resolves the parser's deliberate ambiguity between composite literals and predicate
+    * constructors: rewrites `PCompositeLit` nodes whose name resolves to a predicate into the
+    * equivalent `PPredConstructor`.
+    *
+    * Runs once per package, just before the package's `TypeInfoImpl` is constructed. By that
+    * point all imported packages have been type-checked (Gobra processes packages in
+    * dependency order), so we have access to:
+    *   - the current package's top-level `pred` declarations,
+    *   - the set of import qualifiers visible in the package, and
+    *   - each imported package's exported function-predicate names (via `dependentTypeInfo`).
+    *
+    * The fpredicate-only restriction on the imported side avoids spurious rewrites of
+    * `pkg.T{...}` when `T` happens to share its name with a method predicate of some imported
+    * type: imported method predicates aren't reachable as `pkg.id`, so they don't compete with
+    * the type-name interpretation here.
+    */
+  private def rewritePredConstructors(
+    pkg: PPackage,
+    deps: Map[AbstractImport, ExternalTypeInfo],
+  ): PPackage = {
+    import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl}
+
+    // Function vs method predicates are tracked separately: the rewriter needs to know which
+    // bucket to consult depending on the syntactic form (`IDENT{...}` vs `qual.id{...}`).
+    val localFPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+      case d: PFPredicateDecl => d.id.name
+    }).toSet
+    val localMPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+      case d: PMPredicateDecl => d.id.name
+    }).toSet
+
+    // Set of import qualifiers visible in `pkg` (across all programs).
+    val importQualifiers: Set[String] = pkg.programs.flatMap(_.imports.collect {
+      case pi: PExplicitQualifiedImport => pi.qualifier.name
+    }).toSet
+
+    // Map: import-qualifier -> set of *function*-predicate names declared at the top level of
+    // the imported package. Method predicates are intentionally omitted: they are attached to
+    // types and so are not reachable as `qualifier.id`.
+    val importedFPredicatesByQualifier: Map[String, Set[String]] = pkg.programs.flatMap { prog =>
+      prog.imports.collect {
+        case pi: PExplicitQualifiedImport =>
+          deps.get(RegularImport(pi.importPath)).map { extInfo =>
+            val importedPkg = extInfo.getTypeInfo match {
+              case ti: TypeInfoImpl => Some(ti.tree.root)
+              case _ => None
+            }
+            val names: Set[String] = importedPkg.toVector.flatMap(_.programs.flatMap(_.declarations.collect {
+              case d: PFPredicateDecl => d.id.name
+            })).toSet
+            pi.qualifier.name -> names
+          }
+      }.flatten
+    }.toMap
+
+    viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(
+      pkg,
+      localFPredicateNames,
+      localMPredicateNames,
+      importQualifiers,
+      q => importedFPredicatesByQualifier.getOrElse(q, Set.empty),
+    )(pkg.positions.positions)
+  }
+
   type TypeInfoCacheKey = String
   private val typeInfoCache: ConcurrentMap[TypeInfoCacheKey, TypeInfoImpl] = new ConcurrentHashMap()
 
@@ -255,7 +320,11 @@ object Info extends LazyLogging {
     var cacheHit: Boolean = true
     def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       cacheHit = false
-      val tree = new GoTree(pkg)
+      // Resolve `name { args }` composite-literal-vs-predicate-constructor ambiguity now that
+      // we know the current package's predicates and (from `dependentTypeInfo`) those of every
+      // imported package -- see [[rewritePredConstructors]].
+      val rewrittenPkg = rewritePredConstructors(pkg, dependentTypeInfo)
+      val tree = new GoTree(rewrittenPkg)
       new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
     }
 

@@ -515,6 +515,148 @@ object Parser extends LazyLogging {
     }
   }
 
+  /**
+    * Rewrites `PCompositeLit` nodes whose name resolves (syntactically) to a predicate into the
+    * equivalent `PPredConstructor`. Predicate constructors (`P{x, _}`) and composite literals
+    * (`T{x, y}`) share the same surface syntax, so the parser uniformly builds `PCompositeLit`
+    * for `IDENT { ... }` and `IDENT.IDENT { ... }` shapes; we resolve the ambiguity here, once
+    * the type checker has enough information.
+    *
+    * Called from [[viper.gobra.frontend.info.Info]] just before constructing each
+    * `TypeInfoImpl`: at that point `dependentTypeInfo` is available, so we can ask each
+    * imported package whether `pkg.P` is a predicate.
+    */
+  object PredicateConstructorRewriter {
+    private lazy val builtInFPredicateNames: Set[String] =
+      viper.gobra.frontend.info.base.BuiltInMemberTag.builtInMembers().collect {
+        case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInFPredicateTag => t.identifier
+      }.toSet
+    private lazy val builtInMPredicateNames: Set[String] =
+      viper.gobra.frontend.info.base.BuiltInMemberTag.builtInMembers().collect {
+        case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMPredicateTag => t.identifier
+      }.toSet
+
+    private class Impl(override val positions: Positions) extends PositionedRewriter {
+      def at[N <: AnyRef](node: N, source: PNode): N = { positions.dupPos(source, node); node }
+
+      def run(
+        pkg: PPackage,
+        localFPredicateNames: Set[String],
+        localMPredicateNames: Set[String],
+        importQualifiers: Set[String],
+        importedFPredicateNames: String => Set[String],
+      ): PPackage = {
+        def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
+        def hasBlank(lit: PLiteralValue): Boolean = lit.elems.exists {
+          case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => true
+          case _ => false
+        }
+        def isLocalOrBuiltInFPred(name: String): Boolean =
+          localFPredicateNames.contains(name) || builtInFPredicateNames.contains(name)
+        def isLocalOrBuiltInMPred(name: String): Boolean =
+          localMPredicateNames.contains(name) || builtInMPredicateNames.contains(name)
+
+        // Determines whether a `PCompositeLit` should be reinterpreted as a `PPredConstructor`.
+        //
+        // We split the question by the syntactic shape of the literal's type: a single name
+        // (`IDENT{...}`), or a dotted name (`qual.id{...}`). For each shape we ask whether the
+        // identifier(s) could only sensibly denote a predicate.
+        def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
+          // Composite literals with keyed elements (`T{x: 1}`) are never predicate constructors.
+          if (hasKey(lit)) false
+          else typ match {
+            // `IDENT{...}`: bare names referring to a predicate must be top-level *function*
+            // predicates. Method-predicate references take the dotted form below; struct types,
+            // ADT clauses, and array/slice/map types share the package's name namespace with
+            // fpredicates and so cannot collide here (Go enforces uniqueness).
+            case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInFPred(id.name)
+
+            // `qual.id{...}` with `qual` a single identifier. Two cases:
+            case PDot(qual: PNamedOperand, id) =>
+              if (importQualifiers.contains(qual.id.name)) {
+                // `qual` is an import alias. `qual.id` is therefore a top-level name in the
+                // imported package -- either a type (struct literal) or a top-level function
+                // predicate (predicate constructor). Imported method predicates aren't
+                // reachable as `qual.id` (they live on types and need `qual.Type.id`), so we
+                // restrict the lookup to imported fpredicates and don't peek at the local
+                // namespace at all.
+                hasBlank(lit) || importedFPredicateNames(qual.id.name).contains(id.name)
+              } else {
+                // `qual` is a (local) value, type, ADT, or undeclared identifier. The valid
+                // composite-literal forms in this branch are:
+                //   - ADT constructor literals: `X.A{...}` where X is an ADT type and A is a
+                //     constructor. These are *not* predicate constructors and must be left
+                //     alone.
+                // The valid predicate-constructor forms in this branch are:
+                //   - method-predicate references: `recv.isZero{...}` or the predicate-
+                //     expression form `Mutex.isZero{...}`.
+                // We disambiguate by checking whether `id` matches a known method-predicate
+                // name (local or built-in). The blank-identifier check still wins because `_`
+                // is illegal as a positional element in any composite literal.
+                hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
+              }
+
+            // Defensive: composite-literal `typ` is grammatically restricted to
+            // `typeName: IDENT | qualifiedIdent`, so a `PDot` whose base isn't a
+            // `PNamedOperand` shouldn't reach this point. Treat conservatively as the
+            // local-mpredicate case above.
+            case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
+            case _ => false
+          }
+        }
+
+        def convertArgs(lit: PLiteralValue): Vector[Option[PExpression]] = lit.elems.map {
+          case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => None
+          case PKeyedElement(None, PExpCompositeVal(e)) => Some(e)
+          case e => Violation.violation(s"unexpected element form in predicate constructor candidate: $e")
+        }
+
+        def buildBase(typ: PLiteralType): PPredConstructorBase = typ match {
+          case op@PNamedOperand(id) => at(PFPredBase(id), op)
+          case d: PDot => at(PDottedBase(d), d)
+          case t => Violation.violation(s"unexpected base for predicate constructor: $t")
+        }
+
+        val rewritePredConstructors: Strategy =
+          strategyWithName[Any]("rewritePredConstructors", {
+            case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit) =>
+              Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
+            case n => Some(n)
+          })
+
+        val updatedProgs = pkg.programs.map { prog =>
+          val updatedDecls = rewrite(topdown(attempt(rewritePredConstructors)))(prog.declarations)
+          at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
+        }
+        at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)
+      }
+    }
+
+    /** Runs the rewrite over `pkg`.
+      *
+      * @param localFPredicateNames    names of every top-level function predicate declared in
+      *                                `pkg`. Used for the unqualified `IDENT{...}` form.
+      * @param localMPredicateNames    names of every top-level method predicate declared in
+      *                                `pkg`. Used for the dotted `qual.id{...}` form when
+      *                                `qual` is a local value/type (i.e. not an import alias).
+      * @param importQualifiers        the set of import qualifier names visible in `pkg`. Used
+      *                                to decide whether the qualifier in `qual.id{...}` refers
+      *                                to an imported package or to a local value/type.
+      * @param importedFPredicateNames `importedFPredicateNames(q)` is the set of top-level
+      *                                function-predicate names in the package imported under
+      *                                qualifier `q`. Method predicates are intentionally
+      *                                omitted: they aren't reachable as `q.id`.
+      */
+    def rewrite(
+      pkg: PPackage,
+      localFPredicateNames: Set[String],
+      localMPredicateNames: Set[String],
+      importQualifiers: Set[String],
+      importedFPredicateNames: String => Set[String],
+    )(positions: Positions): PPackage =
+      new Impl(positions).run(pkg, localFPredicateNames, localMPredicateNames, importQualifiers, importedFPredicateNames)
+  }
+
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 
 

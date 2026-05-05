@@ -611,18 +611,18 @@ The race condition in the previous example can be avoided by using concurrency p
 
 Gobra has support for first-class predicates, i.e., expressions with a predicate type. First-class predicates are of type `pred(x1 T1, ..., xn Tn)`. The types `T1, ..., Tn` define that the predicate has an arity of `n` with the corresponding parameter types. 
 
-To instantiate a first-class predicate, Gobra provides *predicate constructors*. A predicate constructor `P!<d1, ..., dn!>` partially applies a declared predicate `P` with the constructor arguments `d1, ..., dn`. A constructor argument is either an expression or a wildcard `_`, symbolizing that this argument of `P` remains unapplied. In particular, the type of `P!<d1, ..., dn!>` is `pred(u1,...,uk)`, where `u1,...,uk` are the types of the unapplied arguments. As an example, consider the declared predicate `pred sameValue(i1 int8, i2 uint32){ ... }`. The predicate constructor `sameValue!<int8(1), _!>` has type `pred(uint32)`, since the first argument is applied and the second is not. Conversely, `sameValue!<_, uint32(1)!>` has type `pred(int8)`. Finally, `sameValue!<int8(1), uint32(1)!>` and `sameValue!< _, _!>` have types `pred()` and `pred(int8, uint32)`, respectively.
+To instantiate a first-class predicate, Gobra provides *predicate constructors*. A predicate constructor `P{d1, ..., dn}` partially applies a declared predicate `P` with the constructor arguments `d1, ..., dn`. A constructor argument is either an expression or a wildcard `_`, symbolizing that this argument of `P` remains unapplied. In particular, the type of `P{d1, ..., dn}` is `pred(u1,...,uk)`, where `u1,...,uk` are the types of the unapplied arguments. As an example, consider the declared predicate `pred sameValue(i1 int8, i2 uint32){ ... }`. The predicate constructor `sameValue{int8(1), _}` has type `pred(uint32)`, since the first argument is applied and the second is not. Conversely, `sameValue{_, uint32(1)}` has type `pred(int8)`. Finally, `sameValue{int8(1), uint32(1)}` and `sameValue{ _, _}` have types `pred()` and `pred(int8, uint32)`, respectively.
 
-The equality operator for predicate constructors is defined as a point-wise comparison, that is, `P1!<d1, ..., dn!>` is equal to `P2!<d'1, ... , d'n!>` if and only if `P1` and `P2` are the same declared predicate and if `di == d'i` for all `i` ranging from 1 to `n`.
+The equality operator for predicate constructors is defined as a point-wise comparison, that is, `P1{d1, ..., dn}` is equal to `P2{d'1, ... , d'n}` if and only if `P1` and `P2` are the same declared predicate and if `di == d'i` for all `i` ranging from 1 to `n`.
 
-The body of the predicate `P!<d1, ..., dn!>` is the body of `P` with the arguments applied accordingly. Like with other predicates, `P!<d1, ..., dn!>` can be instantiated and its instances may occur in assertions and in `fold` and `unfold` statements. The fold statement `fold P!<d1, ..., dk!>(e1, ..., en)` exchanges the first-class predicate instance with its body. The unfold statement does the reverse.
+The body of the predicate `P{d1, ..., dn}` is the body of `P` with the arguments applied accordingly. Like with other predicates, `P{d1, ..., dn}` can be instantiated and its instances may occur in assertions and in `fold` and `unfold` statements. The fold statement `fold P{d1, ..., dk}(e1, ..., en)` exchanges the first-class predicate instance with its body. The unfold statement does the reverse.
 
-> **Note**: In the paper, we use the notation `P{...}` instead of `P!<...!>`. Currently, Gobra uses `!<` and `!>` as delimiters to simplify Gobra's parser. In the future, we will change to the `P{...}` syntax.
+> **Note**: Predicate constructors share their `name { args }` surface syntax with composite literals. Gobra disambiguates by treating `name { args }` as a predicate constructor whenever `name` resolves to a top-level (function or method) predicate of the current package, or whenever the argument list contains the `_` blank identifier. For predicate constructors over imported predicates whose name happens to collide with a local type, parenthesise the base, e.g. `(pkg.P){1}()`.
 
 ### Reasoning about Mutual Exclusion with `sync.Mutex`
 
 
-In the following example, we show the function `safeInc`, a data-race free version of the previously seen function `inc` in section [Concurrency](#concurrency). The snippet uses a lock `pmutex` to synchronize the write accesses to the pointer `x`. `safeInc`'s pre and postcondition assert that `pmutex` was initialized (`acc(pmutex.LockP(), _)`) with invariant `mutexInvariant` (`pmutex.LockInv() == mutexInvariant!<x!>`), protecting the access to variable `x`. In the body of `safeInc`, first `pmutex.Lock()` is called to acquire the invariant `mutexInvariant!<x!>`. Then the first-class predicate instance is unfolded to acquire `acc(x)`, required to modify the value of `x`. At the end, the invariant is folded back again, after which `pmutex` can be released via a call to method `Unlock`.
+In the following example, we show the function `safeInc`, a data-race free version of the previously seen function `inc` in section [Concurrency](#concurrency). The snippet uses a lock `pmutex` to synchronize the write accesses to the pointer `x`. `safeInc`'s pre and postcondition assert that `pmutex` was initialized (`acc(pmutex.LockP(), _)`) with invariant `mutexInvariant` (`pmutex.LockInv() == mutexInvariant{x}`), protecting the access to variable `x`. In the body of `safeInc`, first `pmutex.Lock()` is called to acquire the invariant `mutexInvariant{x}`. Then the first-class predicate instance is unfolded to acquire `acc(x)`, required to modify the value of `x`. At the end, the invariant is folded back again, after which `pmutex` can be released via a call to method `Unlock`.
 
 ```go (test/resources/regressions/tutorial-examples/mutex.gobra)
 package tutorial
@@ -633,26 +633,25 @@ pred mutexInvariant(x *int) {
 	acc(x)
 }
 
-requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
-ensures  acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>
+requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant{x}
+ensures  acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant{x}
 func safeInc(pmutex *sync.Mutex, x *int) {
 	pmutex.Lock()
-	unfold mutexInvariant!<x!>()
+	unfold mutexInvariant{x}()
 	*x = *x + 1
-	fold mutexInvariant!<x!>()
+	fold mutexInvariant{x}()
 	pmutex.Unlock()
 }
 ```
-> **Note:** At this point in time, using semicolons is mandatory to terminate lines that end with the `!<` `!>` delimiters like in the pre and postcondition of `safeInc`. This is a known limitation of our current parser and it will be fixed when we adopt the `{` `}` delimeters for predicate constructors. 
 
-The snippet below shows a client. First, `mutex` is allocated and the invariant is established for the first time by folding `mutexInvariant!<&x!>()`. To bind an invariant to a mutex, the `SetInv` method is called. `SetInv` expects as argument a first-class predicate with arity zero. After the invariant is bound to `&mutex`, the mutex is initialized and the permission `&mutex.LockP()` is acquired. This permission is necessary to call `Lock` and `Unlock`. At this point, the preconditions of the goroutines are satisfied and the goroutines can be started. Note that the preconditon of `safeInc` does not require write permission to the lock and thus, after starting the first goroutine, there are sufficient permissions remaining to start the second goroutine.
+The snippet below shows a client. First, `mutex` is allocated and the invariant is established for the first time by folding `mutexInvariant{&x}()`. To bind an invariant to a mutex, the `SetInv` method is called. `SetInv` expects as argument a first-class predicate with arity zero. After the invariant is bound to `&mutex`, the mutex is initialized and the permission `&mutex.LockP()` is acquired. This permission is necessary to call `Lock` and `Unlock`. At this point, the preconditions of the goroutines are satisfied and the goroutines can be started. Note that the preconditon of `safeInc` does not require write permission to the lock and thus, after starting the first goroutine, there are sufficient permissions remaining to start the second goroutine.
 
 ```go (test/resources/regressions/tutorial-examples/mutex.gobra)
 func client() {
 	x@ := 0
 	mutex@ := sync.Mutex{}
-	fold mutexInvariant!<&x!>()
-	(&mutex).SetInv(mutexInvariant!<&x!>)
+	fold mutexInvariant{&x}()
+	(&mutex).SetInv(mutexInvariant{&x})
 	go safeInc(&mutex, &x)
 	go safeInc(&mutex, &x)
 }
@@ -660,13 +659,13 @@ func client() {
 
 ### Channels
 
-We now shift our attention to channels. Similar to mutexes, channels must be initialized before any message can be sent and received through them. This is done via a call to the method `Init`. The method has two parameters: The first parameter is a first-class predicate with type `pred(T)`, where `T` is the type of messages communicated via the channel. It specifies properties and permissions of the data that is sent through the channel. The second parameter is a first-class predicate with type `pred()` that specifies properties and permissions that the sender obtains from the receiver when it sends a message. This is useful to model a rendez-vous of permissions in synchronous communication, which happens for unbuffered channels. In this example, and whenever the channel is buffered, the second argument will always be `PredTrue!<!>`, a predicate with arity zero whose body is `true`. Initializing a channel `c` through `Init` also produces permissions `m.SendChannel()` and `m.ReceiveChannel()`. Any read fraction of `m.SendChannel()` allows a function to send messages on `m`, whereas a read fraction of `m.ReceiveChannel()` allows a function to receive from `m`.
+We now shift our attention to channels. Similar to mutexes, channels must be initialized before any message can be sent and received through them. This is done via a call to the method `Init`. The method has two parameters: The first parameter is a first-class predicate with type `pred(T)`, where `T` is the type of messages communicated via the channel. It specifies properties and permissions of the data that is sent through the channel. The second parameter is a first-class predicate with type `pred()` that specifies properties and permissions that the sender obtains from the receiver when it sends a message. This is useful to model a rendez-vous of permissions in synchronous communication, which happens for unbuffered channels. In this example, and whenever the channel is buffered, the second argument will always be `PredTrue{}`, a predicate with arity zero whose body is `true`. Initializing a channel `c` through `Init` also produces permissions `m.SendChannel()` and `m.ReceiveChannel()`. Any read fraction of `m.SendChannel()` allows a function to send messages on `m`, whereas a read fraction of `m.ReceiveChannel()` allows a function to receive from `m`.
 
-After initialization, the predicates passed as arguments to `Init` can be retrieved via several methods. The method `c.SendGivenPerm()` returns the invariant that must hold when the sender sends a message. The method `c.RecvGotPerm()` returns the invariant that the receiver of a message can assume. Currently, these are always the same. Likewise, `c.SendGotPerm()` and `c.RecvGivenPerm()` are the invariants that must hold when a message is received and that can be assumed when a message is sent, respectively. Currently, these are also always the same. Furthermore, they must be `PredTrue!<!>` unless the channel is unbuffered.
+After initialization, the predicates passed as arguments to `Init` can be retrieved via several methods. The method `c.SendGivenPerm()` returns the invariant that must hold when the sender sends a message. The method `c.RecvGotPerm()` returns the invariant that the receiver of a message can assume. Currently, these are always the same. Likewise, `c.SendGotPerm()` and `c.RecvGivenPerm()` are the invariants that must hold when a message is received and that can be assumed when a message is sent, respectively. Currently, these are also always the same. Furthermore, they must be `PredTrue{}` unless the channel is unbuffered.
 
-In the following example, the function `incChannel` receives an `*int` from channel `c` and increments the value on the received location. The first two preconditions of `incChannel` require a fraction of `c.SendChannel()` and `c.RecvChannel()` to send on and receive from channel `c`. The rest of the preconditions establish that function `incChannel` expects `c` to have been initialized with the arguments `sendInvariant!<_!>` and `PredTrue!<!>`. The predicate `sendInvariant` contains the permission to the pointer sent over the channel `c` and restricts that `*v` is positive.
+In the following example, the function `incChannel` receives an `*int` from channel `c` and increments the value on the received location. The first two preconditions of `incChannel` require a fraction of `c.SendChannel()` and `c.RecvChannel()` to send on and receive from channel `c`. The rest of the preconditions establish that function `incChannel` expects `c` to have been initialized with the arguments `sendInvariant{_}` and `PredTrue{}`. The predicate `sendInvariant` contains the permission to the pointer sent over the channel `c` and restricts that `*v` is positive.
 
-The body of `incChannel` starts by folding `PredTrue!<!>()` to be able to receive from the channel. Recall that an instance of `PredTrue` must be sent from receiver to sender. It then receives from `c` and in case of success, unfolds `sendInvariant!<_!>(res)` to acquire write permissions to `res`. It then modifies `*res` and folds back `sendInvariant!<_!>(res)` to send the reply.
+The body of `incChannel` starts by folding `PredTrue{}()` to be able to receive from the channel. Recall that an instance of `PredTrue` must be sent from receiver to sender. It then receives from `c` and in case of success, unfolds `sendInvariant{_}(res)` to acquire write permissions to `res`. It then modifies `*res` and folds back `sendInvariant{_}(res)` to send the reply.
 
 ```go (test/resources/regressions/tutorial-examples/channels.gobra)
 package tutorial
@@ -677,25 +676,25 @@ pred sendInvariant(v *int) {
 
 requires acc(c.SendChannel(), 1/2)
 requires acc(c.RecvChannel(), 1/2)
-requires c.SendGivenPerm() == sendInvariant!<_!>
-requires c.SendGotPerm() == PredTrue!<!>
-requires c.RecvGivenPerm() == PredTrue!<!>
-requires c.RecvGotPerm() == sendInvariant!<_!>
+requires c.SendGivenPerm() == sendInvariant{_}
+requires c.SendGotPerm() == PredTrue{}
+requires c.RecvGivenPerm() == PredTrue{}
+requires c.RecvGotPerm() == sendInvariant{_}
 func incChannel(c chan *int) {
-	fold PredTrue!<!>()
+	fold PredTrue{}()
 	res, ok := <- c
 	if (ok) {
-		unfold sendInvariant!<_!>(res)
+		unfold sendInvariant{_}(res)
 		// we now have write access after unfolding the invariant:
 		*res = *res + 1
 		// fold the invariant and send pointer and permission back:
-		fold sendInvariant!<_!>(res)
+		fold sendInvariant{_}(res)
 		c <- res
 	}
 }
 ```
 
-The next snippet shows a client. In the body, a channel `c` is created and initialized with `sendInvariant` and `PredTrue`. It then spawns a goroutine, executing `incChannel` with the initialized channel. Next, it folds `sendInvariant!<_!>(p)` to send `p` over the channel `c`. The subsequent fold of `PredTrue!<!>()` is required to satisfy the precondition of receive. At this point, `PredTrue!<!>()` must be sent from `clientChannel` (the receiver) to `incChannel` (the sender). After successfully receiving the reply, the receiver acquires `sendInvariant!<_!>(res)`, which can then be unfolded to obtain the permission to `res` and to check that its value is positive.
+The next snippet shows a client. In the body, a channel `c` is created and initialized with `sendInvariant` and `PredTrue`. It then spawns a goroutine, executing `incChannel` with the initialized channel. Next, it folds `sendInvariant{_}(p)` to send `p` over the channel `c`. The subsequent fold of `PredTrue{}()` is required to satisfy the precondition of receive. At this point, `PredTrue{}()` must be sent from `clientChannel` (the receiver) to `incChannel` (the sender). After successfully receiving the reply, the receiver acquires `sendInvariant{_}(res)`, which can then be unfolded to obtain the permission to `res` and to check that its value is positive.
 
 ```go (test/resources/regressions/tutorial-examples/channels.gobra)
 func clientChannel() {
@@ -703,16 +702,16 @@ func clientChannel() {
 
 	var x@ int = 42
 	var p *int = &x
-	c.Init(sendInvariant!<_!>, PredTrue!<!>)
+	c.Init(sendInvariant{_}, PredTrue{})
 	go incChannel(c)
 	assert *p == 42
-	fold sendInvariant!<_!>(p)
+	fold sendInvariant{_}(p)
 	c <- p
 
-	fold PredTrue!<!>()
+	fold PredTrue{}()
 	res, ok := <- c
 	if (ok) {
-		unfold sendInvariant!<_!>(res)
+		unfold sendInvariant{_}(res)
 		assert *res > 0
 		// we have regained write access:
 		*res = 1

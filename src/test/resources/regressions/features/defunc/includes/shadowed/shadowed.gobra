@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package shadowed
+
+// `Foo` is a struct type. Importantly, the importing package below also declares a local
+// predicate named `Foo`, so the predicate-constructor rewrite must not rely on the local
+// namespace when disambiguating `shadowed.Foo{...}`.
+type Foo struct {
+	x int
+}
+
+// `Bar` is a top-level function predicate, exposed under the same package. It shares its name
+// with no struct, so `shadowed.Bar{...}` is unambiguously a predicate constructor.
+pred Bar(i int) {
+	i == i
+}

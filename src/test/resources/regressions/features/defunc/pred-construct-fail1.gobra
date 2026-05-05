@@ -16,7 +16,7 @@ func f(ghost p pred())
 func error1() {
 	v := &T{}
 	fold v.AccInv()
-	f((*T).AccInv!<v!>)
+	f((*T).AccInv{v})
 }
 
 func g(x int)
@@ -26,5 +26,5 @@ func error2() {
 	// In previous versions of Gobra, we did not check for the pattern of the predicate constructor
 	// base, and examples like this would not throw a type error
 	//:: ExpectedOutput(type_error)
-	f(g!<x!>)
+	f(g{x})
 }

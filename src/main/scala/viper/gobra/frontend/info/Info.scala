@@ -244,12 +244,12 @@ object Info extends LazyLogging {
   ): PPackage = {
     import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl}
 
-    // Names of all top-level (function and method) predicates declared in the current package.
-    // Method predicates are included so that the unqualified `IDENT{...}` heuristic and the
-    // local method-predicate fallback see the same set of names; for the dotted import case
-    // they are deliberately *not* used (see Parser.PredicateConstructorRewriter).
-    val localPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+    // Function vs method predicates are tracked separately: the rewriter needs to know which
+    // bucket to consult depending on the syntactic form (`IDENT{...}` vs `qual.id{...}`).
+    val localFPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
       case d: PFPredicateDecl => d.id.name
+    }).toSet
+    val localMPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
       case d: PMPredicateDecl => d.id.name
     }).toSet
 
@@ -279,7 +279,8 @@ object Info extends LazyLogging {
 
     viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(
       pkg,
-      localPredicateNames,
+      localFPredicateNames,
+      localMPredicateNames,
       importQualifiers,
       q => importedFPredicatesByQualifier.getOrElse(q, Set.empty),
     )(pkg.positions.positions)

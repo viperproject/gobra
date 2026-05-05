@@ -527,9 +527,13 @@ object Parser extends LazyLogging {
     * imported package whether `pkg.P` is a predicate.
     */
   object PredicateConstructorRewriter {
-    private lazy val builtInPredicateNames: Set[String] =
+    private lazy val builtInFPredicateNames: Set[String] =
       viper.gobra.frontend.info.base.BuiltInMemberTag.builtInMembers().collect {
-        case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInPredicateTag => t.identifier
+        case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInFPredicateTag => t.identifier
+      }.toSet
+    private lazy val builtInMPredicateNames: Set[String] =
+      viper.gobra.frontend.info.base.BuiltInMemberTag.builtInMembers().collect {
+        case t: viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMPredicateTag => t.identifier
       }.toSet
 
     private class Impl(override val positions: Positions) extends PositionedRewriter {
@@ -537,7 +541,8 @@ object Parser extends LazyLogging {
 
       def run(
         pkg: PPackage,
-        localPredicateNames: Set[String],
+        localFPredicateNames: Set[String],
+        localMPredicateNames: Set[String],
         importQualifiers: Set[String],
         importedFPredicateNames: String => Set[String],
       ): PPackage = {
@@ -546,50 +551,56 @@ object Parser extends LazyLogging {
           case PKeyedElement(None, PExpCompositeVal(_: PBlankIdentifier)) => true
           case _ => false
         }
-        def isLocalOrBuiltInPredName(name: String): Boolean =
-          localPredicateNames.contains(name) || builtInPredicateNames.contains(name)
+        def isLocalOrBuiltInFPred(name: String): Boolean =
+          localFPredicateNames.contains(name) || builtInFPredicateNames.contains(name)
+        def isLocalOrBuiltInMPred(name: String): Boolean =
+          localMPredicateNames.contains(name) || builtInMPredicateNames.contains(name)
 
         // Determines whether a `PCompositeLit` should be reinterpreted as a `PPredConstructor`.
         //
-        // The disambiguation hinges on what `typ` could mean. Go's package-level namespace is
-        // unique, so for a single name we have at most one declaration; for a dotted name
-        // `qual.id` the meaning of `id` is determined by what `qual` is.
+        // We split the question by the syntactic shape of the literal's type: a single name
+        // (`IDENT{...}`), or a dotted name (`qual.id{...}`). For each shape we ask whether the
+        // identifier(s) could only sensibly denote a predicate.
         def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
           // Composite literals with keyed elements (`T{x: 1}`) are never predicate constructors.
           if (hasKey(lit)) false
           else typ match {
-            // `IDENT{...}`: by Go's name uniqueness, IDENT is at most one of {fpredicate,
-            // type, ...}. If it's a (function or built-in) predicate name, rewrite.
-            case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
+            // `IDENT{...}`: bare names referring to a predicate must be top-level *function*
+            // predicates. Method-predicate references take the dotted form below; struct types,
+            // ADT clauses, and array/slice/map types share the package's name namespace with
+            // fpredicates and so cannot collide here (Go enforces uniqueness).
+            case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInFPred(id.name)
 
-            // `qual.id{...}` with `qual` a single identifier. Two cases.
+            // `qual.id{...}` with `qual` a single identifier. Two cases:
             case PDot(qual: PNamedOperand, id) =>
               if (importQualifiers.contains(qual.id.name)) {
                 // `qual` is an import alias. `qual.id` is therefore a top-level name in the
-                // imported package, which means it is *either* a type (struct literal) *or* a
-                // top-level function predicate (predicate constructor). Imported method
-                // predicates are not in scope as `qual.id` -- they are reached via
-                // `qual.Type.id`, which doesn't fit `qualifiedIdent`. So we look only at
-                // imported fpredicate names. Importantly, we do *not* fall back to local
-                // predicate names: the local namespace is irrelevant when the qualifier is an
-                // import.
+                // imported package -- either a type (struct literal) or a top-level function
+                // predicate (predicate constructor). Imported method predicates aren't
+                // reachable as `qual.id` (they live on types and need `qual.Type.id`), so we
+                // restrict the lookup to imported fpredicates and don't peek at the local
+                // namespace at all.
                 hasBlank(lit) || importedFPredicateNames(qual.id.name).contains(id.name)
               } else {
-                // `qual` is a (local) value, type, or undeclared identifier. Either way
-                // `qual.id` is not a Go type expression -- Go has no nested types, struct
-                // fields are not types, and method values aren't types either -- so the
-                // composite-literal interpretation is structurally impossible. The only valid
-                // reading is a method-predicate reference (`recv.isZero{...}` or the
-                // predicate-expression form `Mutex.isZero{...}`). Rewrite unconditionally and
-                // let the type checker emit a precise error if `id` isn't actually a predicate.
-                true
+                // `qual` is a (local) value, type, ADT, or undeclared identifier. The valid
+                // composite-literal forms in this branch are:
+                //   - ADT constructor literals: `X.A{...}` where X is an ADT type and A is a
+                //     constructor. These are *not* predicate constructors and must be left
+                //     alone.
+                // The valid predicate-constructor forms in this branch are:
+                //   - method-predicate references: `recv.isZero{...}` or the predicate-
+                //     expression form `Mutex.isZero{...}`.
+                // We disambiguate by checking whether `id` matches a known method-predicate
+                // name (local or built-in). The blank-identifier check still wins because `_`
+                // is illegal as a positional element in any composite literal.
+                hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
               }
 
             // Defensive: composite-literal `typ` is grammatically restricted to
             // `typeName: IDENT | qualifiedIdent`, so a `PDot` whose base isn't a
-            // `PNamedOperand` shouldn't reach this point. Treat like the `PNamedOperand` case
-            // above.
-            case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
+            // `PNamedOperand` shouldn't reach this point. Treat conservatively as the
+            // local-mpredicate case above.
+            case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
             case _ => false
           }
         }
@@ -623,9 +634,11 @@ object Parser extends LazyLogging {
 
     /** Runs the rewrite over `pkg`.
       *
-      * @param localPredicateNames     names of every top-level predicate (function or method)
-      *                                declared in `pkg`. Used to disambiguate the unqualified
-      *                                `IDENT{...}` form.
+      * @param localFPredicateNames    names of every top-level function predicate declared in
+      *                                `pkg`. Used for the unqualified `IDENT{...}` form.
+      * @param localMPredicateNames    names of every top-level method predicate declared in
+      *                                `pkg`. Used for the dotted `qual.id{...}` form when
+      *                                `qual` is a local value/type (i.e. not an import alias).
       * @param importQualifiers        the set of import qualifier names visible in `pkg`. Used
       *                                to decide whether the qualifier in `qual.id{...}` refers
       *                                to an imported package or to a local value/type.
@@ -636,11 +649,12 @@ object Parser extends LazyLogging {
       */
     def rewrite(
       pkg: PPackage,
-      localPredicateNames: Set[String],
+      localFPredicateNames: Set[String],
+      localMPredicateNames: Set[String],
       importQualifiers: Set[String],
       importedFPredicateNames: String => Set[String],
     )(positions: Positions): PPackage =
-      new Impl(positions).run(pkg, localPredicateNames, importQualifiers, importedFPredicateNames)
+      new Impl(positions).run(pkg, localFPredicateNames, localMPredicateNames, importQualifiers, importedFPredicateNames)
   }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){

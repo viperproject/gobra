@@ -5,5 +5,5 @@ package assignsuchthatnonbool
 
 func f() {
 	//:: ExpectedOutput(type_error)
-	var x int |= x + 1
+	var x int :| x + 1
 }

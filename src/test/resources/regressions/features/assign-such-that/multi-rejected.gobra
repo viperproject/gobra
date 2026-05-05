@@ -3,10 +3,10 @@
 
 package assignsuchthatmultirejected
 
-// Only a single variable can be declared per `|=` statement.
-// `var x, y int |= ...` must be rejected.
+// Only a single variable can be declared per `:|` statement.
+// `var x, y int :| ...` must be rejected.
 
 func f() {
 	//:: ExpectedOutput(parser_error)
-	var x, y int |= true
+	var x, y int :| true
 }

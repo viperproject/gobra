@@ -108,13 +108,13 @@ class AssertionEncoding extends Encoding {
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)
 
     case n@ in.AssignSuchThat(v, cond) =>
-      // `var x T |= P` is encoded as
+      // `var x T :| P` is encoded as
       //   assert exists x' : T :: P[x -> x']
       //   inhale P
       // The local variable `x` is already registered as a block-level Viper decl by the
       // desugarer (via `declare`), so it is in scope after the statement.
       // The existential carries `cond`'s source info so error messages show
-      // just `P` rather than the whole `var x T |= P` statement.
+      // just `P` rather than the whole `var x T :| P` statement.
       val (condPos, condInfo, condErrT) = cond.vprMeta
       val boundVar = in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info)
       val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)

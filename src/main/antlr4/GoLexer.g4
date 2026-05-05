@@ -86,7 +86,7 @@ DOT                    : '.';
 PLUS_PLUS              : '++' -> mode(NLSEMI);
 MINUS_MINUS            : '--' -> mode(NLSEMI);
 DECLARE_ASSIGN         : ':=';
-PIPE_ASSIGN            : '|=';
+COLON_PIPE             : ':|';
 ELLIPSIS               : '...';
 
 // Logical

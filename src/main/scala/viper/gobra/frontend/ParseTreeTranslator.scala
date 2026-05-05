@@ -2231,7 +2231,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   /**
     * Visits the production
-    * VAR IDENTIFIER type_ PIPE_ASSIGN expression
+    * VAR IDENTIFIER type_ COLON_PIPE expression
     */
   override def visitAssignSuchThatStatement(ctx: AssignSuchThatStatementContext): PAssignSuchThat = {
     val left = idnDef.get(ctx.IDENTIFIER())

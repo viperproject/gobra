@@ -229,12 +229,14 @@ object Info extends LazyLogging {
     * Runs once per package, just before the package's `TypeInfoImpl` is constructed. By that
     * point all imported packages have been type-checked (Gobra processes packages in
     * dependency order), so we have access to:
-    *   - the current package's top-level `pred` declarations, and
-    *   - each imported package's exported predicate names via `dependentTypeInfo`.
+    *   - the current package's top-level `pred` declarations,
+    *   - the set of import qualifiers visible in the package, and
+    *   - each imported package's exported function-predicate names (via `dependentTypeInfo`).
     *
-    * Both are passed to [[viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite]]
-    * so the rewrite can distinguish predicate constructors from genuine struct/array/etc.
-    * composite literals.
+    * The fpredicate-only restriction on the imported side avoids spurious rewrites of
+    * `pkg.T{...}` when `T` happens to share its name with a method predicate of some imported
+    * type: imported method predicates aren't reachable as `pkg.id`, so they don't compete with
+    * the type-name interpretation here.
     */
   private def rewritePredConstructors(
     pkg: PPackage,
@@ -243,13 +245,23 @@ object Info extends LazyLogging {
     import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl}
 
     // Names of all top-level (function and method) predicates declared in the current package.
+    // Method predicates are included so that the unqualified `IDENT{...}` heuristic and the
+    // local method-predicate fallback see the same set of names; for the dotted import case
+    // they are deliberately *not* used (see Parser.PredicateConstructorRewriter).
     val localPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
       case d: PFPredicateDecl => d.id.name
       case d: PMPredicateDecl => d.id.name
     }).toSet
 
-    // Map: import-qualifier -> set of predicate names declared in that imported package.
-    val importedByQualifier: Map[String, Set[String]] = pkg.programs.flatMap { prog =>
+    // Set of import qualifiers visible in `pkg` (across all programs).
+    val importQualifiers: Set[String] = pkg.programs.flatMap(_.imports.collect {
+      case pi: PExplicitQualifiedImport => pi.qualifier.name
+    }).toSet
+
+    // Map: import-qualifier -> set of *function*-predicate names declared at the top level of
+    // the imported package. Method predicates are intentionally omitted: they are attached to
+    // types and so are not reachable as `qualifier.id`.
+    val importedFPredicatesByQualifier: Map[String, Set[String]] = pkg.programs.flatMap { prog =>
       prog.imports.collect {
         case pi: PExplicitQualifiedImport =>
           deps.get(RegularImport(pi.importPath)).map { extInfo =>
@@ -259,7 +271,6 @@ object Info extends LazyLogging {
             }
             val names: Set[String] = importedPkg.toVector.flatMap(_.programs.flatMap(_.declarations.collect {
               case d: PFPredicateDecl => d.id.name
-              case d: PMPredicateDecl => d.id.name
             })).toSet
             pi.qualifier.name -> names
           }
@@ -269,7 +280,8 @@ object Info extends LazyLogging {
     viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(
       pkg,
       localPredicateNames,
-      q => importedByQualifier.getOrElse(q, Set.empty),
+      importQualifiers,
+      q => importedFPredicatesByQualifier.getOrElse(q, Set.empty),
     )(pkg.positions.positions)
   }
 

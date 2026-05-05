@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package shadowed_mpred
+
+// Exposed struct type.
+type T struct {
+	x int
+}
+
+// `Holder` carries a method predicate that *also* happens to be named `T`. This is legal
+// Go-level naming: types and methods live in different namespaces, so `T` (the struct) and
+// `Holder.T` (the mpredicate) can coexist within the same package.
+type Holder struct{}
+
+pred (h Holder) T() {
+	true
+}

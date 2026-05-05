@@ -2493,6 +2493,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  // Predicate constructors share their `name { args }` surface syntax with composite literals.
+  // For an *isolated* expression the parser cannot tell the two apart on its own -- the
+  // disambiguation is performed by `Info.rewritePredConstructors` once the type checker knows
+  // whether `name` denotes a predicate. The `parseExp*` helpers below stop short of typing, so
+  // we wrap the base in parentheses to route through the `primaryExpr predConstructArgs`
+  // grammar rule, which produces a `PPredConstructor` directly without relying on the rewrite.
   test("Parser: should be able to parse a fpredicate constructor") {
     frontend.parseExpOrFail("(mutexInvariant){x}") should matchPattern {
       case PPredConstructor(PFPredBase(PIdnUse("mutexInvariant")), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
@@ -2508,6 +2514,18 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a fpredicate constructor with wildcard") {
     frontend.parseExpOrFail("(p){x, _, y}") should matchPattern {
       case PPredConstructor(PFPredBase(PIdnUse("p")), Vector(Some(PNamedOperand(PIdnUse("x"))), None, Some(PNamedOperand(PIdnUse("y"))))) =>
+    }
+  }
+
+  // Without parentheses, `name { args }` parses as a `PCompositeLit`. The parse tree itself
+  // does not encode that this is a predicate constructor -- that decision is made later by
+  // `Info.rewritePredConstructors`, which has access to the surrounding declarations.
+  test("Parser: should parse `name{x}` as a composite literal at the syntax level") {
+    frontend.parseExpOrFail("mutexInvariant{x}") should matchPattern {
+      case PCompositeLit(
+        PNamedOperand(PIdnUse("mutexInvariant")),
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x")))))),
+      ) =>
     }
   }
 

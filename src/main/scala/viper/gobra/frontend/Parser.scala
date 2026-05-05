@@ -239,7 +239,6 @@ object Parser extends LazyLogging {
       postprocessors = Seq(
         new ImportPostprocessor(parseAst.positions.positions),
         new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
-        new PredicateConstructorPostprocessor(parseAst.positions.positions),
       )
       postprocessedAst <- postprocessors.foldLeft[Either[Vector[ParserError], PPackage]](Right(parseAst)) {
         case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
@@ -516,35 +515,16 @@ object Parser extends LazyLogging {
     }
   }
 
-  private class PredicateConstructorPostprocessor(override val positions: Positions) extends Postprocessor {
-    /**
-      * Predicate constructors share their `name { args }` surface syntax with composite literals,
-      * so the parser conservatively builds a `PCompositeLit` for `IDENT { ... }` and
-      * `IDENT.IDENT { ... }` shapes. This postprocessor rewrites such literals into
-      * `PPredConstructor` when they are unambiguously predicate constructors:
-      *   1. They contain at least one positional `_` element (illegal in composite literals), or
-      *   2. The named/dotted base resolves syntactically to a top-level predicate declared in
-      *      the current package or to a built-in predicate.
-      *
-      * Cross-package cases (e.g. `pkg.P{1}()`) are deferred to a second pass driven by the
-      * type checker -- see [[PredicateConstructorRewriter.rewriteCrossPackage]].
-      */
-    def postprocess(pkg: PPackage)(config: Config): Either[Vector[ParserError], PPackage] = {
-      // collect names of all top-level (function and method) predicate declarations
-      val localPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
-        case d: PFPredicateDecl => d.id.name
-        case d: PMPredicateDecl => d.id.name
-      }).toSet
-      Right(PredicateConstructorRewriter.rewrite(pkg, localPredicateNames, _ => Set.empty)(positions))
-    }
-  }
-
   /**
-    * Shared rewrite logic that turns `PCompositeLit` nodes whose name resolves (syntactically) to
-    * a predicate into the equivalent `PPredConstructor`. Used both by the parse-time
-    * [[PredicateConstructorPostprocessor]] (which only knows the current package's predicates)
-    * and by [[viper.gobra.frontend.info.Info]] (which additionally has access to imported
-    * packages' predicate names via `dependentTypeInfo`).
+    * Rewrites `PCompositeLit` nodes whose name resolves (syntactically) to a predicate into the
+    * equivalent `PPredConstructor`. Predicate constructors (`P{x, _}`) and composite literals
+    * (`T{x, y}`) share the same surface syntax, so the parser uniformly builds `PCompositeLit`
+    * for `IDENT { ... }` and `IDENT.IDENT { ... }` shapes; we resolve the ambiguity here, once
+    * the type checker has enough information.
+    *
+    * Called from [[viper.gobra.frontend.info.Info]] just before constructing each
+    * `TypeInfoImpl`: at that point `dependentTypeInfo` is available, so we can ask each
+    * imported package whether `pkg.P` is a predicate.
     */
   object PredicateConstructorRewriter {
     private lazy val builtInPredicateNames: Set[String] =
@@ -571,9 +551,18 @@ object Parser extends LazyLogging {
         def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
           if (hasKey(lit)) false
           else typ match {
+            // Plain `P{...}`: a function predicate of the current package or a built-in fpredicate.
             case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
+            // `qual.id{...}`: three flavours sharing this surface form. The `id.name` check
+            // catches local method-predicate references (`recv.isZero{...}` or
+            // `Mutex.isZero{...}`) where the qualifier names a value/type of the current
+            // package; the imported-names check catches imported function-predicate references
+            // (`pkg.P{...}`).
             case PDot(qual: PNamedOperand, id) =>
               hasBlank(lit) || isLocalOrBuiltInPredName(id.name) || importedPredicateNames(qual.id.name).contains(id.name)
+            // Other dotted bases shouldn't actually occur for `PCompositeLit` since the grammar
+            // restricts the type of a composite literal to a `typeName` (single ident or
+            // qualifiedIdent), but we keep this defensive branch for symmetry.
             case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInPredName(id.name)
             case _ => false
           }

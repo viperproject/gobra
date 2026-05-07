@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Pair struct {
+	x int
+	y int
+}
+
+func f(p *Pair) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &p.x
+	return
+}
+

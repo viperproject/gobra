@@ -3,7 +3,7 @@ package viper.gobra.translator.transformers
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.dependencyAnalysis.{GobraAnalysisSourceInfo, GobraDependencyAnalysisAggregator}
+import viper.gobra.dependencyAnalysis.{GobraAnalysisSourceInfo, GobraDependencyAnalysisHelper}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
@@ -17,7 +17,7 @@ import scala.reflect.ClassTag
 
 class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config) extends ViperTransformer {
 
-  private lazy val gobraNodes: Iterable[ast.Info] = GobraDependencyAnalysisAggregator.identifyGobraNodes(typeInfo)
+  private lazy val gobraNodes: Iterable[ast.Info] = GobraDependencyAnalysisHelper.identifyGobraNodes(typeInfo)
   private lazy val gNodes = gobraNodes.map(n => {
 		val sourceInfo = n.getUniqueInfo[GobraAnalysisSourceInfo].get
 		((sourceInfo.pNode, sourceInfo.getPosition), n)

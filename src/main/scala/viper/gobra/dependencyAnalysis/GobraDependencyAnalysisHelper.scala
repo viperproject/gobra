@@ -6,7 +6,7 @@ import viper.silver.ast
 import viper.silver.dependencyAnalysis.{AssumptionType, DependencyType, DependencyTypeInfo}
 import viper.silver.plugin.standard.termination.PDecreasesClause
 
-object GobraDependencyAnalysisAggregator {
+object GobraDependencyAnalysisHelper {
 
   /*
     Identifies the desired Gobra dependency nodes to be presented to the user.

@@ -12,7 +12,6 @@ import viper.gobra.reporting.Source.Verifier
 import viper.gobra.util.Constants
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
-import viper.silver.dependencyAnalysis.AbstractDependencyGraphInterpreter
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]

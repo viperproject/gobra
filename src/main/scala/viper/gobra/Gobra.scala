@@ -186,19 +186,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     })
   }
 
-  // TODO ake: where to call this?
-//  def runDependencyAnalysisWorkflow(dependencyAnalysisResult: AbstractDependencyAnalysisResult, result: VerifierResult, config: Config, typeInfo: TypeInfo): Unit = {
-//    if(config.enableDependencyAnalysis && config.startDependencyAnalysisTool){
-//      val errors = result match {
-//        case VerifierResult.Success => Vector.empty
-//        case VerifierResult.Failure(errors) => errors
-//      }
-//      val interpreter = GobraDependencyAnalysisAggregator.convertFromDependencyGraphInterpreter(dependencyAnalysisResult.getFullDependencyGraphInterpreter.asInstanceOf[DependencyGraphInterpreter], typeInfo, errors.toList)
-//      val userTool = new DependencyAnalysisUserTool(interpreter, Seq.empty /* TODO ake */, viper.silver.ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq.empty)(), List.empty)
-//      userTool.run()
-//    }
-//  }
-
   override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor

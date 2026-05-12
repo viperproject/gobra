@@ -11,6 +11,7 @@ import viper.silicon
 import viper.silver.ast.Program
 import viper.silver.reporter._
 import viper.silver.verifier.{Failure, Success, VerificationResult}
+
 import scala.concurrent.Future
 
 class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
@@ -26,7 +27,7 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
         siliconApi.initialize(commandLineArguments)
         val result = siliconApi.verify(program)
         // TODO ake: how to return the DA results?
-        val dependencyAnalysisResult = siliconApi.verifier.getDependencyAnalysisResult
+//        val dependencyAnalysisResult = siliconApi.verifier.getDependencyAnalysisResult
         siliconApi.stop()
 
         result match {

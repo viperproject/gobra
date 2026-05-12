@@ -58,7 +58,12 @@ object GobraDependencyAnalysisHelper {
       }
     }
 
-    def getDependencyTypeForPNode(pNode: PNode, dependencyType: Option[DependencyType]): DependencyType = {
+    def getDependencyTypeForPNode(_pNode: PNode, dependencyType: Option[DependencyType]): DependencyType = {
+			val pNode = _pNode match {
+				case PAnnotatedStmt(_, stmt) => stmt
+				case PAnnotatedExp(exp, _) => exp
+				case _ => _pNode
+			}
       val enforcedDepTypeOpt = pNode match {
         case _: PAssert | _: PExhale | _: PRefute => Some(DependencyType.ExplicitAssertion)
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
@@ -115,6 +120,9 @@ object GobraDependencyAnalysisHelper {
 
       // constants
       case PConstDecl(specs) => go(specs)
+
+//			case PAnnotatedStmt(_, stmt) => goS(stmt)
+//			case PAnnotatedExp(exp, _) => goS(exp)
 
       // functions and methods
       case PFunctionDecl(id, args, result, spec, body) => go(Set(id, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2), if(spec.isPure) Some(DependencyType.make(AssumptionType.FunctionBody)) else dependencyTypeOuter)

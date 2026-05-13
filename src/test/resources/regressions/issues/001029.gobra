@@ -44,7 +44,6 @@ func foo3() (r *int) {
 	     func nested() {
 		// nothing
 	}
-	_ = c
 	return
 }
 
@@ -57,6 +56,5 @@ func bad() {
 	     func nested() (s int) {
 		return 1
 	}
-	_ = c
 	return
 }

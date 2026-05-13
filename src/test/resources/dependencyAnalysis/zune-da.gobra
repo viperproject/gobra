@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package zune
+
+pure func isLeapYear(year int) bool {
+  return @dependencyInfo("assumptionType:FunctionBody, label:L1, expectedDependencies:[]")(year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))
+}
+
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, label:L2, expectedDependencies:[L5, L14, L6, L13, L7, L12]")(days + (year - 1980) * 365 <= totalDays)
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, label:L3, expectedDependencies:[L8, L5, L14, L6, L13, L12]")(totalDays <= days + (year - 1980) * 366)
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, label:L4, expectedDependencies:[L9]")(days <= 366)
+func convertDaysFixedWithSomeInvariants(totalDays int) (days, year int) {
+
+  @dependencyInfo("assumptionType:SourceCode, label:L5, expectedDependencies:[]")
+  days = totalDays
+  @dependencyInfo("assumptionType:SourceCode, label:L6, expectedDependencies:[]")
+  year = 1980
+
+  invariant @dependencyInfo("assumptionType:LoopInvariant,assertionType:LoopInvariant, label:L7, expectedDependencies:[L5, L14, L6, L13, L12]")(days + (year - 1980) * 365 <= totalDays)
+  invariant @dependencyInfo("assumptionType:LoopInvariant,assertionType:LoopInvariant, label:L8, expectedDependencies:[L5, L14, L6, L13, L12]")(totalDays <= days + (year - 1980) * 366)
+  for (@dependencyInfo("assumptionType:PathCondition, label:L9, expectedDependencies:[]")(isLeapYear(year) && 366 < days) || (!isLeapYear(year) && 365 < days)) {
+
+    @dependencyInfo("assumptionType:Ghost, label:L10, expectedDependencies:[]")
+    ghost variant := days
+    @dependencyInfo("assertionType:Explicit, label:L11, expectedDependencies:[L10,L9]")
+    assert variant >= 0
+
+    if @dependencyInfo("assumptionType:PathCondition, label:L11b, expectedDependencies:[]")(isLeapYear(year)) {
+      @dependencyInfo("assumptionType:SourceCode, label:L12, expectedDependencies:[]")
+      days -= 366
+    } else {
+      @dependencyInfo("assumptionType:SourceCode, label:L13, expectedDependencies:[]")
+      days -= 365
+    }
+    @dependencyInfo("assumptionType:SourceCode, label:L14, expectedDependencies:[]")
+    year += 1
+
+    @dependencyInfo("assertionType:Explicit, label:L15, expectedDependencies:[L10,L12,L13]")
+    assert days < variant
+  }
+  return
+}

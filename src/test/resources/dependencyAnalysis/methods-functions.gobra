@@ -1,0 +1,53 @@
+package methodsFunctions
+
+
+requires @dependencyInfo("assumptionType:Precondition, label:L7, expectedDependencies:[L16]")(a > 0)
+ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:L8, expectedDependencies:[L16,L7,L9,L9b]")(res > 0)
+func bar(a int) (res int){
+    if(@dependencyInfo("assumptionType:PathCondition, label:L9, expectedDependencies:[]")(a > 0)){
+        return @dependencyInfo("assumptionType:SourceCode, label:L9b, expectedDependencies:[]")(a)
+    } else {
+        @dependencyInfo("assertionType:Explicit, label:L10, expectedDependencies:[L16,L7,L9]")
+        assert false
+    }
+}
+
+
+requires @dependencyInfo("assumptionType:Precondition, label:L11, expectedDependencies:[L16]")(a >= 0)
+requires @dependencyInfo("assumptionType:Precondition, label:L12, expectedDependencies:[L16]")(a < 100)
+ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:L13, expectedDependencies:[L16,L11, L14]")(res > 0)
+pure func add_one(a int) (res int){
+    return @dependencyInfo("assumptionType:FunctionBody, label:L14, expectedDependencies:[]")(a + 1)
+}
+
+func client() {
+    @dependencyInfo("assumptionType:SourceCode, label:L16, expectedDependencies:[]")
+    a := 30
+
+    @dependencyInfo("assumptionType:SourceCode, label:L17, expectedDependencies:[L16]")
+    res := add_one(a)
+    @dependencyInfo("assertionType:Explicit, label:L18, expectedDependencies:[L16,L14,L17]")
+    assert res > 0
+
+
+    @dependencyInfo("assumptionType:SourceCode, label:L19, expectedDependencies:[L16]")
+    res2 := bar(a)
+    @dependencyInfo("assertionType:Explicit, label:L20, expectedDependencies:[L16,L19,L8,L7,L9,L9b]")
+    assert res2 > 0
+}
+
+requires @dependencyInfo("assumptionType:Precondition, label:L21, expectedDependencies:[L23,L24]")(a >= b)
+ensures @dependencyInfo("assertionType:ExplicitPostcondition, label:L22, expectedDependencies:[L21,L23,L24]")(res > 0)
+func abstract_func(a int, b int) (res int)
+
+func client2() {
+    @dependencyInfo("assumptionType:SourceCode, label:L23, expectedDependencies:[]")
+    a := 30
+    @dependencyInfo("assumptionType:SourceCode, label:L24, expectedDependencies:[]")
+    b := 0
+
+    @dependencyInfo("assumptionType:SourceCode, label:L25, expectedDependencies:[L23,L24]")
+    res := abstract_func(a, b)
+    @dependencyInfo("assertionType:Explicit, label:L26, expectedDependencies:[L23,L24,L21,L22,L25]")
+    assert res > 0
+}

@@ -1,0 +1,27 @@
+package daPredicates
+
+pred pPred(i int) { i > 0 }
+
+func test_predicates(a int){
+    assume @dependencyInfo("assumptionType:Explicit, label:L1, expectedDependencies:[]")(a > 0)
+    assume @dependencyInfo("assumptionType:Explicit, label:L2, expectedDependencies:[]")(a < 100)
+
+    @dependencyInfo("assertionType:Explicit, label:L3, expectedDependencies:[L1]")
+    assert a >= 0
+
+    @dependencyInfo("assumptionType:Rewrite,assertionType:Rewrite, label:L4, expectedDependencies:[L1]")
+    fold pPred(a)
+
+    @dependencyInfo("assumptionType:SourceCode, label:L5, expectedDependencies:[]")
+    b := a
+
+
+    invariant @dependencyInfo("assumptionType:LoopInvariant, assertionType:LoopInvariant, label:L6, expectedDependencies:[L5,L1,L8,L9]")(b >= 0)
+    invariant @dependencyInfo("assumptionType:LoopInvariant, assertionType:LoopInvariant, label:L7, expectedDependencies:[L4,L1]")(pPred(a))
+    for(@dependencyInfo("assumptionType:PathCondition, label:L8, expectedDependencies:[]")(b > 0)){
+        @dependencyInfo("assumptionType:SourceCode, label:L9, expectedDependencies:[]")
+        b = b -1
+    }
+    @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L2, expectedDependencies:[L4,L1,L7]")
+    unfold pPred(a)
+}

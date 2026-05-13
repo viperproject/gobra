@@ -1,0 +1,21 @@
+package controlflow
+
+func testBranches(a bool){
+    @dependencyInfo("assumptionType:SourceCode, label:L0, expectedDependencies:[]")
+    x := 0
+    if(@dependencyInfo("assumptionType:PathCondition, label:L1, expectedDependencies:[]")(a)){
+        @dependencyInfo("assumptionType:SourceCode, label:L2, expectedDependencies:[]")
+        x = 1
+        @dependencyInfo("assertionType:Explicit, label:L3, expectedDependencies:[L1]")
+        assert a
+    }else{
+        @dependencyInfo("assumptionType:SourceCode, label:L4, expectedDependencies:[L0]")
+        x = 2
+        @dependencyInfo("assertionType:Explicit, label:L5, expectedDependencies:[L1]")
+        assert !a
+    }
+    @dependencyInfo("assertionType:Explicit, label:L6, expectedDependencies:[L2, L4]")
+    assert x > 0
+}
+
+// TODO ake: loops, switch case

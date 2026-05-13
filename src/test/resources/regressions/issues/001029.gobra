@@ -1,0 +1,60 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001029
+
+// Output parameters of the surrounding function may be referenced in the
+// precondition of an outline statement, because they have a meaningful value
+// at the entry of the outline block. (Issue #1029)
+
+ensures acc(r) && *r == 42
+func foo() (r *int) {
+	i@ := 0
+	r = &i
+
+	requires acc(r)
+	ensures  acc(r) && *r == 42
+	outline (
+		*r = 42
+	)
+}
+
+// The outer function's output is also accepted in `preserves` clauses of an
+// outline statement.
+ensures acc(r) && *r == 42
+func foo2() (r *int) {
+	i@ := 42
+	r = &i
+
+	preserves acc(r) && *r == 42
+	outline (
+		// nothing
+	)
+}
+
+// The check still rejects references to a closure's own output parameter in
+// the closure's own precondition.
+func bad() {
+	//:: ExpectedOutput(type_error)
+	c := requires s == 0
+	     ensures  s == 1
+	     func nested() (s int) {
+		return 1
+	}
+	_ = c
+}
+
+// An outline block in a function without named output parameters keeps
+// type-checking.
+func unnamedOut() *int {
+	i@ := 0
+	p := &i
+
+	requires acc(p)
+	ensures  acc(p) && *p == 42
+	outline (
+		*p = 42
+	)
+
+	return p
+}

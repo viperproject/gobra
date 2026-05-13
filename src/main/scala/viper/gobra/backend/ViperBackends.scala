@@ -10,8 +10,8 @@ import viper.gobra.frontend.{Config, Hyper, MCE}
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
-import viper.silicon.decider.Z3ProverAPI
 import viper.server.vsi.DefaultVerificationServerStart
+import viper.silicon.decider.Z3ProverAPI
 import viper.silver.plugin.sif.SIFExtendedTransformer
 
 import java.nio.file.{Files, Paths}
@@ -110,6 +110,9 @@ trait SiliconBasedBackend extends ViperBackend {
     if(config.startDependencyAnalysisTool){
       options ++= Vector("--startDependencyAnalysisTool")
     }
+		if(config.executeDependencyAnalysisTests){
+			options ++= Vector("--executeDependencyAnalysisTests")
+		}
 
     options
   }

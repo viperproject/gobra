@@ -6,21 +6,21 @@
 
 package viper.gobra.frontend
 
-import java.io.File
-import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
-import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
-import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
 import viper.gobra.reporting.{ConfigError, FileWriterReporter, GobraReporter, StdIOReporter, VerifierError}
+import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
 import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
+import java.io.File
+import java.nio.file.Path
 import scala.concurrent.duration.Duration
 import scala.util.matching.Regex
 
@@ -88,6 +88,7 @@ object ConfigDefaults {
   val DefaultDisableTerminationPlugin: Boolean = false
   val DefaultNumberOfErrorsToReport: Option[Int] = None
   val DefaultDependencyAnalysisExportPath: Option[String] = None
+	val DefaultExecuteDependencyAnalysisTests: Boolean = false
 }
 
 // More-complete exhale modes
@@ -205,7 +206,8 @@ case class Config(
                    enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
                    disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
                    numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
-                   dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath
+                   dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath,
+									 executeDependencyAnalysisTests: Boolean = ConfigDefaults.DefaultExecuteDependencyAnalysisTests,
 ) {
 
   def merge(other: Config): Config = {
@@ -279,6 +281,7 @@ case class Config(
       disableTerminationPlugin = disableTerminationPlugin || other.disableTerminationPlugin,
       numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
       dependencyAnalysisExportPath = dependencyAnalysisExportPath orElse other.dependencyAnalysisExportPath,
+			executeDependencyAnalysisTests = executeDependencyAnalysisTests || other.executeDependencyAnalysisTests,
     )
   }
 
@@ -349,6 +352,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
                       numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
                       dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath,
+											executeDependencyAnalysisTests: Boolean = ConfigDefaults.DefaultExecuteDependencyAnalysisTests,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -420,6 +424,7 @@ trait RawConfig {
     disableTerminationPlugin = baseConfig.disableTerminationPlugin,
     numberOfErrorsToReport = baseConfig.numberOfErrorsToReport,
     dependencyAnalysisExportPath = baseConfig.dependencyAnalysisExportPath,
+		executeDependencyAnalysisTests = baseConfig.executeDependencyAnalysisTests,
   )
 }
 

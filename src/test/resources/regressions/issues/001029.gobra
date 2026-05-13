@@ -4,8 +4,7 @@
 package issue001029
 
 // Output parameters of the surrounding function may be referenced in the
-// precondition of an outline statement, because they have a meaningful value
-// at the entry of the outline block. (Issue #1029)
+// precondition of an outline statement and closures.
 
 ensures acc(r) && *r == 42
 func foo() (r *int) {
@@ -17,6 +16,7 @@ func foo() (r *int) {
 	outline (
 		*r = 42
 	)
+	return
 }
 
 // The outer function's output is also accepted in `preserves` clauses of an
@@ -30,6 +30,22 @@ func foo2() (r *int) {
 	outline (
 		// nothing
 	)
+	return
+}
+
+// A closure literal declared inside a function may reference the outer
+// function's named output parameter in its precondition.
+ensures acc(r) && *r == 42
+func foo3() (r *int) {
+	i@ := 42
+	r = &i
+
+	c := requires acc(r) && *r == 42
+	     func nested() {
+		// nothing
+	}
+	_ = c
+	return
 }
 
 // The check still rejects references to a closure's own output parameter in
@@ -42,19 +58,5 @@ func bad() {
 		return 1
 	}
 	_ = c
-}
-
-// An outline block in a function without named output parameters keeps
-// type-checking.
-func unnamedOut() *int {
-	i@ := 0
-	p := &i
-
-	requires acc(p)
-	ensures  acc(p) && *p == 42
-	outline (
-		*p = 42
-	)
-
-	return p
+	return
 }

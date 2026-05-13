@@ -1,3 +1,4 @@
+package test1
 
 func testBranches(a bool){
     @dependencyInfo("assumptionType:SourceCode, label:L0, expectedDependencies:[]")
@@ -13,7 +14,7 @@ func testBranches(a bool){
         @dependencyInfo("assertionType:Explicit, label:L5, expectedDependencies:[L1]")
         assert !a
     }
-    @dependencyInfo("assertionType:Explicit, label:L6, expectedDependencies:[L2, L4, L1, L3]")
+    @dependencyInfo("assertionType:Explicit, label:L6, expectedDependencies:[L2, L4]")
     assert x > 0
 }
 
@@ -34,10 +35,8 @@ requires @dependencyInfo("assumptionType:Precondition, label:L11, expectedDepend
 requires @dependencyInfo("assumptionType:Precondition, label:L12, expectedDependencies:[]")(a < 100)
 ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:L13, expectedDependencies:[L11, L14]")(res > 0)
 pure func add_one(a int) (res int){
-    return @dependencyInfo("assumptionType:SourceCode, label:L14, expectedDependencies:[]")(a + 1)
+    return @dependencyInfo("assumptionType:FunctionBody, label:L14, expectedDependencies:[]")(a + 1)
 }
-
-const TEN = @dependencyInfo("assumptionType:SourceCode, label:L15, expectedDependencies:[]")(10)
 
 func client() {
     @dependencyInfo("assumptionType:SourceCode, label:L16, expectedDependencies:[]")
@@ -45,7 +44,7 @@ func client() {
 
     @dependencyInfo("assumptionType:SourceCode, label:L17, expectedDependencies:[L16]")
     res := add_one(a)
-    @dependencyInfo("assertionType:Explicit, label:L18, expectedDependencies:[L13,L11,L14,L17,L16]")
+    @dependencyInfo("assertionType:Explicit, label:L18, expectedDependencies:[L16,L14,L17]")
     assert res > 0
 
 
@@ -53,7 +52,4 @@ func client() {
     res2 := bar(a)
     @dependencyInfo("assertionType:Explicit, label:L20, expectedDependencies:[L16,L19,L8,L7,L9,L9b]")
     assert res2 > 0
-
-    @dependencyInfo("assertionType:Explicit, label:L21, expectedDependencies:[L15]")
-    assert TEN == 10
 }

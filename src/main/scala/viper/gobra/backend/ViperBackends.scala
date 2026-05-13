@@ -39,7 +39,7 @@ trait ViperBackend {
       SIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
     }
 
-    options ++= Vector("--disableTerminationPlugin")
+//    options ++= Vector("--disableTerminationPlugin")
     options
   }
 }
@@ -47,7 +47,7 @@ trait ViperBackend {
 trait SiliconBasedBackend extends ViperBackend {
   override protected def buildOptions(exePaths: Vector[String], config: Config): Vector[String] = {
     var options: Vector[String] = super.buildOptions(exePaths, config)
-    options ++= Vector("--logLevel", "ERROR")
+//    options ++= Vector("--logLevel", "ERROR")
     options ++= Vector("--disableCatchingExceptions")
     if (config.conditionalizePermissions) {
       options ++= Vector("--conditionalizePermissions")

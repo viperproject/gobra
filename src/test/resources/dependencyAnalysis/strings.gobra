@@ -1,0 +1,44 @@
+package pkg
+
+func lenTest() {
+    @dependencyInfo("assumptionType:SourceCode, label:L1")
+	h1 := "hello"
+	@dependencyInfo("assumptionType:SourceCode, label:L2")
+	h2 := "world"
+    @dependencyInfo("assertionType:Explicit, label:L3, expectedDependencies:[L1]")
+	assert len(h1) == 5
+    @dependencyInfo("assertionType:Explicit, label:L4, expectedDependencies:[L2]")
+	assert len(h2) == 5
+    @dependencyInfo("assertionType:Explicit, label:L5, expectedDependencies:[L1,L2]")
+	assert len(h1 + h2) == 10
+}
+
+func sharedStrTest() {
+    @dependencyInfo("assumptionType:SourceCode, label:L6")
+	s@ := "test"
+	@dependencyInfo("assumptionType:SourceCode, label:L7")
+	res := getStr(&s)
+    @dependencyInfo("assertionType:Explicit, label:L8, expectedDependencies:[L6,L7,L15,L16,L17]")
+	assert res == "test"
+}
+
+func stringEqTest() {
+    @dependencyInfo("assumptionType:SourceCode, label:L9")
+	h1 := "hello"
+	@dependencyInfo("assumptionType:SourceCode, label:L10")
+	var h2 = "hello"
+    @dependencyInfo("assertionType:Explicit, label:L11, expectedDependencies:[L9,L10]")
+	assert h1 == h2
+
+    @dependencyInfo("assumptionType:SourceCode, label:L12")
+	var h3 string = "heooo"
+    @dependencyInfo("assertionType:Explicit, label:L13, expectedDependencies:[L9,L12]")
+	assert h1 != h3
+}
+
+requires @dependencyInfo("assumptionType:Precondition, label:L14, expectedDependencies:[L6]")(acc(s, 1/2))
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, label:L15, expectedDependencies:[L6,L14]")(acc(s, 1/2))
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, label:L16, expectedDependencies:[L6,L14,L15,L17]")(res == *s)
+func getStr(s *string) (res string) {
+	return @dependencyInfo("assumptionType:SourceCode, label:L17, expectedDependencies:[L6,L14]")(*s)
+}

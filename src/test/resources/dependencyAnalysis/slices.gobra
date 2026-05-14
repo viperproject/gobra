@@ -1,0 +1,35 @@
+package pkg
+
+func test1() {
+  @dependencyInfo("assumptionType:SourceCode, label:L1, expectedDependencies:[]")
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L2, expectedDependencies:[L1]")
+  s := a[2:4]
+
+  @dependencyInfo("assertionType:Explicit, label:L3, expectedDependencies:[L1,L2]")
+  assert len(s) == 2
+  @dependencyInfo("assertionType:Explicit, label:L4, expectedDependencies:[L1,L2]")
+  assert s[0] == a[2]
+  @dependencyInfo("assertionType:Explicit, label:L5, expectedDependencies:[L1,L2]")
+  assert s[1] == 8
+}
+
+func test2() {
+  @dependencyInfo("assumptionType:SourceCode, label:L6, expectedDependencies:[]")
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  @dependencyInfo("assumptionType:SourceCode, label:L7, expectedDependencies:[L6]")
+  s := a[:3]
+
+  @dependencyInfo("assertionType:Explicit, label:L8, expectedDependencies:[L6,L7]")
+  assert len(s) == 3
+  @dependencyInfo("assertionType:Explicit, label:L9, expectedDependencies:[L6,L7]")
+  assert forall i int :: 0 <= i && i < len(s) ==> s[i] == a[i]
+  @dependencyInfo("assertionType:Explicit, label:L10, expectedDependencies:[L6,L7]")
+  assert s[2] == 4
+
+  @dependencyInfo("assumptionType:SourceCode, label:L11, expectedDependencies:[L7,L6]")
+  s[0] = 1
+
+  @dependencyInfo("assertionType:Explicit, label:L12, expectedDependencies:[L6,L7,L11]")
+  assert s[0] > 0
+}

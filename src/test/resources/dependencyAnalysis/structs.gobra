@@ -1,0 +1,73 @@
+package pkg;
+
+type cell struct{
+	val int;
+};
+
+func foo() {
+    @dependencyInfo("assumptionType:SourceCode, label:L1")
+	x := &cell{42};
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L2, expectedDependencies:[L1]")
+	x.val = 17;
+    @dependencyInfo("assertionType:Explicit, label:L3, expectedDependencies:[L1,L2]")
+	assert x.val == 17;
+
+    @dependencyInfo("assumptionType:SourceCode, label:L4")
+	y := cell{42};
+    @dependencyInfo("assumptionType:SourceCode, label:L5")
+	z@ := y;
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L6, expectedDependencies:[L4]")
+	y.val = 17;
+    @dependencyInfo("assertionType:Explicit, label:L7a, expectedDependencies:[L4,L6]")
+	assert y.val == 17
+    @dependencyInfo("assertionType:Explicit, label:L7b, expectedDependencies:[L4,L5]")
+	assert z.val == 42;
+
+    @dependencyInfo("assumptionType:SourceCode, label:L8")
+    a@ := cell{42};
+    @dependencyInfo("assumptionType:SourceCode, label:L9")
+    z = a;
+    @dependencyInfo("assumptionType:SourceCode, label:L10")
+    ap := &a;
+    @dependencyInfo("assumptionType:SourceCode, label:L11")
+    zp := &z;
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L12, expectedDependencies:[L8]")
+    a.val = 17;
+    @dependencyInfo("assertionType:Explicit, label:L13a, expectedDependencies:[L8,L12]")
+    assert a.val == 17;
+    @dependencyInfo("assertionType:Explicit, label:L13b, expectedDependencies:[L8,L9]")
+    assert z.val == 42;
+};
+
+func indirectAddressability() {
+    @dependencyInfo("assumptionType:SourceCode, label:L14")
+    x@ := cell{42};
+    @dependencyInfo("assumptionType:SourceCode, label:L15")
+    p := &x;
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L16, expectedDependencies:[L14,L15]")
+    p.val = 17;
+    @dependencyInfo("assertionType:Explicit, label:L17, expectedDependencies:[L14,L15,L16]")
+    assert x.val == 17;
+};
+
+
+func bar() {
+    @dependencyInfo("assumptionType:SourceCode, label:L18")
+    x@ := cell{42};
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L19")
+    p := &x.val;
+    @dependencyInfo("assumptionType:SourceCode, label:L20")
+    *p = 17;
+    @dependencyInfo("assertionType:Explicit, label:L21, expectedDependencies:[L18,L19,L20]")
+    assert x.val == 17;
+    @dependencyInfo("assertionType:Explicit, label:L22, expectedDependencies:[L18,L19,L20]")
+    assert x == cell{17};
+    @dependencyInfo("assumptionType:SourceCode, label:L23")
+    y := x;
+    @dependencyInfo("assumptionType:SourceCode, label:L24")
+    *p = 29;
+    @dependencyInfo("assertionType:Explicit, label:L25a, expectedDependencies:[L18,L19,L20,L23]")
+    assert y.val == 17;
+    @dependencyInfo("assertionType:Explicit, label:L25b, expectedDependencies:[L18,L19,L24]")
+    assert x.val == 29;
+};

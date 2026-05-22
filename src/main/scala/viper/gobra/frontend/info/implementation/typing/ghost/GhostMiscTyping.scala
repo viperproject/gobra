@@ -152,9 +152,20 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
     case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque, _) =>
+      // Collect the named output parameters of the spec's owner so that we only
+      // reject references to those (and not to outputs of an enclosing function,
+      // method, or closure - which is relevant for outline statements and nested
+      // closure literals).
+      val ownOutParams: Vector[PNamedParameter] = tree.parent(n).head match {
+        case p: PCodeRootWithResult => p.result.outs.collect {
+          case np: PNamedParameter => np
+          case PExplicitGhostParameter(np: PNamedParameter) => np
+        }
+        case _ => Vector.empty
+      }
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
-      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
-      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
+      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
@@ -229,13 +240,16 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     isExpr(e).out ++ assignableTo.errors(exprType(e), AssertionT, mayInit)(e) ++ isWeaklyPureExpr(e)
   }
 
-  private def illegalPreconditionNode(n: PNode): Messages = {
+  private def illegalPreconditionNode(n: PNode, ownOutParams: Vector[PNamedParameter]): Messages = {
     n match {
       case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
-      case id: PIdnUse if entity(id).isInstanceOf[SymbolTable.OutParameter] =>
-        message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
+      case id: PIdnUse => entity(id) match {
+        case op: SymbolTable.OutParameter if ownOutParams.exists(_ eq op.decl) =>
+          message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
+        case _ => noMessages
+      }
       case _ => noMessages
     }
   }

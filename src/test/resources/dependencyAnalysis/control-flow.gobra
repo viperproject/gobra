@@ -19,4 +19,113 @@ func testBranches(a bool){
 }
 
 
-// TODO ake: loops, switch case
+func testLoop(n int) {
+    @dependencyInfo("assumptionType:SourceCode, label:L7, expectedDependencies:[]")
+    i := 0
+    @dependencyInfo("assumptionType:SourceCode, label:L8, expectedDependencies:[]")
+    sum := 0
+
+    invariant @dependencyInfo("assumptionType:LoopInvariant, assertionType:LoopInvariant, label:L9a, expectedDependencies:[L7,L11]")(i >= 0)
+    invariant @dependencyInfo("assumptionType:LoopInvariant, assertionType:LoopInvariant, label:L9b, expectedDependencies:[L8,L10,L9a,L7,L11]")(sum >= 0)
+    for @dependencyInfo("assumptionType:PathCondition, label:L9, expectedDependencies:[]")(i < n) {
+        @dependencyInfo("assumptionType:SourceCode, label:L10, expectedDependencies:[]")
+        sum = sum + i
+        @dependencyInfo("assumptionType:SourceCode, label:L11, expectedDependencies:[]")
+        i = i + 1
+    }
+    @dependencyInfo("assertionType:Explicit, label:L12, expectedDependencies:[L8,L10,L9a,L9b,L7,L11]")
+    assert sum >= 0
+}
+
+func testSwitch(x int) {
+    @dependencyInfo("assumptionType:SourceCode, label:L13, expectedDependencies:[]")
+    result := 0
+    switch @dependencyInfo("assumptionType:PathCondition, label:L14, expectedDependencies:[]")(x) {
+    case 1:
+        @dependencyInfo("assumptionType:SourceCode, label:L15, expectedDependencies:[]")
+        result = 10
+    case 2:
+        @dependencyInfo("assumptionType:SourceCode, label:L16, expectedDependencies:[]")
+        result = 20
+    default:
+        @dependencyInfo("assumptionType:SourceCode, label:L17, expectedDependencies:[]")
+        result = 0
+    }
+    @dependencyInfo("assertionType:Explicit, label:L18, expectedDependencies:[L15, L16, L17]")
+    assert result >= 0
+}
+
+func testNestedIf(a bool, b bool) {
+    @dependencyInfo("assumptionType:SourceCode, label:L19, expectedDependencies:[]")
+    flag := false
+    if @dependencyInfo("assumptionType:PathCondition, label:L20, expectedDependencies:[]")(a) {
+        if @dependencyInfo("assumptionType:PathCondition, label:L21, expectedDependencies:[]")(b) {
+            @dependencyInfo("assumptionType:SourceCode, label:L22, expectedDependencies:[]")
+            flag = true
+        } else {
+            @dependencyInfo("assumptionType:SourceCode, label:L23, expectedDependencies:[]")
+            flag = false
+        }
+    } else {
+        @dependencyInfo("assumptionType:SourceCode, label:L24, expectedDependencies:[]")
+        flag = false
+    }
+    @dependencyInfo("assertionType:Explicit, label:L25, expectedDependencies:[L20, L21, L23, L24]")
+    assert !flag || (a && b)
+}
+
+func testComplexFlow(x int, y int) {
+    @dependencyInfo("assumptionType:SourceCode, label:L26, expectedDependencies:[]")
+    result := 0
+    @dependencyInfo("assumptionType:SourceCode, label:L27, expectedDependencies:[]")
+    count := 0
+    if @dependencyInfo("assumptionType:PathCondition, label:L28, expectedDependencies:[]")(x > 0) {
+        @dependencyInfo("assumptionType:SourceCode, label:L29, expectedDependencies:[]")
+        result = result + x
+        @dependencyInfo("assumptionType:SourceCode, label:L30, expectedDependencies:[]")
+        count = count + 1
+    }
+    if @dependencyInfo("assumptionType:PathCondition, label:L31, expectedDependencies:[]")(y > 0) {
+        @dependencyInfo("assumptionType:SourceCode, label:L32, expectedDependencies:[]")
+        result = result + y
+        @dependencyInfo("assumptionType:SourceCode, label:L33, expectedDependencies:[]")
+        count = count + 1
+    }
+    @dependencyInfo("assertionType:Explicit, label:L34, expectedDependencies:[L27, L30, L33]")
+    assert count <= 2
+
+    @dependencyInfo("assertionType:Explicit, label:L34b, expectedDependencies:[L26,L28,L29,L31,L32]")
+    assert x > 0 && y > 0 ==> result == x + y
+}
+
+func testDoWhile(n int) {
+    @dependencyInfo("assumptionType:SourceCode, label:L35, expectedDependencies:[]")
+    i := 0
+    invariant @dependencyInfo("assumptionType:LoopInvariant, assertionType:LoopInvariant, label:L36a, expectedDependencies:[L35,L36]")(i >= 0)
+    for {
+        @dependencyInfo("assumptionType:SourceCode, label:L36, expectedDependencies:[]")
+        i = i + 1
+        if @dependencyInfo("assumptionType:PathCondition, label:L37, expectedDependencies:[]")(i >= n) {
+            break
+        }
+    }
+    @dependencyInfo("assertionType:Explicit, label:L38, expectedDependencies:[L35, L36,L36a]")
+    assert i >= 0
+}
+
+requires @dependencyInfo("assumptionType:Precondition, label:L39, expectedDependencies:[]")(a > 0)
+func infeasPath(a int){
+    @dependencyInfo("assumptionType:SourceCode, label:L41, expectedDependencies:[]")
+    b := 0
+    if(@dependencyInfo("assumptionType:PathCondition, label:L42, expectedDependencies:[]")(a < 0)){
+        @dependencyInfo("assumptionType:SourceCode, label:L43, expectedDependencies:[]")
+        b := -1
+        @dependencyInfo("assertionType:Explicit, label:L44, expectedDependencies:[L42, L39]")
+        assert false
+    } else {
+        @dependencyInfo("assumptionType:SourceCode, label:L45, expectedDependencies:[]")
+        b = 1
+    }
+    @dependencyInfo("assertionType:Explicit, label:L46, expectedDependencies:[L39, L42, L45]")
+    assert b == 1
+}

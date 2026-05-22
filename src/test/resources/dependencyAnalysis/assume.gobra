@@ -1,0 +1,49 @@
+package dependencyAnalysis
+
+func assumeWithBranch(x int, y int) {
+    @dependencyInfo("assumptionType:SourceCode, label:A3, expectedDependencies:[]")
+    val1 := x
+    @dependencyInfo("assumptionType:SourceCode, label:A4, expectedDependencies:[]")
+    val2 := y
+    @dependencyInfo("assumptionType:Explicit, label:A6, expectedDependencies:[]")
+    assume val2 >= 0
+    if @dependencyInfo("assumptionType:PathCondition, label:A5, expectedDependencies:[]")(val1 > 0) {
+        @dependencyInfo("assertionType:Explicit, label:A7, expectedDependencies:[A6, A4]")
+        assert y >= 0
+    } else {
+        @dependencyInfo("assertionType:Explicit, label:A9, expectedDependencies:[A5]")
+        assert val1 <= 0
+    }
+}
+
+func assumeLoop(n int) {
+    @dependencyInfo("assumptionType:SourceCode, label:A10, expectedDependencies:[]")
+    counter := 0
+    @dependencyInfo("assumptionType:Explicit, label:A11, expectedDependencies:[]")
+    assume n > 0
+    invariant @dependencyInfo("assumptionType:LoopInvariant, label:A12, expectedDependencies:[A10, A11, A13, A14]")(counter <= n)
+    for @dependencyInfo("assumptionType:PathCondition, label:A13, expectedDependencies:[]")(counter < n) {
+        @dependencyInfo("assumptionType:SourceCode, label:A14, expectedDependencies:[]")
+        counter = counter + 1
+    }
+    @dependencyInfo("assertionType:Explicit, label:A15, expectedDependencies:[A10, A11, A13, A14, A12]")
+    assert counter == n
+}
+
+func assumeMultiple(a int, b int, c int) {
+    @dependencyInfo("assumptionType:SourceCode, label:A16, expectedDependencies:[]")
+    x := a
+    @dependencyInfo("assumptionType:SourceCode, label:A17, expectedDependencies:[]")
+    y := b
+    @dependencyInfo("assumptionType:SourceCode, label:A18, expectedDependencies:[]")
+    z := c
+    @dependencyInfo("assumptionType:Explicit, label:A19, expectedDependencies:[]")
+    assume a > 0
+    @dependencyInfo("assumptionType:Explicit, label:A20, expectedDependencies:[]")
+    assume y > 0
+    @dependencyInfo("assumptionType:Explicit, label:A21, expectedDependencies:[]")
+    assume z == x + y
+    @dependencyInfo("assertionType:Explicit, label:A22, expectedDependencies:[A16, A19, A20, A21]")
+    assert z > 0
+}
+

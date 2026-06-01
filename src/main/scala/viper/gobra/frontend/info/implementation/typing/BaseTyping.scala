@@ -7,8 +7,10 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.==>
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.SymbolTable
+import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.Type.{Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Safety
@@ -42,6 +44,18 @@ trait BaseTyping { this: TypeInfoImpl =>
 
   def allChildren(n: PNode): Vector[PNode] = {
     tree.child(n).flatMap(m => m +: allChildren(m))
+  }
+
+  private[typing] def unexportedRefsInPublicMember(memberName: String, nodes: Vector[PNode]): Messages = {
+    if (!SymbolTable.isExported(memberName)) return noMessages
+    val allIdnUses = nodes.flatMap(n => (n +: allChildren(n)).collect { case id: PIdnUse => id })
+    allIdnUses.flatMap { id =>
+      entity(id) match {
+        case r: Regular if !r.isInstanceOf[SymbolTable.BuiltInEntity] && r.context == this && !SymbolTable.isExported(id.name) =>
+          error(id, s"Exported member '$memberName' cannot reference unexported member '${id.name}' in its specification or signature.")
+        case _ => noMessages
+      }
+    }
   }
 
   trait WellDefinedness[-A] extends Error[A]

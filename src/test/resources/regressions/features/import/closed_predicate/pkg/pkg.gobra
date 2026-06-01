@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type MyStruct struct {
+    PublicField int
+    privateField int
+}
+
+// Closed predicate can reference private members in body
+closed pred ClosedPred(s *MyStruct) {
+    acc(&s.PublicField) && acc(&s.privateField)
+}
+
+// Non-closed exported predicate using only public members is fine
+pred OpenPred(s *MyStruct) {
+    acc(&s.PublicField)
+}
+
+requires ClosedPred(s)
+ensures ClosedPred(s)
+func UsesClosed(s *MyStruct) {
+    unfold ClosedPred(s)
+    fold ClosedPred(s)
+}

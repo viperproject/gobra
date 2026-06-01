@@ -201,7 +201,8 @@ case class PureMethod(
                        override val terminationMeasures: Vector[TerminationMeasure],
                        override val backendAnnotations: Vector[BackendAnnotation],
                        body: Option[Expr],
-                       isOpaque: Boolean
+                       isOpaque: Boolean,
+                       isClosed: Boolean = false
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
@@ -259,7 +260,8 @@ case class PureFunction(
                          override val terminationMeasures: Vector[TerminationMeasure],
                          override val backendAnnotations: Vector[BackendAnnotation],
                          body: Option[Expr],
-                         isOpaque: Boolean
+                         isOpaque: Boolean,
+                         isClosed: Boolean = false
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }
@@ -283,7 +285,8 @@ sealed trait FPredicateLikeMember extends Member {
 case class FPredicate(
                        override val name: FPredicateProxy,
                        args: Vector[Parameter.In],
-                       body: Option[Assertion]
+                       body: Option[Assertion],
+                       isClosed: Boolean = false
                      )(val info: Source.Parser.Info) extends FPredicateLikeMember with PredicateMember
 
 case class BuiltInFPredicate(
@@ -302,7 +305,8 @@ case class MPredicate(
                      receiver: Parameter.In,
                      override val name: MPredicateProxy,
                      args: Vector[Parameter.In],
-                     body: Option[Assertion]
+                     body: Option[Assertion],
+                     isClosed: Boolean = false
                      )(val info: Source.Parser.Info) extends MPredicateLikeMember with PredicateMember
 
 case class BuiltInMPredicate(

@@ -150,8 +150,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
-      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque, isClosed) =>
+      val funcPrefix = (if (isClosed) text("closed ") else emptyDoc) <> (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
       funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
@@ -163,8 +163,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
-      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque, isClosed) =>
+      val funcPrefix = (if (isClosed) text("closed ") else emptyDoc) <> (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
       funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
@@ -182,13 +182,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showFPredicate(predicate: FPredicate): Doc = predicate match {
-    case FPredicate(name, args, body) =>
-    "pred" <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+    case FPredicate(name, args, body, isClosed) =>
+    (if (isClosed) text("closed ") else emptyDoc) <> "pred" <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
   }
 
   def showMPredicate(predicate: MPredicate): Doc = predicate match {
-    case MPredicate(recv, name, args, body) =>
-      "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+    case MPredicate(recv, name, args, body, isClosed) =>
+      (if (isClosed) text("closed ") else emptyDoc) <> "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
   }
 
   def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
@@ -708,7 +708,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque, _) =>
     val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
       funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
@@ -723,7 +723,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque, _) =>
       val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
       funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
@@ -731,12 +731,12 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {
-    case FPredicate(name, args, _) =>
+    case FPredicate(name, args, _, _) =>
       "pred" <+> name.name <> parens(showFormalArgList(args))
   }
 
   override def showMPredicate(predicate: MPredicate): Doc = predicate match {
-    case MPredicate(recv, name, args, _) =>
+    case MPredicate(recv, name, args, _, _) =>
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args))
   }
 

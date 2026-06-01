@@ -89,10 +89,18 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             noConditionalMeasureErrors(sig.spec.terminationMeasures)
           else noMessages
         }
+        val unexportedMethodErrors = t.methSpecs.flatMap(m =>
+          error(m, s"Interface method '${m.id.name}' must be exported (start with uppercase letter).",
+            !SymbolTable.isExported(m.id.name)))
+        val unexportedPredErrors = t.predSpecs.flatMap(p =>
+          error(p, s"Interface predicate '${p.id.name}' must be exported (start with uppercase letter).",
+            !SymbolTable.isExported(p.id.name)))
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           sigsWithWildcardMeasuresErrors ++
           sigsWithConditionalMeasuresErrors ++
+          unexportedMethodErrors ++
+          unexportedPredErrors ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

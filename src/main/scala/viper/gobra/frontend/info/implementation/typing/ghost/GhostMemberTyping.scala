@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -19,13 +20,23 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
     case PExplicitGhostMember(_) => noMessages
 
-    case PFPredicateDecl(_, args, body) =>
-      body.fold(noMessages)(assignableToSpec) ++ nonVariadicArguments(args)
+    case n @ PFPredicateDecl(id, args, body, isClosed) =>
+      body.fold(noMessages)(assignableToSpec) ++ nonVariadicArguments(args) ++
+        error(n, "closed is only meaningful for exported predicates.",
+          isClosed && !SymbolTable.isExported(id.name)) ++
+        (if (SymbolTable.isExported(id.name) && !isClosed)
+          body.toVector.flatMap(b => unexportedRefsInPublicMember(id.name, Vector(b)))
+        else noMessages)
 
-    case PMPredicateDecl(_, receiver, args, body) =>
+    case n @ PMPredicateDecl(id, receiver, args, body, isClosed) =>
       body.fold(noMessages)(assignableToSpec) ++
         isReceiverType.errors(miscType(receiver))(member) ++
-        nonVariadicArguments(args)
+        nonVariadicArguments(args) ++
+        error(n, "closed is only meaningful for exported predicates.",
+          isClosed && !SymbolTable.isExported(id.name)) ++
+        (if (SymbolTable.isExported(id.name) && !isClosed)
+          body.toVector.flatMap(b => unexportedRefsInPublicMember(id.name, Vector(b)))
+        else noMessages)
   }
 
   private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {

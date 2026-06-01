@@ -139,15 +139,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, body) =>
-        "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
-      case PMPredicateDecl(id, recv, args, body) =>
-        "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PFPredicateDecl(id, args, body, isClosed) =>
+        (if (isClosed) "closed" <+> emptyDoc else emptyDoc) <> "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PMPredicateDecl(id, recv, args, body, isClosed) =>
+        (if (isClosed) "closed" <+> emptyDoc else emptyDoc) <> "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
     }
   }
 
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
+  def showClosed: Doc = "closed" <> line
   def showTrusted: Doc = "trusted" <> line
   def showMayInit: Doc = "mayInit" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
@@ -164,9 +165,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, mayInit) =>
+    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, mayInit, isClosed) =>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
+      (if (isClosed) showClosed else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       (if (mayInit) showMayInit else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
@@ -802,9 +804,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, _) =>
+      case PFPredicateDecl(id, args, _, _) =>
         "pred" <+> showId(id) <> parens(showParameterList(args))
-      case PMPredicateDecl(id, recv, args, _) =>
+      case PMPredicateDecl(id, recv, args, _, _) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
     }
   }

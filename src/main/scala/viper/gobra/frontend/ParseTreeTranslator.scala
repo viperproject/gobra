@@ -927,6 +927,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       isTrusted = ctx.trusted,
       isOpaque = ctx.opaque,
       mayBeUsedInInit = ctx.mayInit,
+      isClosed = ctx.closed,
     )
   }
 
@@ -1073,7 +1074,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val receiver = visitReceiver(ctx.receiver())
     val params = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
     val body = if (has(ctx.predicateBody())) Some(visitNode[PExpression](ctx.predicateBody().expression())) else None
-    Vector(PMPredicateDecl(id, receiver, params.flatten, body).at(ctx))
+    val isClosed = has(ctx.CLOSED())
+    Vector(PMPredicateDecl(id, receiver, params.flatten, body, isClosed).at(ctx))
   }
 
   /**
@@ -1086,7 +1088,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val id = idnDef.get(ctx.IDENTIFIER())
     val params = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
     val body = if (has(ctx.predicateBody())) Some(visitNode[PExpression](ctx.predicateBody().expression())) else None
-    Vector(PFPredicateDecl(id, params.flatten, body).at(ctx))
+    val isClosed = has(ctx.CLOSED())
+    Vector(PFPredicateDecl(id, params.flatten, body, isClosed).at(ctx))
   }
   //endregion
 

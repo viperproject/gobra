@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type MyStruct struct {
+    PublicField int
+    privateField int
+}
+
+func PublicFunc() int {
+    return 1
+}
+
+func privateFunc() int {
+    return 2
+}
+
+ghost
+decreases
+pure func PublicPure() int {
+    return 1
+}
+
+ghost
+decreases
+pure func privatePure() int {
+    return 2
+}
+
+pred PublicPred() {
+    true
+}
+
+pred privatePred() {
+    true
+}

@@ -708,7 +708,7 @@ object Desugar extends LazyLogging {
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
       in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
-        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque, funcInfo.isClosed)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -719,7 +719,8 @@ object Desugar extends LazyLogging {
                                         terminationMeasures: Vector[in.TerminationMeasure],
                                         backendAnnotations: Vector[BackendAnnotation],
                                         body: Option[in.Expr],
-                                        isOpaque: Boolean)
+                                        isOpaque: Boolean,
+                                        isClosed: Boolean)
 
 
     private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
@@ -779,7 +780,8 @@ object Desugar extends LazyLogging {
       }
       val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)
+      val isClosed = decl.spec.isClosed
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, isClosed)
     }
 
 
@@ -955,8 +957,9 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
+      val isClosed = decl.spec.isClosed
       val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, isClosed)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -973,7 +976,7 @@ object Desugar extends LazyLogging {
         specificationD(ctx, info)(s)
       }
 
-      in.FPredicate(name, args, bodyOpt)(fsrc)
+      in.FPredicate(name, args, bodyOpt, decl.isClosed)(fsrc)
     }
 
     def mpredicateD(decl: PMPredicateDecl): in.MPredicate = {
@@ -993,7 +996,7 @@ object Desugar extends LazyLogging {
         specificationD(ctx, info)(s)
       }
 
-      in.MPredicate(recv, name, args, bodyOpt)(fsrc)
+      in.MPredicate(recv, name, args, bodyOpt, decl.isClosed)(fsrc)
     }
 
 

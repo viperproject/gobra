@@ -115,7 +115,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   }
 
   override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {
-    // TODO restrict lookup to members starting with a capital letter
+    if (!SymbolTable.isExported(n.name)) return None
     lookup(topLevelEnvironment, n.name, UnknownEntity()) match {
       case r: Regular => Some(registerExternallyAccessedEntity(r))
       case _ => None
@@ -123,12 +123,14 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   }
 
   override def tryAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+    if (!SymbolTable.isExported(id.name)) return None
     val res = addressableMethodSet(typ).lookupWithPath(id.name)
     res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
     res
   }
 
   override def tryNonAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+    if (!SymbolTable.isExported(id.name)) return None
     val res = nonAddressableMethodSet(typ).lookupWithPath(id.name)
     res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
     res

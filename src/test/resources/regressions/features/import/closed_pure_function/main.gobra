@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import p "pkg"
+
+func test() {
+    var s p.MyStruct
+
+    // Can call closed pure function
+    _ = p.ClosedPureFunc(s)
+
+    // Can call and reveal open pure function
+    _ = reveal p.OpenPureFunc(s)
+
+    // Cannot reveal closed pure function from another package
+    //:: ExpectedOutput(type_error)
+    _ = reveal p.ClosedPureFunc(s)
+}

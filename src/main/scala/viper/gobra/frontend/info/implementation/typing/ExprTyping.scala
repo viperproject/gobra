@@ -256,12 +256,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
+          val (isOpaque, isClosed, isMayInit, isImported, isPure) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
+              case f: st.Function => (f.isOpaque, f.isClosed, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
               case m: st.MethodImpl =>
-                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
-              case _ => (false, true, false, false)
+                (m.isOpaque, m.isClosed, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
+              case _ => (false, false, true, false, false)
             }
           }
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
@@ -278,7 +278,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               noMessages
           }
           val onlyRevealOpaqueFunc =
-            error(n, "Cannot reveal call to non-opaque function.", n.reveal && !isOpaque)
+            error(n, "Cannot reveal call to non-opaque function.", n.reveal && !isOpaque) ++
+            error(n, "Cannot reveal closed function from another package.", n.reveal && isClosed && isImported)
           val isCallToInit =
             error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
               c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)
@@ -564,6 +565,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op) ++
       wellDefFoldable(n.pred) ++
+      wellDefClosedPredicateAccess(n.pred) ++
       error(
         n.pred,
         s"unfolding predicate expression instance ${n.pred} not supported",

@@ -185,9 +185,9 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false, boolean closed = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
+  ((specStatement | OPAQUE {$opaque = true;} | CLOSED {$closed = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;
@@ -267,11 +267,11 @@ methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIF
 
 explicitGhostMember: GHOST (specMember | declaration);
 
-fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
+fpredicateDecl: CLOSED? PRED IDENTIFIER parameters predicateBody?;
 
 predicateBody: L_CURLY expression eos R_CURLY;
 
-mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
+mpredicateDecl: CLOSED? PRED receiver IDENTIFIER parameters predicateBody?;
 
 // Addressability
 

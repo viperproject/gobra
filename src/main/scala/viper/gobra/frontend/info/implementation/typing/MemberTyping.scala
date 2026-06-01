@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -27,13 +28,29 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         wellDefIfInitBlock(n) ++
         wellDefIfMain(n) ++
         wellFoundedIfNeeded(n) ++
-        noConditionalMeasureIfGhostOrPure(n)
+        noConditionalMeasureIfGhostOrPure(n) ++
+        unexportedRefsInPublicMember(n.id.name,
+          n.spec.pres ++ n.spec.preserves ++ n.spec.posts ++ n.spec.terminationMeasures ++
+          n.args.flatMap(_.typ.toVector) ++ n.result.outs.flatMap(_.typ.toVector)) ++
+        error(n, "closed is only meaningful for exported pure functions.",
+          n.spec.isClosed && !SymbolTable.isExported(n.id.name)) ++
+        (if (n.spec.isPure && SymbolTable.isExported(n.id.name) && !n.spec.isClosed)
+          n.body.toVector.flatMap { case (_, b) => unexportedRefsInPublicMember(n.id.name, Vector(b)) }
+        else noMessages)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++
         wellDefIfPureMethod(m) ++
         wellFoundedIfNeeded(m) ++
-        noConditionalMeasureIfGhostOrPure(m)
+        noConditionalMeasureIfGhostOrPure(m) ++
+        unexportedRefsInPublicMember(m.id.name,
+          m.spec.pres ++ m.spec.preserves ++ m.spec.posts ++ m.spec.terminationMeasures ++
+          m.args.flatMap(_.typ.toVector) ++ m.result.outs.flatMap(_.typ.toVector) ++ Vector(m.receiver)) ++
+        error(m, "closed is only meaningful for exported pure methods.",
+          m.spec.isClosed && !SymbolTable.isExported(m.id.name)) ++
+        (if (m.spec.isPure && SymbolTable.isExported(m.id.name) && !m.spec.isClosed)
+          m.body.toVector.flatMap { case (_, b) => unexportedRefsInPublicMember(m.id.name, Vector(b)) }
+        else noMessages)
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PVarDecl if isGlobalVarDeclaration(g) =>

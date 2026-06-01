@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import p "pkg"
+
+func test() {
+    s@ := p.MyStruct{PublicField: 1}
+
+    // Can fold/unfold open predicate from outside
+    fold p.OpenPred(&s)
+    unfold p.OpenPred(&s)
+
+    // Cannot fold or unfold closed predicate from another package
+    //:: ExpectedOutput(type_error)
+    fold p.ClosedPred(&s)
+    //:: ExpectedOutput(type_error)
+    unfold p.ClosedPred(&s)
+}

@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Interfaces with unexported methods should be rejected
+//:: ExpectedOutput(type_error)
+type BadInterface interface {
+    privateMethod()
+}
+
+// Interfaces with exported methods are fine
+type GoodInterface interface {
+    PublicMethod()
+}
+
+// Interfaces with unexported predicate signatures should be rejected
+//:: ExpectedOutput(type_error)
+type BadPredInterface interface {
+    pred privatePred()
+}

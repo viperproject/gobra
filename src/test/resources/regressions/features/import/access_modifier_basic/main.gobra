@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./)
+import p "pkg"
+
+func test() {
+    // Accessing public members should succeed
+    var s p.MyStruct
+    _ = s.PublicField
+    _ = p.PublicFunc()
+
+    // Accessing private members should fail
+    //:: ExpectedOutput(type_error)
+    _ = s.privateField
+    //:: ExpectedOutput(type_error)
+    _ = p.privateFunc()
+    //:: ExpectedOutput(type_error)
+    _ = p.privatePure()
+}

@@ -287,11 +287,19 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   // Lookups
 
-  def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
-    structMemberSet(t).lookupWithPath(id.name)
+  def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] = {
+    val result = structMemberSet(t).lookupWithPath(id.name)
+    result.filter { case (member, _) =>
+      member.context == this || SymbolTable.isExported(id.name)
+    }
+  }
 
-  def tryAdtMemberLookup(t: Type, id: PIdnUse): Option[(AdtMember, Vector[MemberPath])] =
-    adtMemberSet(t).lookupWithPath(id.name)
+  def tryAdtMemberLookup(t: Type, id: PIdnUse): Option[(AdtMember, Vector[MemberPath])] = {
+    val result = adtMemberSet(t).lookupWithPath(id.name)
+    result.filter { case (member, _) =>
+      member.context == this || isExported(id.name)
+    }
+  }
 
   /** Resolves `e`.`id`.
     * @return _1: Methods accessible if e is addressable.

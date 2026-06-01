@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{PClosureImplProof, AstPattern => ap, _}
 import viper.gobra.frontend.info.base.Type.BooleanT
 import viper.gobra.frontend.info.base.{SymbolTable => st}
@@ -22,8 +22,8 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PExhale(exp) => assignableToSpec(exp)
     case PAssume(exp) => assignableToSpec(exp)
     case PInhale(exp) => assignableToSpec(exp)
-    case PFold(acc) => wellDefFoldable(acc)
-    case PUnfold(acc) => wellDefFoldable(acc)
+    case PFold(acc) => wellDefFoldable(acc) ++ wellDefClosedPredicateAccess(acc)
+    case PUnfold(acc) => wellDefFoldable(acc) ++ wellDefClosedPredicateAccess(acc)
     case n: PAssertByProof =>
       error(n, "`assert P by { ... }` is currently not supported (cf. Gobra #1000). Use `assert P by contra { ... }` instead.")
     case n: PAssertBy =>
@@ -71,6 +71,22 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
       case _ => error(acc, s"unexpected predicate access")
+    }
+  }
+
+  private[typing] def wellDefClosedPredicateAccess(acc: PPredicateAccess): Messages = {
+    resolve(acc.pred) match {
+      case Some(ap.PredicateCall(pred, _)) => pred match {
+        case p: ap.SymbolicPredicateKind => p.symb match {
+          case fp: st.FPredicate if fp.isClosed && fp.context != this =>
+            error(acc, s"Cannot fold or unfold closed predicate '${fp.decl.id.name}' from another package.")
+          case mp: st.MPredicateImpl if mp.isClosed && mp.context != this =>
+            error(acc, s"Cannot fold or unfold closed predicate '${mp.decl.id.name}' from another package.")
+          case _ => noMessages
+        }
+        case _ => noMessages
+      }
+      case _ => noMessages
     }
   }
 

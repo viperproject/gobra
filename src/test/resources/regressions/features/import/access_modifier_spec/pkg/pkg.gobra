@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type myType int
+
+ghost
+decreases
+pure func privatePure() int {
+    return 0
+}
+
+pred privatePred() {
+    true
+}
+
+// Exported function with unexported members in spec should be rejected
+//:: ExpectedOutput(type_error)
+requires privatePred()
+func PublicFuncBadSpec() {
+}
+
+// Unexported function referencing unexported members in spec is fine
+requires privatePred()
+func privateFuncGoodSpec() {
+}
+
+// Exported function with clean spec is fine
+func PublicFuncGoodSpec() {
+}
+
+// Exported predicate referencing unexported members without closed should fail
+//:: ExpectedOutput(type_error)
+pred PublicPredBadBody() {
+    privatePred()
+}

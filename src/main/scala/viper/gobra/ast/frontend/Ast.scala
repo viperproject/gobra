@@ -895,6 +895,7 @@ case class PFunctionSpec(
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
+                          isClosed: Boolean = false,
                       ) extends PSpecification
 
 case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
@@ -926,14 +927,16 @@ case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMembe
 case class PFPredicateDecl(
                          id: PIdnDef,
                          args: Vector[PParameter],
-                         body: Option[PExpression]
+                         body: Option[PExpression],
+                         isClosed: Boolean = false,
                          ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateDecl(
                           id: PIdnDef,
                           receiver: PReceiver,
                           args: Vector[PParameter],
-                          body: Option[PExpression]
+                          body: Option[PExpression],
+                          isClosed: Boolean = false,
                           ) extends PGhostMember with PDependentDef with PScope with PCodeRoot
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PDependentDef with PScope with PCodeRoot

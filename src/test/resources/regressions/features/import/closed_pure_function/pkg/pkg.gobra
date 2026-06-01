@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type MyStruct struct {
+    PublicField int
+    privateField int
+}
+
+// Closed opaque pure function can reference private members
+closed
+opaque
+decreases
+pure func ClosedPureFunc(s MyStruct) int {
+    return s.privateField
+}
+
+// Non-closed exported pure function must not reference private members
+opaque
+decreases
+pure func OpenPureFunc(s MyStruct) int {
+    return s.PublicField
+}

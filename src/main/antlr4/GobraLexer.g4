@@ -100,6 +100,7 @@ GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
+CLOSED      : 'closed' -> mode(NLSEMI);
 MAYINIT     : 'mayInit' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';

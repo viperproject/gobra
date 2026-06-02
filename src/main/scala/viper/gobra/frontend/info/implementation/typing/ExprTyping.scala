@@ -30,6 +30,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   // are constant (obtained empirically)
   val MAX_SHIFT: Int = 512
 
+  private def isUntypedIntConst(expr: PExpression): Boolean =
+    exprType(expr) == UNTYPED_INT_CONST && intConstantEval(expr).nonEmpty
+
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
     case n: PNamedOperand =>
       resolve(n) match {

@@ -103,7 +103,7 @@ class GobraPackageTests extends GobraTests {
       .collectFirst { case m if m.group(1) != null => m.group(1) }
   }
 
-  private def createConfig(args: Array[String]): Option[Config] = {
+  protected def createConfig(args: Array[String]): Option[Config] = {
     try {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)

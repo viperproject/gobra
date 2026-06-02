@@ -2230,6 +2230,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     POpenDupPkgInv().at(ctx)
   }
 
+  /**
+    * Visits the production
+    * VAR IDENTIFIER type_ COLON_PIPE expression
+    */
+  override def visitAssignSuchThatStatement(ctx: AssignSuchThatStatementContext): PAssignSuchThat = {
+    val left = idnDef.get(ctx.IDENTIFIER())
+    val typ = visitNode[PType](ctx.type_())
+    val cond = visitNode[PExpression](ctx.expression())
+    PAssignSuchThat(left, typ, cond).at(ctx)
+  }
+
   override def visitFriendPkgDecl(ctx: FriendPkgDeclContext): PFriendPkgDecl = {
     val path = visitString_(ctx.importPath().string_()).lit
     val assertion = visitNode[PExpression](ctx.assertion())

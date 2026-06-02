@@ -56,3 +56,9 @@ pure func shiftRightIntegerRejected(a integer, n integer) integer {
     //:: ExpectedOutput(type_error)
     return a >> n
 }
+
+ghost
+decreases
+pure func untypedIntegerBitwiseStillAccepted() integer {
+    return (1 & 3) | (8 >> 1)
+}

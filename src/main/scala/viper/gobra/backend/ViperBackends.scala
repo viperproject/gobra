@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{Config, Hyper, MCE, PackageInfo}
+import viper.gobra.frontend.{CliEnumConverter, Config, Hyper, MCE, PackageInfo}
 import viper.gobra.reporting.SIFEncodedViperMessage
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
@@ -19,7 +19,7 @@ import java.nio.file.{Files, Paths}
 import scala.io.Source
 import scala.util.Using
 
-trait ViperBackend {
+trait ViperBackend extends CliEnumConverter.EnumCase {
   def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): ViperVerifier
 
   protected def buildOptions(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): Vector[String] = {
@@ -111,6 +111,7 @@ trait CarbonBasedBackend extends ViperBackend {
 object ViperBackends {
 
   object SiliconBackend extends SiliconBasedBackend {
+    override val value: String = "SILICON"
     override def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): Silicon = {
       val options = buildOptions(exePaths, config, pkgInfo)
       new Silicon(options)
@@ -118,8 +119,9 @@ object ViperBackends {
   }
 
   object CarbonBackend extends CarbonBasedBackend {
+    override val value: String = "CARBON"
     override def create(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): Carbon = {
-      val options = buildOptions(exePaths, config,pkgInfo)
+      val options = buildOptions(exePaths, config, pkgInfo)
       new Carbon(options)
     }
   }
@@ -165,6 +167,7 @@ object ViperBackends {
   }
 
   case class ViperServerWithSilicon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with SiliconBasedBackend {
+    override val value: String = "VSWITHSILICON"
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): ViperVerifierConfig = {
       val options = super.buildOptions(exePaths, config, pkgInfo)
       ViperServerConfig.ConfigWithSilicon(options.toList)
@@ -172,6 +175,7 @@ object ViperBackends {
   }
 
   case class ViperServerWithCarbon(initialServer: Option[ViperCoreServer] = None) extends ViperServerBackend(initialServer) with CarbonBasedBackend {
+    override val value: String = "VSWITHCARBON"
     override def getViperVerifierConfig(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): ViperVerifierConfig = {
       val options = super.buildOptions(exePaths, config, pkgInfo)
       ViperServerConfig.ConfigWithCarbon(options.toList)

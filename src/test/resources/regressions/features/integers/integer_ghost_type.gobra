@@ -46,3 +46,9 @@ func largeLiteral() {
     ghost var big integer = 9223372036854775808 // 2^63, exceeds int64 max
     assert big > 0
 }
+
+ensures integer(result) == integer(n) + 1
+decreases
+func convertToInteger(n int) (result int) {
+    return n + 1
+}

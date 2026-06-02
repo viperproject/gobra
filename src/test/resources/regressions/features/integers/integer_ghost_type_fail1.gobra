@@ -7,3 +7,10 @@ func actualIntegerRejected() {
     //:: ExpectedOutput(type_error)
     var x integer = 0
 }
+
+ghost
+decreases
+func integerNotAssignableToInt(x integer) {
+    //:: ExpectedOutput(type_error)
+    ghost var y int = x
+}

@@ -81,7 +81,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             val constEval = intConstantEval(op)
             constEval map { constValue =>
               t match {
-                case UnboundedInteger | _: Signed => ~constValue
+                case UnboundedInteger | UntypedConstInteger | _: Signed => ~constValue
                 case u: Unsigned => ~constValue mod (u.upper + 1)
               }
             }
@@ -112,7 +112,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
               }
             case _: PShiftRight => exprType(l) match {
               case IntT(t) => t match {
-                case UnboundedInteger | _: Signed =>
+                case UnboundedInteger | UntypedConstInteger | _: Signed =>
                   aux(l, r){
                     x => y =>
                       // The type system ensures that y is convertible to int
@@ -164,7 +164,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
   lazy val permConstantEval: PExpression => Option[(BigInt, BigInt)] = {
     attr[PExpression, Option[(BigInt, BigInt)]] {
       case inv: PInvoke => resolve(inv) match {
-        case Some(ap.FractionalPermConstructor(num, den)) if typ(num) == IntT(UnboundedInteger) =>
+        case Some(ap.FractionalPermConstructor(num, den)) if typ(num) == IntT(UnboundedInteger) || typ(num) == IntT(UntypedConstInteger) =>
           for {
             dividend <- intConstantEval(num)
             divisor <- intConstantEval(den)

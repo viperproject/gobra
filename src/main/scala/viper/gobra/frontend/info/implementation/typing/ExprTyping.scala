@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminat
 import viper.gobra.frontend.info.base.Type.{StringT, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
+import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger, UntypedConstInteger}
 import viper.gobra.util.{Constants, TypeBounds, Violation}
 
 import scala.annotation.nowarn
@@ -259,13 +259,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (_, Some(fc: ap.FractionalPermConstructor)) =>
-          val unboundedInt = IntT(UnboundedInteger)
+          val unboundedIntKinds = Set(IntT(UnboundedInteger), UNTYPED_INT_CONST)
           val numT = exprType(fc.num)
           val numOk =
-            if (numT == PermissionT || numT == unboundedInt) noMessages
+            if (numT == PermissionT || unboundedIntKinds.contains(numT)) noMessages
             else error(fc.num, s"the numerator of `perm` must be of type `integer` or `perm`, but got $numT")
           val denT = exprType(fc.den)
-          val denOk = error(fc.den, s"the denominator of `perm` must be of type `integer`, but got $denT", denT != unboundedInt)
+          val denOk = error(fc.den, s"the denominator of `perm` must be of type `integer`, but got $denT", !unboundedIntKinds.contains(denT))
           isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
@@ -564,7 +564,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
                   val nBits = underlyingType(exprOrTypeType(n.left)) match {
                     case IntT(t: BoundedIntegerKind) => t.nbits
-                    case IntT(UnboundedInteger) => MAX_SHIFT
+                    case IntT(UnboundedInteger | UntypedConstInteger) => MAX_SHIFT
                     case t => violation(s"unexpected type $t")
                   }
                   val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)

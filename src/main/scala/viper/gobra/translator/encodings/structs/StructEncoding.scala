@@ -99,13 +99,13 @@ class StructEncoding extends TypeEncoding {
     * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
     *
     * [e.f: Struct{F}° = rhs] -> [ e = e[f := rhs] ]
-    * [lhs: Struct{F}@ = rhs] -> FOREACH f in F: [lhs.f = rhs.f]
+    * [lhs: Struct{F}@ = rhs if size != 0] -> FOREACH f in F: [lhs.f = rhs.f]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
       ctx.assignment(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info))(src)
 
-    case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
+    case (in.Assignee(lhs :: ctx.NoZeroSize(ctx.Struct(lhsFs)) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
       for {
         x <- bind(lhs)(ctx)
         y <- bind(rhs)(ctx)
@@ -186,7 +186,7 @@ class StructEncoding extends TypeEncoding {
     * R[ (base: Struct{F})[f = e] ] -> ex_struct_upd([base], f, [e], F)
     * R[ dflt(Struct{F}) ] -> create_ex_struct( [T] | (f: T) in F )
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
-    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] )
+    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] ) // assert [&loc != nil] if Struct{F} has size zero
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
@@ -214,7 +214,7 @@ class StructEncoding extends TypeEncoding {
       val fieldExprs = lit.args.map(arg => ctx.expression(arg))
       sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
 
-    case (loc: in.Location) :: ctx.Struct(_) / Shared =>
+    case (loc: in.Location) :: ctx.NoZeroSize(ctx.Struct(_)) / Shared =>
       sh.convertToExclusive(loc)(ctx, ex)
   }
 
@@ -238,8 +238,13 @@ class StructEncoding extends TypeEncoding {
     * Encodes the permissions for all addresses of a shared type,
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
+    *
+    * The default implements:
+    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]
+    *
+    * Footprint[loc: Struct{F}@] -> AND f in F: Footprint[loc.f]
     */
-  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
+  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = super.addressFootprint(ctx).orElse {
     case (loc :: ctx.Struct(_) / Shared, perm) => sh.addressFootprint(loc, perm)(ctx)
   }
 
@@ -290,7 +295,7 @@ class StructEncoding extends TypeEncoding {
       val src = in.DfltVal(resType)(Source.Parser.Internal)
       // variable name does not matter because it is turned into a vpr.Result
       val resDummy = in.LocalVar("res", resType)(src.info)
-      val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
+      val resFAccs = fs.map(f => in.UncheckedRef(in.FieldRef(resDummy, f)(src.info))(src.info))
       val fieldEq = resFAccs map (f => ctx.equal(f, in.DfltVal(f.typ)(src.info))(src))
       // termination measure
       val pre = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")

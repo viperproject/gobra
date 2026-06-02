@@ -70,10 +70,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * R[ nil: []T° ] -> nilSlice()
     * R[ len(e: []T) ] -> slen([e])
     * R[ cap(e: []T) ] -> scap([e])
-    * R[ (e: [n]T@)[e1:e2] ] -> sliceFromArray([e], [e1], [e2])
-    * R[ (e: *[n]T)[e1:e2] ] -> sliceFromArray([*e], [e1], [e2])
-    * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray([e], [e1], [e2], [e3])
-    * R[ (e: *[n]T)[e1:e2:e3] ] -> fullSliceFromArray([*e], [e1], [e2], [e3])
+    * R[ (e: [n]T@)[e1:e2] ] -> sliceFromArray(SafeRef[e], [e1], [e2])
+    * R[ (e: *[n]T)[e1:e2] ] -> sliceFromArray([*e], [e1], [e2]) // no SafeRef needed as we just dereferenced `e`
+    * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray(SafeRef[e], [e1], [e2], [e3])
+    * R[ (e: *[n]T)[e1:e2:e3] ] -> fullSliceFromArray([*e], [e1], [e2], [e3]) // no SafeRef needed as we just dereferenced `e`
     * R[ (e: []T)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
     * R[ (e: []T)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
     *
@@ -99,7 +99,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       } yield withSrc(ctx.slice.cap(expT), exp)
 
       case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max, _) => for {
-        baseT <- ctx.reference(base)
+        baseT <- ctx.safeReference(base)
         baseType = base.typ.asInstanceOf[in.ArrayT]
         unboxedBaseT = arrayEmb.unbox(baseT, baseType)(base)(ctx)
         lowT <- goE(low)
@@ -109,6 +109,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case None => withSrc(sliceFromArray(unboxedBaseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromArray(unboxedBaseT, lowT, highT, maxT)(ctx), exp)
       }
+
       case n@in.Slice(base :: ctx.*(t: in.ArrayT), low, high, max, _) =>
         val baseInfo = base.info
         val derefBase = in.Deref(base, in.PointerT(t, t.addressability))(baseInfo)

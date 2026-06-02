@@ -6,8 +6,8 @@ package integerGhostType
 ghost
 decreases
 func useGhostInteger() {
-    var x integer = 42
-    var y integer = x + 1
+    ghost var x integer = 42
+    ghost var y integer = x + 1
     assert y == 43
 }
 
@@ -28,7 +28,7 @@ pure func largeMultiply(n integer) (result integer) {
 ghost
 decreases
 func largeLiteral() {
-    var big integer = 9223372036854775808
+    ghost var big integer = 9223372036854775808
     assert big > 0
 }
 

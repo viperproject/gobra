@@ -81,6 +81,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PIota => AddrMod.iota
       case n: PInvoke => resolve(n) match {
         case Some(_: ap.Conversion) => AddrMod.conversionResult
+        case Some(_: ap.FractionalPermConstructor) => AddrMod.rValue
         case Some(_: ap.FunctionCall) => AddrMod.callResult
         case Some(_: ap.ClosureCall) => AddrMod.callResult
         case Some(_: ap.PredicateCall) => AddrMod.rValue

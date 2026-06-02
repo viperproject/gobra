@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package permConstructorInteger
+
+ghost
+decreases
+pure func fromInteger(n integer) perm {
+    return perm(n, 1)
+}
+
+ghost
+decreases
+pure func fromConvertedInt(n int) perm {
+    return perm(integer(n), 1)
+}
+
+ghost
+decreases
+pure func boundedNumeratorRejected(n int) perm {
+    //:: ExpectedOutput(type_error)
+    return perm(n, 1)
+}
+
+ghost
+decreases
+pure func boundedDenominatorRejected(n int) perm {
+    //:: ExpectedOutput(type_error)
+    return perm(1, n)
+}

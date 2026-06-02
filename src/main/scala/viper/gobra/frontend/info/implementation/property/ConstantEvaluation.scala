@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
-import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
+import viper.gobra.frontend.info.base.Type.{BooleanT, IntT, PermissionT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds._
 import viper.gobra.util.Violation.violation
@@ -163,6 +163,20 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
   lazy val permConstantEval: PExpression => Option[(BigInt, BigInt)] = {
     attr[PExpression, Option[(BigInt, BigInt)]] {
+      case inv: PInvoke => resolve(inv) match {
+        case Some(ap.FractionalPermConstructor(num, den)) if typ(num) == IntT(UnboundedInteger) =>
+          for {
+            dividend <- intConstantEval(num)
+            divisor <- intConstantEval(den)
+          } yield (dividend, divisor)
+        case Some(ap.FractionalPermConstructor(num, den)) if typ(num) == PermissionT =>
+          for {
+            (dividend, oldDivisor) <- permConstantEval(num)
+            divisor <- intConstantEval(den)
+          } yield (dividend, oldDivisor * divisor)
+        case Some(ap.Conversion(t, e)) if underlyingTypeP(t).contains(PPermissionType()) => permConstantEval(e)
+        case _ => None
+      }
       case PDiv(a, b) =>
         // Here, we support the cases where 'a' and 'b' are int. In the future, this can be expanded to also
         // support 'a' of type perm.
@@ -170,11 +184,6 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
           dividend <- intConstantEval(a)
           divisor  <- intConstantEval(b)
         } yield (dividend, divisor)
-
-      case inv: PInvoke => resolve(inv) match {
-        case Some(ap.Conversion(t, e)) if underlyingTypeP(t).contains(PPermissionType()) => permConstantEval(e)
-        case _ => None
-      }
 
       case expr => violation(s"Unexpected constant perm expression: $expr.")
     }

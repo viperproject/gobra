@@ -4920,6 +4920,11 @@ object Desugar extends LazyLogging {
               // the well-definedness checker ensures that there is exactly one argument
               arg <- permissionD(ctx, info)(n.args.head)
             } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
+          case Some(ap.FractionalPermConstructor(num, den)) =>
+            if (info.typ(num) == PermissionT)
+              Some(for { vp <- permissionD(ctx, info)(num); vd <- goE(den) } yield in.PermDiv(vp, vd)(src))
+            else
+              Some(for { vn <- goE(num); vd <- goE(den) } yield in.FractionalPerm(vn, vd)(src))
           case _ => None
         }
         case PFullPerm() => Some(unit(in.FullPerm(src)))

@@ -6,7 +6,7 @@
 
 package viper.gobra.util
 
-import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UntypedConstInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
+import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
 import viper.gobra.util.Violation.violation
 
 /**
@@ -23,7 +23,7 @@ case class TypeBounds(Int: IntegerKind = DefaultInt,
                       UInt32: IntegerKind = UnsignedInteger32,
                       UInt64: IntegerKind = UnsignedInteger64,
                       UIntPtr: IntegerKind = UIntPtr,
-                      UntypedConst: IntegerKind = UntypedConstInteger,
+                      UntypedConst: IntegerKind = UnboundedInteger,
                       Byte: IntegerKind = Byte,
                       Rune: IntegerKind = Rune)
 
@@ -34,8 +34,6 @@ object TypeBounds {
   sealed abstract case class IntegerKind(name: String)
 
   object UnboundedInteger extends IntegerKind("integer")
-
-  object UntypedConstInteger extends IntegerKind("untyped_int_const")
 
   sealed abstract class BoundedIntegerKind(override val name: String, val nbits: Int) extends IntegerKind(name) {
     val upper: BigInt
@@ -81,8 +79,8 @@ object TypeBounds {
 
   def merge(integerKind1: IntegerKind, integerKind2: IntegerKind): IntegerKind = (integerKind1, integerKind2) match {
     case (a, b) if a == b => a
-    case (a, UntypedConstInteger) => a
-    case (UntypedConstInteger, b) => b
+    case (a, UnboundedInteger) => a
+    case (UnboundedInteger, b) => b
     case _ => violation(s"kinds $integerKind1 and $integerKind2 cannot be merged")
   }
 }

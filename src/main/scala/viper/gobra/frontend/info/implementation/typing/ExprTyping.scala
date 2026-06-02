@@ -258,16 +258,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             isExpr(p.arg).out ++
             argWithinBounds
 
-        case (_, Some(fc: ap.FractionalPermConstructor)) =>
-          val unboundedInt = IntT(UnboundedInteger)
-          val numT = exprType(fc.num)
-          val numOk =
-            if (numT == PermissionT || numT == unboundedInt) noMessages
-            else error(fc.num, s"the numerator of `perm` must be of type `integer` or `perm`, but got $numT")
-          val denT = exprType(fc.den)
-          val denOk = error(fc.den, s"the denominator of `perm` must be of type `integer`, but got $denT", denT != unboundedInt)
-          isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
-
         case (Left(callee), Some(c: ap.FunctionCall)) =>
           val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
             case base: ap.Symbolic => base.symb match {
@@ -755,7 +745,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
-      case (_, Some(_: ap.FractionalPermConstructor)) => PermissionT
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT

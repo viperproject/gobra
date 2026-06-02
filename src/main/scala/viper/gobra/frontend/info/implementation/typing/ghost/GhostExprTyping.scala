@@ -416,7 +416,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(p: ap.Conversion)) =>
           !isEffectfulConversion(p) && go(p.arg)
-        case (_, Some(ap.FractionalPermConstructor(num, den))) => go(num) && go(den)
         case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
           case ap.Function(_, symb) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure

@@ -84,9 +84,15 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => noMessages
           }
         }
+        val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
+          if (sig.isGhost || sig.spec.isPure)
+            noConditionalMeasureErrors(sig.spec.terminationMeasures)
+          else noMessages
+        }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           sigsWithWildcardMeasuresErrors ++
+          sigsWithConditionalMeasuresErrors ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

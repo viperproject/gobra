@@ -318,6 +318,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PPackageWand(wand, blockOpt) => "package" <+> showExpr(wand) <+> opt(blockOpt)(showStmt)
       case PApplyWand(wand) => "apply" <+> showExpr(wand)
       case POpenDupPkgInv() => "openDupPkgInv"
+      case PAssignSuchThat(left, typ, cond) =>
+        "var" <+> showId(left) <+> showType(typ) <+> ":|" <+> showExpr(cond)
       case PMatchStatement(exp, clauses, _) => "match" <+>
         showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
     }
@@ -677,6 +679,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showGhostType(typ : PGhostType) : Doc = typ match {
     case PPermissionType() => "perm"
+    case PIntegerGhostType() => "integer"
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))

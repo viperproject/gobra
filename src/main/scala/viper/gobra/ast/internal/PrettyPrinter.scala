@@ -349,6 +349,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case AssignSuchThat(v, cond) =>
+      "var" <+> showVarDecl(v) <+> ":|" <+> showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, block) => "package" <+> showAss(wand) <+> opt(block)(showStmt)
@@ -576,7 +578,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PermTExpr() => "perm"
     case PointerTExpr(elem) => "*" <> showExpr(elem)
     case StructTExpr(fs) => "struct" <> braces(showList(fs)(f => f._1 <> ":" <+> showExpr(f._2)))
-    case ArrayTExpr(len, elem) => brackets(showExpr(len)) <> showExpr(elem)
+    case ArrayTExpr(len, elem) => brackets(len.toString()) <> showExpr(elem)
     case SliceTExpr(elem) => brackets(emptyDoc) <> showExpr(elem)
     case MapTExpr(key, elem) => "map" <> brackets(showExpr(key) <> comma <+> showExpr(elem))
     case SequenceTExpr(elem) => "seq" <> brackets(showExpr(elem))
@@ -811,6 +813,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case AssignSuchThat(v, cond) =>
+      "var" <+> showVarDecl(v) <+> ":|" <+> showExpr(cond)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
     case PackageWand(wand, _) => "package" <+> showAss(wand)

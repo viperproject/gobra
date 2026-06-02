@@ -232,6 +232,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   def visitTypeIdentifier(typ: PIdnUse): PUnqualifiedTypeName = {
     typ.name match {
       case "perm" => PPermissionType().at(typ)
+      case "integer" => PIntegerGhostType().at(typ)
       case "int" => PIntType().at(typ)
       case "int8" => PInt8Type().at(typ)
       case "int16" => PInt16Type().at(typ)
@@ -2227,6 +2228,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitPkgInvStatement(ctx: PkgInvStatementContext): POpenDupPkgInv = {
     POpenDupPkgInv().at(ctx)
+  }
+
+  /**
+    * Visits the production
+    * VAR IDENTIFIER type_ COLON_PIPE expression
+    */
+  override def visitAssignSuchThatStatement(ctx: AssignSuchThatStatementContext): PAssignSuchThat = {
+    val left = idnDef.get(ctx.IDENTIFIER())
+    val typ = visitNode[PType](ctx.type_())
+    val cond = visitNode[PExpression](ctx.expression())
+    PAssignSuchThat(left, typ, cond).at(ctx)
   }
 
   override def visitFriendPkgDecl(ctx: FriendPkgDeclContext): PFriendPkgDecl = {

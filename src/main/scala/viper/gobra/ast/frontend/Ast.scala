@@ -663,6 +663,7 @@ sealed abstract class PGhostPredeclaredType(override val name: String) extends P
 case class PBoolType() extends PActualPredeclaredType("bool")
 case class PStringType() extends PActualPredeclaredType("string")
 case class PPermissionType() extends PGhostPredeclaredType("perm")
+case class PIntegerGhostType() extends PGhostPredeclaredType("integer") with PIntegerType
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PActualPredeclaredType("int") with PIntegerType
@@ -997,6 +998,8 @@ case class POpenDupPkgInv() extends PGhostStatement with PDeferrable
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
 case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
+case class PAssignSuchThat(left: PIdnDef, typ: PType, cond: PExpression) extends PGhostStatement
 
 case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
 

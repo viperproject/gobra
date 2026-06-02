@@ -2231,7 +2231,6 @@ object Desugar extends LazyLogging {
               for {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
-                fproxy = getFunctionProxy(base, convertedArgs)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
               } yield Left((targets, functionCall(targets, base, convertedArgs, spec)))
             }
@@ -2246,7 +2245,7 @@ object Desugar extends LazyLogging {
                 proxy = methodProxy(iim.id, iim.symb.context.getTypeInfo)
                 recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, args, spec, resT, expr.reveal))
+              } yield Right(pureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, spec, resT, expr.reveal))
             } else {
               for {
                 args <- dArgs
@@ -2971,9 +2970,8 @@ object Desugar extends LazyLogging {
 
         case PArrayType(len, elem) =>
           for {
-            inLen <- exprD(ctx, info)(len)
             inElem <- go(elem)
-          } yield in.ArrayTExpr(inLen, inElem)(src)
+          } yield in.ArrayTExpr(info.evalIntOrFail(len), inElem)(src)
 
         case PSliceType(elem) =>
           for {
@@ -4224,6 +4222,13 @@ object Desugar extends LazyLogging {
             case w: in.MagicWand => in.ApplyWand(w)(src)
             case e => Violation.violation(s"Expected a magic wand, but got $e")
           }
+        case PAssignSuchThat(left, typ, cond) =>
+          val t = typeD(info.symbType(typ), Addressability.exclusiveVariable)(src)
+          for {
+            v <- declaredExclusiveVar(in.LocalVar(idName(left, info), t)(meta(left, info)))
+            dCond <- exprD(ctx, info)(cond)
+          } yield in.AssignSuchThat(v, dCond)(src)
+
         case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
 
         case PMatchStatement(exp, clauses, strict) =>

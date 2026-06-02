@@ -12,7 +12,7 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation.violation
-import viper.silver.ast.Member
+import viper.silver.ast.{ErrorTrafo, Info, Member, NoInfo, NoPosition, NoTrafos, Position}
 import viper.silver.plugin.standard.{predicateinstance, termination}
 import viper.silver.{ast => vpr}
 
@@ -82,8 +82,8 @@ class TerminationEncoding extends Encoding {
               case _ => violation("invalid tuple measure argument")
             })
             lastElem: vpr.Exp = measure match {
-              case _: in.ItfMethodMeasure => itfMethodApp
-              case _: in.NonItfMethodMeasure => nonItfMethodApp
+              case _: in.ItfMethodMeasure => itfMethodApp(pos, info, errT)
+              case _: in.NonItfMethodMeasure => nonItfMethodApp(pos, info, errT)
             }
           } yield termination.DecreasesTuple(v :+ lastElem, c)(pos, info, errT)
         case m: in.WildcardMeasure =>
@@ -116,14 +116,16 @@ class TerminationEncoding extends Encoding {
     typ = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty),
     interpretation = None
   )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
-  private val itfMethodApp = vpr.DomainFuncApp(func = itfMethod, args = Seq.empty, typVarMap = Map.empty)()
+  private def itfMethodApp(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos) =
+    vpr.DomainFuncApp(func = itfMethod, args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
   private val nonItfMethod = vpr.DomainFunc(
     name = "NonItfMethodMeasure",
     formalArgs = Seq.empty,
     typ = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty),
     interpretation = None
   )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
-  private val nonItfMethodApp = vpr.DomainFuncApp(func = nonItfMethod, args = Seq.empty, typVarMap = Map.empty)()
+  private def nonItfMethodApp(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos) =
+    vpr.DomainFuncApp(func = nonItfMethod, args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
   private val termDomain = vpr.Domain(
     name = domainName,
     functions = Seq(itfMethod, nonItfMethod),
@@ -160,7 +162,7 @@ class TerminationEncoding extends Encoding {
       vpr.AnonymousDomainAxiom(
         exp = vpr.DomainFuncApp(
           funcname = "decreasing",
-          args = Seq(nonItfMethodApp, itfMethodApp),
+          args = Seq(nonItfMethodApp(), itfMethodApp()),
           typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
         )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
@@ -168,7 +170,7 @@ class TerminationEncoding extends Encoding {
       vpr.AnonymousDomainAxiom(
         exp = vpr.DomainFuncApp(
           funcname = "bounded",
-          args = Seq(nonItfMethodApp),
+          args = Seq(nonItfMethodApp()),
           typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
         )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
@@ -176,7 +178,7 @@ class TerminationEncoding extends Encoding {
       vpr.AnonymousDomainAxiom(
         exp = vpr.DomainFuncApp(
           funcname = "bounded",
-          args = Seq(itfMethodApp),
+          args = Seq(itfMethodApp()),
           typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
         )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName)

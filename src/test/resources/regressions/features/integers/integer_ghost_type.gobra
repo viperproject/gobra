@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integerGhostType
+
+ghost
+decreases
+func useGhostInteger() {
+    ghost var x integer = 42
+    ghost var y integer = x + 1
+    assert y == 43
+}
+
+ghost
+ensures result == a + b
+decreases
+pure func addIntegers(a, b integer) (result integer) {
+    return a + b
+}
+
+ghost
+ensures result == n * 1000000000
+decreases
+pure func largeMultiply(n integer) (result integer) {
+    return n * 1000000000
+}
+
+ghost
+decreases
+func largeLiteral() {
+    ghost var big integer = 9223372036854775808
+    assert big > 0
+}

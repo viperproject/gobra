@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001034
+
+pred Dummy() {
+    true
+}
+
+ghost
+requires Dummy()
+decreases
+pure func GetVal() int {
+    return 42
+}
+
+preserves Dummy()
+requires GetVal() == 42
+ensures  GetVal() == 42
+func client0()
+
+requires Dummy()
+requires GetVal() == 42
+ensures  Dummy()
+ensures  GetVal() == 42
+func client1()
+
+//:: ExpectedOutput(precondition_error:permission_error)
+requires GetVal() == 42
+ensures  Dummy()
+ensures  GetVal() == 42
+func client2()
+
+requires Dummy()
+requires GetVal() == 42
+//:: ExpectedOutput(postcondition_error:permission_error)
+ensures  GetVal() == 42
+func client3()

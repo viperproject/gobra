@@ -647,7 +647,7 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
+      val pres = (decl.spec.preserves ++ decl.spec.pres) map preconditionD(specCtx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
       val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info, false)).res
 
@@ -841,7 +841,7 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
+      val pres = (decl.spec.preserves ++ decl.spec.pres) map preconditionD(specCtx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
 
       // The desugaring of termination measures assumes that this method never has an interface receiver.
@@ -938,7 +938,7 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx, info)
+      val pres = (decl.spec.preserves ++ decl.spec.pres) map preconditionD(ctx, info)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
       // The desugaring of termination measures assumes that this method never has an interface receiver.
       // This should never occur, given that interface method signatures are desugared in method `registerInterface`.
@@ -1867,7 +1867,7 @@ object Desugar extends LazyLogging {
 
           case n: POutline =>
             val name = s"${rootName(n, info)}$$${nm.relativeIdEnclosingFuncOrMethodDecl(n, info)}"
-            val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
+            val pres = (n.spec.preserves ++ n.spec.pres) map preconditionD(ctx, info)
             val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
             val annotations = desugarBackendAnnotations(n.spec.backendAnnotations)
@@ -3287,7 +3287,7 @@ object Desugar extends LazyLogging {
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
+          val pres = (m.spec.preserves ++ m.spec.pres) map preconditionD(specCtx, info)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
           val terminationMeasures =
             sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info, true)).res
@@ -3621,7 +3621,7 @@ object Desugar extends LazyLogging {
       mainFuncOpt.map { mainFunc =>
         val src = meta(mainFunc, info)
         val mainPkgInitPosts = initSpecs.getNonDupPkgInvariants().values.flatten.toVector
-        val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
+        val mainFuncPre = mainFunc.spec.preserves ++ mainFunc.spec.pres
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
@@ -4360,7 +4360,7 @@ object Desugar extends LazyLogging {
       }
 
       // Desugar the precondition of spec, replacing the argument and results with their aliases
-      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, funcTypeInfo)
+      val pres = (fSpec.preserves ++ fSpec.pres) map preconditionD(newCtx, funcTypeInfo)
 
       // For the postcondition, we need to replace all old() expressions with labeled old expressions,
       // and add a label at the beginning of the proof body

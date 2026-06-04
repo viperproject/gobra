@@ -431,7 +431,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val spec = if (ctx.specification() != null)
       visitSpecification(ctx.specification())
     else
-      PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty, Vector.empty).at(ctx)
+      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
     val id = idnDef.get(ctx.IDENTIFIER())
     val args = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
@@ -910,18 +910,20 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       else
         Vector.empty
     }
-    // Group the specifications by keyword
-    val groups = ctx.specStatement().asScala.view.groupBy(_.kind.getType)
-    // Get the respective groups
-    val pres = groups.getOrElse(GobraParser.PRE, Seq.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
-    val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
-    val posts = groups.getOrElse(GobraParser.POST, Vector.empty).toVector.map(s => visitNode[PExpression](s.assertion().expression()))
-    val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).toVector.map(s => visitTerminationMeasure(s.terminationMeasure()))
+    // Get the clauses and termination measures
+    val (clauses, terms) = ctx.specStatement().asScala.toVector.partitionMap {
+      case s if s.kind.getType == GobraParser.PRE =>
+        Left(PRequires(visitNode[PExpression](s.assertion().expression())).at(s))
+      case s if s.kind.getType == GobraParser.PRESERVES =>
+        Left(PPreserves(visitNode[PExpression](s.assertion().expression())).at(s))
+      case s if s.kind.getType == GobraParser.POST =>
+        Left(PEnsures(visitNode[PExpression](s.assertion().expression())).at(s))
+      case s if s.kind.getType == GobraParser.DEC =>
+        Right(visitTerminationMeasure(s.terminationMeasure()))
+    }
 
     PFunctionSpec(
-      pres,
-      preserves,
-      posts,
+      clauses,
       terms,
       annotations,
       isPure = ctx.pure,

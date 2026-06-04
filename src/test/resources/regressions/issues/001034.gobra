@@ -19,20 +19,25 @@ requires GetVal() == 42
 ensures  GetVal() == 42
 func client0()
 
-requires Dummy()
-requires GetVal() == 42
-ensures  Dummy()
-ensures  GetVal() == 42
+requires  Dummy()
+ensures   Dummy()
+preserves GetVal() == 42
 func client1()
 
-//:: ExpectedOutput(precondition_error:permission_error)
+requires Dummy()
 requires GetVal() == 42
 ensures  Dummy()
 ensures  GetVal() == 42
 func client2()
 
-requires Dummy()
+//:: ExpectedOutput(precondition_error:permission_error)
 requires GetVal() == 42
-//:: ExpectedOutput(postcondition_error:permission_error)
+ensures  Dummy()
 ensures  GetVal() == 42
 func client3()
+
+requires Dummy()
+requires GetVal() == 42
+//:: ExpectedOutput(precondition_error:permission_error)
+ensures  GetVal() == 42
+func client4()

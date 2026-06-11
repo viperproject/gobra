@@ -545,6 +545,7 @@ object Parser extends LazyLogging {
         localMPredicateNames: Set[String],
         importQualifiers: Set[String],
         importedFPredicateNames: String => Set[String],
+        isLocalAdtClause: (String, String) => Boolean,
       ): PPackage = {
         def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
         def hasBlank(lit: PLiteralValue): Boolean = lit.elems.exists {
@@ -590,10 +591,16 @@ object Parser extends LazyLogging {
                 // The valid predicate-constructor forms in this branch are:
                 //   - method-predicate references: `recv.isZero{...}` or the predicate-
                 //     expression form `Mutex.isZero{...}`.
-                // We disambiguate by checking whether `id` matches a known method-predicate
-                // name (local or built-in). The blank-identifier check still wins because `_`
-                // is illegal as a positional element in any composite literal.
-                hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
+                // A blank element (`_`) is illegal as a positional element in any composite
+                // literal, so it unambiguously marks a predicate constructor and wins outright.
+                // Otherwise, `X.A{...}` where `X` is a local ADT type and `A` one of its clauses
+                // is an ADT literal and must stay one -- *even if* `A` also names a method
+                // predicate (clause names and method-predicate names share no namespace, so the
+                // collision is legal; see GitHub PR #1024 discussion). Only when that ADT-clause
+                // reading is ruled out do we fall back to the method-predicate heuristic.
+                if (hasBlank(lit)) true
+                else if (isLocalAdtClause(qual.id.name, id.name)) false
+                else isLocalOrBuiltInMPred(id.name)
               }
 
             // A composite literal's `typ` is grammatically restricted to
@@ -652,6 +659,11 @@ object Parser extends LazyLogging {
       *                                function-predicate names in the package imported under
       *                                qualifier `q`. Method predicates are intentionally
       *                                omitted: they aren't reachable as `q.id`.
+      * @param isLocalAdtClause        `isLocalAdtClause(t, c)` is true iff `t` is a local ADT
+      *                                type with a clause named `c`. Used in the dotted
+      *                                `qual.id{...}` form to keep ADT constructor literals from
+      *                                being rewritten when a clause name collides with a method-
+      *                                predicate name.
       */
     def rewrite(
       pkg: PPackage,
@@ -659,8 +671,9 @@ object Parser extends LazyLogging {
       localMPredicateNames: Set[String],
       importQualifiers: Set[String],
       importedFPredicateNames: String => Set[String],
+      isLocalAdtClause: (String, String) => Boolean,
     )(positions: Positions): PPackage =
-      new Impl(positions).run(pkg, localFPredicateNames, localMPredicateNames, importQualifiers, importedFPredicateNames)
+      new Impl(positions).run(pkg, localFPredicateNames, localMPredicateNames, importQualifiers, importedFPredicateNames, isLocalAdtClause)
   }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){

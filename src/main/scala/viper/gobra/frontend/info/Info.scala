@@ -242,7 +242,7 @@ object Info extends LazyLogging {
     pkg: PPackage,
     deps: Map[AbstractImport, ExternalTypeInfo],
   ): PPackage = {
-    import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl}
+    import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PTypeDef, PAdtType, PExplicitGhostMember}
 
     // Function vs method predicates are tracked separately: the rewriter needs to know which
     // bucket to consult depending on the syntactic form (`IDENT{...}` vs `qual.id{...}`).
@@ -252,6 +252,18 @@ object Info extends LazyLogging {
     val localMPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
       case d: PMPredicateDecl => d.id.name
     }).toSet
+
+    // Map: local ADT type name -> names of its clauses. A clause name may collide with a method
+    // predicate name (clauses are top-level names, but method predicates aren't, so the two live
+    // in different namespaces and Go's uniqueness rule doesn't forbid the clash). The rewriter
+    // uses this to keep `X.A{...}` (X an ADT type, A one of its clauses) a composite literal even
+    // when `A` also names a method predicate -- see Parser.PredicateConstructorRewriter.
+    // ADT type definitions are ghost, so they typically appear wrapped in a `ghost ...` member;
+    // unwrap `PExplicitGhostMember` so we catch both the wrapped and the bare form.
+    val localAdtClauses: Map[String, Set[String]] = pkg.programs.flatMap(_.declarations.collect {
+      case PTypeDef(adt: PAdtType, id) => id.name -> adt.clauses.map(_.id.name).toSet
+      case PExplicitGhostMember(PTypeDef(adt: PAdtType, id)) => id.name -> adt.clauses.map(_.id.name).toSet
+    }).toMap
 
     // Set of import qualifiers visible in `pkg` (across all programs).
     val importQualifiers: Set[String] = pkg.programs.flatMap(_.imports.collect {
@@ -283,6 +295,7 @@ object Info extends LazyLogging {
       localMPredicateNames,
       importQualifiers,
       q => importedFPredicatesByQualifier.getOrElse(q, Set.empty),
+      (typeName, clauseName) => localAdtClauses.get(typeName).exists(_.contains(clauseName)),
     )(pkg.positions.positions)
   }
 

@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// `Tree.Leaf{}` is an ADT constructor literal. Its clause name `Leaf` deliberately collides
+// with the method predicate `Leaf` declared on `T` below. Clause names and method-predicate
+// names live in different namespaces, so the collision is legal -- and the predicate-
+// constructor rewrite must *not* be fooled by it into turning the ADT literal into a predicate
+// constructor (which used to produce `invalid base Tree.Leaf for predicate constructor`).
+ghost type Tree adt {
+	Leaf { }
+	Branch { value int }
+}
+
+type T struct{ }
+
+pred (t T) Leaf() {
+	true
+}
+
+ghost
+decreases
+func adtLiteralIsNotRewritten() {
+	// Must stay a composite literal of the ADT clause, despite the colliding mpredicate name.
+	x := Tree.Leaf{}
+	y := Tree.Branch{42}
+	assert x == Tree.Leaf{}
+	assert y == Tree.Branch{42}
+}
+
+decreases
+func mpredConstructorStillWorks() (ghost res pred()) {
+	t := T{}
+	// The predicate-expression form `T.Leaf{}` is still a predicate constructor.
+	return T.Leaf{t}
+}

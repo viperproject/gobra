@@ -19,11 +19,11 @@ requires acc(c) && acc(c.sum) && acc(c.m) && c.m.state == 0 && c.m.stema == 0
 requires *c.sum == 0
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> seenSlice[i] == 0
-ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv!<c.sum, seenSlice!>)
+ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv{c.sum, seenSlice})
 func (c *Accum) Init(ghost seenSlice ghost []int) {
 	assume GhostSum(seenSlice) == 0
-	fold AccInv!<c.sum, seenSlice!>()
-	c.m.SetInv(AccInv!<c.sum, seenSlice!>)
+	fold AccInv{c.sum, seenSlice}()
+	c.m.SetInv(AccInv{c.sum, seenSlice})
 }
 
 /* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
@@ -52,19 +52,19 @@ func ParallelSum(s []int) (res int) {
 	// invariant i != 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
 	invariant i > 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
 	invariant forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
-	invariant forall j int :: 0 <= j && j < i ==> tokens[j] == locHasVal!<&seenSlice[j],s[j]!>
+	invariant forall j int :: 0 <= j && j < i ==> tokens[j] == locHasVal{&seenSlice[j],s[j]}
 	invariant forall j int :: 0 <= j && j < i ==> w.TokenById(tokens[j], j)
 	invariant !w.WaitMode()
 	invariant acc(c, _)
-	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum, seenSlice!>
+	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv{c.sum, seenSlice}
 	invariant forall j int :: i <= j && j < n ==> acc(&seenSlice[j], 1/2)
 	invariant forall j int :: i <= j && j < n ==> seenSlice[j] == 0
 	for i := 0; i < n; i++ {
-		w.Add(1, 1/2, PredTrue!<!>)
+		w.Add(1, 1/2, PredTrue{})
 		ghost if i == 0 {
-			w.Start(1/2, PredTrue!<!>)
+			w.Start(1/2, PredTrue{})
 		}
-		tokens = tokens ++ seq[pred()]{ locHasVal!<&seenSlice[i], s[i]!> }
+		tokens = tokens ++ seq[pred()]{ locHasVal{&seenSlice[i], s[i]} }
 		w.GenerateTokenAndDebt(tokens[i])
 		fold w.TokenById(tokens[i], i)
 		go worker(w, c, s[i], seenSlice, i)
@@ -75,19 +75,19 @@ func ParallelSum(s []int) (res int) {
 	ghost {
 		invariant 0 <= i && i <= n
 		invariant forall j int :: 0 <= j && j < n ==> acc(&s[j], 1/2)
-		invariant forall j int :: 0 <= j && j < n ==> tokens[j] == locHasVal!<&seenSlice[j],s[j]!>
+		invariant forall j int :: 0 <= j && j < n ==> tokens[j] == locHasVal{&seenSlice[j],s[j]}
 		invariant forall j int :: 0 <= j && j < n ==> (j < i ? acc(&seenSlice[j], 1/2) && seenSlice[j] == s[j] : sync.InjEval(tokens[j], j))
 		decreases n - i
 		for i:=0; i < n; i++ {
 			unfold sync.InjEval(tokens[i], i)
-			unfold locHasVal!<&seenSlice[i],s[i]!>()
+			unfold locHasVal{&seenSlice[i],s[i]}()
 		}
 	}
 
 	c.m.Lock()
-	unfold AccInv!<c.sum, seenSlice!>()
+	unfold AccInv{c.sum, seenSlice}()
 	res = *(c.sum)
-	fold AccInv!<c.sum, seenSlice!>()
+	fold AccInv{c.sum, seenSlice}()
 	c.m.Unlock()
 	sumExtensional(s, seenSlice)
 	return res
@@ -141,19 +141,19 @@ func update(ghost s ghost []int, ghost pos, val int) {
 
 requires acc(accum, _)
 requires acc(&seenSlice[pos], 1/2) && seenSlice[pos] == 0
-requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum, seenSlice!>
+requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv{accum.sum, seenSlice}
 requires 0 <= pos && pos < len(seenSlice)
-requires w.UnitDebt(locHasVal!<&seenSlice[pos],val!>)
+requires w.UnitDebt(locHasVal{&seenSlice[pos],val})
 func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice ghost []int, ghost pos int) {
 	accum.m.Lock()
-	unfold AccInv!<accum.sum, seenSlice!>()
+	unfold AccInv{accum.sum, seenSlice}()
 	// we forget to increment the sum (seeded bug):
 	// *(accum.sum) += val
 	update(seenSlice, pos, val)
 	//:: ExpectedOutput(fold_error:assertion_error)
-	fold AccInv!<accum.sum, seenSlice!>()
+	fold AccInv{accum.sum, seenSlice}()
 	accum.m.Unlock()
-	fold locHasVal!<&seenSlice[pos],val!>()
-	w.PayDebt(locHasVal!<&seenSlice[pos],val!>)
+	fold locHasVal{&seenSlice[pos],val}()
+	w.PayDebt(locHasVal{&seenSlice[pos],val})
 	w.Done()
 }

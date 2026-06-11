@@ -57,8 +57,6 @@ IMPLIES     : '==>';
 WAND        : '--*';
 APPLY       : 'apply';
 QMARK       : '?';
-L_PRED      : '!<';
-R_PRED      : '!>' -> mode(NLSEMI);
 SEQ         : 'seq'-> mode(NLSEMI);
 SET         : 'set'-> mode(NLSEMI);
 MSET        : 'mset'-> mode(NLSEMI);

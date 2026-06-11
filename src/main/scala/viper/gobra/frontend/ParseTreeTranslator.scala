@@ -1367,7 +1367,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   /**
     * Visits the rule
-    * predConstructArgs: L_PRED expressionList? COMMA? R_PRED
+    * predConstructArgs: L_CURLY expressionList? COMMA? R_CURLY
     * @param ctx the parse tree
     *     */
   override def visitPredConstructArgs(ctx: PredConstructArgsContext): PredArgs = {

@@ -557,62 +557,35 @@ object Parser extends LazyLogging {
         def isLocalOrBuiltInMPred(name: String): Boolean =
           localMPredicateNames.contains(name) || builtInMPredicateNames.contains(name)
 
-        // Determines whether a `PCompositeLit` should be reinterpreted as a `PPredConstructor`.
-        //
-        // We split the question by the syntactic shape of the literal's type: a single name
-        // (`IDENT{...}`), or a dotted name (`qual.id{...}`). For each shape we ask whether the
-        // identifier(s) could only sensibly denote a predicate.
+        // Should this `PCompositeLit` be reinterpreted as a `PPredConstructor`? Decide by the
+        // syntactic shape of the literal's type. A blank element (`_`) is illegal in a real
+        // composite literal, so it always marks a predicate constructor.
         def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
-          // Composite literals with keyed elements (`T{x: 1}`) are never predicate constructors.
-          if (hasKey(lit)) false
+          if (hasKey(lit)) false // keyed elements (`T{x: 1}`) are never predicate constructors
           else typ match {
-            // `IDENT{...}`: bare names referring to a predicate must be top-level *function*
-            // predicates. Method-predicate references take the dotted form below; struct types,
-            // ADT clauses, and array/slice/map types share the package's name namespace with
-            // fpredicates and so cannot collide here (Go enforces uniqueness).
+            // `IDENT{...}`: only a top-level fpredicate. Struct/ADT-clause/etc. names can't
+            // collide (Go enforces top-level uniqueness); mpredicates take the dotted form.
             case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInFPred(id.name)
 
-            // `qual.id{...}` with `qual` a single identifier. Two cases:
             case PDot(qual: PNamedOperand, id) =>
-              if (importQualifiers.contains(qual.id.name)) {
-                // `qual` is an import alias. `qual.id` is therefore a top-level name in the
-                // imported package -- either a type (struct literal) or a top-level function
-                // predicate (predicate constructor). Imported method predicates aren't
-                // reachable as `qual.id` (they live on types and need `qual.Type.id`), so we
-                // restrict the lookup to imported fpredicates and don't peek at the local
-                // namespace at all.
+              if (importQualifiers.contains(qual.id.name))
+                // `qual.id` names an imported top-level entity: a type (struct literal) or an
+                // fpredicate (constructor). Imported mpredicates need `qual.Type.id`, so the
+                // local namespace is irrelevant here.
                 hasBlank(lit) || importedFPredicateNames(qual.id.name).contains(id.name)
-              } else {
-                // `qual` is a (local) value, type, ADT, or undeclared identifier. The valid
-                // composite-literal forms in this branch are:
-                //   - ADT constructor literals: `X.A{...}` where X is an ADT type and A is a
-                //     constructor. These are *not* predicate constructors and must be left
-                //     alone.
-                // The valid predicate-constructor forms in this branch are:
-                //   - method-predicate references: `recv.isZero{...}` or the predicate-
-                //     expression form `Mutex.isZero{...}`.
-                // A blank element (`_`) is illegal as a positional element in any composite
-                // literal, so it unambiguously marks a predicate constructor and wins outright.
-                // Otherwise, `X.A{...}` where `X` is a local ADT type and `A` one of its clauses
-                // is an ADT literal and must stay one -- *even if* `A` also names a method
-                // predicate (clause names and method-predicate names share no namespace, so the
-                // collision is legal; see GitHub PR #1024 discussion). Only when that ADT-clause
-                // reading is ruled out do we fall back to the method-predicate heuristic.
-                if (hasBlank(lit)) true
-                else if (isLocalAdtClause(qual.id.name, id.name)) false
-                else isLocalOrBuiltInMPred(id.name)
-              }
+              else if (hasBlank(lit)) true
+              // `X.A{...}` with `X` a local ADT type and `A` one of its clauses is an ADT
+              // literal, not a constructor -- even if `A` also names an mpredicate (clause and
+              // mpredicate names share no namespace, so the collision is legal).
+              else if (isLocalAdtClause(qual.id.name, id.name)) false
+              // Otherwise the only valid reading is an mpredicate constructor (`recv.isZero{}`
+              // or `Mutex.isZero{}`).
+              else isLocalOrBuiltInMPred(id.name)
 
-            // A composite literal's `typ` is grammatically restricted to
-            // `literalType`, whose only dotted shape is `typeName: IDENT | qualifiedIdent`
-            // -- i.e. at most `qual.id`, which parses to `PDot(PNamedOperand, _)` and is
-            // handled above. A more deeply nested dotted base such as the
-            // predicate-expression form `importQualifier.NamedType.MyPred{...}` is *not* a
-            // valid `literalType`, so the parser never builds a `PCompositeLit` for it;
-            // instead it takes the `primaryExpr predConstructArgs` rule and produces a
-            // `PPredConstructor` directly (see ParseTreeTranslator.visitPredConstrPrimaryExpr).
-            // Hence a `PDot` whose base isn't a `PNamedOperand` is unreachable here; fail
-            // loudly rather than silently guessing.
+            // A composite literal's type is at most `qual.id` (`PDot(PNamedOperand, _)`, handled
+            // above). A deeper base like `pkg.Type.pred{...}` isn't a valid `literalType`, so the
+            // parser builds it via `primaryExpr predConstructArgs` (visitPredConstrPrimaryExpr),
+            // never as a `PCompositeLit`. So this is unreachable; fail loudly.
             case d: PDot => Violation.violation(s"unexpected dotted base in composite literal: $d")
             case _ => false
           }
@@ -647,23 +620,15 @@ object Parser extends LazyLogging {
 
     /** Runs the rewrite over `pkg`.
       *
-      * @param localFPredicateNames    names of every top-level function predicate declared in
-      *                                `pkg`. Used for the unqualified `IDENT{...}` form.
-      * @param localMPredicateNames    names of every top-level method predicate declared in
-      *                                `pkg`. Used for the dotted `qual.id{...}` form when
-      *                                `qual` is a local value/type (i.e. not an import alias).
-      * @param importQualifiers        the set of import qualifier names visible in `pkg`. Used
-      *                                to decide whether the qualifier in `qual.id{...}` refers
-      *                                to an imported package or to a local value/type.
-      * @param importedFPredicateNames `importedFPredicateNames(q)` is the set of top-level
-      *                                function-predicate names in the package imported under
-      *                                qualifier `q`. Method predicates are intentionally
-      *                                omitted: they aren't reachable as `q.id`.
-      * @param isLocalAdtClause        `isLocalAdtClause(t, c)` is true iff `t` is a local ADT
-      *                                type with a clause named `c`. Used in the dotted
-      *                                `qual.id{...}` form to keep ADT constructor literals from
-      *                                being rewritten when a clause name collides with a method-
-      *                                predicate name.
+      * @param localFPredicateNames    top-level fpredicate names in `pkg`; for `IDENT{...}`.
+      * @param localMPredicateNames    top-level mpredicate names in `pkg`; for local `qual.id{...}`.
+      * @param importQualifiers        import qualifiers visible in `pkg`; tells whether `qual` in
+      *                                `qual.id{...}` is an import or a local value/type.
+      * @param importedFPredicateNames `importedFPredicateNames(q)` = top-level fpredicate names in
+      *                                the package imported as `q` (mpredicates aren't reachable as `q.id`).
+      * @param isLocalAdtClause        `isLocalAdtClause(t, c)` iff `t` is a local ADT type with a
+      *                                clause `c`; keeps ADT literals from being rewritten when a
+      *                                clause name collides with an mpredicate name.
       */
     def rewrite(
       pkg: PPackage,

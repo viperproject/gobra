@@ -244,8 +244,8 @@ object Info extends LazyLogging {
   ): PPackage = {
     import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PTypeDef, PAdtType, PExplicitGhostMember}
 
-    // Function vs method predicates are tracked separately: the rewriter needs to know which
-    // bucket to consult depending on the syntactic form (`IDENT{...}` vs `qual.id{...}`).
+    // Tracked separately: the rewriter consults a different bucket per syntactic form
+    // (`IDENT{...}` vs `qual.id{...}`).
     val localFPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
       case d: PFPredicateDecl => d.id.name
     }).toSet
@@ -253,13 +253,9 @@ object Info extends LazyLogging {
       case d: PMPredicateDecl => d.id.name
     }).toSet
 
-    // Map: local ADT type name -> names of its clauses. A clause name may collide with a method
-    // predicate name (clauses are top-level names, but method predicates aren't, so the two live
-    // in different namespaces and Go's uniqueness rule doesn't forbid the clash). The rewriter
-    // uses this to keep `X.A{...}` (X an ADT type, A one of its clauses) a composite literal even
-    // when `A` also names a method predicate -- see Parser.PredicateConstructorRewriter.
-    // ADT type definitions are ghost, so they typically appear wrapped in a `ghost ...` member;
-    // unwrap `PExplicitGhostMember` so we catch both the wrapped and the bare form.
+    // Local ADT type -> clause names, so the rewriter keeps `X.A{...}` an ADT literal even when
+    // clause `A` collides with an mpredicate name (legal: clauses and mpredicates live in
+    // different namespaces). ADTs are ghost, so unwrap `PExplicitGhostMember` too.
     val localAdtClauses: Map[String, Set[String]] = pkg.programs.flatMap(_.declarations.collect {
       case PTypeDef(adt: PAdtType, id) => id.name -> adt.clauses.map(_.id.name).toSet
       case PExplicitGhostMember(PTypeDef(adt: PAdtType, id)) => id.name -> adt.clauses.map(_.id.name).toSet

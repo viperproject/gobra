@@ -3,11 +3,8 @@
 
 package main
 
-// `Tree.Leaf{}` is an ADT constructor literal. Its clause name `Leaf` deliberately collides
-// with the method predicate `Leaf` declared on `T` below. Clause names and method-predicate
-// names live in different namespaces, so the collision is legal -- and the predicate-
-// constructor rewrite must *not* be fooled by it into turning the ADT literal into a predicate
-// constructor (which used to produce `invalid base Tree.Leaf for predicate constructor`).
+// Clause `Leaf` deliberately collides with the mpredicate `Leaf` on `T` (legal: different
+// namespaces). The rewrite must keep `Tree.Leaf{}` an ADT literal, not a predicate constructor.
 ghost type Tree adt {
 	Leaf { }
 	Branch { value int }
@@ -22,7 +19,6 @@ pred (t T) Leaf() {
 ghost
 decreases
 func adtLiteralIsNotRewritten() {
-	// Must stay a composite literal of the ADT clause, despite the colliding mpredicate name.
 	x := Tree.Leaf{}
 	y := Tree.Branch{42}
 	assert x == Tree.Leaf{}
@@ -32,6 +28,6 @@ func adtLiteralIsNotRewritten() {
 decreases
 func mpredConstructorStillWorks() (ghost res pred()) {
 	t := T{}
-	// The predicate-expression form `T.Leaf{}` is still a predicate constructor.
+	// `T.Leaf{}` is still a predicate constructor.
 	return T.Leaf{t}
 }

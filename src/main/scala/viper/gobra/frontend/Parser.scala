@@ -596,11 +596,17 @@ object Parser extends LazyLogging {
                 hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
               }
 
-            // Defensive: composite-literal `typ` is grammatically restricted to
-            // `typeName: IDENT | qualifiedIdent`, so a `PDot` whose base isn't a
-            // `PNamedOperand` shouldn't reach this point. Treat conservatively as the
-            // local-mpredicate case above.
-            case PDot(_, id) => hasBlank(lit) || isLocalOrBuiltInMPred(id.name)
+            // A composite literal's `typ` is grammatically restricted to
+            // `literalType`, whose only dotted shape is `typeName: IDENT | qualifiedIdent`
+            // -- i.e. at most `qual.id`, which parses to `PDot(PNamedOperand, _)` and is
+            // handled above. A more deeply nested dotted base such as the
+            // predicate-expression form `importQualifier.NamedType.MyPred{...}` is *not* a
+            // valid `literalType`, so the parser never builds a `PCompositeLit` for it;
+            // instead it takes the `primaryExpr predConstructArgs` rule and produces a
+            // `PPredConstructor` directly (see ParseTreeTranslator.visitPredConstrPrimaryExpr).
+            // Hence a `PDot` whose base isn't a `PNamedOperand` is unreachable here; fail
+            // loudly rather than silently guessing.
+            case d: PDot => Violation.violation(s"unexpected dotted base in composite literal: $d")
             case _ => false
           }
         }

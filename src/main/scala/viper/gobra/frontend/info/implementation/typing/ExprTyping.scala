@@ -584,6 +584,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         s"unfolding predicate expression instance ${n.pred} not supported",
         resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
 
+    case n: PAsserting => assignableToSpec(n.ass) ++ isExpr(n.op).out ++ isPureExpr(n.op)
+
     case PLength(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
@@ -827,6 +829,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
+    case n: PAsserting => exprType(n.op)
 
     case n: PExpressionAndType => exprAndTypeType(n)
 

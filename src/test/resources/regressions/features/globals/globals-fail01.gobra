@@ -19,7 +19,7 @@ func testRead() {
 	assert v1 == 1
 }
 
-requires acc(&B, 1/2) && B
+requires acc(&B, perm(1, 2)) && B
 func testWrite() {
 	//:: ExpectedOutput(assignment_error:permission_error)
 	B = false

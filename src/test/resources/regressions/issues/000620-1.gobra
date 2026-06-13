@@ -10,5 +10,5 @@ type MyType struct {
 func main() {
 	mySlice := make([]MyType, 0)
 	snd := []MyType{MyType{1}}
-	mySlice = append(perm(1/2), mySlice, snd...)
+	mySlice = append(perm(1, 2), mySlice, snd...)
 }

@@ -6,8 +6,8 @@ package pkg
 type foo interface {
 	bar
 
-	requires acc(Mem(), 1/2)
-	ensures acc(Mem(), 1/2)
+	requires acc(Mem(), perm(1, 2))
+	ensures acc(Mem(), perm(1, 2))
 	f() int
 }
 
@@ -21,12 +21,12 @@ type test struct {
 
 pred (x *test) Mem() { acc(x) }
 
-requires acc(x.Mem(), 1/2)
-ensures acc(x.Mem(), 1/2)
+requires acc(x.Mem(), perm(1, 2))
+ensures acc(x.Mem(), perm(1, 2))
 func (x *test) f() (res int) {
-	unfold acc(x.Mem(), 1/2)
+	unfold acc(x.Mem(), perm(1, 2))
 	res = x.n
-	fold acc(x.Mem(), 1/2)
+	fold acc(x.Mem(), perm(1, 2))
 }
 
 (*test) implements foo {

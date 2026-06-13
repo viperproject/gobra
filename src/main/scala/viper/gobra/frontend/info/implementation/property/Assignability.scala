@@ -131,7 +131,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (SetT(l), SetT(r)) => assignableTo.result(l, r, mayInit)
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l, r, mayInit)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r, mayInit)
-      case (IntT(_), PermissionT) => successProp
 
         // conservative choice
       case _ => errorProp()

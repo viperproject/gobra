@@ -7,8 +7,8 @@ pred sendInvariant(v *int) {
 	acc(v) && *v > 0
 }
 
-requires acc(c.SendChannel(), 1/2)
-requires acc(c.RecvChannel(), 1/2)
+requires acc(c.SendChannel(), perm(1, 2))
+requires acc(c.RecvChannel(), perm(1, 2))
 requires c.SendGivenPerm() == sendInvariant!<_!>
 requires c.SendGotPerm() == PredTrue!<!>
 requires c.RecvGivenPerm() == PredTrue!<!>

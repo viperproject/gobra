@@ -13,12 +13,12 @@ import "time"
 type Addr interface {
 	pred Mem()
 
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	Network() string
 
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	String() string
 }
 
@@ -36,9 +36,9 @@ type Conn interface {
 
 	// Write writes data to the connection.
 	requires Mem()
-	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], perm(1, 1000))
 	ensures Mem()
-	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], perm(1, 1000))
 	Write(b []byte) (n int, err error)
 
 	// Close closes the connection.
@@ -47,13 +47,13 @@ type Conn interface {
 	Close() error
 
 	// LocalAddr returns the local network address.
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	LocalAddr() Addr
 
 	// RemoteAddr returns the remote network address.
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	RemoteAddr() Addr
 
 	// SetDeadline sets the read and write deadlines associated
@@ -88,16 +88,16 @@ type PacketConn interface {
 	ReadFrom(p []byte) (n int, addr Addr, err error)
 
 	requires Mem()
-	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], 1/1000)
+	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], perm(1, 1000))
 	ensures Mem()
-	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], 1/1000)
+	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], perm(1, 1000))
 	WriteTo(p []byte, addr Addr) (n int, err error)
 
 	requires Mem()
 	Close() error
 
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	LocalAddr() Addr
 
 	requires Mem()
@@ -139,12 +139,12 @@ type Error interface {
 
 	// error // (joao) support for embeddings is buggy
 
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	Timeout() bool   // Is the error a timeout?
 
-	requires acc(Mem(), 1/1000)
-	ensures acc(Mem(), 1/1000)
+	requires acc(Mem(), perm(1, 1000))
+	ensures acc(Mem(), perm(1, 1000))
 	Temporary() bool // Is the error temporary?
 }
 
@@ -178,8 +178,8 @@ requires acc(e.Mem())
 ensures acc(e.Mem())
 func (e *OpError) Error() string 
 
-requires acc(e.Mem(), 1/1000)
-ensures acc(e.Mem(), 1/1000)
+requires acc(e.Mem(), perm(1, 1000))
+ensures acc(e.Mem(), perm(1, 1000))
 func (e *OpError) Timeout() bool /*{
 	if ne, ok := e.Err.(*os.SyscallError); ok {
 		t, ok := ne.Err.(timeout)
@@ -189,8 +189,8 @@ func (e *OpError) Timeout() bool /*{
 	return ok && t.Timeout()
 }*/
 
-requires acc(e.Mem(), 1/1000)
-ensures acc(e.Mem(), 1/1000)
+requires acc(e.Mem(), perm(1, 1000))
+ensures acc(e.Mem(), perm(1, 1000))
 func (e *OpError) Temporary() bool /*{
 	if e.Op == "accept" && isConnError(e.Err) {
 		return true
@@ -231,9 +231,9 @@ type AddrError struct {
 
 pred (e *AddrError) Mem() { acc(e) }
 
-requires e != nil ==> acc(e, 1/1000)
+requires e != nil ==> acc(e, perm(1, 1000))
 ensures e == nil ==> ret == "<nil>"
-ensures e != nil ==> acc(e, 1/1000)
+ensures e != nil ==> acc(e, perm(1, 1000))
 ensures (e != nil && e.Addr != "") ==> ret == "address " + e.Addr + ": " + e.Err
 ensures (e != nil && e.Addr == "") ==> ret == e.Err
 func (e *AddrError) Error() (ret string) {
@@ -249,12 +249,12 @@ func (e *AddrError) Error() (ret string) {
 
 // (joao) if the method is annotated with pure, then the implementation proof fails
 // because the "pure" annotation of the interface and implementation do not match
-preserves acc(e.Mem(), 1/1000)
+preserves acc(e.Mem(), perm(1, 1000))
 ensures !res
 /* pure */ func (e *AddrError) Timeout() (res bool)   { return false }
 
-requires acc(e.Mem(), 1/1000)
-ensures acc(e.Mem(), 1/1000)
+requires acc(e.Mem(), perm(1, 1000))
+ensures acc(e.Mem(), perm(1, 1000))
 ensures !res
 /* pure */ func (e *AddrError) Temporary() (res bool) { return false }
 
@@ -296,7 +296,7 @@ type DNSError struct {
 
 pred (e *DNSError) Mem() { acc(e) }
 
-preserves e != nil ==> acc(e, 1/1000)
+preserves e != nil ==> acc(e, perm(1, 1000))
 func (e *DNSError) Error() string {
 	if e == nil {
 		return "<nil>"
@@ -310,12 +310,12 @@ func (e *DNSError) Error() string {
 }
 
 // Timeout reports whether the DNS lookup is known to have timed out.
-preserves acc(e.Mem(), 1/1000)
+preserves acc(e.Mem(), perm(1, 1000))
 ensures unfolding acc(e.Mem(), _) in res == e.IsTimeout
 /* pure */ func (e *DNSError) Timeout() (res bool) { return unfolding acc(e.Mem(), _) in e.IsTimeout }
 
 // Temporary reports whether the DNS error is known to be temporary.
-preserves acc(e.Mem(), 1/1000)
+preserves acc(e.Mem(), perm(1, 1000))
 ensures unfolding acc(e.Mem(), _) in res == e.IsTimeout || e.IsTemporary
 /* pure */ func (e *DNSError) Temporary() (res bool) { return unfolding acc(e.Mem(), _) in e.IsTimeout || e.IsTemporary }
 

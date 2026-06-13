@@ -30,7 +30,7 @@ func structChannel() {
     }
 }
 
-requires acc(c.SendChannel(), 1/2)
+requires acc(c.SendChannel(), perm(1, 2))
 requires c.SendGivenPerm() == payloadIsOne!<_!>
 requires c.SendGotPerm() == PredTrue!<!>
 func sendMsg(c chan *msg) {

@@ -38,9 +38,9 @@ requires c.RecvGivenPerm() == PredTrue!<!>;
 requires c.RecvGotPerm() == messagePerm!<wg,_,x,y!>;
 func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
   share c, wg, x, y
-  fold acc(PredTrue!<!>(),2/1);
+  fold acc(PredTrue!<!>(),perm(2, 1));
   // assert c.RecvGivenPerm() == PredTrue!<!>;
-  invariant acc(&c, 1/2) && acc(&wg, 1/2) &&acc(&s) && acc(&ok) && acc(&x, 1/2) && acc(&y, 1/2)
+  invariant acc(&c, perm(1, 2)) && acc(&wg, perm(1, 2)) &&acc(&s) && acc(&ok) && acc(&x, perm(1, 2)) && acc(&y, perm(1, 2))
   invariant PredTrue!<!>() && acc(c.RecvChannel(),_)
   invariant c.RecvGivenPerm() == PredTrue!<!>;
   invariant c.RecvGotPerm() == messagePerm!<wg,_,x,y,!>;
@@ -48,7 +48,7 @@ func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
   for s@, ok@ := <- c; ok; s, ok = <-c {
     unfold messagePerm!<wg,_,x,y!>(s)
     ghost s0 := toSeq(s)
-    invariant acc(&c, 1/4) && acc(&wg, 1/4) && acc(&x, 1/4) && acc(&y, 1/4) && acc(&s)
+    invariant acc(&c, perm(1, 4)) && acc(&wg, perm(1, 4)) && acc(&x, perm(1, 4)) && acc(&y, perm(1, 4)) && acc(&s)
     invariant len(s0) == len(s)
     invariant acc(c.RecvChannel(),_)
     invariant wg.UnitDebt(replacedPerm!<s0,s,x,y!>)
@@ -93,8 +93,8 @@ func SearchReplace(s []int, x, y int) {
     go worker(c,&wg,x,y)
   }
   invariant acc(c.SendChannel()) && c.SendGivenPerm() == pr
-  invariant acc(wg.WaitGroupP(),1/2) && !wg.WaitMode()
-  invariant (offset == 0 ? acc(wg.WaitGroupP(),1/2) : acc(wg.WaitGroupStarted(),1/2))
+  invariant acc(wg.WaitGroupP(),perm(1, 2)) && !wg.WaitMode()
+  invariant (offset == 0 ? acc(wg.WaitGroupP(),perm(1, 2)) : acc(wg.WaitGroupStarted(),perm(1, 2)))
   invariant 0 <= offset && offset <= len(s)
   invariant forall i int :: offset <= i && i < len(s) ==> acc(&s[i])
   invariant forall i int :: offset <= i && i < len(s) ==> s[i] == s0[i]
@@ -119,9 +119,9 @@ func SearchReplace(s []int, x, y int) {
       &section[i] == &s[i + offset]
     ghost s1 := toSeq(section)
     ghost wpr := replacedPerm!<s1,section,x,y!>;
-    wg.Add(1,1/2,PredTrue!<!>)
+    wg.Add(1,perm(1, 2),PredTrue!<!>)
     ghost if(offset == 0) {
-      wg.Start(1/2,PredTrue!<!>)
+      wg.Start(perm(1, 2),PredTrue!<!>)
     }
     wg.GenerateTokenAndDebt(wpr)
     fold wg.TokenById(wpr,len(pseqs))
@@ -131,8 +131,8 @@ func SearchReplace(s []int, x, y int) {
     c <- section
     offset = nextOffset
   }
-  wg.SetWaitMode(1/2,1/2)
-  wg.Wait(1/2,pseqs)
+  wg.SetWaitMode(perm(1, 2),perm(1, 2))
+  wg.Wait(perm(1, 2),pseqs)
   ghost {
     invariant 0 <= i && i <= len(seqs)
     invariant forall j int :: i <= j && j < len(seqs) ==>

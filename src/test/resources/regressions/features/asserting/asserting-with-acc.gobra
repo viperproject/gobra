@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// The assertion `e1` may mention permissions; `asserting` is non-consuming, so
+// the permissions are still available after evaluating the expression.
+
+pred mem(x *int) {
+	acc(x)
+}
+
+requires mem(x)
+decreases
+pure func readUnfolding(x *int) int {
+	return unfolding mem(x) in *x
+}
+
+requires mem(x)
+ensures mem(x)
+func useAcc(x *int) {
+	// asserting that we hold `mem(x)`, then read through it via a pure function
+	ghost v := asserting mem(x) in readUnfolding(x)
+}

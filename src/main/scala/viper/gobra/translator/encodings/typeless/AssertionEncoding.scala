@@ -67,6 +67,12 @@ class AssertionEncoding extends Encoding {
         r <- ctx.expression(let.right)
       } yield withSrc(vpr.Let(l, r, exp), let)
 
+    case as: in.Asserting =>
+      for {
+        a <- ctx.assertion(as.assertion)
+        e <- pure(ctx.expression(as.in))(ctx)
+      } yield withSrc(vpr.Asserting(a, e), as)
+
     case n@ in.Low(e) => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
     case n: in.LowContext => unit(withSrc(SIFLowEventExp(), n))
     case n@ in.Rel(e, i) => for {

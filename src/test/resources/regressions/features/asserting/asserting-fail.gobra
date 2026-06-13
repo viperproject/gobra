@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// The assertion `e1` of an `asserting` expression must hold; here it does not.
+func assertionFails() {
+	ghost x := 5
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert asserting x == 6 in x > 0
+}

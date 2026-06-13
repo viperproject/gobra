@@ -2734,6 +2734,11 @@ object Desugar extends LazyLogging {
             val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
+          case PAsserting(ass, op) =>
+            val dAss = specificationD(ctx, info)(ass)
+            val dOp = pureExprD(ctx, info)(op)
+            unit(in.Asserting(dAss, dOp)(src))
+
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
           case PSliceExp(base, low, high, cap) => for {

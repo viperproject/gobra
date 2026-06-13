@@ -211,10 +211,7 @@ object Names {
   def boundedIntBneg(k: IntegerKind): String   = s"${k.name}$$bneg"
   def boundedIntShl(k: IntegerKind): String    = s"${k.name}$$shl"
   def boundedIntShr(k: IntegerKind): String    = s"${k.name}$$shr"
-  def boundedIntWrap(k: IntegerKind): String   = s"${k.name}$$wrap"
-  // cross-type conversion: k1 → k2
-  def boundedIntConv(from: IntegerKind, to: IntegerKind): String = s"${from.name}$$to_${to.name}"
-  // unbounded → bounded conversion
+  // unbounded → bounded conversion (also reused for bounded → bounded via from-composition)
   def integerToBounded(to: BoundedIntegerKind): String = s"integer$$to_${to.name}"
 
   // kept for legacy uses (bitwise ops on unbounded integers are now a type error; only kept for

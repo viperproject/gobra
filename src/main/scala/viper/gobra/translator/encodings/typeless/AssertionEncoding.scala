@@ -70,6 +70,11 @@ class AssertionEncoding extends Encoding {
     case as: in.Asserting =>
       for {
         a <- ctx.assertion(as.assertion)
+        // `pure` folds any auxiliary (pure) code emitted while encoding the body
+        // into the body expression itself, keeping it inside the `vpr.Asserting`
+        // node so that `e2` is sequenced *after* `e1`. In practice, this is
+        // a defensive strategy (mirroring `unfolding`'s encoding) that is
+        // not strictly necessary at the moment.
         e <- pure(ctx.expression(as.in))(ctx)
       } yield withSrc(vpr.Asserting(a, e), as)
 

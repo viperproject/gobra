@@ -177,6 +177,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
     case e: PProofAnnotation => e match {
       case PUnfolding(_, op) => showExpr(op)
+      case PAsserting(_, op) => showExpr(op)
     }
     case e if classifier.isExprGhost(e) => ghostToken
 

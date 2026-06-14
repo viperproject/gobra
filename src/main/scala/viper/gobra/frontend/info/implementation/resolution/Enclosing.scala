@@ -195,6 +195,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
+          case p: PAsserting => aux(p)
             // no array type
             // no range
             // no function spec, no invariants, no predicate body

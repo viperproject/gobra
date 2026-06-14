@@ -481,6 +481,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
+    case Asserting(ass, exp) => "asserting" <+> showAss(ass) <+> "in" <+> showExpr(exp)
+
     case PureLet(left, right, exp) =>
       "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 

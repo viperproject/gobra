@@ -1734,6 +1734,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     PUnfolding(pred, op).at(ctx)
   }
 
+  /**
+    *
+    * @param ctx the parse tree
+    * @return the positioned PAsserting
+    */
+  override def visitAsserting(ctx: AssertingContext): PAsserting = {
+    val ass = visitNode[PExpression](ctx.assertion())
+    val op = visitNode[PExpression](ctx.expression())
+    PAsserting(ass, op).at(ctx)
+  }
+
   override def visitLet(ctx: LetContext): PLet = {
     val ass = visitNode[PShortVarDecl](ctx.shortVarDecl())
     val op = visitNode[PExpression](ctx.expression())

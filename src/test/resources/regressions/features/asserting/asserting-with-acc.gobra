@@ -22,3 +22,9 @@ func useAcc(x *int) {
 	// asserting that we hold `mem(x)`, then read through it via a pure function
 	ghost v := asserting mem(x) in readUnfolding(x)
 }
+
+func assertingPermissions(x *int) bool {
+    // asserting that we hold `mem(x)` even though we don't hold it
+    //:: ExpectedOutput(assert_error:assertion_error)
+    return asserting mem(x) in true
+}

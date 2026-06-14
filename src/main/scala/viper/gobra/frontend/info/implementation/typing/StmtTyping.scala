@@ -355,7 +355,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case invoke: PInvoke => failedProp(s"The call must be $expectedCall", !isExpectedCall(invoke))
       case f: PUnfolding => validExpression(f.op)
       case f: PAsserting => validExpression(f.op)
-      case _ => failedProp(s"only unfolding/asserting expressions and the call $expectedCall is allowed")
+      case _ => failedProp(s"only unfolding/asserting expressions and the call $expectedCall are allowed")
     }
 
     validExpression(retExpr)

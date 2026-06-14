@@ -24,7 +24,9 @@ func useAcc(x *int) {
 }
 
 func assertingPermissions(x *int) bool {
-    // asserting that we hold `mem(x)` even though we don't hold it
-    //:: ExpectedOutput(assert_error:assertion_error)
+    // asserting that we hold `mem(x)` even though we don't hold it.
+    // Silicon reports this as an assignment error, which is unexpected and
+    // requires changes in Viper to fix.
+    //:: ExpectedOutput(assignment_error:permission_error)
     return asserting mem(x) in true
 }

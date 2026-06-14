@@ -12,8 +12,15 @@ func overflowInt32(i int) (res int) {
 }
 
 // Operation may lead to overflow, no bound checks are performed on the argument u before incrementing it
+//:: ExpectedOutput(integer_overflow_error)
 ensures ret == u + 1
 func incrementOverflows(u uint) (ret uint) {
+	ret = u + 1
+	return
+}
+
+ensures integer(ret) == integer(u) + 1
+func incrementOverflows2(u uint) (ret uint) {
 	//:: ExpectedOutput(integer_overflow_error)
 	ret = u + 1
 	return

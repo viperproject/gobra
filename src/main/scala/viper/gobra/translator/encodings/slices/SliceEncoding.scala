@@ -179,12 +179,17 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             lenExpr = in.Length(slice)(makeStmt.info)
             capExpr = in.Capacity(slice)(makeStmt.info)
 
+            // capArg/lenArg can have a bounded integer kind (Go specifies `make`'s size
+            // parameter as `int`); align with the unbounded kind of in.Capacity/in.Length.
+            (alignedCapL, alignedCapR) = viper.gobra.ast.internal.utility.IntKindAlignment.alignIntKinds(capExpr, capArg)
+            (alignedLenL, alignedLenR) = viper.gobra.ast.internal.utility.IntKindAlignment.alignIntKinds(lenExpr, lenArg)
+
             // inhale cap(a) == [cap]
-            eqCap <- ctx.equal(capExpr, capArg)(makeStmt)
+            eqCap <- ctx.equal(alignedCapL, alignedCapR)(makeStmt)
             _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
 
             // inhale len(a) == [len]
-            eqLen <- ctx.equal(lenExpr, lenArg)(makeStmt)
+            eqLen <- ctx.equal(alignedLenL, alignedLenR)(makeStmt)
             _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]

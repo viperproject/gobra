@@ -80,10 +80,10 @@ func (g *WaitGroup) GenerateToken(ghost R pred())
 requires p >= noPerm
 requires n > 0 && p > noPerm ==> acc(g.WaitGroupP(), p) && !g.WaitMode()
 requires (n > 0 && p == noPerm) ==> g.UnitDebt(P)
-requires n < 0 ==> acc(g.UnitDebt(PredTrue!<!>), perm(-n, 1))
+requires n < 0 ==> acc(g.UnitDebt(PredTrue!<!>), perm(integer(-n), 1))
 ensures (n > 0 && p > noPerm) ==> acc(g.WaitGroupP(), p)
 ensures (n > 0 && p == noPerm) ==> g.UnitDebt(P)
-ensures n > 0 ==> acc(g.UnitDebt(PredTrue!<!>), perm(n, 1))
+ensures n > 0 ==> acc(g.UnitDebt(PredTrue!<!>), perm(integer(n), 1))
 // this is actually necessary, otherwise Gobra cannot prove that Add does not modify the wait mode
 ensures (n > 0 && p > noPerm) ==> g.WaitMode() == old(g.WaitMode())
 decreases _

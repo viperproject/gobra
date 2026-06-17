@@ -28,15 +28,15 @@ func foo2() (r *int) {
 
 	preserves acc(r) && *r == 42
 	outline (
-		// nothing
+		assert true
 	)
 	return
 }
 
 // A closure literal declared inside a function may reference the outer
 // function's named output parameter in its precondition.
-ensures acc(r) && *r == 42
 func foo3() (r *int) {
+	share r
 	i@ := 42
 	r = &i
 

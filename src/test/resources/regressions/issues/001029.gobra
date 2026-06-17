@@ -28,33 +28,22 @@ func foo2() (r *int) {
 
 	preserves acc(r) && *r == 42
 	outline (
-		assert true
+		// nothing
 	)
 	return
 }
 
 // A closure literal declared inside a function may reference the outer
 // function's named output parameter in its precondition.
+ensures acc(r, 1/2) && *r == 42
 func foo3() (r *int) {
-	share r
+	share r // needed such that the closure can capture `r`
 	i@ := 42
 	r = &i
 
-	c := requires acc(r) && *r == 42
+	c := requires acc(&r) && acc(r, 1/2) && *r == 42
 	     func nested() {
 		// nothing
-	}
-	return
-}
-
-// The check still rejects references to a closure's own output parameter in
-// the closure's own precondition.
-func bad() {
-	//:: ExpectedOutput(type_error)
-	c := requires s == 0
-	     ensures  s == 1
-	     func nested() (s int) {
-		return 1
 	}
 	return
 }

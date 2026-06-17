@@ -99,6 +99,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PPermission => AddrMod.rValue
       case _: PPredConstructor => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
+      case n: PAsserting => AddrMod.asserting(addressability(n.op))
       case n: PLet => AddrMod.let(addressability(n.op))
       case _: POld | _: PLabeledOld | _: PBefore => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue

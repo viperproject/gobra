@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// `asserting e1 in e2` evaluates to `e2` and additionally asserts that the
+// assertion `e1` holds in the current state.
+
+ghost
+decreases
+ensures res == x
+pure func identity(x int) (res int) {
+	return asserting x == x in x
+}
+
+func simple() {
+	ghost x := 5
+	// the asserting expression evaluates to its body `x > 0`
+	assert asserting x == 5 in x > 0
+}
+
+ghost
+decreases
+requires 0 <= x && x < 10
+ensures res == x
+pure func nested(x int) (res int) {
+	return asserting 0 <= x in (asserting x < 10 in x)
+}

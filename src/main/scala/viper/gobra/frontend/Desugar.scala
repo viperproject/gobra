@@ -647,8 +647,8 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
-      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
+      val pres = decl.spec.pres map specificationD(specCtx, info)
+      val posts = decl.spec.posts map specificationD(specCtx, info)
       val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx, info, false)).res
 
       // p1' := p1; ... ; pn' := pn
@@ -761,8 +761,8 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = decl.spec.pres map preconditionD(ctx, info)
-      val posts = decl.spec.posts map postconditionD(ctx, info)
+      val pres = decl.spec.pres map specificationD(ctx, info)
+      val posts = decl.spec.posts map specificationD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
 
       val isOpaque = decl.spec.isOpaque
@@ -841,8 +841,8 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx, info)
-      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx, info)
+      val pres = decl.spec.pres map specificationD(specCtx, info)
+      val posts = decl.spec.posts map specificationD(specCtx, info)
 
       // The desugaring of termination measures assumes that this method never has an interface receiver.
       // This should never occur, given that interface method signatures are desugared in method `registerInterface`.
@@ -938,8 +938,8 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions
-      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx, info)
-      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx, info)
+      val pres = decl.spec.pres map specificationD(ctx, info)
+      val posts = decl.spec.posts map specificationD(ctx, info)
       // The desugaring of termination measures assumes that this method never has an interface receiver.
       // This should never occur, given that interface method signatures are desugared in method `registerInterface`.
       assert(interfaceType(recv.typ).isEmpty)
@@ -1867,8 +1867,8 @@ object Desugar extends LazyLogging {
 
           case n: POutline =>
             val name = s"${rootName(n, info)}$$${nm.relativeIdEnclosingFuncOrMethodDecl(n, info)}"
-            val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(ctx, info)
-            val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(ctx, info)
+            val pres = n.spec.pres map specificationD(ctx, info)
+            val posts = n.spec.posts map specificationD(ctx, info)
             val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
             val annotations = desugarBackendAnnotations(n.spec.backendAnnotations)
 
@@ -2734,6 +2734,11 @@ object Desugar extends LazyLogging {
             val dOp = pureExprD(ctx, info)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
+          case PAsserting(ass, op) =>
+            val dAss = specificationD(ctx, info)(ass)
+            val dOp = pureExprD(ctx, info)(op)
+            unit(in.Asserting(dAss, dOp)(src))
+
           case n : PIndexedExp => indexedExprD(n)(ctx, info)
 
           case PSliceExp(base, low, high, cap) => for {
@@ -3287,8 +3292,8 @@ object Desugar extends LazyLogging {
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx, info)
-          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx, info)
+          val pres = m.spec.pres map specificationD(specCtx, info)
+          val posts = m.spec.posts map specificationD(specCtx, info)
           val terminationMeasures =
             sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info, true)).res
           val annotations = desugarBackendAnnotations(m.spec.backendAnnotations)
@@ -3621,7 +3626,7 @@ object Desugar extends LazyLogging {
       mainFuncOpt.map { mainFunc =>
         val src = meta(mainFunc, info)
         val mainPkgInitPosts = initSpecs.getNonDupPkgInvariants().values.flatten.toVector
-        val mainFuncPre = mainFunc.spec.pres ++ mainFunc.spec.preserves
+        val mainFuncPre = mainFunc.spec.pres
         val mainFuncPreD = mainFuncPre.map(specificationD(FunctionContext.empty(), info)).map { a =>
           a.withInfo(a.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(MainPreNotEstablished))
         }
@@ -4360,7 +4365,7 @@ object Desugar extends LazyLogging {
       }
 
       // Desugar the precondition of spec, replacing the argument and results with their aliases
-      val pres = (fSpec.pres ++ fSpec.preserves) map preconditionD(newCtx, funcTypeInfo)
+      val pres = fSpec.pres map specificationD(newCtx, funcTypeInfo)
 
       // For the postcondition, we need to replace all old() expressions with labeled old expressions,
       // and add a label at the beginning of the proof body
@@ -4376,7 +4381,7 @@ object Desugar extends LazyLogging {
         case exp =>
           replaceRecvOrClosure(exp)
       })
-      val posts = (fSpec.preserves ++ fSpec.posts) map postconditionD(postsCtx, funcTypeInfo)
+      val posts = fSpec.posts map specificationD(postsCtx, funcTypeInfo)
 
       // Desugar the proof as a block containing all the aliases declarations and assignments, and
       // the corresponding internal proof node.
@@ -4631,14 +4636,6 @@ object Desugar extends LazyLogging {
       val condition = assertionD(ctx, info)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not an assertion")
       condition.res
-    }
-
-    def preconditionD(ctx: FunctionContext, info: TypeInfo)(ass: PExpression): in.Assertion = {
-      specificationD(ctx, info)(ass)
-    }
-
-    def postconditionD(ctx: FunctionContext, info: TypeInfo)(ass: PExpression): in.Assertion = {
-      specificationD(ctx, info)(ass)
     }
 
     def terminationMeasureD(ctx: FunctionContext,

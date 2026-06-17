@@ -151,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque, _) =>
+    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _) =>
       // Collect the named output parameters of the spec's owner so that we only
       // reject references to those (and not to outputs of an enclosing function,
       // method, or closure - which is relevant for outline statements and nested
@@ -163,9 +163,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case _ => Vector.empty
       }
-      pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
-      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
-      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
+      clauses.map(_.exp).flatMap(assignableToSpec) ++
+      n.pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause

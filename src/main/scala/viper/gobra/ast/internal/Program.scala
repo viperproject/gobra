@@ -586,6 +586,11 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
 }
 
+case class Asserting(assertion: Assertion, in: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = in.typ
+  require(typ.addressability == Addressability.asserting(in.typ.addressability))
+}
+
 case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = in.typ
 }

@@ -4,8 +4,7 @@
 package issue001029
 
 // Output parameters of the surrounding function may be referenced in the
-// precondition of an outline statement and closures.
-
+// precondition of an outline statement.
 ensures acc(r) && *r == 42
 func foo() (r *int) {
 	i@ := 0

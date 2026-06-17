@@ -10,7 +10,6 @@ package issue001029
 func bad() {
 	//:: ExpectedOutput(type_error)
 	c := requires s == 0
-	     ensures  s == 1
 	     func nested() (s int) {
 		return 1
 	}

@@ -23,6 +23,6 @@ func (t *Test) B(ghost p perm) (res int) {
 
 func main() {
 	t := &Test{0, 42}
-	res := t.B(1/2)
+	res := t.B(perm(1, 2))
 	assert(res == 42)
 }

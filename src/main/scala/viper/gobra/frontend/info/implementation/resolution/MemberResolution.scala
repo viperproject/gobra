@@ -398,7 +398,10 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
 
   def tryUnqualifiedBuiltInPackageLookup(id: PIdnUse): Option[Entity] =
-    tryPackageLookup(BuiltInImport, id).map(_._1)
+    if (dependentTypeInfo.contains(BuiltInImport))
+      tryPackageLookup(BuiltInImport, id).map(_._1)
+    else
+      None
 
   def tryUnqualifiedRegularPackageLookup(id: PIdnUse): Entity = {
 

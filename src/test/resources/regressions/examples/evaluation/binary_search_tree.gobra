@@ -88,32 +88,32 @@ pure func (t *Tree) IsEmpty() (res bool) {
 }
 
 requires dividend > 0
-requires acc(t.tree(), 1/dividend)
-ensures acc(t.tree(), 1/dividend)
+requires acc(t.tree(), perm(1, dividend))
+ensures acc(t.tree(), perm(1, dividend))
 ensures res == t.pureContains(value, dividend)
 func (t *Tree) Contains(value, dividend int) (res bool) {
-    unfold acc(t.tree(), 1/dividend)
+    unfold acc(t.tree(), perm(1, dividend))
     if (t.root == nil) {
         res = false
     } else {
         res = t.root.contains(value, dividend, none[int], none[int])
     }
-    fold acc(t.tree(), 1/dividend)
+    fold acc(t.tree(), perm(1, dividend))
     return res
 }
 
 ghost
-requires dividend > 0 && acc(t.tree(), 1/dividend)
+requires dividend > 0 && acc(t.tree(), perm(1, dividend))
 pure func (t *Tree) pureContains(value, dividend int) bool {
-  return unfolding acc(t.tree(), 1/dividend) in t.root != nil && value elem t.root.sortedValues(none[int], none[int])
+  return unfolding acc(t.tree(), perm(1, dividend)) in t.root != nil && value elem t.root.sortedValues(none[int], none[int])
 }
 
 requires dividend > 0
-requires acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
-ensures acc(n.tree(), 1/dividend) && n.sorted(lowerBound, upperBound)
+requires acc(n.tree(), perm(1, dividend)) && n.sorted(lowerBound, upperBound)
+ensures acc(n.tree(), perm(1, dividend)) && n.sorted(lowerBound, upperBound)
 ensures res == value elem n.sortedValues(lowerBound, upperBound) // res is correct
 func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
-    unfold acc(n.tree(), 1/dividend)
+    unfold acc(n.tree(), perm(1, dividend))
     if (n.value == value) {
         res = true
     } else if (value < n.value && n.left != nil) {
@@ -123,7 +123,7 @@ func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBo
     } else {
         res = false
     }
-    fold acc(n.tree(), 1/dividend)
+    fold acc(n.tree(), perm(1, dividend))
     return res
 }
 

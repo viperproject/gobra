@@ -106,8 +106,8 @@ pure func Low(v int) Observation {
 // this allows us to assume that the sensitivity postconditions are satisfied.
 ghost
 decreases
-requires sig != nil && acc(History(), 1/2) && low(Pre(sig,*History()))
-ensures acc(History(), 1/2) && low(Post(sig,*History()))
+requires sig != nil && acc(History(), perm(1, 2)) && low(Pre(sig,*History()))
+ensures acc(History(), perm(1, 2)) && low(Post(sig,*History()))
 func LowPost(sig ClassificationSpec)
 
 // NOTE: these are the low projections mentioned in the paper

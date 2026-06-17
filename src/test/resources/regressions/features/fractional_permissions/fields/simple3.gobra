@@ -10,8 +10,8 @@ type cell struct{
 const dividend = 1
 const divisor = 1
 
-requires acc(&x.val, dividend/divisor) && x.val == 42
-ensures acc(&x.val, dividend/divisor) && x.val == 0
+requires acc(&x.val, perm(dividend, divisor)) && x.val == 42
+ensures acc(&x.val, perm(dividend, divisor)) && x.val == 0
 func exprPerm(x *cell) {
     assert x.val == 42
     x.val = 0

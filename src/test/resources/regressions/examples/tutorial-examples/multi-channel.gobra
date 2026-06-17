@@ -32,7 +32,7 @@ requires acc(c.RecvChannel(),_)
 requires c.RecvGivenPerm() == PredTrue!<!>
 requires c.RecvGotPerm() == isQuery!<_!>
 func slave(c <- chan query) {
-	fold acc(PredTrue!<!>(),2/1);
+	fold acc(PredTrue!<!>(),perm(2, 1));
 	invariant PredTrue!<!>() && acc(c.RecvChannel(),_)
 	invariant c.RecvGivenPerm() == PredTrue!<!>
 	invariant c.RecvGotPerm() == isQuery!<_!>

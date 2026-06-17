@@ -2290,6 +2290,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitOutlineStatement(ctx: OutlineStatementContext): PSeq = super.visitOutlineStatement(ctx) match {
     case Vector(_, _, stmts: Vector[PStatement@unchecked], _) => PSeq(stmts)
+    // an outline block with an empty body (`outline ( )`) has no statementList child
+    case Vector(_, _, _) => PSeq(Vector.empty)
   }
 
 

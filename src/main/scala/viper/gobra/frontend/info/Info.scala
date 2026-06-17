@@ -230,7 +230,7 @@ object Info extends LazyLogging {
     * point all imported packages have been type-checked (Gobra processes packages in
     * dependency order), so we have access to:
     *   - the current package's top-level `pred` declarations,
-    *   - the set of import qualifiers visible in the package, and
+    *   - the import qualifiers visible in each file (imports are file-scoped), and
     *   - each imported package's exported function-predicate names (via `dependentTypeInfo`).
     *
     * The fpredicate-only restriction on the imported side avoids spurious rewrites of
@@ -242,7 +242,7 @@ object Info extends LazyLogging {
     pkg: PPackage,
     deps: Map[AbstractImport, ExternalTypeInfo],
   ): PPackage = {
-    import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PTypeDef, PAdtType, PExplicitGhostMember}
+    import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PTypeDef, PAdtType, PExplicitGhostMember, PProgram}
 
     // Tracked separately: the rewriter consults a different bucket per syntactic form
     // (`IDENT{...}` vs `qual.id{...}`).
@@ -261,36 +261,33 @@ object Info extends LazyLogging {
       case PExplicitGhostMember(PTypeDef(adt: PAdtType, id)) => id.name -> adt.clauses.map(_.id.name).toSet
     }).toMap
 
-    // Set of import qualifiers visible in `pkg` (across all programs).
-    val importQualifiers: Set[String] = pkg.programs.flatMap(_.imports.collect {
-      case pi: PExplicitQualifiedImport => pi.qualifier.name
-    }).toSet
-
-    // Map: import-qualifier -> set of *function*-predicate names declared at the top level of
-    // the imported package. Method predicates are intentionally omitted: they are attached to
-    // types and so are not reachable as `qualifier.id`.
-    val importedFPredicatesByQualifier: Map[String, Set[String]] = pkg.programs.flatMap { prog =>
+    // Per-file (per-program) map: import qualifier -> *function*-predicate names declared at the
+    // top level of the imported package. Computed per program because imports are file-scoped: a
+    // qualifier imported in one file of the package is not in scope in another. Method predicates
+    // are omitted (they attach to types and so aren't reachable as `qualifier.id`).
+    //
+    // Only `PExplicitQualifiedImport` is matched: implicitly qualified imports (`import "p"`) have
+    // already been resolved to explicit ones by the parser's `ImportPostprocessor`, which runs
+    // before type-checking, so none remain here.
+    def importedFPredicatesFor(prog: PProgram): Map[String, Set[String]] =
       prog.imports.collect {
         case pi: PExplicitQualifiedImport =>
-          deps.get(RegularImport(pi.importPath)).map { extInfo =>
-            val importedPkg = extInfo.getTypeInfo match {
-              case ti: TypeInfoImpl => Some(ti.tree.root)
-              case _ => None
+          val names: Set[String] = deps.get(RegularImport(pi.importPath)).toVector.flatMap {
+            _.getTypeInfo match {
+              case ti: TypeInfoImpl => ti.tree.root.programs.flatMap(_.declarations.collect {
+                case d: PFPredicateDecl => d.id.name
+              })
+              case _ => Vector.empty
             }
-            val names: Set[String] = importedPkg.toVector.flatMap(_.programs.flatMap(_.declarations.collect {
-              case d: PFPredicateDecl => d.id.name
-            })).toSet
-            pi.qualifier.name -> names
-          }
-      }.flatten
-    }.toMap
+          }.toSet
+          pi.qualifier.name -> names
+      }.toMap
 
     viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(
       pkg,
       localFPredicateNames,
       localMPredicateNames,
-      importQualifiers,
-      q => importedFPredicatesByQualifier.getOrElse(q, Set.empty),
+      importedFPredicatesFor,
       (typeName, clauseName) => localAdtClauses.get(typeName).exists(_.contains(clauseName)),
     )(pkg.positions.positions)
   }

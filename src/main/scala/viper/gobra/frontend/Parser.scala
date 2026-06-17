@@ -543,8 +543,7 @@ object Parser extends LazyLogging {
         pkg: PPackage,
         localFPredicateNames: Set[String],
         localMPredicateNames: Set[String],
-        importQualifiers: Set[String],
-        importedFPredicateNames: String => Set[String],
+        importedFPredicatesFor: PProgram => Map[String, Set[String]],
         isLocalAdtClause: (String, String) => Boolean,
       ): PPackage = {
         def hasKey(lit: PLiteralValue): Boolean = lit.elems.exists(_.key.isDefined)
@@ -559,8 +558,10 @@ object Parser extends LazyLogging {
 
         // Should this `PCompositeLit` be reinterpreted as a `PPredConstructor`? Decide by the
         // syntactic shape of the literal's type. A blank element (`_`) is illegal in a real
-        // composite literal, so it always marks a predicate constructor.
-        def shouldRewrite(typ: PLiteralType, lit: PLiteralValue): Boolean = {
+        // composite literal, so it always marks a predicate constructor. `importedFPreds` maps the
+        // import qualifiers *of the current file* to the fpredicate names of the imported package
+        // (imports are file-scoped, so this must be per-program, not package-wide).
+        def shouldRewrite(typ: PLiteralType, lit: PLiteralValue, importedFPreds: Map[String, Set[String]]): Boolean = {
           if (hasKey(lit)) false // keyed elements (`T{x: 1}`) are never predicate constructors
           else typ match {
             // `IDENT{...}`: only a top-level fpredicate. Struct/ADT-clause/etc. names can't
@@ -568,19 +569,21 @@ object Parser extends LazyLogging {
             case PNamedOperand(id) => hasBlank(lit) || isLocalOrBuiltInFPred(id.name)
 
             case PDot(qual: PNamedOperand, id) =>
-              if (importQualifiers.contains(qual.id.name))
-                // `qual.id` names an imported top-level entity: a type (struct literal) or an
-                // fpredicate (constructor). Imported mpredicates need `qual.Type.id`, so the
-                // local namespace is irrelevant here.
-                hasBlank(lit) || importedFPredicateNames(qual.id.name).contains(id.name)
-              else if (hasBlank(lit)) true
-              // `X.A{...}` with `X` a local ADT type and `A` one of its clauses is an ADT
-              // literal, not a constructor -- even if `A` also names an mpredicate (clause and
-              // mpredicate names share no namespace, so the collision is legal).
-              else if (isLocalAdtClause(qual.id.name, id.name)) false
-              // Otherwise the only valid reading is an mpredicate constructor (`recv.isZero{}`
-              // or `Mutex.isZero{}`).
-              else isLocalOrBuiltInMPred(id.name)
+              importedFPreds.get(qual.id.name) match {
+                // `qual` is an import qualifier in this file: `qual.id` names an imported top-level
+                // entity, either a type (struct literal) or an fpredicate (constructor). Imported
+                // mpredicates need `qual.Type.id`, so the local namespace is irrelevant here.
+                case Some(fpreds) => hasBlank(lit) || fpreds.contains(id.name)
+                case None =>
+                  if (hasBlank(lit)) true
+                  // `X.A{...}` with `X` a local ADT type and `A` one of its clauses is an ADT
+                  // literal, not a constructor -- even if `A` also names an mpredicate (clause and
+                  // mpredicate names share no namespace, so the collision is legal).
+                  else if (isLocalAdtClause(qual.id.name, id.name)) false
+                  // Otherwise the only valid reading is an mpredicate constructor (`recv.isZero{}`
+                  // or `Mutex.isZero{}`).
+                  else isLocalOrBuiltInMPred(id.name)
+              }
 
             // A composite literal's type is at most `qual.id` (`PDot(PNamedOperand, _)`, handled
             // above). A deeper base like `pkg.Type.pred{...}` isn't a valid `literalType`, so the
@@ -603,14 +606,14 @@ object Parser extends LazyLogging {
           case t => Violation.violation(s"unexpected base for predicate constructor: $t")
         }
 
-        val rewritePredConstructors: Strategy =
-          strategyWithName[Any]("rewritePredConstructors", {
-            case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit) =>
-              Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
-            case n => Some(n)
-          })
-
         val updatedProgs = pkg.programs.map { prog =>
+          val importedFPreds = importedFPredicatesFor(prog)
+          val rewritePredConstructors: Strategy =
+            strategyWithName[Any]("rewritePredConstructors", {
+              case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit, importedFPreds) =>
+                Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
+              case n => Some(n)
+            })
           val updatedDecls = rewrite(topdown(attempt(rewritePredConstructors)))(prog.declarations)
           at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
         }
@@ -622,10 +625,11 @@ object Parser extends LazyLogging {
       *
       * @param localFPredicateNames    top-level fpredicate names in `pkg`; for `IDENT{...}`.
       * @param localMPredicateNames    top-level mpredicate names in `pkg`; for local `qual.id{...}`.
-      * @param importQualifiers        import qualifiers visible in `pkg`; tells whether `qual` in
-      *                                `qual.id{...}` is an import or a local value/type.
-      * @param importedFPredicateNames `importedFPredicateNames(q)` = top-level fpredicate names in
-      *                                the package imported as `q` (mpredicates aren't reachable as `q.id`).
+      * @param importedFPredicatesFor  `importedFPredicatesFor(prog)` maps each import qualifier in
+      *                                file `prog` to the top-level fpredicate names of the package it
+      *                                imports. Per-file because imports are file-scoped; a qualifier's
+      *                                presence in the map tells whether `qual` in `qual.id{...}` is an
+      *                                import. Imported mpredicates are omitted (not reachable as `q.id`).
       * @param isLocalAdtClause        `isLocalAdtClause(t, c)` iff `t` is a local ADT type with a
       *                                clause `c`; keeps ADT literals from being rewritten when a
       *                                clause name collides with an mpredicate name.
@@ -634,11 +638,10 @@ object Parser extends LazyLogging {
       pkg: PPackage,
       localFPredicateNames: Set[String],
       localMPredicateNames: Set[String],
-      importQualifiers: Set[String],
-      importedFPredicateNames: String => Set[String],
+      importedFPredicatesFor: PProgram => Map[String, Set[String]],
       isLocalAdtClause: (String, String) => Boolean,
     )(positions: Positions): PPackage =
-      new Impl(positions).run(pkg, localFPredicateNames, localMPredicateNames, importQualifiers, importedFPredicateNames, isLocalAdtClause)
+      new Impl(positions).run(pkg, localFPredicateNames, localMPredicateNames, importedFPredicatesFor, isLocalAdtClause)
   }
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){

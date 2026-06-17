@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package issue001029
+package issue001029_1
 
 // The check still rejects references to a closure's own output parameter in
 // the closure's own precondition. This lives in its own file because the

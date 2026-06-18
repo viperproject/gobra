@@ -242,7 +242,7 @@ object Info extends LazyLogging {
     pkg: PPackage,
     deps: Map[AbstractImport, ExternalTypeInfo],
   ): PPackage = {
-    import viper.gobra.ast.frontend.{PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PTypeDef, PAdtType, PExplicitGhostMember, PProgram}
+    import viper.gobra.ast.frontend.{PAdtType, PExplicitGhostMember, PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PProgram, PQualifiedImport, PTypeDef}
 
     // Tracked separately: the rewriter consults a different bucket per syntactic form
     // (`IDENT{...}` vs `qual.id{...}`).
@@ -265,22 +265,24 @@ object Info extends LazyLogging {
     // top level of the imported package. Computed per program because imports are file-scoped: a
     // qualifier imported in one file of the package is not in scope in another. Method predicates
     // are omitted (they attach to types and so aren't reachable as `qualifier.id`).
-    //
-    // Only `PExplicitQualifiedImport` is matched: implicitly qualified imports (`import "p"`) have
-    // already been resolved to explicit ones by the parser's `ImportPostprocessor`, which runs
-    // before type-checking, so none remain here.
     def importedFPredicatesFor(prog: PProgram): Map[String, Set[String]] =
       prog.imports.collect {
         case pi: PExplicitQualifiedImport =>
-          val names: Set[String] = deps.get(RegularImport(pi.importPath)).toVector.flatMap {
-            _.getTypeInfo match {
-              case ti: TypeInfoImpl => ti.tree.root.programs.flatMap(_.declarations.collect {
-                case d: PFPredicateDecl => d.id.name
-              })
+          val names: Set[String] = deps.get(RegularImport(pi.importPath)).toVector.flatMap { extInfo =>
+            val progsOfImportedPkg = extInfo.getTypeInfo match {
+              case ti: TypeInfoImpl => ti.tree.root.programs
               case _ => Vector.empty
             }
+            progsOfImportedPkg.flatMap(_.declarations.collect {
+              case d: PFPredicateDecl => d.id.name
+            })
           }.toSet
           pi.qualifier.name -> names
+        case pi: PQualifiedImport =>
+          // implicitly qualified imports should have already been resolved to explicit one by
+          // the parser's `ImportPostprocessor`. Thus, any non-explicit, qualified imports are
+          // unexpected:
+          Violation.violation(s"unexpected qualified by non-explicit import left in the Parse AST $pi")
       }.toMap
 
     viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(

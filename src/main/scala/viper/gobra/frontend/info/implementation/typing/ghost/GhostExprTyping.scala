@@ -404,6 +404,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBlankIdentifier() => true
 
+      // resolved into PCompositeLit/PPredConstructor before type-checking; unreachable here
+      case n: PCompositeLitOrPredConstructor => violation(s"unresolved literal/predicate-constructor ambiguity: $n")
+
       case _: PMagicWand => !strong
 
       case _: PClosureImplements => true

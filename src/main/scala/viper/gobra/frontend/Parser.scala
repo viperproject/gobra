@@ -516,11 +516,12 @@ object Parser extends LazyLogging {
   }
 
   /**
-    * Rewrites `PCompositeLit` nodes whose name resolves (syntactically) to a predicate into the
-    * equivalent `PPredConstructor`. Predicate constructors (`P{x, _}`) and composite literals
-    * (`T{x, y}`) share the same surface syntax, so the parser uniformly builds `PCompositeLit`
-    * for `IDENT { ... }` and `IDENT.IDENT { ... }` shapes; we resolve the ambiguity here, once
-    * the type checker has enough information.
+    * Resolves each `PCompositeLitOrPredConstructor` into either a `PCompositeLit` or a
+    * `PPredConstructor`. Predicate constructors (`P{x, _}`) and composite literals (`T{x, y}`)
+    * share the same surface syntax, so the parser emits the ambiguous `PCompositeLitOrPredConstructor`
+    * for the `IDENT { ... }` and `IDENT.IDENT { ... }` shapes; here we pick the right node now that
+    * the type checker has enough information. Every such node is resolved, so none reach
+    * type-checking.
     *
     * Called from [[viper.gobra.frontend.info.Info]] just before constructing each
     * `TypeInfoImpl`: at that point `dependentTypeInfo` is available, so we can ask each
@@ -556,11 +557,11 @@ object Parser extends LazyLogging {
         def isLocalOrBuiltInMPred(name: String): Boolean =
           localMPredicateNames.contains(name) || builtInMPredicateNames.contains(name)
 
-        // Should this `PCompositeLit` be reinterpreted as a `PPredConstructor`? Decide by the
-        // syntactic shape of the literal's type. A blank element (`_`) is illegal in a real
-        // composite literal, so it always marks a predicate constructor. `importedFPreds` maps the
-        // import qualifiers *of the current file* to the fpredicate names of the imported package
-        // (imports are file-scoped, so this must be per-program, not package-wide).
+        // Should this ambiguous node become a `PPredConstructor` (true) or a `PCompositeLit`
+        // (false)? Decide by the syntactic shape of the literal's type. A blank element (`_`) is
+        // illegal in a real composite literal, so it always marks a predicate constructor.
+        // `importedFPreds` maps the import qualifiers *of the current file* to the fpredicate names
+        // of the imported package (imports are file-scoped, so this is per-program, not package-wide).
         def shouldRewrite(typ: PLiteralType, lit: PLiteralValue, importedFPreds: Map[String, Set[String]]): Boolean = {
           if (hasKey(lit)) false // keyed elements (`T{x: 1}`) are never predicate constructors
           else typ match {
@@ -608,13 +609,17 @@ object Parser extends LazyLogging {
 
         val updatedProgs = pkg.programs.map { prog =>
           val importedFPreds = importedFPredicatesFor(prog)
-          val rewritePredConstructors: Strategy =
-            strategyWithName[Any]("rewritePredConstructors", {
-              case n@PCompositeLit(typ, lit) if shouldRewrite(typ, lit, importedFPreds) =>
-                Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
+          // Every `PCompositeLitOrPredConstructor` is resolved into exactly one concrete node, so
+          // none survive into type-checking. (A surviving node would be rejected there; see
+          // `PCompositeLitOrPredConstructor`.)
+          val resolveAmbiguousLiterals: Strategy =
+            strategyWithName[Any]("resolveAmbiguousLiterals", {
+              case n@PCompositeLitOrPredConstructor(typ, lit) =>
+                if (shouldRewrite(typ, lit, importedFPreds)) Some(at(PPredConstructor(buildBase(typ), convertArgs(lit)), n))
+                else Some(at(PCompositeLit(typ, lit), n))
               case n => Some(n)
             })
-          val updatedDecls = rewrite(topdown(attempt(rewritePredConstructors)))(prog.declarations)
+          val updatedDecls = rewrite(topdown(attempt(resolveAmbiguousLiterals)))(prog.declarations)
           at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
         }
         at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)

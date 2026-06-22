@@ -484,6 +484,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
+      case PCompositeLitOrPredConstructor(typ, lit) => showLiteralType(typ) <> showLiteralValue(lit)
       case lit: PFunctionLit => showFunctionLit(lit)
       case PInvoke(base, args, spec, reveal) =>
         val revealDoc: Doc = if (reveal) "reveal" else emptyDoc

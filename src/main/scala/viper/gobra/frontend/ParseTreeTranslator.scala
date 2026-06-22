@@ -1151,9 +1151,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitCompositeLit(ctx: CompositeLitContext): PCompositeLit = {
+  override def visitCompositeLit(ctx: CompositeLitContext): PExpression = {
     visitChildren(ctx) match {
-      case Vector(typ : PLiteralType, lit : PLiteralValue) => PCompositeLit(typ, lit).at(ctx)
+      case Vector(typ : PLiteralType, lit : PLiteralValue) => typ match {
+        // `name{...}` and `qual.name{...}` are syntactically indistinguishable from predicate
+        // constructors, so we emit the ambiguous node and let the resolver in `Info` decide. All
+        // other literal types (arrays, slices, maps, structs, ...) are unambiguously composite
+        // literals.
+        case _: PNamedOperand | _: PDot => PCompositeLitOrPredConstructor(typ, lit).at(ctx)
+        case _ => PCompositeLit(typ, lit).at(ctx)
+      }
     }
   }
 

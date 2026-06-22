@@ -138,7 +138,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: imported struct initialization") {
     frontend.parseStmtOrFail("a := b.BarCell{10}") should matchPattern {
-      case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
+      case PShortVarDecl(Vector(PCompositeLitOrPredConstructor(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
         PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))), Vector(PIdnUnk("a")), Vector(false))
           if value == 10 =>
     }
@@ -169,8 +169,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   /* ** structs */
 
   test("Parser: struct literal") {
+    // A bare `name{...}` is syntactically ambiguous between a struct literal and a predicate
+    // constructor, so the parser emits `PCompositeLitOrPredConstructor`; `Info` resolves it later.
     frontend.parseExp("bla{42}") should matchPattern {
-      case Right(PCompositeLit(PNamedOperand(PIdnUse("bla")), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))) if value == 42 =>
+      case Right(PCompositeLitOrPredConstructor(PNamedOperand(PIdnUse("bla")), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))) if value == 42 =>
     }
   }
 
@@ -2493,12 +2495,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  // Predicate constructors share their `name { args }` surface syntax with composite literals.
-  // For an *isolated* expression the parser cannot tell the two apart on its own -- the
-  // disambiguation is performed by `Info.rewritePredConstructors` once the type checker knows
-  // whether `name` denotes a predicate. The `parseExp*` helpers below stop short of typing, so
-  // we wrap the base in parentheses to route through the `primaryExpr predConstructArgs`
-  // grammar rule, which produces a `PPredConstructor` directly without relying on the rewrite.
+  // Predicate constructors share their `name { args }` surface syntax with composite literals, so
+  // the parser emits the ambiguous `PCompositeLitOrPredConstructor` for that shape (see the test
+  // at the end of this group); the disambiguation is performed by `Info.rewritePredConstructors`
+  // once the type checker knows whether `name` denotes a predicate. The `parseExp*` helpers below
+  // stop short of typing, so we wrap the base in parentheses to route through the
+  // `primaryExpr predConstructArgs` grammar rule, which produces a `PPredConstructor` directly.
   test("Parser: should be able to parse a fpredicate constructor") {
     frontend.parseExpOrFail("(mutexInvariant){x}") should matchPattern {
       case PPredConstructor(PFPredBase(PIdnUse("mutexInvariant")), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
@@ -2517,12 +2519,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  // Without parentheses, `name { args }` parses as a `PCompositeLit`. The parse tree itself
-  // does not encode that this is a predicate constructor -- that decision is made later by
-  // `Info.rewritePredConstructors`, which has access to the surrounding declarations.
-  test("Parser: should parse `name{x}` as a composite literal at the syntax level") {
+  // Without parentheses, `name { args }` parses as the ambiguous `PCompositeLitOrPredConstructor`:
+  // the parse tree records that this is *either* a composite literal or a predicate constructor.
+  // The decision is made later by `Info.rewritePredConstructors`, which has access to the
+  // surrounding declarations and resolves the node into a `PCompositeLit` or a `PPredConstructor`.
+  test("Parser: should parse `name{x}` as an ambiguous composite-literal/predicate-constructor node") {
     frontend.parseExpOrFail("mutexInvariant{x}") should matchPattern {
-      case PCompositeLit(
+      case PCompositeLitOrPredConstructor(
         PNamedOperand(PIdnUse("mutexInvariant")),
         PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x")))))),
       ) =>

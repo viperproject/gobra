@@ -695,10 +695,12 @@ case class InputConfig(
       } else {
         // either `input`, `directory`, `recursive` or `configFile` must be provided but not more than one.
         // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
-        requireOne(input, directory, recursive, configFile)
-        nonEmptyIfDefined(input)
-        nonEmptyIfDefined(directory)
-        nonFalseIfDefined(recursive)
+        validateConditions(
+          requireOne(input, directory, recursive, configFile),
+          nonEmptyIfDefined(input),
+          nonEmptyIfDefined(directory),
+          nonFalseIfDefined(recursive),
+        )
       },
       // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
       // Thus, we restrict their use:
@@ -781,9 +783,13 @@ case class InputConfig(
 
   /** exactly one of them is non-none */
   private def requireOne(options: InputConfigOption[_]*): Either[Vector[VerifierError], Unit] = {
-    if (options.count(_.value.isDefined) != 1) {
-      Left(Vector(
-        ConfigError(s"There should be exactly one of the following options: ${options.map(_.name).mkString(", ")}")))
+    val provided = options.count(_.value.isDefined)
+    if (provided != 1) {
+      val optionNames = options.map(o => s"--${o.name}").mkString(", ")
+      val msg =
+        if (provided == 0) s"No input was provided. Exactly one of the following options must be set: $optionNames. Run with --help for usage information."
+        else s"There should be exactly one of the following options: $optionNames"
+      Left(Vector(ConfigError(msg)))
     } else {
       Right(())
     }

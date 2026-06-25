@@ -586,12 +586,15 @@ object Parser extends LazyLogging {
                   else isLocalOrBuiltInMPred(id.name)
               }
 
-            // An ambiguous node's type is at most `qual.id` (`PDot(PNamedOperand, _)`, handled
-            // above): the parser only emits `PCompositeLitOrPredConstructor` for `PNamedOperand` or
-            // `PDot` literal types. A deeper base like `pkg.Type.pred{...}` isn't a valid
-            // `literalType`, so the parser builds it via `primaryExpr predConstructArgs`
-            // (visitPredConstrPrimaryExpr) as a `PPredConstructor` directly. So this is unreachable;
-            // fail loudly.
+            // Unreachable: a `PDot` whose base is itself a `PDot`, i.e. a name with three or more
+            // components such as `importQualifier.NamedType.MyPred{...}`. That form *is* a valid
+            // predicate constructor, but it never reaches this resolver: a composite literal's type
+            // is a `literalType`, restricted to `typeName` (`IDENT` or `qualifiedIdent = IDENT.IDENT`,
+            // at most two components), so the parser cannot read `a.b.c{...}` as a composite literal.
+            // It is instead parsed directly as a `PPredConstructor` via the `primaryExpr
+            // predConstructArgs` rule (visitPredConstrPrimaryExpr). The only `PDot` that reaches here
+            // is thus a two-component `qualifiedIdent` -- `PDot(PNamedOperand, _)`, handled above --
+            // so landing in this case means a parser/AST bug; fail loudly.
             case d: PDot => Violation.violation(s"unexpected dotted base in composite-literal/predicate-constructor candidate: $d")
             case _ => false
           }

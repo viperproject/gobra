@@ -223,8 +223,8 @@ object Info extends LazyLogging {
 
   /**
     * Resolves the parser's deliberate ambiguity between composite literals and predicate
-    * constructors: rewrites `PCompositeLit` nodes whose name resolves to a predicate into the
-    * equivalent `PPredConstructor`.
+    * constructors: turns each `PCompositeLitOrPredConstructor` emitted by the parser into either a
+    * `PCompositeLit` or a `PPredConstructor`, depending on whether its name resolves to a predicate.
     *
     * Runs once per package, just before the package's `TypeInfoImpl` is constructed. By that
     * point all imported packages have been type-checked (Gobra processes packages in

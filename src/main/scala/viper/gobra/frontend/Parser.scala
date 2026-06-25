@@ -586,11 +586,13 @@ object Parser extends LazyLogging {
                   else isLocalOrBuiltInMPred(id.name)
               }
 
-            // A composite literal's type is at most `qual.id` (`PDot(PNamedOperand, _)`, handled
-            // above). A deeper base like `pkg.Type.pred{...}` isn't a valid `literalType`, so the
-            // parser builds it via `primaryExpr predConstructArgs` (visitPredConstrPrimaryExpr),
-            // never as a `PCompositeLit`. So this is unreachable; fail loudly.
-            case d: PDot => Violation.violation(s"unexpected dotted base in composite literal: $d")
+            // An ambiguous node's type is at most `qual.id` (`PDot(PNamedOperand, _)`, handled
+            // above): the parser only emits `PCompositeLitOrPredConstructor` for `PNamedOperand` or
+            // `PDot` literal types. A deeper base like `pkg.Type.pred{...}` isn't a valid
+            // `literalType`, so the parser builds it via `primaryExpr predConstructArgs`
+            // (visitPredConstrPrimaryExpr) as a `PPredConstructor` directly. So this is unreachable;
+            // fail loudly.
+            case d: PDot => Violation.violation(s"unexpected dotted base in composite-literal/predicate-constructor candidate: $d")
             case _ => false
           }
         }

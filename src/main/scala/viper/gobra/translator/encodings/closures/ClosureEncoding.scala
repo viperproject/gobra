@@ -141,12 +141,13 @@ class ClosureEncoding(config: Config) extends LeafTypeEncoding {
     val (exhalePos, _, _) = proof.vprMeta
     val inhalePres = cl.seqns(proof.pres map (a => for {
           ass <- ctx.assertion(a)
-        } yield vpr.Inhale(ass)()))
+          (info, post, errT) = a.vprMeta
+        } yield vpr.Inhale(ass)(info, post, errT)))
     val exhalePosts = for {
-      assertions <- proof.posts.foldLeft(cl.unit(vpr.TrueLit() ().asInstanceOf[vpr.Exp])) ((acc, a) => for {
+      assertions <- proof.posts.foldLeft(cl.unit(vpr.TrueLit()().asInstanceOf[vpr.Exp])) ((acc, a) => for {
         rest <- acc
         ass <- ctx.assertion (a)
-      } yield vpr.And(rest, ass) ())
+      } yield vpr.And(rest, ass)())
     } yield vpr.Exhale(assertions)(exhalePos)
 
     def failedExhale: ErrorTransformer = {
@@ -190,12 +191,12 @@ class ClosureEncoding(config: Config) extends LeafTypeEncoding {
           invNumIterationsIsLow <- ctx.expression(lowExprOrTrue(in.Low(numIterations)(src)))
           terminationMeasure <- ctx.assertion(in.NonItfTupleTerminationMeasure(Vector(numIterations), None)(src))
         } yield vpr.While(numIterationsGT0, Seq(invNumIterationsIsLow, terminationMeasure), whileBody)(pos, info, errT)
-        assumeFalse = vpr.Assume(vpr.FalseLit()())()
+        assumeFalse = vpr.Assume(vpr.FalseLit()(pos, info, errT))(pos, info, errT)
         ifThen = vu.seqn(Vector(assignNumIterations, assumeNumIterLow, whileStmt, assumeFalse))(pos, info, errT)
         ifElse = vu.nop(pos, info, errT)
       } yield vpr.If(ndBoolTrue, ifThen, ifElse)(pos, info, errT)
       implementsAssertion <- ctx.expression(in.ClosureImplements(proof.closure, proof.spec)(src))
-      assumeImplements = vpr.Assume(implementsAssertion)()
+      assumeImplements = vpr.Assume(implementsAssertion)(pos, info, errT)
       _ <- cl.errorT(failedExhale)
     } yield vu.seqn(Vector(assumeNdLow, ifStmt, assumeImplements))(pos, info, errT)
   }

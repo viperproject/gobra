@@ -1234,7 +1234,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitFunctionLit(ctx: FunctionLitContext): PFunctionLit = {
     visitChildren(ctx) match {
       case Vector(spec: PFunctionSpec, (id: Option[PIdnDef@unchecked], args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
-        PFunctionLit(id, PClosureDecl(args, result, spec, body).at(spec))
+        PFunctionLit(id, PClosureDecl(args, result, spec, body).at(spec)).at(ctx)
     }
   }
 
@@ -1242,17 +1242,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val id = if(ctx.IDENTIFIER() == null) None else Some(goIdnDef.get(ctx.IDENTIFIER()))
     val sig = visitNode[Signature](ctx.signature())
     // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
-    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    val body =
+      if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure))
+        Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo()))
+      else
+        None
     (id, sig._1, sig._2, body)
   }
 
   override def visitClosureSpecInstance(ctx: ClosureSpecInstanceContext): PClosureSpecInstance = visitChildren(ctx) match {
-    case name: TerminalNode => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
-    case imported: PDot => PClosureSpecInstance(imported, Vector.empty)
-    case Vector(name: TerminalNode, "{", "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty)
-    case Vector(imported: PDot, "{", "}") => PClosureSpecInstance(imported, Vector.empty)
-    case Vector(name: TerminalNode, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params)
-    case Vector(imported: PDot, "{", params: Vector[PKeyedElement@unchecked], "}") => PClosureSpecInstance(imported, params)
+    case name: TerminalNode =>
+      PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty).at(ctx)
+    case imported: PDot =>
+      PClosureSpecInstance(imported, Vector.empty).at(ctx)
+    case Vector(name: TerminalNode, "{", "}") =>
+      PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), Vector.empty).at(ctx)
+    case Vector(imported: PDot, "{", "}") =>
+      PClosureSpecInstance(imported, Vector.empty).at(ctx)
+    case Vector(name: TerminalNode, "{", params: Vector[PKeyedElement@unchecked], "}") =>
+      PClosureSpecInstance(PNamedOperand(idnUse.get(name)).at(name), params).at(ctx)
+    case Vector(imported: PDot, "{", params: Vector[PKeyedElement@unchecked], "}") =>
+      PClosureSpecInstance(imported, params).at(ctx)
   }
 
   override def visitClosureSpecParams(ctx: ClosureSpecParamsContext): Vector[PKeyedElement] = visitChildren(ctx) match {
@@ -1261,21 +1271,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitClosureSpecParam(ctx: ClosureSpecParamContext): PKeyedElement = visitChildren(ctx) match {
-    case e: PExpression => PKeyedElement(None, PExpCompositeVal(e).at(e))
+    case e: PExpression => PKeyedElement(None, PExpCompositeVal(e).at(e)).at(ctx)
     case Vector(name: TerminalNode, ":", e: PExpression) =>
-      PKeyedElement(Some(PIdentifierKey(idnUse.get(name)).at(name)), PExpCompositeVal(e).at(e))
+      PKeyedElement(Some(PIdentifierKey(idnUse.get(name)).at(name)), PExpCompositeVal(e).at(e)).at(ctx)
   }
 
   override def visitClosureImplSpecExpr(ctx: ClosureImplSpecExprContext): PClosureImplements = {
     visitChildren(ctx) match {
       case Vector(closure: PExpression, "implements", spec: PClosureSpecInstance) =>
-        PClosureImplements(closure, spec)
+        PClosureImplements(closure, spec).at(ctx)
     }
   }
 
   override def visitClosureImplProofStmt(ctx: ClosureImplProofStmtContext): PClosureImplProof = visitChildren(ctx) match {
     case Vector("proof", closure: PExpression, "implements", spec:PClosureSpecInstance, body: PBlock) =>
-      PClosureImplProof(PClosureImplements(closure, spec), body)
+      PClosureImplProof(PClosureImplements(closure, spec).at(ctx), body).at(ctx)
   }
 
   //region Primary Expressions

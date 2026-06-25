@@ -22,8 +22,8 @@ func client() {
     fold somePredicate(impl)
     unfold somePredicate(impl)
     // this also works with first class predicates:
-    fold somePredicate!<_!>(impl)
-    unfold somePredicate!<_!>(impl)
-    fold somePredicate!<impl!>()
-    unfold somePredicate!<impl!>()
+    fold somePredicate{_}(impl)
+    unfold somePredicate{_}(impl)
+    fold somePredicate{impl}()
+    unfold somePredicate{impl}()
 }

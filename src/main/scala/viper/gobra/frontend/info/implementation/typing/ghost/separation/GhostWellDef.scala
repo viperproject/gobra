@@ -128,6 +128,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PUnpackSlice
     => noMessages
 
+    // resolved into PCompositeLit/PPredConstructor before type-checking; unreachable here
+    case n: PCompositeLitOrPredConstructor => violation(s"unresolved literal/predicate-constructor ambiguity: $n")
+
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PReceive
       ) => error(n, "ghost error: Found ghost child expression, but expected none", !isEnclosingGhost(n) && !noGhostPropagationFromChildren(n))

@@ -54,6 +54,8 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     attr[PExpression, AddrMod] {
       case PNamedOperand(id) => addressableVar(id)
       case PBlankIdentifier() => AddrMod.defaultValue
+      // resolved into PCompositeLit/PPredConstructor before type-checking; unreachable here
+      case n: PCompositeLitOrPredConstructor => Violation.violation(s"unresolved literal/predicate-constructor ambiguity: $n")
       case _: PTypeExpr => AddrMod.defaultValue
       case _: PDeref => AddrMod.dereference
       case PIndexedExp(base, _) =>

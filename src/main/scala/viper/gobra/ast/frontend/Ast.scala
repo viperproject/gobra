@@ -586,6 +586,10 @@ case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualEx
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
+case class PAsserting(ass: PExpression, op: PExpression) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
+}
+
 case class PLet(ass: PShortVarDecl, op: PExpression) extends PGhostExpression with PProofAnnotation with PScope {
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
@@ -665,6 +669,7 @@ sealed abstract class PGhostPredeclaredType(override val name: String) extends P
 case class PBoolType() extends PActualPredeclaredType("bool")
 case class PStringType() extends PActualPredeclaredType("string")
 case class PPermissionType() extends PGhostPredeclaredType("perm")
+case class PIntegerGhostType() extends PGhostPredeclaredType("integer") with PIntegerType
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PActualPredeclaredType("int") with PIntegerType
@@ -887,10 +892,15 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 
 sealed trait PSpecification extends PGhostNode
 
+sealed trait PFunctionSpecClause extends PNode {
+  def exp: PExpression
+}
+case class PRequires(exp: PExpression) extends PFunctionSpecClause
+case class PPreserves(exp: PExpression) extends PFunctionSpecClause
+case class PEnsures(exp: PExpression) extends PFunctionSpecClause
+
 case class PFunctionSpec(
-                          pres: Vector[PExpression],
-                          preserves: Vector[PExpression],
-                          posts: Vector[PExpression],
+                          clauses: Vector[PFunctionSpecClause],
                           terminationMeasures: Vector[PTerminationMeasure],
                           backendAnnotations: Vector[PBackendAnnotation],
                           isPure: Boolean = false,
@@ -899,7 +909,18 @@ case class PFunctionSpec(
                           isAtomic: Boolean = false,
                           opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
-                      ) extends PSpecification
+                      ) extends PSpecification {
+  /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
+  def pres: Vector[PExpression] = clauses.collect {
+    case PRequires(exp) => exp
+    case PPreserves(exp) => exp
+  }
+  /** returns all expressions that constitute the postcondition, i.e., includes preserved clauses */
+  def posts: Vector[PExpression] = clauses.collect {
+    case PPreserves(exp) => exp
+    case PEnsures(exp) => exp
+  }
+}
 
 case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
 
@@ -975,6 +996,15 @@ case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement w
 
 case class PAssert(exp: PExpression) extends PGhostStatement
 
+sealed trait PAssertBy extends PGhostStatement {
+  def exp: PExpression
+  def block: PBlock
+}
+
+case class PAssertByProof(exp: PExpression, block: PBlock) extends PAssertBy
+
+case class PAssertByContra(exp: PExpression, block: PBlock) extends PAssertBy
+
 case class PRefute(exp: PExpression) extends PGhostStatement
 
 case class PAssume(exp: PExpression) extends PGhostStatement
@@ -992,6 +1022,8 @@ case class POpenDupPkgInv() extends PGhostStatement with PDeferrable
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
 case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
+case class PAssignSuchThat(left: PIdnDef, typ: PType, cond: PExpression) extends PGhostStatement
 
 case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
 
@@ -1070,6 +1102,8 @@ case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 case class PLow(exp: PExpression) extends PGhostExpression
 
 case class PLowContext() extends PGhostExpression
+
+case class PRel(exp: PExpression, lit: PIntLit) extends PGhostExpression
 
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 

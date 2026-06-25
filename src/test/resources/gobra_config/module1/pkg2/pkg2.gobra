@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this test checks that the `--requireTriggers` flag in the list
+// of `other` flags in the module JSON file is considered.
+
+package pkg2
+
+import "pkg1"
+
+func UncheckedOverflow(i int) (res int) {
+    res = i + pkg1.GetLargeNumber()
+    //:: ExpectedOutput(type_error)
+    assert forall x int :: 0 == x // trigger is missing
+    return
+}

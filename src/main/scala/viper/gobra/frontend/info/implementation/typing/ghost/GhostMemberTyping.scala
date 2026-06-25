@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -44,6 +44,17 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     needsMeasureError
   }
 
+  private[typing] def noConditionalMeasureIfGhostOrPure(member: PMember): Messages = {
+    val spec = member match {
+      case m: PMethodDecl => m.spec
+      case f: PFunctionDecl => f.spec
+      case _ => return noMessages
+    }
+    if (spec.isPure || isEnclosingGhost(member))
+      noConditionalMeasureErrors(spec.terminationMeasures)
+    else noMessages
+  }
+
   private def pureFunctionsDoNotNeedMayInitMsg = "Pure functions and methods cannot open package invariants," +
     "and thus, they must not be annotated with 'mayInit'."
 
@@ -62,7 +73,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   // hold on exit, thus it is redundant to make properties both pre- and postconditions.
   private[typing] def pureMembersCannotHavePreserves(member: PFunctionSpec): Messages = {
     assert(member.isPure)
-    member.preserves flatMap { c =>
+    member.clauses.collect{ case PPreserves(exp) => exp } flatMap { c =>
       error(c, "Pure functions and pure methods cannot have preserves clauses." +
         "Considering replacing this preserves clause with a precondition.")
     }
@@ -131,7 +142,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def isPurePostcondition(spec: PFunctionSpec): Messages = (spec.posts ++ spec.preserves) flatMap isPureExpr
+  private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap isPureExpr
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])

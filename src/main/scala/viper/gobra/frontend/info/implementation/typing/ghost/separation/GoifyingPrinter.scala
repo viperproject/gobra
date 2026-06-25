@@ -30,7 +30,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   val decorators = new Decorators(info.tree)
   lazy val isInGoifiedScope: PNode => Boolean =
     decorators.down(false){
-      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding  => true
+      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding | _: PAsserting  => true
       case m: PMember => classifier.isMemberGhost(m)
       case s: PStatement => classifier.isStmtGhost(s)
     }
@@ -50,6 +50,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   private val addressable_variables: String = "addressable:"
   private val with_keyword: String = "with:"
   private val unfolding_keyword: String = "unfolding:"
+  private val asserting_keyword: String = "asserting:"
 
   private val specComment: Doc = "//@"
   private def blockSpecComment(doc: Doc): Doc = "/*@" <> line <> doc <> line <> "@*/"
@@ -77,16 +78,14 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit) =>
+    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque,  isAtomic, opensInvs, mayInit) =>
+      (if (isAtomic) specComment <+> showAtomic else emptyDoc) <>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
       (if (isOpaque) specComment <+> showOpaque else emptyDoc) <>
       (if (opensInvs) specComment <+> showOpensInvs else emptyDoc) <>
       (if (isTrusted) specComment <+> showTrusted else emptyDoc) <>
       (if (mayInit) specComment <+> showMayInit else emptyDoc) <>
-      (if (isAtomic) specComment <+> showAtomic else emptyDoc) <>
-      hcat(pres map (p => specComment <+> showPre(p) <> line)) <>
-      hcat(preserves map (p => specComment <+> showPreserves(p) <> line)) <>
-      hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
+      hcat(clauses map (p => specComment <+> showSpecClause(p) <> line)) <>
       hcat(measures map (p => specComment <+> showTerminationMeasure(p) <> line)) <>
       specComment <+> showBackendAnnotations(backendAnnotations) <> line
 
@@ -129,7 +128,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -141,7 +140,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -260,6 +259,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     case e: PProofAnnotation => e match {
       case e: PUnfolding =>
         parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
+      case e: PAsserting =>
+        parens(inlinedSpecComment(asserting_keyword <+> super.showExpr(e.ass)) <+> showExpr(e.op))
     }
 
     case e => super.showExpr(e)
@@ -308,5 +309,4 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
   private def errorMsg: Nothing = Violation.violation("GoifyingPrinter has to be run after the type check")
 }
-
 

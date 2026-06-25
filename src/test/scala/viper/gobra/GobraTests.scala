@@ -10,6 +10,7 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.scalatest.{Args, BeforeAndAfterAll, Status}
+import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
@@ -68,9 +69,10 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
         val fut = for {
-          parseResult <- Parser.parse(config, pkgInfo)
+          finalConfig <- EitherT.fromEither(Future.successful(gobraInstance.getAndMergeInFileConfig(config, pkgInfo)))
+          parseResult <- Parser.parse(finalConfig, pkgInfo)
           pkg = RegularPackage(pkgInfo.id)
-          typeCheckResult <- Info.check(config, pkg, parseResult)
+          typeCheckResult <- Info.check(finalConfig, pkg, parseResult)
         } yield typeCheckResult
         fut.toEither
       })

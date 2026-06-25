@@ -443,6 +443,15 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
+sealed trait AssertBy extends Stmt {
+  def ass: Assertion
+  def proof: Stmt
+}
+case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+
+case class AssignSuchThat(v: LocalVar, cond: Expr)(val info: Source.Parser.Info) extends Stmt
+
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -577,6 +586,11 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
 }
 
+case class Asserting(assertion: Assertion, in: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = in.typ
+  require(typ.addressability == Addressability.asserting(in.typ.addressability))
+}
+
 case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = in.typ
 }
@@ -667,7 +681,7 @@ case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
-case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class ArrayTExpr(length: BigInt, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
@@ -686,6 +700,10 @@ case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class LowContext()(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class Rel(exp: Expr, lit: IntLit)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = exp.typ
 }
 
 /* ** Higher-order predicate expressions */
@@ -1648,4 +1666,3 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
-

@@ -1,0 +1,26 @@
+{
+  "name": "Gobra Dev Environment",
+  "build": {
+    // Points to your Dockerfile relative to this file
+    "dockerfile": "../workflow-container/Dockerfile",
+    // The context is the root of your project
+    "context": "..",
+    "options": [
+      "--platform=linux/amd64"
+    ]
+  },
+
+  "runArgs": [
+    "--platform", "linux/amd64"
+  ],
+  
+  //Features are optional but helpful (e.g., adding Git or Node)
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:1": {
+      "configureZshAsDefaultShell": true
+    }
+  },
+
+  // Important: Match this to the user inside your Dockerfile
+  "remoteUser": "root"
+}

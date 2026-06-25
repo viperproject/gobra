@@ -783,13 +783,9 @@ case class InputConfig(
 
   /** exactly one of them is non-none */
   private def requireOne(options: InputConfigOption[_]*): Either[Vector[VerifierError], Unit] = {
-    val provided = options.count(_.value.isDefined)
-    if (provided != 1) {
-      val optionNames = options.map(o => s"--${o.name}").mkString(", ")
-      val msg =
-        if (provided == 0) s"No input was provided. Exactly one of the following options must be set: $optionNames. Run with --help for usage information."
-        else s"There should be exactly one of the following options: $optionNames"
-      Left(Vector(ConfigError(msg)))
+    if (options.count(_.value.isDefined) != 1) {
+      Left(Vector(
+        ConfigError(s"There should be exactly one of the following options: ${options.map(_.name).mkString(", ")}")))
     } else {
       Right(())
     }

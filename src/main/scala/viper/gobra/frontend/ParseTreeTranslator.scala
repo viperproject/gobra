@@ -1299,7 +1299,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /**
     * Visits the rule
     * primaryExpr: operand | conversion | methodExpr | ghostPrimaryExpr | new_
-    *         | primaryExpr ( (DOT IDENTIFIER)| index| slice_| seqUpdExp| typeAssertion| arguments| predConstructArgs );
+    *         | primaryExpr ( (DOT IDENTIFIER)| index| slice_| seqUpdExp| typeAssertion| arguments| (DOT IDENTIFIER predConstructArgs) );
     *
     * @param ctx the parse tree
     * @return the unpositioned visitor result
@@ -1312,13 +1312,20 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector(pe: PExpression, Updates(upd)) => PGhostCollectionUpdate(pe, upd)
   }
 
+  /**
+    * Visits the rule
+    * primaryExpr DOT IDENTIFIER predConstructArgs
+    *
+    * The grammar requires the explicit `.IDENTIFIER` before the arguments, so the base is always a
+    * dotted (qualified) name of the form `<primaryExpr>.id`, which we reassemble into a [[PDot]] and
+    * wrap in a [[PDottedBase]]. Single- and two-component predicate constructors (`P{...}` and
+    * `pkg.P{...}`) are parsed as composite literals and resolved separately (see
+    * [[PCompositeLitOrPredConstructor]]), so they never reach this rule.
+    */
   override def visitPredConstrPrimaryExpr(ctx: PredConstrPrimaryExprContext): AnyRef = super.visitPredConstrPrimaryExpr(ctx) match {
-    case Vector(pe: PExpression, PredArgs(args)) => val id = pe match {
-      case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
-      case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
-      case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
-    }
-      PPredConstructor(id, args).at(ctx)
+    case Vector(pe: PExpression, ".", idnUse(id), PredArgs(args)) =>
+      val recvWithId = PDot(pe, id).at(ctx)
+      PPredConstructor(PDottedBase(recvWithId).at(recvWithId), args).at(ctx)
     case _ => fail(ctx)
   }
 

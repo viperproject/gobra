@@ -412,7 +412,14 @@ primaryExpr:
   | primaryExpr arguments #invokePrimaryExpr
   | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
-  | primaryExpr predConstructArgs #predConstrPrimaryExpr
+  // A predicate constructor's base must be a (possibly qualified) name, so we require an explicit
+  // `.IDENTIFIER` right before the `{ ... }`. This keeps the `{` from being greedily consumed as
+  // predicate-constructor arguments after an arbitrary primary expression (e.g. a parenthesized
+  // expression `(p --* q){ ... }` or a call `f(){ ... }`), where it instead belongs to an enclosing
+  // construct such as a `package` proof block. Single- and two-component names (`P{...}`,
+  // `pkg.P{...}`) are syntactically identical to composite literals and are disambiguated later (see
+  // PCompositeLitOrPredConstructor); only three-or-more-component names (`pkg.T.P{...}`) reach here.
+  | primaryExpr DOT IDENTIFIER predConstructArgs #predConstrPrimaryExpr
   | call_op=(
   LEN
     | CAP

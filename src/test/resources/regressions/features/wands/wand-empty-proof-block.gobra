@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package wandemptyproofblock
+
+// Regression test for the `{ ... }` predicate-constructor syntax: a magic wand whose
+// `package` statement has an empty proof block, e.g.
+//
+//     package P() --* P() {}
+//
+// used to be misparsed. The empty `{}` was greedily consumed as (empty) predicate-constructor
+// arguments applied to the wand's right-hand side `P()` (i.e. `P(){}`), which then failed during
+// translation with "Wrong base type for predicate constructor". The `{}` must instead be
+// recognized as the `package` statement's (empty) proof block. This also happens when the wand is
+// parenthesized, `package (P() --* P()) {}`.
+
+pred P()
+
+requires P()
+func bare() {
+	package P() --* P() {}
+}
+
+requires P()
+func parenthesized() {
+	package (P() --* P()) {}
+}

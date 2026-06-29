@@ -1,0 +1,71 @@
+package interfaces
+
+type Counter interface {
+    pred mem()
+
+    preserves @dependencyInfo("assumptionType:Precondition, assertionType:ImplicitPostcondition, label:I21")(acc(mem(), 1/2))
+    requires @dependencyInfo("assumptionType:Precondition, label:I0, expectedDependencies:[I18]")(delta > 0)
+    requires @dependencyInfo("assumptionType:Precondition, label:I0b, expectedDependencies:[]")(delta < 100)
+    ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:I1, expectedDependencies:[I0, I0b, I3]")(res > 0)
+    AddOne(delta int) (res int)
+}
+
+type SimpleCounter struct {
+    value int
+}
+
+pred (self *SimpleCounter) mem() {acc(self) && self.value >= 0}
+
+preserves @dependencyInfo("assumptionType:Precondition, assertionType:ImplicitPostcondition, label:I23, expectedDependencies:[I21, I5, I7, I9, I10, I15, I16]")(acc(sc.mem(), 1/2))
+requires @dependencyInfo("assumptionType:Precondition, label:I2, expectedDependencies:[I11, I0]")(delta > 0) // TODO ake: I18, I30?
+ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:I3, expectedDependencies:[I2, I11, I0, I6, I21, I5, I7, I9, I10, I15, I16]")(res > 0)
+ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:I4, expectedDependencies:[I2, I6, I11, I0, I23, I21, I5, I7, I9, I10, I15, I16]")(unfolding acc(sc.mem(), 1/2) in res == sc.value + delta)
+func (sc *SimpleCounter) AddOne(delta int) (res int) {
+    @dependencyInfo("assumptionType:SourceCode, label:I5, expectedDependencies:[I21, I7, I9, I10, I15, I16]")
+    unfold acc(sc.mem(), 1/2)
+    @dependencyInfo("assumptionType:SourceCode, label:I6, expectedDependencies:[I21, I5, I7, I9, I10, I15, I16]")
+    res = sc.value + delta
+    @dependencyInfo("assumptionType:SourceCode, label:I7, expectedDependencies:[I21, I5, I9, I10, I15, I16]")
+    fold acc(sc.mem(), 1/2)
+
+    return
+}
+
+func clientConcrete() {
+    @dependencyInfo("assumptionType:SourceCode, label:I9, expectedDependencies:[]")
+    counter := &SimpleCounter{value: 0}
+    @dependencyInfo("assumptionType:SourceCode, label:I10, expectedDependencies:[I9]")
+    fold counter.mem()
+    @dependencyInfo("assumptionType:SourceCode, label:I11, expectedDependencies:[]")
+    delta := 5
+    @dependencyInfo("assumptionType:SourceCode, label:I12, expectedDependencies:[I9, I10, I11]")
+    result := counter.AddOne(delta)
+    @dependencyInfo("assertionType:Explicit, label:I14, expectedDependencies:[I12, I11, I10, I9, I6, I5, I4, I23]")
+    assert result == 5
+}
+
+func clientInterface() {
+    @dependencyInfo("assumptionType:SourceCode, label:I15, expectedDependencies:[]")
+    concreteCounter := &SimpleCounter{value: 10}
+    @dependencyInfo("assumptionType:SourceCode, label:I16, expectedDependencies:[I15]")
+    fold concreteCounter.mem()
+    @dependencyInfo("assumptionType:SourceCode, label:I17, expectedDependencies:[I15, I21, I0, I23, I3, I2, I5, I6, I7]") // TODO ake: I1, I16?
+    var c Counter = concreteCounter
+    @dependencyInfo("assumptionType:SourceCode, label:I18, expectedDependencies:[]")
+    increment := 3
+    @dependencyInfo("assumptionType:SourceCode, label:I19, expectedDependencies:[I15, I21, I0, I23, I3, I2, I5, I6, I7, I16, I17, I18]")
+    newValue := c.AddOne(increment)
+    @dependencyInfo("assertionType:Explicit, label:I20, expectedDependencies:[I15, I21, I0, I23, I3, I2, I5, I6, I7, I16, I17, I18, I1]")
+    assert newValue > 0
+}
+
+requires c != nil
+requires c.mem()
+func clientInterfaceArg(c Counter) {
+    @dependencyInfo("assumptionType:SourceCode, label:I30, expectedDependencies:[]")
+    increment := 3
+    @dependencyInfo("assumptionType:SourceCode, label:I31, expectedDependencies:[I30, I21, I0, I0b]")
+    newValue := c.AddOne(increment)
+    @dependencyInfo("assertionType:Explicit, label:I32, expectedDependencies:[I30, I31, I21, I0, I0b, I1]")
+    assert newValue > 0
+}

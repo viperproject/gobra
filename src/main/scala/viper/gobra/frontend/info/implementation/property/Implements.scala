@@ -79,7 +79,11 @@ trait Implements { this: TypeInfoImpl =>
                     Vector(s"For member $name, the 'pure' annotation for implementation and interface does not match")
                   } else if ({
                     (implMember, itfMember) match {
-                      case (implMember: Method, itfMember: Method) => itfMember.isAtomic && !implMember.isAtomic
+                      case (implMember: Method, itfMember: Method) =>
+                        // this is technically unnecessary for now, as interface method specifications cannot
+                        // contain 'atomic' annotations. We may want to keep this logic if we ever lift this
+                        // restriction.
+                        itfMember.isAtomic && !implMember.isAtomic
                       case _ => false
                     }
                   }){

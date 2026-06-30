@@ -192,17 +192,19 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         invalidNodes.flatten
 
     case n: PCritical =>
+      // function determines which expressions are safe to pass to calls to atomic methods inside a critical block.
       def validArgAtomicFuncCall(e: PExpression): Boolean = e match {
         case e if isExprGhost(e) =>
-          // ghost params are always ok
+          // arbitrary ghost arguments are always ok
           true
         case _: PIntLit | _: PFloatLit | _: PStringLit | _: PNilLit =>
+          // literals too
           true
         case v: PNamedOperand if addressability(v) == Addressability.Exclusive =>
           // exclusive variables cannot be concurrently modified during an atomic operation and thus, are ok
           true
         case p: PDot =>
-          // if p is a package name, an exclusive var, or a type
+          // p may be safely accessed if it is a package name, an exclusive var, or a type
           addressability(p) == Addressability.Exclusive &&
             (p.base match {
             case _: PType => true

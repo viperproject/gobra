@@ -15,35 +15,35 @@ atomic func Get(x *int) int
 
 pred Own(x *int) { acc(x) }
 
-requires Invariant(Own!<x!>)
+requires Invariant(Own{x})
 func fail1(x *int) {
 	var v int
 
-	critical Own!<x!> (
-	unfold Own!<x!>()
+	critical Own{x} (
+	unfold Own{x}()
 	v = Get(x)
 	// At most one atomic operation may be performed in a critical region.
 	//:: ExpectedOutput(type_error)
 	v = Get(x)
-	fold Own!<x!>()
+	fold Own{x}()
 	)
 }
 
-requires Invariant(Own!<x!>)
+requires Invariant(Own{x})
 func fail2(x *int) {
 	var v int
 
 	// Non-atomic non-ghost operations, like the one below, are disallowed.
 	//:: ExpectedOutput(type_error)
-	critical Own!<x!> (
-	unfold Own!<x!>()
+	critical Own{x} (
+	unfold Own{x}()
 	*x += 1
-	fold Own!<x!>()
+	fold Own{x}()
 	)
 }
 
 
-requires Invariant(Own!<x!>)
+requires Invariant(Own{x})
 func fail3(x *int) {
 	var v int
 
@@ -51,10 +51,10 @@ func fail3(x *int) {
 	// must not contain non-atomic operations. Valid arguments are of a very restricted
 	// form (they are mostly exclusive variables and constants).
 	//:: ExpectedOutput(type_error)
-	critical Own!<x!> (
-	unfold Own!<x!>()
+	critical Own{x} (
+	unfold Own{x}()
 	CAS(x, *x, *x+1)
-	fold Own!<x!>()
+	fold Own{x}()
 	)
 }
 
@@ -71,7 +71,7 @@ func nonAtomicOp()
 func fail5() {
 	// Non-atomic functions may not be called from critical regions.
 	//:: ExpectedOutput(type_error)
-	critical PredTrue!<!> (
+	critical PredTrue{} (
 		nonAtomicOp()
 	)
 }
@@ -81,7 +81,7 @@ decreases
 func fail6() {
 	// Ghost functions with critical regions must be marked with `opensInvariants`
 	//:: ExpectedOutput(type_error)
-	critical PredTrue!<!> (
+	critical PredTrue{} (
 	)
 }
 
@@ -157,7 +157,7 @@ func (t T1) M()
 T1 implements I
 
 func fail14() {
-	critical PredTrue!<!> (
+	critical PredTrue{} (
 		// Ghost functions marked with `opensInvariants` cannot be called
 		// from a critical region.
 		//:: ExpectedOutput(type_error)

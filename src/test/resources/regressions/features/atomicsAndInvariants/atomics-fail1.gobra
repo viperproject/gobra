@@ -19,36 +19,36 @@ func fail1(x *int) {
 	// Gobra fails to open critical regions for a property if it
 	// cannot prove that that property is an invariant.
 	//:: ExpectedOutput(is_invariant_failed)
-	critical Own!<x!> (
+	critical Own{x} (
 
 	)
 }
 
-requires Invariant(Own!<x!>)
+requires Invariant(Own{x})
 func fail2(x *int) {
 	// Gobra fails if an invariant is not restored immediately
 	// before the end of its critical region.
 	//:: ExpectedOutput(invariant_not_restored)
-	critical Own!<x!> (
-		unfold Own!<x!>()
+	critical Own{x} (
+		unfold Own{x}()
 	)
 }
 
-requires Invariant(Own!<x!>)
+requires Invariant(Own{x})
 func fail3(x *int) {
-	critical Own!<x!> (
+	critical Own{x} (
 		// Gobra fails to open an invariant that is already open to
 		// prevent reentrance.
 		//:: ExpectedOutput(invariant_already_open)
-		critical Own!<x!> (
+		critical Own{x} (
 		assert false
 		)
 	)
 }
 
-requires Invariant(Own!<x!>)
+requires Invariant(Own{x})
 func fail4(x *int) {
-	critical Own!<x!> (
+	critical Own{x} (
 		// Gobra checks proof obligations inside critical regions.
 		//:: ExpectedOutput(assert_error)
 		assert false

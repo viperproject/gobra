@@ -14,12 +14,12 @@ pred (s *Singleton) lessThan(bound int) {
 requires x >= 0
 func foldSingletonLessThan(x int) {
 	s@ := Singleton{}
-	fold (&s).lessThan!<x!>()
+	fold (&s).lessThan{x}()
 }
 
 func foldSingletonLessThanError(x int) {
 	s@ := Singleton{}
 	// x may be less than the value of the singleton
 	//:: ExpectedOutput(fold_error)
-	fold (&s).lessThan!<x!>()
+	fold (&s).lessThan{x}()
 }

@@ -431,6 +431,17 @@ case class PStringLit(lit: String) extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
+/**
+  * Transient node for the surface syntax `name{...}` / `qual.name{...}`, which is ambiguous
+  * between a composite literal ([[PCompositeLit]]) and a predicate constructor
+  * ([[PPredConstructor]]): both share the same `name{ args }` shape. The parser emits this node
+  * for the ambiguous (name-typed) shapes, and it is resolved into one of the two concrete nodes
+  * before type-checking (see [[viper.gobra.frontend.Parser.PredicateConstructorRewriter]]). It
+  * therefore never reaches a well-formed type-checking run; the type checker rejects it outright
+  * so that a missed resolution fails loudly instead of being silently mis-interpreted.
+  */
+case class PCompositeLitOrPredConstructor(typ: PLiteralType, lit: PLiteralValue) extends PActualExpression
+
 sealed trait PShortCircuitMisc extends PMisc
 
 case class PLiteralValue(elems: Vector[PKeyedElement]) extends PShortCircuitMisc with PActualMisc

@@ -237,6 +237,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT, mayInit)(n)
 
+    // A `PCompositeLitOrPredConstructor` is resolved into a `PCompositeLit` or a `PPredConstructor`
+    // before type-checking (see `PredicateConstructorRewriter`), so reaching this point means the
+    // resolution was skipped or incomplete -- a Gobra bug. Fail loudly rather than mis-interpret it.
+    case n: PCompositeLitOrPredConstructor =>
+      error(n, s"internal error: unresolved composite-literal/predicate-constructor ambiguity at $n")
+
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
@@ -756,6 +762,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PFloatLit => UnboundedFloatT
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
+
+    // Unresolved ambiguity node (see `wellDefActualExpr`); ill-typed, so report `UnknownType`.
+    case _: PCompositeLitOrPredConstructor => UnknownType
 
     case PFunctionLit(_, PClosureDecl(args, result, _, _)) =>
       FunctionT(args map miscType, miscType(result))

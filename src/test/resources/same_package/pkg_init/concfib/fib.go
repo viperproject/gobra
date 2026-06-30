@@ -13,8 +13,8 @@ var lock *sync.Mutex = &sync.Mutex{}
 func init() {
 	cache[0] = 1
 	cache[1] = 1
-	// @ fold lockInv!<!>()
-	// @ lock.SetInv(lockInv!<!>)
+	// @ fold lockInv{}()
+	// @ lock.SetInv(lockInv{})
 	// @ fold acc(StaticInv(), _)
 }
 
@@ -25,19 +25,19 @@ func FibV1(n int) (res int) {
 	// @ openDupPkgInv
 	// @ unfold acc(StaticInv(), _)
 	lock.Lock()
-	// @ unfold lockInv!<!>()
+	// @ unfold lockInv{}()
 	if v, ok := cache[n]; ok {
-		// @ fold lockInv!<!>()
+		// @ fold lockInv{}()
 		lock.Unlock()
 		return v
 	}
-	// @ fold lockInv!<!>()
+	// @ fold lockInv{}()
 	lock.Unlock()
 	v := FibV1(n-1) + FibV1(n-2)
 	lock.Lock()
-	// @ unfold lockInv!<!>()
+	// @ unfold lockInv{}()
 	cache[n] = v
-	// @ fold lockInv!<!>()
+	// @ fold lockInv{}()
 	lock.Unlock()
 	return v
 }
@@ -55,18 +55,18 @@ func FibV2(n int) (res int) {
 }
 
 // @ requires  0 <= n
-// @ preserves lockInv!<!>()
+// @ preserves lockInv{}()
 // @ ensures   res == FibSpec(n)
 // @ decreases n
 func fibImpl(n int) (res int) {
-	// @ unfold lockInv!<!>()
-	// @ defer fold lockInv!<!>()
+	// @ unfold lockInv{}()
+	// @ defer fold lockInv{}()
 	if v, ok := cache[n]; ok {
 		return v
 	}
-	// @ fold lockInv!<!>()
+	// @ fold lockInv{}()
 	v := fibImpl(n-1) + fibImpl(n-2)
-	// @ unfold lockInv!<!>()
+	// @ unfold lockInv{}()
 	cache[n] = v
 	return v
 }

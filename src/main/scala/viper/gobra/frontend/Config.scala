@@ -83,12 +83,10 @@ object ConfigDefaults {
   val DefaultEnableExperimentalFriendClauses: Boolean = false
   val DefaultDisableInfeasibilityChecks: Boolean = false
   val DefaultEnableDependencyAnalysis: Boolean = false
-  val DefaultStartDependencyAnalysisTool: Boolean = false
+  val DefaultDependencyAnalysisMode: Option[String] = None
   val DefaultEnableUnsatCores: Boolean = false
   val DefaultDisableTerminationPlugin: Boolean = false
   val DefaultNumberOfErrorsToReport: Option[Int] = None
-  val DefaultDependencyAnalysisExportPath: Option[String] = None
-	val DefaultExecuteDependencyAnalysisTests: Boolean = false
 }
 
 // More-complete exhale modes
@@ -139,75 +137,73 @@ object MoreJoins {
 }
 
 case class Config(
-                   gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
-                   // Used as an identifier of a verification task, ideally it shouldn't change between verifications
-                   // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
-                   taskName: String = ConfigDefaults.DefaultTaskName,
-                   // Contains a mapping of packages to all input sources for that package
-                   packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map.empty,
-                   moduleName: String = ConfigDefaults.DefaultModuleName,
-                   includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
-                   projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
-                   reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                   // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
-                   backend: Option[ViperBackend] = None,
-                   isolate: Option[Vector[SourcePosition]] = None,
-                   choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
-                   packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
-                   z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
-                   boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
-                   logLevel: Level = ConfigDefaults.DefaultLogLevel,
-                   cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
-                   shouldParse: Boolean = true,
-                   shouldTypeCheck: Boolean = true,
-                   shouldDesugar: Boolean = true,
-                   shouldViperEncode: Boolean = true,
-                   checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
-                   checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
-                   shouldVerify: Boolean = true,
-                   shouldChop: Boolean = ConfigDefaults.DefaultShouldChop,
-                   // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                   // 64 bit otherwise.
-                   int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
-                   // the following option is currently not controllable via CLI as it is meaningless without a constantly
-                   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
-                   cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
-                   // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
-                   // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
-                   // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
-                   // to verify.
-                   onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
-                   // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
-                   assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
-                   // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
-                   // branches will be verified in parallel
-                   parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
-                   conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
-                   z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
-                   disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
-                   mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                   // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
-                   hyperMode: Option[Hyper.Mode] = None,
-                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
-                   noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
-                   parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
-                   // when enabled, all quantifiers without triggers are rejected
-                   requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
-                   disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
-                   unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-                   moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                   respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
-                   enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
-                   disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
-                   enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
-                   startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
-                   enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
-                   disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
-                   numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
-                   dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath,
-									 executeDependencyAnalysisTests: Boolean = ConfigDefaults.DefaultExecuteDependencyAnalysisTests,
+									 gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
+									 // Used as an identifier of a verification task, ideally it shouldn't change between verifications
+									 // because it is used as a caching key. Additionally it should be unique when using the StatsCollector
+									 taskName: String = ConfigDefaults.DefaultTaskName,
+									 // Contains a mapping of packages to all input sources for that package
+									 packageInfoInputMap: Map[PackageInfo, Vector[Source]] = Map.empty,
+									 moduleName: String = ConfigDefaults.DefaultModuleName,
+									 includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
+									 projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
+									 reporter: GobraReporter = ConfigDefaults.DefaultReporter,
+									 // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
+									 backend: Option[ViperBackend] = None,
+									 isolate: Option[Vector[SourcePosition]] = None,
+									 choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
+									 packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
+									 z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
+									 boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
+									 logLevel: Level = ConfigDefaults.DefaultLogLevel,
+									 cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
+									 shouldParse: Boolean = true,
+									 shouldTypeCheck: Boolean = true,
+									 shouldDesugar: Boolean = true,
+									 shouldViperEncode: Boolean = true,
+									 checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+									 checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
+									 shouldVerify: Boolean = true,
+									 shouldChop: Boolean = ConfigDefaults.DefaultShouldChop,
+									 // The go language specification states that int and uint variables can have either 32bit or 64, as long
+									 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+									 // 64 bit otherwise.
+									 int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
+									 // the following option is currently not controllable via CLI as it is meaningless without a constantly
+									 // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+									 cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
+									 // this option introduces a mode where Gobra only considers files with a specific annotation ("// +gobra").
+									 // this is useful when verifying large packages where some files might use some unsupported feature of Gobra,
+									 // or when the goal is to gradually verify part of a package without having to provide an explicit list of the files
+									 // to verify.
+									 onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+									 // if enabled, Gobra assumes injectivity on inhale, as done by Viper versions before 2022.2.
+									 assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+									 // if enabled, and if the chosen backend is either SILICON or VSWITHSILICON,
+									 // branches will be verified in parallel
+									 parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+									 conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+									 z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+									 disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
+									 mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+									 // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
+									 hyperMode: Option[Hyper.Mode] = None,
+									 noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+									 noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+									 parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+									 // when enabled, all quantifiers without triggers are rejected
+									 requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+									 disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+									 disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+									 unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+									 moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
+									 respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+									 enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+									 disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
+									 enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
+									 dependencyAnalysisMode: Option[String] = ConfigDefaults.DefaultDependencyAnalysisMode,
+									 enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
+									 disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
+									 numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
 ) {
 
   def merge(other: Config): Config = {
@@ -276,12 +272,10 @@ case class Config(
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || other.enableExperimentalFriendClauses,
       disableInfeasibilityChecks = disableInfeasibilityChecks || other.disableInfeasibilityChecks,
       enableDependencyAnalysis = enableDependencyAnalysis || other.enableDependencyAnalysis,
-      startDependencyAnalysisTool = startDependencyAnalysisTool || other.startDependencyAnalysisTool,
+      dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
       enableUnsatCores = enableUnsatCores || other.enableUnsatCores,
       disableTerminationPlugin = disableTerminationPlugin || other.disableTerminationPlugin,
       numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
-      dependencyAnalysisExportPath = dependencyAnalysisExportPath orElse other.dependencyAnalysisExportPath,
-			executeDependencyAnalysisTests = executeDependencyAnalysisTests || other.executeDependencyAnalysisTests,
     )
   }
 
@@ -309,50 +303,48 @@ object Config {
 
 // have a look at `Config` to see an inline description of some of these parameters
 case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobraDirectory,
-                      moduleName: String = ConfigDefaults.DefaultModuleName,
-                      includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
-                      reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                      backend: Option[ViperBackend] = None,
-                      // list of pairs of file and line numbers. Indicates which lines of files should be isolated.
-                      isolate: List[(Path, List[Int])] = ConfigDefaults.DefaultIsolate,
-                      choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
-                      packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
-                      z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
-                      boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
-                      logLevel: Level = ConfigDefaults.DefaultLogLevel,
-                      cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
-                      shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
-                      stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
-                      checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
-                      checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
-                      int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
-                      cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
-                      onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
-                      assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
-                      parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
-                      conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
-                      z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
-                      disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
-                      mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
-                      hyperMode: Option[Hyper.Mode] = None,
-                      noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
-                      noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
-                      parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
-                      requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
-                      disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
-                      unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
-                      moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                      respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
-                      enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
-                      disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
-                      enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
-                      startDependencyAnalysisTool: Boolean = ConfigDefaults.DefaultStartDependencyAnalysisTool,
-                      enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
-                      disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
-                      numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
-                      dependencyAnalysisExportPath: Option[String] = ConfigDefaults.DefaultDependencyAnalysisExportPath,
-											executeDependencyAnalysisTests: Boolean = ConfigDefaults.DefaultExecuteDependencyAnalysisTests,
+											moduleName: String = ConfigDefaults.DefaultModuleName,
+											includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
+											reporter: GobraReporter = ConfigDefaults.DefaultReporter,
+											backend: Option[ViperBackend] = None,
+											// list of pairs of file and line numbers. Indicates which lines of files should be isolated.
+											isolate: List[(Path, List[Int])] = ConfigDefaults.DefaultIsolate,
+											choppingUpperBound: Int = ConfigDefaults.DefaultChoppingUpperBound,
+											packageTimeout: Duration = ConfigDefaults.DefaultPackageTimeout,
+											z3Exe: Option[String] = ConfigDefaults.DefaultZ3Exe,
+											boogieExe: Option[String] = ConfigDefaults.DefaultBoogieExe,
+											logLevel: Level = ConfigDefaults.DefaultLogLevel,
+											cacheFile: Option[Path] = ConfigDefaults.DefaultCacheFile.map(_.toPath),
+											shouldParseOnly: Boolean = ConfigDefaults.DefaultParseOnly,
+											stopAfterEncoding: Boolean = ConfigDefaults.DefaultStopAfterEncoding,
+											checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
+											checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
+											int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
+											cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
+											onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
+											assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
+											parallelizeBranches: Boolean = ConfigDefaults.DefaultParallelizeBranches,
+											conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
+											z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
+											disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
+											mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
+											hyperMode: Option[Hyper.Mode] = None,
+											noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
+											noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
+											parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
+											requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
+											disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
+											disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
+											unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+											moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
+											respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
+											enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+											disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
+											enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
+											dependencyAnalysisMode: Option[String] = ConfigDefaults.DefaultDependencyAnalysisMode,
+											enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
+											disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
+											numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
@@ -419,12 +411,10 @@ trait RawConfig {
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
     disableInfeasibilityChecks = baseConfig.disableInfeasibilityChecks,
     enableDependencyAnalysis = baseConfig.enableDependencyAnalysis,
-    startDependencyAnalysisTool = baseConfig.startDependencyAnalysisTool,
+    dependencyAnalysisMode = baseConfig.dependencyAnalysisMode,
     enableUnsatCores = baseConfig.enableUnsatCores,
     disableTerminationPlugin = baseConfig.disableTerminationPlugin,
     numberOfErrorsToReport = baseConfig.numberOfErrorsToReport,
-    dependencyAnalysisExportPath = baseConfig.dependencyAnalysisExportPath,
-		executeDependencyAnalysisTests = baseConfig.executeDependencyAnalysisTests,
   )
 }
 
@@ -961,10 +951,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
-  val startDependencyAnalysisTool: ScallopOption[Boolean] = opt[Boolean](
-    name = "startDependencyAnalysisTool",
-    descr = "Starts the dependency analysis command line tool after verification",
-    default = Some(ConfigDefaults.DefaultStartDependencyAnalysisTool),
+  val dependencyAnalysisMode: ScallopOption[String] = opt[String](
+    name = "dependencyAnalysisMode",
+    descr = "Sets the dependency analysis mode",
+    default = ConfigDefaults.DefaultDependencyAnalysisMode,
     noshort = true
   )
 
@@ -986,13 +976,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "numberOfErrorsToReport",
     descr = "Number of errors per member before the verifier stops. If this number is set to 0, all errors are reported.",
     default = ConfigDefaults.DefaultNumberOfErrorsToReport,
-    noshort = true
-  )
-
-  val dependencyAnalysisExportPath: ScallopOption[String] = opt[String](
-    name = "dependencyAnalysisExportPath",
-    descr = "Dependency analysis: destination path of the exported graph",
-    default = ConfigDefaults.DefaultDependencyAnalysisExportPath,
     noshort = true
   )
 
@@ -1210,10 +1193,9 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     enableExperimentalFriendClauses = enableExperimentalFriendClauses(),
     disableInfeasibilityChecks = disableInfeasibilityChecks(),
     enableDependencyAnalysis = enableDependencyAnalysis(),
-    startDependencyAnalysisTool = startDependencyAnalysisTool(),
+    dependencyAnalysisMode = dependencyAnalysisMode.toOption,
     enableUnsatCores = enableUnsatCores(),
     disableTerminationPlugin = disableTerminationPlugin(),
     numberOfErrorsToReport = numberOfErrorsToReport.toOption,
-    dependencyAnalysisExportPath = dependencyAnalysisExportPath.toOption,
   )
 }

@@ -94,25 +94,19 @@ trait SiliconBasedBackend extends ViperBackend {
     if (config.enableDependencyAnalysis) {
       options ++= Vector("--enableDependencyAnalysis")
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")
-    }else if(config.enableUnsatCores){
+    } else if (config.enableUnsatCores) {
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")
       options ++= Vector("--enableUnsatCores")
     }
-    if(config.disableTerminationPlugin){
+    if (config.disableTerminationPlugin) {
       options ++= Vector("--disableTerminationPlugin")
     }
-    if(config.numberOfErrorsToReport.isDefined){
+    if (config.numberOfErrorsToReport.isDefined) {
       options ++= Vector(s"--numberOfErrorsToReport=${config.numberOfErrorsToReport.get}")
     }
-    if(config.dependencyAnalysisExportPath.isDefined){
-      options ++= Vector("--dependencyAnalysisExportPath", config.dependencyAnalysisExportPath.get)
+    if (config.dependencyAnalysisMode.isDefined){
+      options ++= Vector(s"--dependencyAnalysisMode=${config.dependencyAnalysisMode.get}")
     }
-    if(config.startDependencyAnalysisTool){
-      options ++= Vector("--startDependencyAnalysisTool")
-    }
-		if(config.executeDependencyAnalysisTests){
-			options ++= Vector("--executeDependencyAnalysisTests")
-		}
 
     options
   }

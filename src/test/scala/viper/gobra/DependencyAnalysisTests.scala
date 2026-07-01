@@ -20,6 +20,6 @@ class DependencyAnalysisTests extends GobraTests {
 			disableInfeasibilityChecks = true,
 			disableTerminationPlugin = true,
 			disableCheckTerminationPureFns = true,
-			executeDependencyAnalysisTests = true,
+			dependencyAnalysisMode = Some("test"),
 		)
 }

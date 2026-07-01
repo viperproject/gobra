@@ -34,6 +34,10 @@ object Source {
   case class InsufficientPermissionToRangeExpressionAnnotation() extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
   case class InvalidImplTermMeasureAnnotation() extends Annotation
+  case class IsInvariantAnnotation() extends Annotation
+  case class InvariantMightBeOpenAnnotation() extends Annotation
+  case class InvariantNotRestoredAnnotation() extends Annotation
+
   class OverwriteErrorAnnotation(
                                   newError: VerificationError => VerificationError,
                                   attachReasons: Boolean = true

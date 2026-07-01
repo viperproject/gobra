@@ -151,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _) =>
+    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _) =>
       // Collect the named output parameters of the spec's owner so that we only
       // reject references to those (and not to outputs of an enclosing function,
       // method, or closure - which is relevant for outline statements and nested
@@ -171,7 +171,9 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
-      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure) ++
+      error(n, "Annotation 'opensInvariants' can only be used in ghost members.", opensInvs && !isEnclosingGhost(enclosingCodeRoot(n))) ++
+      error(n, "Annotation 'opensInvariants' can only be used in non-pure members.", opensInvs && isPure)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++

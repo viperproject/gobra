@@ -14,23 +14,6 @@ preserves acc(x)
 decreases
 atomic func Get(x *int) int
 
-type I interface {
-	// interface methods may also be marked as atomic
-	decreases
-	atomic
-	M()
-}
-
-type T1 struct{}
-
-decreases
-atomic func (t T1) M()
-
-// types with atomic methods may implement interfaces with atomic
-// methods, as long as the atomic interface members are implemented
-// by atomic members.
-T1 implements I
-
 pred Own(x *int) { acc(x) }
 
 requires Invariant(Own{x})

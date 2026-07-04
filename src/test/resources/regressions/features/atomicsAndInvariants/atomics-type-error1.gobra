@@ -140,22 +140,6 @@ ghost
 decreases
 atomic func fail13()
 
-type I interface {
-	decreases
-	atomic
-	M()
-}
-
-type T1 struct{}
-
-decreases
-func (t T1) M()
-
-// Atomic interface methods may only be implemented by
-// atomic functions.
-//:: ExpectedOutput(type_error)
-T1 implements I
-
 func fail14() {
 	critical PredTrue{} (
 		// Ghost functions marked with `opensInvariants` cannot be called
@@ -163,4 +147,12 @@ func fail14() {
 		//:: ExpectedOutput(type_error)
 		ghostOpensInvs()
 	)
+}
+
+type I interface {
+	// interface methods may not be marked as atomic
+	//:: ExpectedOutput(type_error)
+	decreases
+	atomic
+	M()
 }

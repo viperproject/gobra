@@ -161,6 +161,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PReturn(exps) =>
       val mayInit = isEnclosingMayInit(n)
+      // Unstructured jumps out of a critical region would skip the region's closing exhale (emitted
+      // after the region body during desugaring), leaking the opened invariant's resources.
+      error(n, "return is not allowed inside a critical region.", isEnclosingCritical(n)) ++
       exps.flatMap(isExpr(_).out) ++ {
         if (exps.nonEmpty) {
           val closureImplProof = tryEnclosingClosureImplementationProof(n)
@@ -278,7 +281,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(m: PMethodDecl) => (isEnclosingGhost(m), m.spec)
         case _ => violation("Unexpected case reached")
       }
-      // all ops are either ghost or non-ghost atomic operations
+      // all ops are either ghost or non-ghost atomic operations. Unstructured jumps
+      // (`return`/`break`/`continue`/`goto`) are rejected at their own definition (see the
+      // respective cases below), as they would skip the region's closing exhale.
       val invalidOpOpt = n.stmts.find(s => !notGhostAtomicOp(s) && !isStmtGhost(s))
 
       val exprT = exprType(n.expr)
@@ -290,10 +295,15 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n, s"Only ghost members marked with 'opensInvariants' may open invariants.", inGhost && !spec.opensInvs)
 
     case _: PEmptyStmt => noMessages
+    // goto is currently unsupported. If support is ever added, it must be rejected inside a critical
+    // region (like return/break/continue above), since jumping out would skip the region's closing
+    // exhale and leak the opened invariant's resources.
     case _: PGoto => ???
 
     case n@PBreak(l) =>
-      l match {
+      // see the PReturn case: unstructured jumps out of a critical region would skip its exhale.
+      error(n, "break is not allowed inside a critical region.", isEnclosingCritical(n)) ++
+      (l match {
         case None =>
           enclosingLoopUntilOutline(n) match {
             case Left(Some(_: POutline)) => error(n, "break must be inside of a loop without an outline statement in between.")
@@ -307,10 +317,12 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case Left(_) => error(n, s"break label must point to an outer labeled loop.")
             case Right(_) => noMessages
           }
-      }
+      })
 
     case n@PContinue(l) =>
-      l match {
+      // see the PReturn case: unstructured jumps out of a critical region would skip its exhale.
+      error(n, "continue is not allowed inside a critical region.", isEnclosingCritical(n)) ++
+      (l match {
         case None =>
           enclosingLoopUntilOutline(n) match {
             case Left(Some(_: POutline)) => error(n, "continue must be inside of a loop without an outline statement in between.")
@@ -324,7 +336,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case Left(_) => error(n, s"continue label must point to an outer labeled loop.")
             case Right(_) => noMessages
           }
-      }
+      })
 
     case p: PClosureImplProof => wellDefClosureImplProof(p)
 

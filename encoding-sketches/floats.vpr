@@ -1,0 +1,113 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2026 ETH Zurich.
+
+// Sketch of the target IEEE 754 encoding for float32/float64
+// (see docs/ieee754-floats-plan.md), intended for Silicon + Z3.
+// In the implementation these domains are built programmatically via
+// silver's ast.utility.FloatFactory / BVFactory, not from source text.
+
+domain BV32 interpretation (SMTLIB: "(_ BitVec 32)", Boogie: "bv32") {
+  function bv32_from_int(i: Int): BV32 interpretation "(_ int2bv 32)"
+}
+
+domain BV64 interpretation (SMTLIB: "(_ BitVec 64)", Boogie: "bv64") {
+  function bv64_from_int(i: Int): BV64 interpretation "(_ int2bv 64)"
+}
+
+// float32 = IEEE binary32. NOTE: (_ FloatingPoint 8 24), i.e. 8 exponent
+// and 24 significand bits — silver's FloatFactory(24, 8, RNE).
+domain Float32 interpretation (SMTLIB: "(_ FloatingPoint 8 24)", Boogie: "float24e8") {
+  // bit-pattern reinterpretation; used to encode literals exactly:
+  // e.g. Go literal 1.2 (as float32) => f32_from_bv(bv32_from_int(1067030938))
+  function f32_from_bv(b: BV32): Float32 interpretation "(_ to_fp 8 24)"
+
+  function f32_add(a: Float32, b: Float32): Float32 interpretation "fp.add RNE"
+  function f32_sub(a: Float32, b: Float32): Float32 interpretation "fp.sub RNE"
+  function f32_mul(a: Float32, b: Float32): Float32 interpretation "fp.mul RNE"
+  // total: x/0.0 is +-Inf or NaN — no non-zero precondition needed
+  function f32_div(a: Float32, b: Float32): Float32 interpretation "fp.div RNE"
+  // Go unary minus; NOT 0.0 - x (which maps -0.0 to +0.0)
+  function f32_neg(a: Float32): Float32 interpretation "fp.neg"
+
+  // Go ==/!=/</<=/>/>= on floats are the IEEE comparisons:
+  // NaN != NaN, +0.0 == -0.0
+  function f32_eq(a: Float32, b: Float32): Bool interpretation "fp.eq"
+  function f32_lt(a: Float32, b: Float32): Bool interpretation "fp.lt"
+  function f32_leq(a: Float32, b: Float32): Bool interpretation "fp.leq"
+  function f32_gt(a: Float32, b: Float32): Bool interpretation "fp.gt"
+  function f32_geq(a: Float32, b: Float32): Bool interpretation "fp.geq"
+
+  // spec vocabulary (math stubs / built-ins)
+  function f32_is_nan(a: Float32): Bool interpretation "fp.isNaN"
+  function f32_is_inf(a: Float32): Bool interpretation "fp.isInfinite"
+  function f32_abs(a: Float32): Float32 interpretation "fp.abs"
+  function f32_min(a: Float32, b: Float32): Float32 interpretation "fp.min"
+  function f32_max(a: Float32, b: Float32): Float32 interpretation "fp.max"
+}
+
+// float64 = IEEE binary64: (_ FloatingPoint 11 53) — FloatFactory(53, 11, RNE).
+// (Prusti generates (_ FloatingPoint 12 52) here, which is NOT binary64;
+// we deliberately deviate.)
+domain Float64 interpretation (SMTLIB: "(_ FloatingPoint 11 53)", Boogie: "float53e11") {
+  function f64_from_bv(b: BV64): Float64 interpretation "(_ to_fp 11 53)"
+  function f64_add(a: Float64, b: Float64): Float64 interpretation "fp.add RNE"
+  function f64_sub(a: Float64, b: Float64): Float64 interpretation "fp.sub RNE"
+  function f64_mul(a: Float64, b: Float64): Float64 interpretation "fp.mul RNE"
+  function f64_div(a: Float64, b: Float64): Float64 interpretation "fp.div RNE"
+  function f64_neg(a: Float64): Float64 interpretation "fp.neg"
+  function f64_eq(a: Float64, b: Float64): Bool interpretation "fp.eq"
+  function f64_lt(a: Float64, b: Float64): Bool interpretation "fp.lt"
+  function f64_leq(a: Float64, b: Float64): Bool interpretation "fp.leq"
+  function f64_is_nan(a: Float64): Bool interpretation "fp.isNaN"
+
+  // Go conversion float32(x) / float64(x): fp-to-fp with RNE rounding
+  function f64_from_f32(a: Float32): Float64 interpretation "(_ to_fp 11 53) RNE"
+}
+
+domain Float32Conv interpretation (SMTLIB: "(_ FloatingPoint 8 24)", Boogie: "float24e8") {
+  // sketch only: in the implementation this lives in the Float32 domain
+  function f32_from_f64(a: Float64): Float32 interpretation "(_ to_fp 8 24) RNE"
+  // Go int -> float conversion: signed-bv overload of to_fp
+  function f32_from_int64(b: BV64): Float32 interpretation "(_ to_fp 8 24) RNE"
+}
+
+// ----- what encoded Go code looks like -----
+
+// func add(x, y float32) (res float32)
+// ensures res == x + y            <- Viper structural == is fine in specs
+method add(x: Float32, y: Float32) returns (res: Float32)
+  ensures res == f32_add(x, y)
+{
+  res := f32_add(x, y)
+}
+
+method literals_and_ieee_facts()
+{
+  // 0.5 + 0.25 == 0.75 holds exactly (all representable)
+  var a: Float32 := f32_from_bv(bv32_from_int(1056964608)) // 0.5f
+  var b: Float32 := f32_from_bv(bv32_from_int(1048576000)) // 0.25f
+  var c: Float32 := f32_from_bv(bv32_from_int(1061158912)) // 0.75f
+  assert f32_eq(f32_add(a, b), c)
+
+  // signed zero: -0.0 == 0.0 under Go/IEEE ==, but they are distinct values
+  var pz: Float32 := f32_from_bv(bv32_from_int(0))
+  var nz: Float32 := f32_neg(pz)
+  assert f32_eq(pz, nz)      // fp.eq: true
+  assert !(pz == nz)         // structural: they differ (bit patterns differ)
+
+  // division is total: 1.0 / 0.0 == +Inf, no verification error
+  var one: Float32 := f32_from_bv(bv32_from_int(1065353216)) // 1.0f
+  var inf: Float32 := f32_div(one, pz)
+  assert f32_is_inf(inf)
+}
+
+method nan_semantics(x: Float32)
+{
+  // NaN is irreflexive under Go ==: cannot prove f32_eq(x, x) in general
+  assert f32_is_nan(x) ==> !f32_eq(x, x)
+  // but structural equality (used internally for snapshots/old) is reflexive
+  assert x == x
+}

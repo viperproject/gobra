@@ -104,7 +104,7 @@ trait SiliconBasedBackend extends ViperBackend {
     if (config.numberOfErrorsToReport.isDefined) {
       options ++= Vector(s"--numberOfErrorsToReport=${config.numberOfErrorsToReport.get}")
     }
-    if (config.dependencyAnalysisMode.isDefined){
+    if (config.dependencyAnalysisMode.isDefined) {
       options ++= Vector(s"--dependencyAnalysisMode=${config.dependencyAnalysisMode.get}")
     }
 

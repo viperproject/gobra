@@ -16,9 +16,9 @@ func foo() {
 	y := cell{42};
     @dependencyInfo("assumptionType:SourceCode, label:L5")
 	z@ := y;
-    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L6, expectedDependencies:[L4]")
+    @dependencyInfo("assumptionType:SourceCode, label:L6, expectedDependencies:[]") // no dep to L4 because y is not stored on the heap
 	y.val = 17;
-    @dependencyInfo("assertionType:Explicit, label:L7a, expectedDependencies:[L4,L6]")
+    @dependencyInfo("assertionType:Explicit, label:L7a, expectedDependencies:[L6]") // no dep to L4 because y is not stored on the heap
 	assert y.val == 17
     @dependencyInfo("assertionType:Explicit, label:L7b, expectedDependencies:[L4,L5]")
 	assert z.val == 42;
@@ -54,7 +54,7 @@ func indirectAddressability() {
 func bar() {
     @dependencyInfo("assumptionType:SourceCode, label:L18")
     x@ := cell{42};
-    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L19")
+    @dependencyInfo("assumptionType:SourceCode, label:L19")
     p := &x.val;
     @dependencyInfo("assumptionType:SourceCode, label:L20")
     *p = 17;

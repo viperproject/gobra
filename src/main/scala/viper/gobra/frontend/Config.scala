@@ -953,7 +953,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val dependencyAnalysisMode: ScallopOption[String] = opt[String](
     name = "dependencyAnalysisMode",
-    descr = "Sets the dependency analysis mode",
+    descr = "Dependency analysis commands (separated by ;) to be executed after verification. Available are `interactive` and all commands supported by the interactive CLI tool.",
     default = ConfigDefaults.DefaultDependencyAnalysisMode,
     noshort = true
   )

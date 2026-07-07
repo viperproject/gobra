@@ -19,9 +19,9 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private lazy val gobraNodes: Iterable[ast.Info] = GobraDependencyAnalysisHelper.identifyGobraNodes(typeInfo)
   private lazy val gNodes = gobraNodes.map(n => {
-		val sourceInfo = n.getUniqueInfo[GobraAnalysisSourceInfo].get
-		((sourceInfo.pNode, sourceInfo.getPosition), n)
-	}).toMap
+    val sourceInfo = n.getUniqueInfo[GobraAnalysisSourceInfo].get
+    ((sourceInfo.pNode, sourceInfo.getPosition), n)
+  }).toMap
   private val allTypeInfos = typeInfo.getTransitiveTypeInfos().filterNot(_.pkgName.name.contains("builtin")).map(typeInfos => typeInfos.getTypeInfo)
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
@@ -36,41 +36,41 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     ViperStrategy.Slim({
       case member: vpr.Member =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
-				val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo)
-				member.withMeta(member.pos, newInfo2, member.errT)
+        val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo)
+        member.withMeta(member.pos, newInfo2, member.errT)
       case stmt: vpr.Stmt =>
-				val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info)
+        val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info)
         stmt.withMeta(stmt.pos, newInfo, stmt.errT)
       case exp: vpr.Exp =>
-				val newInfo = getDependencyAnalysisEnhancedInfo(exp.info)
+        val newInfo = getDependencyAnalysisEnhancedInfo(exp.info)
         exp.withMeta(exp.pos, newInfo, exp.errT)
     }).forceCopy().execute(p)
   }
 
-	private def getDependencyAnalysisEnhancedInfo(oldInfo: Info) = {
-		val sourceInfo = oldInfo.getUniqueInfo[Verifier.Info]
-		val depInfoOpt = getDependencyAnalysisInfoFromAncestorPNode(sourceInfo)
-		if (depInfoOpt.isDefined) {
-			val depInfo = depInfoOpt.get
-			// do not override existing infos
-			val newInfo = attachInfoIfNotExists[AnalysisSourceInfo](oldInfo, depInfo)
-			val resInfo = attachInfoIfNotExists[DependencyTypeInfo](newInfo, depInfo)
-			resInfo
-		} else
-			oldInfo
-	}
+  private def getDependencyAnalysisEnhancedInfo(oldInfo: Info) = {
+    val sourceInfo = oldInfo.getUniqueInfo[Verifier.Info]
+    val depInfoOpt = getDependencyAnalysisInfoFromAncestorPNode(sourceInfo)
+    if (depInfoOpt.isDefined) {
+      val depInfo = depInfoOpt.get
+      // do not override existing infos
+      val newInfo = attachInfoIfNotExists[AnalysisSourceInfo](oldInfo, depInfo)
+      val resInfo = attachInfoIfNotExists[DependencyTypeInfo](newInfo, depInfo)
+      resInfo
+    } else
+      oldInfo
+  }
 
-	private def attachInfoIfNotExists[T <: Info : ClassTag](oldInfo: Info, newInfo: Info) = {
-		oldInfo.getUniqueInfo[T] match {
-			case Some(_) =>
-				oldInfo
-			case None    => MakeInfoPair(oldInfo, newInfo.getUniqueInfo[T].getOrElse(NoInfo))
-		}
-	}
+  private def attachInfoIfNotExists[T <: Info : ClassTag](oldInfo: Info, newInfo: Info) = {
+    oldInfo.getUniqueInfo[T] match {
+      case Some(_) =>
+        oldInfo
+      case None    => MakeInfoPair(oldInfo, newInfo.getUniqueInfo[T].getOrElse(NoInfo))
+    }
+  }
 
-	private def getDependencyAnalysisInfoFromAncestorPNode(sourceInfo: Option[Verifier.Info]): Option[ast.Info] = {
+  private def getDependencyAnalysisInfoFromAncestorPNode(sourceInfo: Option[Verifier.Info]): Option[ast.Info] = {
     if (sourceInfo.isEmpty) return None
-		val pNode = sourceInfo.get.pnode
+    val pNode = sourceInfo.get.pnode
     try {
       val typeInfoToUse = allTypeInfos.filter(_.tree.root.positions.positions.getStart(pNode).isDefined).head
       var pNodes = Vector(pNode)
@@ -95,7 +95,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     sourcePosition
   }
 
-	// TODO ake: review
+  // TODO ake: review
   private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
     val sourceFileOpt = pos match {

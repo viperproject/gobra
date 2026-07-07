@@ -59,11 +59,11 @@ object GobraDependencyAnalysisHelper {
     }
 
     def getDependencyTypeForPNode(_pNode: PNode, dependencyType: Option[DependencyType]): DependencyType = {
-			val pNode = _pNode match {
-				case PAnnotatedStmt(_, stmt) => stmt
-				case PAnnotatedExp(exp, _) => exp
-				case _ => _pNode
-			}
+      val pNode = _pNode match {
+        case PAnnotatedStmt(_, stmt) => stmt
+        case PAnnotatedExp(exp, _) => exp
+        case _ => _pNode
+      }
       val enforcedDepTypeOpt = pNode match {
         case _: PAssert | _: PExhale | _: PRefute => Some(DependencyType.ExplicitAssertion)
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
@@ -97,8 +97,8 @@ object GobraDependencyAnalysisHelper {
         val start = positionManager.positions.getStart(pNode).get
         val end = positionManager.positions.getFinish(pNode).get
         val sourcePosition = ast.TranslatedPosition(positionManager.translate(start, end))
-				val depTypeInfo = DependencyTypeInfo(getDependencyTypeForPNode(pNode, dependencyType))
-				val analysisSourceInfo =  GobraAnalysisSourceInfo(pNode, sourcePosition)
+        val depTypeInfo = DependencyTypeInfo(getDependencyTypeForPNode(pNode, dependencyType))
+        val analysisSourceInfo =  GobraAnalysisSourceInfo(pNode, sourcePosition)
         val info = ast.MakeInfoPair(depTypeInfo,  analysisSourceInfo)
         Set(info)
       } catch {
@@ -121,8 +121,8 @@ object GobraDependencyAnalysisHelper {
       // constants
       case PConstDecl(specs) => go(specs)
 
-//			case PAnnotatedStmt(_, stmt) => goS(stmt)
-//			case PAnnotatedExp(exp, _) => goS(exp)
+//      case PAnnotatedStmt(_, stmt) => goS(stmt)
+//      case PAnnotatedExp(exp, _) => goS(exp)
 
       // functions and methods
       case PFunctionDecl(id, args, result, spec, body) => go(Set(id, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2), if(spec.isPure) Some(DependencyType.make(AssumptionType.FunctionBody)) else dependencyTypeOuter)

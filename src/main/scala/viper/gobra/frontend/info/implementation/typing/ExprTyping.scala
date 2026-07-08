@@ -30,6 +30,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   // are constant (obtained empirically)
   val MAX_SHIFT: Int = 512
 
+  private def isUntypedIntConst(expr: PExpression): Boolean =
+    exprType(expr) == UNTYPED_INT_CONST && intConstantEval(expr).nonEmpty
+
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
     case n: PNamedOperand =>
       resolve(n) match {
@@ -234,6 +237,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT, mayInit)(n)
 
+    // A `PCompositeLitOrPredConstructor` is resolved into a `PCompositeLit` or a `PPredConstructor`
+    // before type-checking (see `PredicateConstructorRewriter`), so reaching this point means the
+    // resolution was skipped or incomplete -- a Gobra bug. Fail loudly rather than mis-interpret it.
+    case n: PCompositeLitOrPredConstructor =>
+      error(n, s"internal error: unresolved composite-literal/predicate-constructor ambiguity at $n")
+
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
@@ -337,7 +346,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PBitNegation(op) =>
       val mayInit = isEnclosingMayInit(n)
-      isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST, mayInit)(op)
+      val opType = typ(op)
+      val notUnbounded = error(n, "bitwise operations are not defined for the `integer` type",
+        !isUntypedIntConst(op) && opType == IntT(UnboundedInteger))
+      isExpr(op).out ++ assignableTo.errors(opType, UNTYPED_INT_CONST, mayInit)(op) ++ notUnbounded
 
     case n@PIndexedExp(base, index) =>
       val mayInit = isEnclosingMayInit(n)
@@ -507,7 +519,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
+          case (op @ (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear), l, r) =>
             val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
             val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val typesAreMergeable = mergeableTypes.errors(l, r)(n)
@@ -527,13 +539,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   intExprWithinTypeBounds(n, mergedType)
               } else noMessages
             }
-            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
+            val bitwiseOnUnbounded = op match {
+              case _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear =>
+                error(n, "bitwise operations are not defined for the `integer` type",
+                  !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger)) ++
+                  error(n, "bitwise operations are not defined for the `integer` type",
+                    !asExpr(n.right).exists(isUntypedIntConst) && r == IntT(UnboundedInteger))
+              case _ => noMessages
+            }
+            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds ++ bitwiseOnUnbounded
           case (_: PShiftLeft, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
+            val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
+              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              intConstantEval(n.right.asInstanceOf[PExpression]) match {
-                case Some(v) =>
+              shiftOnUnbounded ++ intConstantEval(n.right.asInstanceOf[PExpression]).map { v =>
                   // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
                   // of the type of the left operand (or 512 if there is an untyped const on the left)
                   val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
@@ -544,21 +565,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)
                   lowerBound ++ upperBound
-
-                case None => noMessages
-              }
-            } else integerOperands
+              }.getOrElse(noMessages)
+            } else integerOperands ++ shiftOnUnbounded
           case (_: PShiftRight, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
+            val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
+              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              (intConstantEval(n.right.asInstanceOf[PExpression]) match {
+              shiftOnUnbounded ++ (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
                   // The Go compiler only checks that the RHS of (>>) is non-negative
                   error(n, s"constant $r overflows uint", v < 0)
                 case None => noMessages
               })
-            } else integerOperands
+            } else integerOperands ++ shiftOnUnbounded
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
@@ -568,6 +589,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         n.pred,
         s"unfolding predicate expression instance ${n.pred} not supported",
         resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
+
+    case n: PAsserting => assignableToSpec(n.ass) ++ isExpr(n.op).out ++ isPureExpr(n.op)
 
     case n: PAnnotatedExp => isExpr(n.exp).out
 
@@ -727,6 +750,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
+    // Unresolved ambiguity node (see `wellDefActualExpr`); ill-typed, so report `UnknownType`.
+    case _: PCompositeLitOrPredConstructor => UnknownType
+
     case PFunctionLit(_, PClosureDecl(args, result, _, _)) =>
       FunctionT(args map miscType, miscType(result))
 
@@ -815,6 +841,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PUnfolding => exprType(n.op)
     case n: PAnnotatedExp => exprType(n.exp)
+    case n: PAsserting => exprType(n.op)
 
     case n: PExpressionAndType => exprAndTypeType(n)
 

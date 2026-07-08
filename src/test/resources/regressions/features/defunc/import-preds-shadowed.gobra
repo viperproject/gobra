@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./includes/)
+package pkg
+
+import "shadowed"
+
+// Local predicate that *intentionally* shares its name with the imported struct type
+// `shadowed.Foo`. The predicate-constructor rewrite must not be confused by this collision:
+// `shadowed.Foo{42}` is a composite literal of the imported struct, while bare `Foo{42}` is
+// a constructor of the local predicate.
+pred Foo(i int) {
+	i == i
+}
+
+// `shadowed.Foo{42}` is a struct literal of an imported type. Even though the current
+// package has a local predicate named `Foo`, `shadowed.Foo` lives entirely in the imported
+// package's namespace and is *not* a predicate, so the literal must remain a composite
+// literal.
+ensures res.x == 42
+func makeFoo() (res shadowed.Foo) {
+	return shadowed.Foo{42}
+}
+
+// `shadowed.Bar{1}` is an imported fpredicate constructor; it should be rewritten.
+requires shadowed.Bar{1}()
+func usesImportedPred()
+
+// `Foo{1}` references the *local* `Foo` predicate; it should also be rewritten.
+requires Foo{1}()
+func usesLocalPred()

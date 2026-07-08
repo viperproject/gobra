@@ -63,9 +63,11 @@ ghostMember: implementationProof
 ghostStatement:
   GHOST statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
-  | kind=(ASSUME | ASSERT | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | kind=(ASSUME | REFUTE | INHALE | EXHALE) expression #proofStatement
+  | ASSERT expression (BY CONTRA? block)? #assertStatement
   | matchStmt #matchStmt_
   | OPEN_DUP_SINV #pkgInvStatement
+  | VAR IDENTIFIER type_ COLON_PIPE expression #assignSuchThatStatement
   ;
 
 // Auxiliary statements
@@ -87,6 +89,7 @@ ghostPrimaryExpr: range
   | isComparable
   | low
   | lowc
+  | hyperRelExpr
   | old
   | before
   | sConversion
@@ -134,6 +137,8 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 low: LOW L_PAREN expression R_PAREN;
 
 lowc: LOWC L_PAREN R_PAREN;
+
+hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
@@ -341,6 +346,7 @@ expression:
   |<assoc=right> expression IMPLIES expression #implication
   |<assoc=right> expression QMARK expression COLON expression #ternaryExpr
   | UNFOLDING predicateAccess IN expression #unfolding
+  | ASSERTING assertion IN expression #asserting
   | LET shortVarDecl IN expression #let
   | (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
   | annotatedExpression #annot
@@ -427,7 +433,7 @@ functionLit: specification closureDecl[$specification.trusted, $specification.pu
 
 closureDecl[boolean trusted, boolean pure]:  FUNC IDENTIFIER? (signature blockWithBodyParameterInfo?);
 
-predConstructArgs: L_PRED expressionList? COMMA? R_PRED;
+predConstructArgs: L_CURLY expressionList? COMMA? R_CURLY;
 
 // Added predicate spec and method specifications
 interfaceType:

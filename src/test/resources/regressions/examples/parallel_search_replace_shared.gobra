@@ -30,28 +30,28 @@ pred replacedPerm(ghost s0 seq[int], ghost s [] int, ghost x, y int) {
 
 pred messagePerm(ghost wg *sync.WaitGroup, s []int, ghost x, y int) {
   (forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])) &&
-  wg.UnitDebt(replacedPerm!<toSeq(s),s,x,y!>)
+  wg.UnitDebt(replacedPerm{toSeq(s),s,x,y})
 }
 
 requires acc(c.RecvChannel(),_)
-requires c.RecvGivenPerm() == PredTrue!<!>;
-requires c.RecvGotPerm() == messagePerm!<wg,_,x,y!>;
+requires c.RecvGivenPerm() == PredTrue{};
+requires c.RecvGotPerm() == messagePerm{wg,_,x,y};
 func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
   share c, wg, x, y
-  fold acc(PredTrue!<!>(),2/1);
-  // assert c.RecvGivenPerm() == PredTrue!<!>;
+  fold acc(PredTrue{}(),2/1);
+  // assert c.RecvGivenPerm() == PredTrue{};
   invariant acc(&c, 1/2) && acc(&wg, 1/2) &&acc(&s) && acc(&ok) && acc(&x, 1/2) && acc(&y, 1/2)
-  invariant PredTrue!<!>() && acc(c.RecvChannel(),_)
-  invariant c.RecvGivenPerm() == PredTrue!<!>;
-  invariant c.RecvGotPerm() == messagePerm!<wg,_,x,y,!>;
-  invariant ok ==> messagePerm!<wg,_,x,y!>(s)
+  invariant PredTrue{}() && acc(c.RecvChannel(),_)
+  invariant c.RecvGivenPerm() == PredTrue{};
+  invariant c.RecvGotPerm() == messagePerm{wg,_,x,y,};
+  invariant ok ==> messagePerm{wg,_,x,y}(s)
   for s@, ok@ := <- c; ok; s, ok = <-c {
-    unfold messagePerm!<wg,_,x,y!>(s)
+    unfold messagePerm{wg,_,x,y}(s)
     ghost s0 := toSeq(s)
     invariant acc(&c, 1/4) && acc(&wg, 1/4) && acc(&x, 1/4) && acc(&y, 1/4) && acc(&s)
     invariant len(s0) == len(s)
     invariant acc(c.RecvChannel(),_)
-    invariant wg.UnitDebt(replacedPerm!<s0,s,x,y!>)
+    invariant wg.UnitDebt(replacedPerm{s0,s,x,y})
     invariant 0 <= i && i <= len(s)
     invariant forall j int :: 0 <= j && j < len(s) ==> acc(&s[j])
     invariant forall j int :: {s[j]} 0 <= j && j < len(s) ==>
@@ -59,11 +59,11 @@ func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
     for i := 0; i != len(s); i++ {
       if(s[i] == x) { s[i] = y }
     }
-    fold replacedPerm!<s0,s,x,y!>()
-    wg.PayDebt(replacedPerm!<s0,s,x,y!>)
+    fold replacedPerm{s0,s,x,y}()
+    wg.PayDebt(replacedPerm{s0,s,x,y})
     wg.Done()
-    fold PredTrue!<!>()
-    // assert c.RecvGivenPerm() == PredTrue!<!>;
+    fold PredTrue{}()
+    // assert c.RecvGivenPerm() == PredTrue{};
   }
 }
 
@@ -82,13 +82,13 @@ func SearchReplace(s []int, x, y int) {
   ghost s0 := toSeq(s)
   c := make(chan []int,4)
   var wg@ sync.WaitGroup
-  ghost pr := messagePerm!<&wg,_,x,y!>;
-  c.Init(pr,PredTrue!<!>)
+  ghost pr := messagePerm{&wg,_,x,y};
+  c.Init(pr,PredTrue{})
   wg.Init()
   ghost seqs := seq[seq[int]] {}
   ghost pseqs := seq[pred()] {}
   invariant acc(c.RecvChannel(),_)
-  invariant c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == pr
+  invariant c.RecvGivenPerm() == PredTrue{} && c.RecvGotPerm() == pr
   for i := 0; i != workers; i++ {
     go worker(c,&wg,x,y)
   }
@@ -107,7 +107,7 @@ func SearchReplace(s []int, x, y int) {
     0 <= j && j < len(seqs[i]) ==> seqs[i][j] == s0[i * workRange + j]
   invariant len(pseqs) == len(seqs)
   invariant forall i int :: {pseqs[i]} 0 <= i && i < len(pseqs) ==>
-    pseqs[i] == replacedPerm!<seqs[i],s[i * workRange:i * workRange + len(seqs[i])],x,y!>;
+    pseqs[i] == replacedPerm{seqs[i],s[i * workRange:i * workRange + len(seqs[i])],x,y};
   invariant forall i int :: 0 <= i && i < len(pseqs) ==> wg.TokenById(pseqs[i],i)
   for offset := 0; offset != len(s); {
     nextOffset := offset + workRange;
@@ -118,16 +118,16 @@ func SearchReplace(s []int, x, y int) {
     assert forall i int :: {&section[i]} 0 <= i && i < len(s) ==>
       &section[i] == &s[i + offset]
     ghost s1 := toSeq(section)
-    ghost wpr := replacedPerm!<s1,section,x,y!>;
-    wg.Add(1,1/2,PredTrue!<!>)
+    ghost wpr := replacedPerm{s1,section,x,y};
+    wg.Add(1,1/2,PredTrue{})
     ghost if(offset == 0) {
-      wg.Start(1/2,PredTrue!<!>)
+      wg.Start(1/2,PredTrue{})
     }
     wg.GenerateTokenAndDebt(wpr)
     fold wg.TokenById(wpr,len(pseqs))
     seqs = seqs ++ seq[seq[int]]{ s1 }
     pseqs = pseqs ++ seq[pred()] { wpr }
-    fold messagePerm!<&wg,_,x,y!>(section)
+    fold messagePerm{&wg,_,x,y}(section)
     c <- section
     offset = nextOffset
   }
@@ -146,7 +146,7 @@ func SearchReplace(s []int, x, y int) {
       down := i * workRange
       up := down + len(seqs[i])
       s1 := s[down:up]
-      unfold replacedPerm!<seqs[i],s1,x,y!>()
+      unfold replacedPerm{seqs[i],s1,x,y}()
       assert forall j int :: {&s[j]} down <= j && j < up ==> &s[j] == &s1[j-down]
     }
   }

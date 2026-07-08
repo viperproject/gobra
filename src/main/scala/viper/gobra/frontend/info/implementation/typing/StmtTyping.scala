@@ -95,7 +95,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIfStmt => n.ifs.flatMap(ic =>
       isExpr(ic.condition).out ++
-        comparableTypes.errors(exprType(ic.condition), BooleanT)(ic)
+        assignableTo.errors(exprType(ic.condition), BooleanT, isEnclosingMayInit(ic))(ic)
     )
 
     case n@PExprSwitchStmt(_, exp, _, dflt) =>
@@ -356,8 +356,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     def validExpression(expr: PExpression): PropertyResult = expr match {
       case invoke: PInvoke => failedProp(s"The call must be $expectedCall", !isExpectedCall(invoke))
       case f: PUnfolding => validExpression(f.op)
+      case f: PAsserting => validExpression(f.op)
       case e: PAnnotatedExp => validExpression(e.exp)
-      case _ => failedProp(s"only unfolding expressions and the call $expectedCall is allowed")
+      case _ => failedProp(s"only unfolding/asserting expressions and the call $expectedCall are allowed")
     }
 
     validExpression(retExpr)

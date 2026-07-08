@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assertbycontrafail01
+
+func foo(x, y int) {
+    //:: ExpectedOutput(assert_by_error:assert_by_contra_body_error)
+    assert false by contra {
+        mylemma(x, y)
+    }
+}
+
+ghost
+ensures x <= y
+decreases
+func mylemma(x, y int)

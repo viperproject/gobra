@@ -181,6 +181,16 @@ case class AssertError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Assert might fail"
 }
 
+case class AssertByError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assert_by_error"
+  override def localMessage: String = "Assert by might fail"
+}
+
+case class AssignSuchThatError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assign_such_that_error"
+  override def localMessage: String = "Assignment might fail"
+}
+
 case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
 
   override def localId: String = "refute_error"
@@ -418,6 +428,21 @@ case class RefutationTrueError(info: Source.Verifier.Info) extends VerificationE
   override def id: String = "refutation_true_error"
 
   override def message: String = s"Assertion ${info.origin.tag.trim} definitely holds."
+}
+
+case class AssertByProofBodyError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assert_by_proof_body_error"
+  override def message: String = "The proof block might not establish the assertion"
+}
+
+case class AssertByContraBodyError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assert_by_contra_body_error"
+  override def message: String = "The proof block might not derive a contradiction after assuming the negated expression"
+}
+
+case class AssignSuchThatNoWitnessError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assign_such_that_no_witness_error"
+  override def message: String = s"Witness for assertion '${info.origin.tag.trim}' not found."
 }
 
 case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {

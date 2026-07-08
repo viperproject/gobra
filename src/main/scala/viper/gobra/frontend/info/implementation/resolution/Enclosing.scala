@@ -195,6 +195,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
+          case p: PAsserting => aux(p)
             // no array type
             // no range
             // no function spec, no invariants, no predicate body
@@ -248,6 +249,7 @@ trait Enclosing { this: TypeInfoImpl =>
       val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
         case decl: PVarDecl => decl.left.collect{ case id: PIdnDef => id }
         case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
+        case decl: PAssignSuchThat => Vector(decl.left)
       }.flatten.distinctBy(_.name)
 
       freeVariables(node).filter(l => allDeclared.exists(r => l.name == r.name))

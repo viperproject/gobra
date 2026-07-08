@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// `q` is an import qualifier *only in this file*. The predicate-constructor disambiguation in
+// main2.gobra must not treat `q` as an import qualifier there: imports are file-scoped.
+// ##(-I ./)
+import q "bar"
+
+func test1() {
+	assert q.Answer == 42
+}

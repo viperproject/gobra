@@ -308,12 +308,12 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
-      disableInfeasibilityChecks = disableInfeasibilityChecks || other.disableInfeasibilityChecks,
-      enableDependencyAnalysis = enableDependencyAnalysis || other.enableDependencyAnalysis,
-      dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
-      enableUnsatCores = enableUnsatCores || other.enableUnsatCores,
-      disableTerminationPlugin = disableTerminationPlugin || other.disableTerminationPlugin,
-      numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
+      disableInfeasibilityChecks = disableInfeasibilityChecks || input.disableInfeasibilityChecks.value.contains(true),
+      enableDependencyAnalysis = enableDependencyAnalysis || input.enableDependencyAnalysis.value.contains(true),
+      dependencyAnalysisMode = dependencyAnalysisMode orElse input.dependencyAnalysisMode.value,
+      enableUnsatCores = enableUnsatCores || input.enableUnsatCores.value.contains(true),
+      disableTerminationPlugin = disableTerminationPlugin || input.disableTerminationPlugin.value.contains(true),
+      numberOfErrorsToReport = numberOfErrorsToReport orElse input.numberOfErrorsToReport.value,
     )
   }
 
@@ -529,6 +529,12 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
+  disableInfeasibilityChecks: InputConfigOption[Boolean] = InputConfigOption("disableInfeasibilityChecks", None),
+  enableDependencyAnalysis: InputConfigOption[Boolean] = InputConfigOption("enableDependencyAnalysis", None),
+  dependencyAnalysisMode: InputConfigOption[String] = InputConfigOption("dependencyAnalysisMode", None),
+  enableUnsatCores: InputConfigOption[Boolean] = InputConfigOption("enableUnsatCores", None),
+  disableTerminationPlugin: InputConfigOption[Boolean] = InputConfigOption("disableTerminationPlugin", None),
+  numberOfErrorsToReport: InputConfigOption[Int] = InputConfigOption("numberOfErrorsToReport", None),
 ) {
   /** Derived field: extracts just the files from cutInputWithIdxs */
   val cutInput: InputConfigOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))

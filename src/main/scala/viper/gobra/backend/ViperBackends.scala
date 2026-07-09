@@ -96,8 +96,8 @@ trait SiliconBasedBackend extends ViperBackend {
 
       options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
     }
-    if (config.disableInfeasibilityChecks) {
-      options ++= Vector("--disableInfeasibilityChecks")
+    if (config.analyzeInfeasiblePaths) {
+      options ++= Vector("--analyzeInfeasiblePaths")
     }
     if (config.enableDependencyAnalysis) {
       options ++= Vector("--enableDependencyAnalysis")

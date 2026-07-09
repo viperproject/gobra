@@ -14,8 +14,19 @@ import viper.gobra.GoVerifier
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
-import viper.gobra.reporting.{ConfigError, FileWriterReporter, GobraReporter, StdIOReporter, VerifierError}
-import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
+import viper.gobra.reporting.{
+  ConfigError,
+  FileWriterReporter,
+  GobraReporter,
+  StdIOReporter,
+  VerifierError
+}
+import viper.gobra.util.TaskManagerMode.{
+  Lazy,
+  Parallel,
+  Sequential,
+  TaskManagerMode
+}
 import viper.gobra.util.{TaskManagerMode, TypeBounds, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -81,7 +92,7 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
-  val DefaultDisableInfeasibilityChecks: Boolean = false
+  val DefaultAnalyzeInfeasiblePaths: Boolean = false
   val DefaultEnableDependencyAnalysis: Boolean = false
   val DefaultDependencyAnalysisMode: Option[String] = None
   val DefaultEnableUnsatCores: Boolean = false
@@ -249,7 +260,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
-                   disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
+                   analyzeInfeasiblePaths: Boolean = ConfigDefaults.DefaultAnalyzeInfeasiblePaths,
                    enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
                    dependencyAnalysisMode: Option[String] = ConfigDefaults.DefaultDependencyAnalysisMode,
                    enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
@@ -308,7 +319,7 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
-      disableInfeasibilityChecks = disableInfeasibilityChecks || input.disableInfeasibilityChecks.value.contains(true),
+      analyzeInfeasiblePaths = analyzeInfeasiblePaths || input.analyzeInfeasiblePaths.value.contains(true),
       enableDependencyAnalysis = enableDependencyAnalysis || input.enableDependencyAnalysis.value.contains(true),
       dependencyAnalysisMode = dependencyAnalysisMode orElse input.dependencyAnalysisMode.value,
       enableUnsatCores = enableUnsatCores || input.enableUnsatCores.value.contains(true),
@@ -363,7 +374,7 @@ case class Config(
       "noVerify" -> noVerify,
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
-      "disableInfeasibilityChecks" -> disableInfeasibilityChecks,
+      "analyzeInfeasiblePaths" -> analyzeInfeasiblePaths,
       "enableDependencyAnalysis" -> enableDependencyAnalysis,
       "dependencyAnalysisMode" -> dependencyAnalysisMode,
       "enableUnsatCores" -> enableUnsatCores,
@@ -447,7 +458,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
-                      disableInfeasibilityChecks: Boolean = ConfigDefaults.DefaultDisableInfeasibilityChecks,
+                      analyzeInfeasiblePaths: Boolean = ConfigDefaults.DefaultAnalyzeInfeasiblePaths,
                       enableDependencyAnalysis: Boolean = ConfigDefaults.DefaultEnableDependencyAnalysis,
                       dependencyAnalysisMode: Option[String] = ConfigDefaults.DefaultDependencyAnalysisMode,
                       enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
@@ -536,7 +547,7 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
-  disableInfeasibilityChecks: InputConfigOption[Boolean] = InputConfigOption("disableInfeasibilityChecks", None),
+  analyzeInfeasiblePaths: InputConfigOption[Boolean] = InputConfigOption("analyzeInfeasiblePaths", None),
   enableDependencyAnalysis: InputConfigOption[Boolean] = InputConfigOption("enableDependencyAnalysis", None),
   dependencyAnalysisMode: InputConfigOption[String] = InputConfigOption("dependencyAnalysisMode", None),
   enableUnsatCores: InputConfigOption[Boolean] = InputConfigOption("enableUnsatCores", None),
@@ -603,7 +614,7 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
-    disableInfeasibilityChecks = disableInfeasibilityChecks orElse other.disableInfeasibilityChecks,
+    analyzeInfeasiblePaths = analyzeInfeasiblePaths orElse other.analyzeInfeasiblePaths,
     enableDependencyAnalysis = enableDependencyAnalysis orElse other.enableDependencyAnalysis,
     dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
     enableUnsatCores = enableUnsatCores orElse other.enableUnsatCores,
@@ -711,7 +722,7 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
-      disableInfeasibilityChecks = disableInfeasibilityChecks orElse other.disableInfeasibilityChecks,
+      analyzeInfeasiblePaths = analyzeInfeasiblePaths orElse other.analyzeInfeasiblePaths,
       enableDependencyAnalysis = enableDependencyAnalysis orElse other.enableDependencyAnalysis,
       dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
       enableUnsatCores = enableUnsatCores orElse other.enableUnsatCores,
@@ -1014,7 +1025,7 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
-    disableInfeasibilityChecks = disableInfeasibilityChecks.value.getOrElse(false),
+    analyzeInfeasiblePaths = analyzeInfeasiblePaths.value.getOrElse(false),
     enableDependencyAnalysis = enableDependencyAnalysis.value.getOrElse(false),
     dependencyAnalysisMode = dependencyAnalysisMode.value.orElse(ConfigDefaults.DefaultDependencyAnalysisMode),
     enableUnsatCores = enableUnsatCores.value.getOrElse(false),
@@ -1145,7 +1156,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
-    disableInfeasibilityChecks = baseConfig.disableInfeasibilityChecks,
+    analyzeInfeasiblePaths = baseConfig.analyzeInfeasiblePaths,
     enableDependencyAnalysis = baseConfig.enableDependencyAnalysis,
     dependencyAnalysisMode = baseConfig.dependencyAnalysisMode,
     enableUnsatCores = baseConfig.enableUnsatCores,
@@ -1787,30 +1798,30 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val disableInfeasibilityChecks: ScallopOption[Boolean] = opt[Boolean](
-    name = "disableInfeasibilityChecks",
-    descr = "Disable infeasibility checks. As a consequence all paths will be explored to the end. (Potentially) huge performance overhead!",
-    default = Some(ConfigDefaults.DefaultDisableInfeasibilityChecks),
+  val analyzeInfeasiblePaths: ScallopOption[Boolean] = opt[Boolean](
+    name = "analyzeInfeasiblePaths",
+    descr = "Enable analysis of infeasible paths by making the verification step through all paths (even if provably infeasible)",
+    default = Some(ConfigDefaults.DefaultAnalyzeInfeasiblePaths),
     noshort = true
   )
 
   val enableDependencyAnalysis: ScallopOption[Boolean] = opt[Boolean](
     name = "enableDependencyAnalysis",
-    descr = "Enable dependency analysis mode",
+    descr = "Enable the verification dependency analysis",
     default = Some(ConfigDefaults.DefaultEnableDependencyAnalysis),
     noshort = true
   )
 
   val dependencyAnalysisMode: ScallopOption[String] = opt[String](
     name = "dependencyAnalysisMode",
-    descr = "Dependency analysis commands (separated by ;) to be executed after verification. Available are `interactive` and all commands supported by the interactive CLI tool.",
+    descr = "Set verification dependency analysis commands (separated by ;) to be executed after verification. Available are `interactive` and all commands supported by the interactive CLI tool.",
     default = ConfigDefaults.DefaultDependencyAnalysisMode,
     noshort = true
   )
 
   val enableUnsatCores: ScallopOption[Boolean] = opt[Boolean](
     name = "enableUnsatCores",
-    descr = "Enables UNSAT cores",
+    descr = "Enable UNSAT cores",
     default = Some(ConfigDefaults.DefaultEnableUnsatCores),
     noshort = true
   )
@@ -1886,7 +1897,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
-    disableInfeasibilityChecks = toInputConfigOption(disableInfeasibilityChecks),
+    analyzeInfeasiblePaths = toInputConfigOption(analyzeInfeasiblePaths),
     enableDependencyAnalysis = toInputConfigOption(enableDependencyAnalysis),
     dependencyAnalysisMode = toInputConfigOption(dependencyAnalysisMode),
     enableUnsatCores = toInputConfigOption(enableUnsatCores),

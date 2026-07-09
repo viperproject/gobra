@@ -17,7 +17,7 @@ class DependencyAnalysisTests extends GobraTests {
       checkConsistency = true,
       z3Exe = z3Exe,
       enableDependencyAnalysis = true,
-      disableInfeasibilityChecks = true,
+      analyzeInfeasiblePaths = true,
       disableTerminationPlugin = true,
       disableCheckTerminationPureFns = true,
       dependencyAnalysisMode = Some("test"),

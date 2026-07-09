@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.frontend.{CliEnumConverter, Config, Hyper, MCE, PackageInfo}
+import viper.gobra.frontend._
 import viper.gobra.reporting.SIFEncodedViperMessage
 import viper.gobra.util.GobraExecutionContext
 import viper.server.ViperConfig
@@ -113,7 +113,7 @@ trait SiliconBasedBackend extends ViperBackend {
       options ++= Vector(s"--numberOfErrorsToReport=${config.numberOfErrorsToReport.get}")
     }
     if (config.dependencyAnalysisMode.isDefined) {
-      options ++= Vector(s"--dependencyAnalysisMode=${config.dependencyAnalysisMode.get}")
+      options ++= Vector(s"--dependencyAnalysisMode", config.dependencyAnalysisMode.get)
     }
 
     options

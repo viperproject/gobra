@@ -363,6 +363,13 @@ case class Config(
       "noVerify" -> noVerify,
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
+      "disableInfeasibilityChecks" -> disableInfeasibilityChecks,
+      "enableDependencyAnalysis" -> enableDependencyAnalysis,
+      "dependencyAnalysisMode" -> dependencyAnalysisMode,
+      "enableUnsatCores" -> enableUnsatCores,
+      "disableTerminationPlugin" -> disableTerminationPlugin,
+      "numberOfErrorsToReport" -> numberOfErrorsToReport,
+
     )
     val maxKeyLen = entries.map(_._1.length).max
     val lines = entries.map { case (k, v) => s"  ${k.padTo(maxKeyLen, ' ')}  $v" }
@@ -596,6 +603,12 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
+    disableInfeasibilityChecks = disableInfeasibilityChecks orElse other.disableInfeasibilityChecks,
+    enableDependencyAnalysis = enableDependencyAnalysis orElse other.enableDependencyAnalysis,
+    dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
+    enableUnsatCores = enableUnsatCores orElse other.enableUnsatCores,
+    disableTerminationPlugin = disableTerminationPlugin orElse other.disableTerminationPlugin,
+    numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
   )
 
   /** Merges this config with another, combining values according to Config.merge semantics.
@@ -698,6 +711,12 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
+      disableInfeasibilityChecks = disableInfeasibilityChecks orElse other.disableInfeasibilityChecks,
+      enableDependencyAnalysis = enableDependencyAnalysis orElse other.enableDependencyAnalysis,
+      dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
+      enableUnsatCores = enableUnsatCores orElse other.enableUnsatCores,
+      disableTerminationPlugin = disableTerminationPlugin orElse other.disableTerminationPlugin,
+      numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
     )
   }
 
@@ -995,7 +1014,13 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
-  )
+    disableInfeasibilityChecks = disableInfeasibilityChecks.value.getOrElse(false),
+    enableDependencyAnalysis = enableDependencyAnalysis.value.getOrElse(false),
+    dependencyAnalysisMode = dependencyAnalysisMode.value.orElse(ConfigDefaults.DefaultDependencyAnalysisMode),
+    enableUnsatCores = enableUnsatCores.value.getOrElse(false),
+    disableTerminationPlugin = disableTerminationPlugin.value.getOrElse(false),
+    numberOfErrorsToReport = numberOfErrorsToReport.value.orElse(ConfigDefaults.DefaultNumberOfErrorsToReport),
+    )
 }
 
 object InputConfig {
@@ -1861,6 +1886,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
+    disableInfeasibilityChecks = toInputConfigOption(disableInfeasibilityChecks),
+    enableDependencyAnalysis = toInputConfigOption(enableDependencyAnalysis),
+    dependencyAnalysisMode = toInputConfigOption(dependencyAnalysisMode),
+    enableUnsatCores = toInputConfigOption(enableUnsatCores),
+    disableTerminationPlugin = toInputConfigOption(disableTerminationPlugin),
+    numberOfErrorsToReport= toInputConfigOption(numberOfErrorsToReport),
   )
 
   /** Converts a ScallopOption to an InputConfigOption using the option's name and value.

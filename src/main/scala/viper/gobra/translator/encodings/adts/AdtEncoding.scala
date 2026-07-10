@@ -15,6 +15,8 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.util.Violation.violation
+import viper.silver.ast.MakeInfoPair
+import viper.silver.dependencyAnalysis.{DependencyType, DependencyTypeInfo}
 import viper.silver.{ast => vpr}
 
 class AdtEncoding extends LeafTypeEncoding {
@@ -93,7 +95,9 @@ class AdtEncoding extends LeafTypeEncoding {
     */
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     case adt: in.AdtDefinition =>
-      val (aPos, aInfo, aErrT) = adt.vprMeta
+      val (aPos, _aInfo, aErrT) = adt.vprMeta
+      val internalDependencyTypeInfo = DependencyTypeInfo(DependencyType.Internal)
+      val aInfo = MakeInfoPair(_aInfo, internalDependencyTypeInfo)
       val adtName = adt.name // X
       val adtT = adtType(adtName)
 
@@ -157,7 +161,8 @@ class AdtEncoding extends LeafTypeEncoding {
       // forall fi1: Fi1, ... :: { X_clausei(fi1, ...) }
       //   X_tag(X_clausei(fi1, ...)) == X_clausei_tag() && X_Fi1(X_clausei(fi1, ...)) )) == fi1 && ...
       val constructorAxioms: Vector[vpr.AnonymousDomainAxiom] = adt.clauses.map(clause => {
-        val (cPos, cInfo, cErrT) = clause.vprMeta
+        val (cPos, _cInfo, cErrT) = clause.vprMeta
+        val cInfo = MakeInfoPair(_cInfo, internalDependencyTypeInfo)
         val clauseFieldDecls = fieldDecls(clause)
         val args = clauseFieldDecls.map(_.localVar)
         val clauseName = clause.name.name
@@ -189,7 +194,8 @@ class AdtEncoding extends LeafTypeEncoding {
       // forall t: X :: {X_clausei_fi1(t)}...{X_clausei_fiN(t)}
       //    X_tag(t) == X_clausei_tag() ==> t == X_clausei(X_clausei_fi1(t), ...)
       val destructorAxioms: Vector[vpr.AnonymousDomainAxiom] = adt.clauses.filter(c => c.args.nonEmpty).map(clause => {
-        val (cPos, cInfo, cErrT) = clause.vprMeta
+        val (cPos, _cInfo, cErrT) = clause.vprMeta
+        val cInfo = MakeInfoPair(_cInfo, internalDependencyTypeInfo)
         val clauseName = clause.name.name
         val variableDecl = adtDecl(cPos, cInfo, cErrT)
         val variable = variableDecl.localVar

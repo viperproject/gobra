@@ -37,7 +37,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       case member: vpr.Member =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
         val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo)
-        member.withMeta(member.pos, newInfo2, member.errT)
+        member.withMeta(member.pos, newInfo2, member.errT) // TODO ake: try to avoid using withMeta
       case stmt: vpr.Stmt =>
         val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info)
         stmt.withMeta(stmt.pos, newInfo, stmt.errT)
@@ -104,18 +104,15 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       case _ => None
     }
 
-    if(sourceInfo.isDefined && sourceFileOpt.exists(s => !s.equals("builtin.gobra")))
+    val builtin = Seq("builtin.gobra") // , "errors.gobra")
+
+    if (sourceInfo.isDefined && sourceFileOpt.exists(s => !builtin.contains(s)))
       pNodeMapper(sourceInfo.get.pnode)
     else {
-      var i = node.info.getUniqueInfo[AnnotationInfo]
-      var break = false
-      while (i.isDefined && !break) {
-        val v = i.get
-        break = v.values.contains("enableDependencyAnalysis") && v.values("enableDependencyAnalysis").contains("false")
-        val updated = v.removeUniqueInfo[AnnotationInfo]
-        i = updated.getUniqueInfo[AnnotationInfo]
-      }
-      if (break) {
+      val annotationInfos = node.info.getAllInfos[AnnotationInfo]
+      val enableDependencyAnalysisInfos = annotationInfos.filter(i =>
+        i.values.contains("enableDependencyAnalysis") && i.values("enableDependencyAnalysis").contains("false"))
+      if (enableDependencyAnalysisInfos.nonEmpty) {
         println(s"node has info: $node")
         node.info
       } else

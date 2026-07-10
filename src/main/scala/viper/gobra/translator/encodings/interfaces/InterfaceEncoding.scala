@@ -796,7 +796,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case Some(b) => b.toMethodBody
       case _ =>
         val targets = p.results.map(out => in.LocalVar(out.id, out.typ)(out.info))
-        val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info)
+        val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info) // TODO ake: should have dependency type internal?
         in.Block(Vector.empty, Vector(call))(p.info).toMethodBody
     }
 

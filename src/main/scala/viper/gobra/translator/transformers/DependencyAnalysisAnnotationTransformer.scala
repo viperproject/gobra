@@ -13,6 +13,7 @@ import viper.silver.dependencyAnalysis.{AnalysisSourceInfo, DependencyTypeInfo}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast, ast => vpr}
 
+import java.nio.file.{Path, Paths}
 import scala.reflect.ClassTag
 
 class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config) extends ViperTransformer {
@@ -23,6 +24,16 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     ((sourceInfo.pNode, sourceInfo.getPosition), n)
   }).toMap
   private val allTypeInfos = typeInfo.getTransitiveTypeInfos().filterNot(_.pkgName.name.contains("builtin")).map(typeInfos => typeInfos.getTypeInfo)
+  private lazy val resourcesDirectory: Seq[Path] = {
+    val resourcesFolder = Option(Thread.currentThread().getContextClassLoader.getResource("")).flatMap { resource =>
+      try {
+        Some(Paths.get(resource.toURI).toAbsolutePath.normalize())
+      } catch {
+        case _: Throwable => None
+      }
+    }
+    resourcesFolder.map(rf => Seq("builtin", "noaxioms", "stubs") map (rf.resolve)).getOrElse(Seq())
+  }
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     if(!config.enableDependencyAnalysis) return Right(task)
@@ -95,18 +106,23 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     sourcePosition
   }
 
+  private def isUnderResources(path: Path): Boolean = {
+    val normalizedPath = path.toAbsolutePath.normalize()
+    resourcesDirectory.exists { resourcesPath =>
+      normalizedPath == resourcesPath || normalizedPath.startsWith(resourcesPath)
+    }
+  }
+
   // TODO ake: review
   private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
     val sourceFileOpt = pos match {
       case position: AbstractSourcePosition =>
-        Some(position.file.getFileName.toString)
+        Some(position.file)
       case _ => None
     }
 
-    val builtin = Seq("builtin.gobra") // , "errors.gobra")
-
-    if (sourceInfo.isDefined && sourceFileOpt.exists(s => !builtin.contains(s)))
+    if (sourceInfo.isDefined && sourceFileOpt.exists(file => !isUnderResources(file)))
       pNodeMapper(sourceInfo.get.pnode)
     else {
       val annotationInfos = node.info.getAllInfos[AnnotationInfo]

@@ -1,11 +1,20 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package issue001024
+package issue001043
 
 pred P()
 
 requires P()
 func test() {
 	package P() --* P() {}
+}
+
+pred Q(x int)
+
+requires Q{_}(42)
+ensures Q{_}(42)
+func testPartiallyAppliedPredicate() {
+	package true --* Q{_}(42) {}
+	apply true --* Q{_}(42)
 }

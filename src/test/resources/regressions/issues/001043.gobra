@@ -10,9 +10,10 @@ package issue001043
 pred P()
 
 requires P()
-ensures  P() --* P()
+ensures  acc(P() --* P(), 2/1)
 func test() {
 	package P() --* P() {}
+	package (P() --* P()) {}
 }
 
 pred Q(x int)

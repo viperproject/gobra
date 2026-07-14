@@ -2537,6 +2537,15 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a parenthesized two-component predicate constructor") {
+    frontend.parseExpOrFail("(pkg.P){x}") should matchPattern {
+      case PPredConstructor(
+        PDottedBase(PDot(PNamedOperand(PIdnUse("pkg")), PIdnUse("P"))),
+        Vector(Some(PNamedOperand(PIdnUse("x")))),
+      ) =>
+    }
+  }
+
   // Without parentheses, `name { args }` parses as the ambiguous `PCompositeLitOrPredConstructor`:
   // the parse tree records that this is *either* a composite literal or a predicate constructor.
   // The decision is made later by `Info.rewritePredConstructors`, which has access to the

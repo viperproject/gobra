@@ -24,16 +24,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     ((sourceInfo.pNode, sourceInfo.getPosition), n)
   }).toMap
   private val allTypeInfos = typeInfo.getTransitiveTypeInfos().filterNot(_.pkgName.name.contains("builtin")).map(typeInfos => typeInfos.getTypeInfo)
-  private lazy val resourcesDirectory: Seq[Path] = {
-    val resourcesFolder = Option(Thread.currentThread().getContextClassLoader.getResource("")).flatMap { resource =>
-      try {
-        Some(Paths.get(resource.toURI).toAbsolutePath.normalize())
-      } catch {
-        case _: Throwable => None
-      }
-    }
-    resourcesFolder.map(rf => Seq("builtin", "noaxioms", "stubs") map (rf.resolve)).getOrElse(Seq())
-  }
+  private lazy val resourceDirectories: Seq[Path] = Seq("builtin", "noaxioms", "stubs") flatMap getResourcesPathOpt
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     if(!config.enableDependencyAnalysis) return Right(task)
@@ -106,13 +97,6 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     sourcePosition
   }
 
-  private def isUnderResources(path: Path): Boolean = {
-    val normalizedPath = path.toAbsolutePath.normalize()
-    resourcesDirectory.exists { resourcesPath =>
-      normalizedPath == resourcesPath || normalizedPath.startsWith(resourcesPath)
-    }
-  }
-
   // TODO ake: review
   private def getAnalysisInfoAnnotation(node: vpr.Infoed, pos: vpr.Position, pNodeMapper: gobra.PNode => vpr.Info, default: vpr.Info): vpr.Info = {
     val sourceInfo = node.info.getUniqueInfo[Verifier.Info]
@@ -143,5 +127,22 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private def disableDependencyAnalysis: AnnotationInfo = {
     AnnotationInfo(Map(("enableDependencyAnalysis", List("false"))))
+  }
+
+  private def getResourcesPathOpt(resource: String): Option[Path] = {
+    Option(Thread.currentThread().getContextClassLoader.getResource(resource)).flatMap { resource =>
+      try {
+        Some(Paths.get(resource.toURI).toAbsolutePath.normalize())
+      } catch {
+        case _: Throwable => None
+      }
+    }
+  }
+
+  private def isUnderResources(path: Path): Boolean = {
+    val normalizedPath = path.toAbsolutePath.normalize()
+    resourceDirectories.exists { resourcesPath =>
+      normalizedPath == resourcesPath || normalizedPath.startsWith(resourcesPath)
+    }
   }
 }

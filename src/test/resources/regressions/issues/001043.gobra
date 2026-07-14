@@ -10,7 +10,7 @@ package issue001043
 pred P()
 
 requires P()
-ensures  acc(P() --* P(), 2/1)
+ensures  (P() --* P()) && (P() --* P())
 func test() {
 	package P() --* P() {}
 	package (P() --* P()) {}

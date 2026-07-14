@@ -3,7 +3,7 @@ package viper.gobra.dependencyAnalysis
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.silver.ast
-import viper.silver.dependencyAnalysis.{AssumptionType, DependencyType, DependencyTypeInfo}
+import viper.silver.dependencyAnalysis._
 import viper.silver.plugin.standard.termination.PDecreasesClause
 
 object GobraDependencyAnalysisHelper {
@@ -29,7 +29,7 @@ object GobraDependencyAnalysisHelper {
 
   private def identifyGobraNodes(pNode: PNode, dependencyTypeOuter: Option[DependencyType]=None)(implicit positionManager: PositionManager, isImported: Boolean): Iterable[ast.Info] = {
 
-    val outerOrPathCondition = dependencyTypeOuter.orElse(Some(DependencyType.PathCondition))
+    val outerOrPathCondition = dependencyTypeOuter.orElse(Some(DependencyType(AssumptionType.PathCondition)))
 
     def go(pNodes: Iterable[PNode], dependencyType: Option[DependencyType]=dependencyTypeOuter) = {
       pNodes.flatMap(identifyGobraNodes(_, dependencyType))
@@ -45,7 +45,7 @@ object GobraDependencyAnalysisHelper {
     def goSpec(spec: PFunctionSpec, isAbstractFunction: Boolean, dependencyType: Option[DependencyType]=dependencyTypeOuter) = {
       val postCondType = AssumptionType.getPostcondType(isAbstractFunction, dependencyType, isImported)
       spec.pres.flatMap(goTopLevelConjuncts(_, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Precondition)))) ++
-        spec.posts.flatMap(goTopLevelConjuncts(_, Some(DependencyType.make(postCondType)))) ++
+        spec.posts.flatMap(goTopLevelConjuncts(_, Some(DependencyType(postCondType)))) ++
         go(spec.terminationMeasures)
     }
 
@@ -66,8 +66,8 @@ object GobraDependencyAnalysisHelper {
       val enforcedDepTypeOpt = pNode match {
         case _: PAssert | _: PExhale | _: PRefute => Some(DependencyType.ExplicitAssertion)
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
-        case _: PParameter | _: PResult | _: PReceiver => Some(DependencyType.Internal)
-        case _: PPkgInvariant => Some(DependencyType.Invariant)
+        case _: PParameter | _: PResult | _: PReceiver => Some(AssumptionType.Internal.asDepType())
+        case _: PPkgInvariant => Some(DependencyType(AssumptionType.LoopInvariant))
         case _ => None
       }
 
@@ -77,16 +77,16 @@ object GobraDependencyAnalysisHelper {
         dependencyType.get
       else
         pNode match {
-          case _: PInvoke => DependencyType.MethodCall
-          case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType.Rewrite
-          case _: PExplicitGhostStatement => DependencyType.Ghost
-          case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType.Ghost
+          case _: PInvoke => DependencyType(AssumptionType.MethodCall)
+          case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType(AssumptionType.Rewrite)
+          case _: PExplicitGhostStatement => DependencyType(AssumptionType.Ghost)
+          case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType(AssumptionType.Ghost)
           case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)
           case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
           case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
           case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)
-          case _: PActualStatement => DependencyType.SourceCode
-          case _ => DependencyType.SourceCode
+          case _: PActualStatement => DependencyType(AssumptionType.SourceCode)
+          case _ => DependencyType(AssumptionType.SourceCode)
         }
 
     }
@@ -110,8 +110,8 @@ object GobraDependencyAnalysisHelper {
       case PPackage(packageClause, programs, _, _) => go(packageClause +: programs)
       case PProgram(packageClause, pkgInvariants, imports, friends, declarations) => go(packageClause +: (pkgInvariants ++ imports ++ friends ++ declarations))
       case PPreamble(packageClause, pkgInvariants, imports, friends, _) => go(packageClause +: (pkgInvariants ++ imports ++ friends))
-      case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))
-      case PFriendPkgDecl(_, assertion) => goS(assertion, Some(DependencyType.Annotation))
+      case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv, Some(DependencyType(AssumptionType.LoopInvariant)))
+      case PFriendPkgDecl(_, assertion) => goS(assertion, Some(DependencyType(AssumptionType.Annotation)))
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)
@@ -124,14 +124,14 @@ object GobraDependencyAnalysisHelper {
 //      case PAnnotatedExp(exp, _) => goS(exp)
 
       // functions and methods
-      case PFunctionDecl(id, args, result, spec, body) => go(Set(id, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2), if(spec.isPure) Some(DependencyType.make(AssumptionType.FunctionBody)) else dependencyTypeOuter)
+      case PFunctionDecl(id, args, result, spec, body) => go(Set(id, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2), if(spec.isPure) Some(DependencyType(AssumptionType.FunctionBody)) else dependencyTypeOuter)
       case PFunctionLit(id, closure) => goOpt(id) ++ goS(closure)
-      case PMethodDecl(id, receiver, args, result, spec, body) => go(Set(id, receiver, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2), if(spec.isPure) Some(DependencyType.make(AssumptionType.FunctionBody)) else dependencyTypeOuter)
+      case PMethodDecl(id, receiver, args, result, spec, body) => go(Set(id, receiver, result) ++ args) ++ goSpec(spec, body.isEmpty) ++ goOpt(body.map(_._2), if(spec.isPure) Some(DependencyType(AssumptionType.FunctionBody)) else dependencyTypeOuter)
       case PMethodImplementationProof(id, receiver, args, result, _, body) => goOpt(body.map(_._2)) ++ go(Set(id, receiver, result) ++ args)
       case funcSpec: PFunctionSpec => goSpec(funcSpec, !funcSpec.isTrusted)
       case PMethodSig(id, args, result, spec, _) => go(Set(id, result) ++ args) ++ goSpec(spec, isAbstractFunction=true)
       case PResult(params) => go(params)
-      case PExplicitGhostMember(m) => go(Set(m)) // TODO ake: for ghost code Some(DependencyType.Ghost)
+      case PExplicitGhostMember(m) => go(Set(m)) // TODO ake: for ghost code Some(DependencyType(Ghost))
       case PImplementationProof(_, _, _, methodImplProofs) => go(methodImplProofs)
 
       // TODO ake: closures
@@ -150,7 +150,7 @@ object GobraDependencyAnalysisHelper {
         goS(range, outerOrPathCondition) ++ go(ass, outerOrPathCondition) ++ goS(spec) ++ goS(body)
       case PShortForRange(range, shorts, _, spec, body) =>
         goS(range, outerOrPathCondition) ++ go(shorts, outerOrPathCondition) ++ goS(spec) ++ goS(body)
-      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType.Invariant))) ++ goOpt(terminationMeasure, Some(DependencyType.Annotation))
+      case PLoopSpec(invs, terminationMeasure) => invs.flatMap(inv => goTopLevelConjuncts(inv, Some(DependencyType(AssumptionType.LoopInvariant)))) ++ goOpt(terminationMeasure, Some(DependencyType(AssumptionType.Annotation)))
 
       // switch-case, match TODO ake: should matched expr be a dependency of all clauses?
       case PExprSwitchStmt(pre, exp, cases, dflt) => goOpt(pre) ++ goS(exp, outerOrPathCondition) ++ go(cases ++ dflt)
@@ -171,8 +171,8 @@ object GobraDependencyAnalysisHelper {
 
       // TODO ake: what to do with those?
       case POutline(body, spec) => goS(body) ++ goSpec(spec, isAbstractFunction=false)
-      case PWildcardMeasure(cond) => goOpt(cond, Some(DependencyType.Invariant))
-      case PTupleTerminationMeasure(tuple, cond) => go(tuple, Some(DependencyType.Invariant)) ++ goOpt(cond, Some(DependencyType.Invariant))
+      case PWildcardMeasure(cond) => goOpt(cond, Some(DependencyType(AssumptionType.LoopInvariant)))
+      case PTupleTerminationMeasure(tuple, cond) => go(tuple, Some(DependencyType(AssumptionType.LoopInvariant))) ++ goOpt(cond, Some(DependencyType(AssumptionType.LoopInvariant)))
 
       // ensure dependencies are determine on conjunct-level by splitting top-level conjunctions
       case PAssume(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssumption))
@@ -181,7 +181,7 @@ object GobraDependencyAnalysisHelper {
       case PExhale(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssertion))
       case PRefute(exp) => goTopLevelConjuncts(exp, Some(DependencyType.ExplicitAssertion))
 
-      // TODO ake: for ghost code Some(DependencyType.Ghost)
+      // TODO ake: for ghost code Some(DependencyType(Ghost))
       case PExplicitGhostStatement(stmt) => goS(stmt)
       case PMatchStatement(exp, clauses, _) => goS(exp) ++ go(clauses)
       case PMatchStmtCase(pattern, stmts, _) => goS(pattern) ++ go(stmts)

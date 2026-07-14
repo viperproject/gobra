@@ -16,7 +16,7 @@ import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.MakeInfoPair
-import viper.silver.dependencyAnalysis.{DependencyType, DependencyTypeInfo}
+import viper.silver.dependencyAnalysis.{AssumptionType, DependencyTypeInfo}
 import viper.silver.{ast => vpr}
 
 class AdtEncoding extends LeafTypeEncoding {
@@ -96,7 +96,7 @@ class AdtEncoding extends LeafTypeEncoding {
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     case adt: in.AdtDefinition =>
       val (aPos, _aInfo, aErrT) = adt.vprMeta
-      val internalDependencyTypeInfo = DependencyTypeInfo(DependencyType.Internal)
+      val internalDependencyTypeInfo = DependencyTypeInfo(AssumptionType.Internal.asDepType())
       val aInfo = MakeInfoPair(_aInfo, internalDependencyTypeInfo)
       val adtName = adt.name // X
       val adtT = adtType(adtName)

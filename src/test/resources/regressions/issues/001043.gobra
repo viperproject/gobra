@@ -3,18 +3,28 @@
 
 package issue001043
 
+// tests that `package P() --* P() {}` is not parsed as a predicate constructor but as a package
+// statement with empty body.
+// in addition, this file tests that one can use predicate constructors within magic wands.
+
 pred P()
 
 requires P()
+ensures  P() --* P()
 func test() {
 	package P() --* P() {}
 }
 
 pred Q(x int)
 
+pred R(x int) {
+	true
+}
+
 requires Q{_}(42)
 ensures Q{_}(42)
 func testPartiallyAppliedPredicate() {
-	package true --* Q{_}(42) {}
-	apply true --* Q{_}(42)
+	package R{42}() --* Q{_}(42) {}
+	fold R{42}()
+	apply R{42}() --* Q{_}(42)
 }

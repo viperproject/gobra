@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.interfaces
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.dependencyAnalysis.ImplementationProofSourceInfo
+import viper.gobra.dependencyAnalysis.ImplProofDependencyAnalysisSourceInfo
 import viper.gobra.reporting._
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -194,7 +194,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
 
         val depAnJoinInfo = MakeInfoPair(
-          SimpleDependencyAnalysisJoin(ImplementationProofSourceInfo(exp.typ, toType), JoinType.Sink, EdgeType.Down),
+          SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(exp.typ, toType), JoinType.Sink, EdgeType.Down),
           AdditionalAssertionNode())
         val dependencyAnalysisEnhancedInfo = MakeInfoPair(info, depAnJoinInfo)
         if (Comparability.comparable(exp.typ)(ctx.lookup).isDefined) {
@@ -773,7 +773,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplementationProofSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
+    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
 
     // TODO ake: should every proof obligation in the impl proof be a dependency of every upcast?
     pureMethodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT))
@@ -824,7 +824,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplementationProofSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
+    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
 
     // TODO ake: should every proof obligation in the impl proof be a dependency of every upcast?
     methodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT))

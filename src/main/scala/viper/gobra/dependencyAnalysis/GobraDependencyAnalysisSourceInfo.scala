@@ -3,9 +3,9 @@ package viper.gobra.dependencyAnalysis
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.internal.Type
 import viper.silver.ast.{NoPosition, Position}
-import viper.silver.dependencyAnalysis.AnalysisSourceInfo
+import viper.silver.dependencyAnalysis.DependencyAnalysisSourceInfo
 
-case class GobraAnalysisSourceInfo(pNode: PNode, pos: Position) extends AnalysisSourceInfo {
+case class GobraDependencyAnalysisSourceInfo(pNode: PNode, pos: Position) extends DependencyAnalysisSourceInfo {
   override def toString: String = getDescription + " (" + super.toString + ")"
 
   override def getDescription: String = pNode.toString.replaceAll("\n", "\t")
@@ -13,7 +13,7 @@ case class GobraAnalysisSourceInfo(pNode: PNode, pos: Position) extends Analysis
   override def getPosition: Position = pos
 }
 
-case class ImplementationProofSourceInfo(fromType: Type, toType: Type) extends AnalysisSourceInfo {
+case class ImplProofDependencyAnalysisSourceInfo(fromType: Type, toType: Type) extends DependencyAnalysisSourceInfo {
   override def getDescription: String = s"Implementation proof from $fromType to $toType"
 
   override def getPosition: Position = NoPosition

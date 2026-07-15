@@ -3,13 +3,13 @@ package viper.gobra.translator.transformers
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.ast.{frontend => gobra}
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.dependencyAnalysis.{GobraAnalysisSourceInfo, GobraDependencyAnalysisHelper}
+import viper.gobra.dependencyAnalysis.{GobraDependencyAnalysisHelper, GobraDependencyAnalysisSourceInfo}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.dependencyAnalysis.{AnalysisSourceInfo, DependencyTypeInfo}
+import viper.silver.dependencyAnalysis.{DependencyAnalysisSourceInfo, DependencyTypeInfo}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast, ast => vpr}
 
@@ -20,7 +20,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
   private lazy val gobraNodes: Iterable[ast.Info] = GobraDependencyAnalysisHelper.identifyGobraNodes(typeInfo)
   private lazy val gNodes = gobraNodes.map(n => {
-    val sourceInfo = n.getUniqueInfo[GobraAnalysisSourceInfo].get
+    val sourceInfo = n.getUniqueInfo[GobraDependencyAnalysisSourceInfo].get
     ((sourceInfo.pNode, sourceInfo.getPosition), n)
   }).toMap
   private val allTypeInfos = typeInfo.getTransitiveTypeInfos().filterNot(_.pkgName.name.contains("builtin")).map(typeInfos => typeInfos.getTypeInfo)
@@ -55,7 +55,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     if (depInfoOpt.isDefined) {
       val depInfo = depInfoOpt.get
       // do not override existing infos
-      val newInfo = attachInfoIfNotExists[AnalysisSourceInfo](oldInfo, depInfo)
+      val newInfo = attachInfoIfNotExists[DependencyAnalysisSourceInfo](oldInfo, depInfo)
       val resInfo = attachInfoIfNotExists[DependencyTypeInfo](newInfo, depInfo)
       resInfo
     } else

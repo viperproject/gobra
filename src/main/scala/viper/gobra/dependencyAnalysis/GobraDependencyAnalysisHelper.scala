@@ -97,7 +97,7 @@ object GobraDependencyAnalysisHelper {
         val end = positionManager.positions.getFinish(pNode).get
         val sourcePosition = ast.TranslatedPosition(positionManager.translate(start, end))
         val depTypeInfo = DependencyTypeInfo(getDependencyTypeForPNode(pNode, dependencyType))
-        val analysisSourceInfo =  GobraAnalysisSourceInfo(pNode, sourcePosition)
+        val analysisSourceInfo =  GobraDependencyAnalysisSourceInfo(pNode, sourcePosition)
         val info = ast.MakeInfoPair(depTypeInfo,  analysisSourceInfo)
         Set(info)
       } catch {

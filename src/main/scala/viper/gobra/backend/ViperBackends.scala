@@ -54,7 +54,7 @@ trait ViperBackend extends CliEnumConverter.EnumCase {
 trait SiliconBasedBackend extends ViperBackend {
   override protected def buildOptions(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): Vector[String] = {
     var options: Vector[String] = super.buildOptions(exePaths, config, pkgInfo)
-    options ++= Vector("--logLevel", "WARN")
+    options ++= Vector("--logLevel", "ERROR")
     options ++= Vector("--disableCatchingExceptions")
     if (config.conditionalizePermissions) {
       options ++= Vector("--conditionalizePermissions")

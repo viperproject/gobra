@@ -54,6 +54,8 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     attr[PExpression, AddrMod] {
       case PNamedOperand(id) => addressableVar(id)
       case PBlankIdentifier() => AddrMod.defaultValue
+      // resolved into PCompositeLit/PPredConstructor before type-checking; unreachable here
+      case n: PCompositeLitOrPredConstructor => Violation.violation(s"unresolved literal/predicate-constructor ambiguity: $n")
       case _: PTypeExpr => AddrMod.defaultValue
       case _: PDeref => AddrMod.dereference
       case PIndexedExp(base, _) =>
@@ -99,13 +101,14 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PPermission => AddrMod.rValue
       case _: PPredConstructor => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
+      case n: PAsserting => AddrMod.asserting(addressability(n.op))
       case n: PLet => AddrMod.let(addressability(n.op))
       case _: POld | _: PLabeledOld | _: PBefore => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess | _: PMagicWand => AddrMod.rValue
       case _: PClosureImplements => AddrMod.rValue
-      case _: PTypeOf | _: PIsComparable => AddrMod.rValue
-      case _: PIn | _: PMultiplicity | _: PSequenceAppend |
+      case _: PTypeOf | _: PIsComparable | _: PLow | _: PLowContext | _: PRel => AddrMod.rValue
+      case _: PElem | _: PMultiplicity | _: PSequenceAppend |
            _: PGhostCollectionExp | _: PRangeSequence | _: PUnion | _: PIntersection |
            _: PSetMinus | _: PSubset | _: PMapKeys | _: PMapValues => AddrMod.rValue
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue

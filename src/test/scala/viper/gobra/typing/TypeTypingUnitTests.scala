@@ -358,12 +358,13 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
       PPackageClause(PPkgDef("pkg")),
       Vector(),
       Vector(),
+      Vector(),
       Vector(PMethodDecl(
         PIdnDef("foo"),
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         stubParams(ts),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = true),
+        PFunctionSpec(Vector(), Vector(), Vector(), isPure = true),
         None
       ))
     )

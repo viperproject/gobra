@@ -53,23 +53,22 @@ case class PPackage(
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     // init postconditions describe the state and resources right
-                     // after this program is initialized
-                     initPosts: Vector[PExpression],
+                     pkgInvariants: Vector[PPkgInvariant],
                      imports: Vector[PImport],
+                     friends: Vector[PFriendPkgDecl],
                      declarations: Vector[PMember]
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
 
 case class PPreamble(
                       packageClause: PPackageClause,
-                      // init postconditions describe the state and resources right
-                      // after this program is initialized
-                      initPosts: Vector[PExpression],
+                      pkgInvariants: Vector[PPkgInvariant],
                       imports: Vector[PImport],
+                      friends: Vector[PFriendPkgDecl],
                       positions: PositionManager,
                     ) extends PNode with PUnorderedScope
 
+case class PPkgInvariant(inv: PExpression, duplicable: Boolean) extends PNode
 
 class PositionManager(val positions: Positions) extends Messaging(positions) {
 
@@ -123,6 +122,8 @@ case class PImplicitQualifiedImport(importPath: String, importPres: Vector[PExpr
 }
 
 case class PUnqualifiedImport(importPath: String, importPres: Vector[PExpression]) extends PImport
+
+case class PFriendPkgDecl(path: String, assertion: PExpression) extends PNode
 
 sealed trait PGhostifiable extends PNode
 
@@ -428,6 +429,17 @@ case class PStringLit(lit: String) extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
+/**
+  * Transient node for the surface syntax `name{...}` / `qual.name{...}`, which is ambiguous
+  * between a composite literal ([[PCompositeLit]]) and a predicate constructor
+  * ([[PPredConstructor]]): both share the same `name{ args }` shape. The parser emits this node
+  * for the ambiguous (name-typed) shapes, and it is resolved into one of the two concrete nodes
+  * before type-checking (see [[viper.gobra.frontend.Parser.PredicateConstructorRewriter]]). It
+  * therefore never reaches a well-formed type-checking run; the type checker rejects it outright
+  * so that a missed resolution fails loudly instead of being silently mis-interpreted.
+  */
+case class PCompositeLitOrPredConstructor(typ: PLiteralType, lit: PLiteralValue) extends PActualExpression
+
 sealed trait PShortCircuitMisc extends PMisc
 
 case class PLiteralValue(elems: Vector[PKeyedElement]) extends PShortCircuitMisc with PActualMisc
@@ -583,6 +595,10 @@ case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualEx
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
+case class PAsserting(ass: PExpression, op: PExpression) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
+}
+
 case class PLet(ass: PShortVarDecl, op: PExpression) extends PGhostExpression with PProofAnnotation with PScope {
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
@@ -662,6 +678,7 @@ sealed abstract class PGhostPredeclaredType(override val name: String) extends P
 case class PBoolType() extends PActualPredeclaredType("bool")
 case class PStringType() extends PActualPredeclaredType("string")
 case class PPermissionType() extends PGhostPredeclaredType("perm")
+case class PIntegerGhostType() extends PGhostPredeclaredType("integer") with PIntegerType
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PActualPredeclaredType("int") with PIntegerType
@@ -874,15 +891,9 @@ object PGhostifier {
   * Termination Measures
   */
 
-sealed trait PTerminationMeasure extends PNode {
-  val isConditional: Boolean
-}
-case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure {
-  override val isConditional: Boolean = cond.nonEmpty
-}
-case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure {
-  override val isConditional: Boolean = cond.nonEmpty
-}
+sealed trait PTerminationMeasure extends PNode
+case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure
 
 /**
   * Specification
@@ -890,16 +901,33 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 
 sealed trait PSpecification extends PGhostNode
 
+sealed trait PFunctionSpecClause extends PNode {
+  def exp: PExpression
+}
+case class PRequires(exp: PExpression) extends PFunctionSpecClause
+case class PPreserves(exp: PExpression) extends PFunctionSpecClause
+case class PEnsures(exp: PExpression) extends PFunctionSpecClause
+
 case class PFunctionSpec(
-                          pres: Vector[PExpression],
-                          preserves: Vector[PExpression],
-                          posts: Vector[PExpression],
+                          clauses: Vector[PFunctionSpecClause],
                           terminationMeasures: Vector[PTerminationMeasure],
                           backendAnnotations: Vector[PBackendAnnotation],
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
-                      ) extends PSpecification
+                          mayBeUsedInInit: Boolean = false,
+                      ) extends PSpecification {
+  /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
+  def pres: Vector[PExpression] = clauses.collect {
+    case PRequires(exp) => exp
+    case PPreserves(exp) => exp
+  }
+  /** returns all expressions that constitute the postcondition, i.e., includes preserved clauses */
+  def posts: Vector[PExpression] = clauses.collect {
+    case PPreserves(exp) => exp
+    case PEnsures(exp) => exp
+  }
+}
 
 case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
 
@@ -975,6 +1003,15 @@ case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement w
 
 case class PAssert(exp: PExpression) extends PGhostStatement
 
+sealed trait PAssertBy extends PGhostStatement {
+  def exp: PExpression
+  def block: PBlock
+}
+
+case class PAssertByProof(exp: PExpression, block: PBlock) extends PAssertBy
+
+case class PAssertByContra(exp: PExpression, block: PBlock) extends PAssertBy
+
 case class PRefute(exp: PExpression) extends PGhostStatement
 
 case class PAssume(exp: PExpression) extends PGhostStatement
@@ -987,9 +1024,13 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement with PDeferrable
 
+case class POpenDupPkgInv() extends PGhostStatement with PDeferrable
+
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
 case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
+case class PAssignSuchThat(left: PIdnDef, typ: PType, cond: PExpression) extends PGhostStatement
 
 case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
 
@@ -1065,6 +1106,12 @@ case class PTypeExpr(typ: PType) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
+case class PLow(exp: PExpression) extends PGhostExpression
+
+case class PLowContext() extends PGhostExpression
+
+case class PRel(exp: PExpression, lit: PIntLit) extends PGhostExpression
+
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */
@@ -1089,10 +1136,10 @@ case class POptionGet(exp : PExpression) extends PGhostExpression
 sealed trait PGhostCollectionExp extends PGhostExpression
 
 /**
-  * Represents expressions of the form "`left` in `right`",
-  * that is, membership of a ghost collection.
+  * Represents expressions of the form "`left` elem `right`",
+  * that is, membership of the element `left` in a ghost collection `right`.
   */
-case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
+case class PElem(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"
@@ -1224,6 +1271,8 @@ case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
 /* ** (Mathematical) Map expressions */
 sealed trait PMathMapExp extends PUnorderedGhostCollectionExp
+
+case class PMathMapConversion(exp : PExpression) extends PMathMapExp
 
 /**
   * Set of keys of a mathematical or actual map

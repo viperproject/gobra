@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks that ADTs do not get dropped by the product construction
+
+// ##(--hyperMode on)
+
+package adtsSimple01
+
+ghost type MyAdt adt {
+    wrapper{ value int }
+}
+
+ghost
+decreases
+requires low(i)
+ensures  low(res)
+func test(i int) (res MyAdt) {
+    res = wrapper{ i + 42 }
+    return
+}

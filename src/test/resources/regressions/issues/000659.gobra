@@ -10,7 +10,7 @@ type Node struct {
 pred (s *Set)mem(){
     acc(s) &&
     acc(s.nodes) &&
-    forall i int:: i in domain(s.nodes) ==> acc(s.nodes[i])
+    forall i int:: i elem domain(s.nodes) ==> acc(s.nodes[i])
 }
 
 type Set struct {
@@ -19,7 +19,7 @@ type Set struct {
 
 requires s.mem()
 requires acc(n)
-requires !(k in unfolding s.mem() in domain(s.nodes))
+requires !(k elem unfolding s.mem() in domain(s.nodes))
 func (s *Set) add2(n *Node, k int){
     unfold s.mem()
     _,ok := s.nodes[0];

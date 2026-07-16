@@ -6,8 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.internal.{Float32T, Float64T}
-import viper.gobra.frontend.info.base.Type.{ActualPointerT, ArrayT, AssertionT, BooleanT, ChannelT, GhostPointerT, GhostSliceT, IntT, InternalTupleT, MapT, MultisetT, PermissionT, SequenceT, SetT, Single, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, ArrayT, AssertionT, BooleanT, ChannelT, FloatT, GhostPointerT, GhostSliceT, IntT, InternalTupleT, MapT, MultisetT, PermissionT, SequenceT, SetT, Single, SliceT, Type, UnboundedFloatT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -27,10 +26,10 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
 
           case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[IntT] => Some(a)
           case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
-          case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[Float64T] => Some(a)
-          case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[Float64T] => Some(b)
-          case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[Float32T] => Some(a)
-          case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[Float32T] => Some(b)
+          case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[FloatT] => Some(a)
+          case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[FloatT] => Some(b)
+          case (a, UnboundedFloatT) if underlyingType(a).isInstanceOf[FloatT] => Some(a)
+          case (UnboundedFloatT, b) if underlyingType(b).isInstanceOf[FloatT] => Some(b)
           case (BooleanT, AssertionT) => Some(AssertionT)
           case (AssertionT, BooleanT) => Some(AssertionT)
           case (IntT(_), PermissionT) => Some(PermissionT)

@@ -8,5 +8,5 @@ func foo(ghost x int, ghost m mset[bool]) {
 
   // fails: operands are of incompatible types
   //:: ExpectedOutput(type_error)
-  b = x in m
+  b = x elem m
 }

@@ -4,15 +4,32 @@
 package issue000841
 
 type J interface {
-	// Type error, pure function does not have termination measures.
+	// Type error, pure interface method does not have a termination measure.
 	//:: ExpectedOutput(type_error)
 	pure
-	// Type error, pure function cannot have variadic parameters.
+	M1(a int) int
+
+	// Type error, we do not permit conditional termination measures for members that must terminate.
 	//:: ExpectedOutput(type_error)
-	M(a ...int) int
+	decreases if a == 42
+	pure
+	M2(a int) int
+
+	decreases
+	pure
+	// Type error, pure interface method cannot have variadic parameters.
+	//:: ExpectedOutput(type_error)
+	M3(a ...int) int
+
+	// Type error, pure interface method must have exactly one result parameter.
+	// The error is reported at the start of the method specification.
+	//:: ExpectedOutput(type_error)
+	decreases
+	pure
+	M4(a int)
 }
 
 pure
 //:: ExpectedOutput(type_error)
-decreases _ if b
+decreases _ if b // we syntactically disallow conditional termination measures for members that must terminate
 func f(b bool) bool

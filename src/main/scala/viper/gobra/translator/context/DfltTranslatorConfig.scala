@@ -8,6 +8,7 @@ package viper.gobra.translator.context
 
 import viper.gobra.ast.internal.GlobalVarDecl
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.Config
 import viper.gobra.translator.encodings._
 import viper.gobra.translator.encodings.adts.AdtEncoding
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
@@ -49,7 +50,7 @@ class DfltTranslatorConfig(
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,
   val unknownValue: UnknownValues = new UnknownValuesImpl,
-) extends TranslatorConfig {
+)(config: Config) extends TranslatorConfig {
 
   val seqToMultiset : SeqToMultiset = new SeqToMultisetImpl(seqMultiplicity)
   val optionToSeq : OptionToSeq = new OptionToSeqImpl(option)
@@ -66,7 +67,7 @@ class DfltTranslatorConfig(
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding, new PermissionEncoding,
-      new PointerEncoding, new StructEncoding, arrayEncoding, new ClosureEncoding, new InterfaceEncoding,
+      new PointerEncoding, new StructEncoding, arrayEncoding, new ClosureEncoding(config), new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding, new AdtEncoding,
       new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,

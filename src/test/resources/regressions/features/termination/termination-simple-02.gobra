@@ -21,7 +21,7 @@ requires v >= 0
 decreases v
 func(x FactEvenImpl) factEven(v int) int {
 	if v == 0 {
-		return 0
+		return 1
 	} else {
 		var y FactOdd = FactOddImpl{}
 		return v * y.factOdd(v-1)
@@ -34,7 +34,7 @@ requires v >= 0
 decreases v
 func(y FactOddImpl) factOdd(v int) int {
 	if v == 0 {
-		return 0
+		return 1
 	} else if v == 1 {
 		return 1
 	} else {

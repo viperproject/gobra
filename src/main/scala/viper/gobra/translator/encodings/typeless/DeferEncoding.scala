@@ -55,7 +55,7 @@ class DeferEncoding extends Encoding {
       val appliedCore = Core.core(n.stmt).run(vars)
 
       val vprVars = vars map ctx.variable // temporary variables
-      val activationVar = vpr.LocalVarDecl(s"${name}_activation", vpr.Bool)(pos,info,errT) // activation variable
+      val activationVar = vpr.LocalVarDecl(s"${name}_activation", vpr.Bool)(pos, info, errT) // activation variable
 
       val w = ml.block(ctx.statement(appliedCore))
 
@@ -66,7 +66,7 @@ class DeferEncoding extends Encoding {
         })
         _ <- collect(Defer(activationVar, vprVars, w))
         // active = true
-      } yield vpr.LocalVarAssign(activationVar.localVar, vpr.BoolLit(b = true)(pos,info,errT))(): vpr.Stmt
+      } yield vpr.LocalVarAssign(activationVar.localVar, vpr.BoolLit(b = true)(pos, info, errT))(pos, info, errT): vpr.Stmt
   }
 
   override def extendStatement(ctx: Context): in.Stmt ==> Extension[CodeWriter[vpr.Stmt]] = {

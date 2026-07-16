@@ -10,6 +10,7 @@ var A@ = 1
 //:: ExpectedOutput(function_termination_error)
 var _, B@ = f()
 
+mayInit
 func f() (int, bool)
 
 func testRead() {

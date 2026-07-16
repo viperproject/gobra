@@ -109,7 +109,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case None => withSrc(sliceFromArray(unboxedBaseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromArray(unboxedBaseT, lowT, highT, maxT)(ctx), exp)
       }
-
       case n@in.Slice(base :: ctx.*(t: in.ArrayT), low, high, max, _) =>
         val baseInfo = base.info
         val derefBase = in.Deref(base, in.PointerT(t, t.addressability))(baseInfo)

@@ -434,7 +434,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "(x in xs)" =>
+      case "(x elem xs)" =>
     }
   }
 
@@ -448,7 +448,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "((x in xs) in ys)" =>
+      case "((x elem xs) elem ys)" =>
     }
   }
 
@@ -462,7 +462,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "(set[bool°] { true, false } in set[set[set[int°]°]°] { })" =>
+      case "(set[bool°] { true, false } elem set[set[set[int°]°]°] { })" =>
     }
   }
 
@@ -639,7 +639,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "(2 in mset[int°] { 1, 2, 3 })" =>
+      case "(2 elem mset[int°] { 1, 2, 3 })" =>
     }
   }
 

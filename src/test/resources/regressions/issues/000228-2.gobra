@@ -62,7 +62,7 @@ func testSeq1() {
 
 func testSets1() {
 	s := TSet{10, 11, 12, 13, 14}
-	assert 11 in s
+	assert 11 elem s
 	assert len(s) == 5
 
 	m := TMSet{10, 10, 11, 12, 13, 14}

@@ -335,6 +335,12 @@ case class MethodBody(
                        postprocessing: Vector[Stmt] = Vector.empty,
                      )(val info: Source.Parser.Info) extends Stmt
 
+object MethodBody {
+  def empty(info: Source.Parser.Info): MethodBody = {
+    MethodBody(Vector.empty, MethodBodySeqn(Vector.empty)(info), Vector.empty)(info)
+  }
+}
+
 /**
   * This node serves as a target of encoding extensions. See [[viper.gobra.translator.encodings.combinators.TypeEncoding.Extension]]
   * Return statements jump exactly to the end of the encoding of this statement.
@@ -437,6 +443,15 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
+sealed trait AssertBy extends Stmt {
+  def ass: Assertion
+  def proof: Stmt
+}
+case class AssertByProof(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+case class AssertByContra(ass: Assertion, proof: Stmt)(val info: Source.Parser.Info) extends AssertBy
+
+case class AssignSuchThat(v: LocalVar, cond: Expr)(val info: Source.Parser.Info) extends Stmt
+
 case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt with Deferrable {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -512,11 +527,27 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Assertion
-case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
-case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
+sealed trait TerminationMeasure extends Assertion {
+  val cond: Option[Expr]
+  val info: Source.Parser.Info
+}
+
+sealed trait ItfMethodMeasure extends TerminationMeasure
+sealed trait NonItfMethodMeasure extends TerminationMeasure
+sealed trait WildcardMeasure extends TerminationMeasure
+sealed trait TupleTerminationMeasure extends TerminationMeasure {
+  val tuple: Vector[Node]
   require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[Access]), s"Unexpected tuple $tuple")
 }
+
+case class ItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with WildcardMeasure
+case class NonItfMethodWildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with WildcardMeasure
+case class ItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends ItfMethodMeasure with TupleTerminationMeasure
+case class NonItfTupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info)
+  extends NonItfMethodMeasure with TupleTerminationMeasure
 
 sealed trait Accessible extends Node {
   def op: Node
@@ -538,8 +569,6 @@ case class FPredicateAccess(pred: FPredicateProxy, args: Vector[Expr])(val info:
 case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extends PredicateAccess
 
-
-
 sealed trait Expr extends Node with Typed with TriggerExpr
 
 object Expr {
@@ -555,6 +584,11 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
   override def typ: Type = in.typ
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
+}
+
+case class Asserting(assertion: Assertion, in: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = in.typ
+  require(typ.addressability == Addressability.asserting(in.typ.addressability))
 }
 
 case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
@@ -647,7 +681,7 @@ case class Float32TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class Float64TExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
-case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class ArrayTExpr(length: BigInt, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
@@ -658,7 +692,19 @@ case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) e
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
+/* ** Information Flow  */
 
+case class Low(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class LowContext()(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class Rel(exp: Expr, lit: IntLit)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = exp.typ
+}
 
 /* ** Higher-order predicate expressions */
 
@@ -738,6 +784,7 @@ case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val i
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
+    case _: StringT => IntT(Addressability.Exclusive, TypeBounds.Byte)
     case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }
@@ -854,12 +901,12 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents a membership expression "`left` in `right`".
+  * Represents a membership expression "`left` elem `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
   * with the one of `left`.
   */
-case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("elem") {
   override val typ : Type = BoolT(Addressability.rValue)
 }
 
@@ -937,6 +984,17 @@ case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Pars
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
+
+/**
+ * Represents the conversion of a value of type 'map[k]v' to a mathematical map with type 'dict[k]v'
+ */
+case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = expr.typ match {
+    case MapT(k, v, _) => MathMapT(k, v, Addressability.conversionResult)
+    case t => Violation.violation(s"expected a map but got $t")
+  }
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
@@ -1608,4 +1666,3 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
-

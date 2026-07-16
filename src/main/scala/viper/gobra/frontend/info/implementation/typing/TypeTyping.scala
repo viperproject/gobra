@@ -7,14 +7,14 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-
-import scala.collection.immutable.ListMap
-import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
-import viper.gobra.frontend.info.base.Type.{StructT, _}
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.UnderlyingType
+
+import scala.collection.immutable.ListMap
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -66,7 +66,15 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
       if (isRecursiveInterface.isEmpty) {
-        val wellDefIfPureSig = t.methSpecs.flatMap { sig => wellDefIfPureSpec(sig.spec, sig.args, sig.result) }
+        val methodSet = addressableMethodSet(InterfaceT(t, this))
+        val methodsContainMayInit = methodSet.exists {
+          case (_, (m, _)) => m match {
+            case m: SymbolTable.MethodSpec =>
+              m.spec.spec.mayBeUsedInInit
+            case _ => false
+          }
+        }
+
         // The semantics of wildcard termination measures in interface method specifications is not clear.
         // Thus, they are rejected.
         val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
@@ -76,9 +84,26 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => noMessages
           }
         }
-        addressableMethodSet(InterfaceT(t, this)).errors(t) ++
-          wellDefIfPureSig ++
+        val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
+          if (sig.isGhost || sig.spec.isPure)
+            noConditionalMeasureErrors(sig.spec.terminationMeasures)
+          else noMessages
+        }
+        // Pure method signatures in an interface must satisfy the same requirements as pure implementations.
+        // This reuses the shared `wellDefIfPureSpec` checks and, as for pure functions and methods, requires a
+        // termination measure to be provided (unless termination checking of pure members is disabled).
+        val pureSigErrors = t.methSpecs.flatMap { sig =>
+          if (sig.spec.isPure)
+            wellDefIfPureSpec(sig, sig.args, sig.spec) ++
+              error(sig, "Pure interface methods must have termination measures, but none was found.",
+                !config.disableCheckTerminationPureFns && sig.spec.terminationMeasures.isEmpty)
+          else noMessages
+        }
+        methodSet.errors(t) ++
+          error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           sigsWithWildcardMeasuresErrors ++
+          sigsWithConditionalMeasuresErrors ++
+          pureSigErrors ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

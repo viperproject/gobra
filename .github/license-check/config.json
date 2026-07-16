@@ -98,7 +98,9 @@
       "artifact/content/paper.pdf",
       "artifact/content/tutorial.md",
       "artifact/evaluation/**",
-      "src/main/java/**/*.java"
+      "src/main/java/**/*.java",
+      "CLAUDE.md",
+      "AGENTS.md"
     ]
   },
   {

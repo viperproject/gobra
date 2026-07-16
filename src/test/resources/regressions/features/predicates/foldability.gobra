@@ -43,7 +43,7 @@ func interfacePred(itf SomeInterface) bool {
 
 func predTrue() {
     // this should succeed
-    fold PredTrue!<!>()
+    fold PredTrue{}()
 }
 
 func isChannel(channel chan int) {
@@ -59,15 +59,15 @@ func predExprs() bool {
 	x@ := 1
 	y@ := 2
 	// having a predicate constructor as a base is supported:
-	fold eq!<&x, _!>(&x)
-	fold eq!<_, &y!>(&y)
-	fold eq!<_, _!>(&x, &x)
-	fold eq!<&x, &x!>()
+	fold eq{&x, _}(&x)
+	fold eq{_, &y}(&y)
+	fold eq{_, _}(&x, &x)
+	fold eq{&x, &x}()
 	// predicate constructors in unfolding expressions is not supported:
 	//:: ExpectedOutput(type_error)
-	b := unfolding eq!<&x, &x!>() in true
+	b := unfolding eq{&x, &x}() in true
 
-	predExpr := eq!<&x, &x!>;
+	predExpr := eq{&x, &x};
 	//:: ExpectedOutput(type_error)
     fold predExpr()
     //:: ExpectedOutput(type_error)

@@ -5,6 +5,7 @@ project/target/
 target/
 tmp/
 sync/
+gobra_tmp/
 
 logger.log
 .DS_Store

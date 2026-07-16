@@ -41,8 +41,12 @@ object Type {
 
   case class IntT(kind: TypeBounds.IntegerKind) extends PrettyType(kind.name)
 
-  case object Float32T extends PrettyType("float32")
-  case object Float64T extends PrettyType("float64")
+  trait FloatT extends PrettyType
+  /** type for floating point numbers with unbounded precision */
+  case object UnboundedFloatT extends PrettyType("unbounded float") with FloatT
+  trait TypedFloatT extends FloatT
+  case object Float32T extends PrettyType("float32") with TypedFloatT
+  case object Float64T extends PrettyType("float64") with TypedFloatT
 
   case class ArrayT(length: BigInt, elem: Type) extends PrettyType(s"[$length]$elem") {
     require(length >= 0, "The length of an array must be non-negative")

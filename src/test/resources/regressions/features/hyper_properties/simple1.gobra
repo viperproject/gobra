@@ -1,0 +1,274 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on)
+
+// Minimal working example 1 based on the example from
+// https://dl.acm.org/doi/abs/10.1145/3658644.3690303
+
+// 0. The key K is already given.
+// 1. We receive a message M over the network.
+// 2. We compute a "MAC tag" of M using K.
+// 3. We send the computed tag over the network.
+package mwe1
+
+////////////////////////////// I/O Actions ////////////////////////////// 
+// cf. running-example/policy/actions.gobra
+
+// Definition of I/O actions (abstract, for trace).
+ghost type Action adt {
+	RecvIO{int}
+	SendIO{int}
+	// NOTE: I have left out `p` (cf. paper) for now
+	// It would be necessary once we have multiple options of which message to
+	// declassify at some point in order to make this deterministic in the 
+	// previous I/O actions again. However, at the moment, our IOD spec only
+	// allows declassifying one message depending on the previous I/O actions
+	DeclassifyIO{int}
+}
+
+// Extract input of I/O action. 0 signifies no input.
+ghost
+decreases
+pure func (a Action) Input() int {
+	return match a {
+		case RecvIO{?m}: m
+		case SendIO{_}: 0 
+		case DeclassifyIO{_}: 0
+	}
+}
+
+// Extract output of I/O action. 0 signifies no output.
+ghost 
+decreases
+pure func (a Action) Output() int {
+	return match a {
+		case RecvIO{_}: 0
+		case SendIO{?t}: t
+		case DeclassifyIO{?t}: t
+	}
+}
+
+////////////////////////////// Classification spec. ////////////////////////////// 
+// cf. running-example/policy/classification.gobra
+// cf. running-example/classifications/basic.gobra
+
+type ClassificationSpec interface {
+	ghost
+	decreases
+	pure Classification(ghost Action) (ghost s Specification)
+}
+
+// Gives universal access to the trace.
+// `pure` ensures the resulting pointer always points to the same trace.
+ghost
+decreases
+pure func History() *Trace
+
+ghost type Trace adt {
+	Empty{}
+	Snoc{Trace;Action}  // Snoc: reverse cons
+}
+
+ghost type Specification adt {
+	Spec{Observation;Observation}
+}
+
+ghost type Observation adt {
+	Value{int}
+	None{}
+	Some{Observation}
+	Tuple{Observation;Observation}
+}
+
+ghost type ObservationTrace adt {
+	EmptyObs{}
+	SnocObs{
+		InitObs ObservationTrace
+		Observation
+	}
+}
+
+// The following is our assertion language.
+ghost 
+decreases
+pure func True() Observation {
+	return None{}
+}
+
+ghost
+decreases
+pure func Low(v int) Observation {
+	return Value{v}
+}
+
+// Given that all sensitivity preconditions have been satisfied in the trace,
+// this allows us to assume that the sensitivity postconditions are satisfied.
+ghost
+decreases
+requires sig != nil && acc(History(), 1/2) && low(Pre(sig,*History()))
+ensures acc(History(), 1/2) && low(Post(sig,*History()))
+func LowPost(sig ClassificationSpec)
+
+// NOTE: these are the low projections mentioned in the paper
+ghost
+decreases
+pure func pre_(spec Specification) Observation {
+	return match spec {
+		case Spec{?p, _}: p
+	} 
+}
+ghost
+decreases
+pure func post_(spec Specification) Observation {
+	return match spec {
+		case Spec{_, ?q}: q
+	} 
+}
+
+ghost 
+decreases len(trace)
+requires sig != nil
+pure func Pre(sig ClassificationSpec, trace Trace) ObservationTrace {
+	return match trace {
+		case Empty{}: EmptyObs{}
+		case Snoc{?t, ?e}: SnocObs{Pre(sig, t), pre_(sig.Classification(e))}
+	}
+}
+
+ghost 
+decreases len(trace)
+requires sig != nil
+pure func Post(sig ClassificationSpec, trace Trace) ObservationTrace {
+	return match trace {
+		case Empty{}: EmptyObs{}
+		case Snoc{?t, ?e}: SnocObs{Post(sig, t), post_(sig.Classification(e))}
+	}
+}
+
+type DefaultClassification struct {}
+
+ghost
+decreases
+pure func (DefaultClassification) Classification(a Action) Specification {
+	return match a {
+		case DeclassifyIO{?t}: Spec{True(), Low(t)}  // Make `t` low.
+		case _: Spec{Low(a.Output()), Low(a.Input())}
+	}
+}
+
+////////////////////////////// I/O spec. ////////////////////////////// 
+// cf. running-example/policy/iodspec.gobra
+
+// We express the IODSpec as a (IOD-)guarded transition system.
+type IODSpec interface {
+	// `Guard` specifies which I/O actions may be taken, depending on the 
+	// (content of) the action (in particular, not on the sensitivity).
+	ghost 
+	decreases
+	pure Guard(state, ghost Action) bool
+
+	ghost 
+	decreases
+	pure Update(state, ghost Action) state
+}
+
+ghost type Restriction domain {
+	func Reaches(IODSpec, Trace, state) bool
+
+	axiom {
+		forall r IODSpec, t Trace, s state, a Action :: { Snoc{t, a}, Reaches(r, t, s) } Reaches(r, t, s) && r.Guard(s, a) ==> Reaches(r, Snoc{t, a}, r.Update(s, a))
+	}
+}
+
+// Our I/O spec. The state is the private key and the most recently received message.
+type MWE1 struct {}
+
+type state struct {
+	key int
+	lastMsg int
+}
+
+// We allow send, recv to happen at any point.
+// Declassify can only be called on a MAC tag of the most recently received message
+// generated with the private key.
+ghost
+decreases
+pure func (MWE1) Guard(s state, a Action) bool {
+	return match a {
+		// NOTE: This makes our IOD spec well-formed, as what is allowed to be
+		// declassified is now deterministic in the previous I/O actions.
+		case DeclassifyIO{?t}: t == MAC(s.key, s.lastMsg)
+		case _: true
+	}
+}
+
+ghost 
+decreases
+pure func (MWE1) Update(s state, a Action) state {
+	return match a {
+		case RecvIO{?m}: state { key: s.key, lastMsg: m }
+		case _: s
+	}
+}
+
+////////////////////////////// Trusted library I/O ////////////////////////////// 
+// cf. running-example/library/library.gobra
+
+// Receive message `m` over network.
+decreases
+requires acc(History())
+ensures acc(History()) && *History() == Snoc{old(*History()), RecvIO{m}}
+func Recv() (m int)
+
+// Send tag `t` over network.
+decreases
+requires acc(History())
+ensures acc(History()) && *History() == Snoc{old(*History()), SendIO{t}}
+func Send(t int)
+
+// Declassify tag `t`.
+ghost
+decreases
+requires acc(History())
+ensures acc(History()) && *History() == Snoc{old(*History()), DeclassifyIO{t}}
+func Declassify(t int)
+
+
+////////////////////////////// Program ////////////////////////////// 
+
+// Abstract function representing the computation of a MAC.
+// key x message -> MAC tag
+decreases
+pure func MAC(int, int) int
+
+// Receives a message, authenticates it using a MAC, and sends the resulting tag.
+// The state `s` contains the private key of this router, 
+// and the most recently received message.
+// NOTE: it should suffice here to just require Reaches(...) after the program 
+// has terminated, bc. at the moment we definitely terminate and there is no way
+// to violate the I/O spec. and "undo" this violation later on (-> safety property).
+// TODO: in the future, we should probably check this after every I/O action instead?
+// In the original example, I think this is done via the shared invariant.
+preserves acc(History()) && acc(s) && low(Pre(DefaultClassification{}, *History())) && Reaches(MWE1{}, *History(), *s)
+func authenticate(s *state) {
+	// NOTE: forgetting the calls to either of `Declassify` and `LowPost`
+	// would result in a verification error *in the postcondition* (and not in
+	// the call to send), as here, compliance to the classification spec is 
+	// not checked on every I/O call, but instead on the trace at the end of
+	// the function call.
+
+	m := Recv()
+	LowPost(DefaultClassification{})
+	s.lastMsg = m
+
+	t := MAC(s.key, m)
+
+	/* ghost */ Declassify(t)
+	/* ghost */ LowPost(DefaultClassification{})
+	Send(t)
+	// The following call to `LowPost` is the only one not needed (here),
+	// as we don't need the postcondition of the last I/O call to verify
+	// the remainder of the function.
+	/* ghost */ LowPost(DefaultClassification{})
+}

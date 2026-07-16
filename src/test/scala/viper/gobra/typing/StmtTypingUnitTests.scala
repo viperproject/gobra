@@ -62,11 +62,12 @@ class StmtTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PPackageClause(PPkgDef("pkg")),
         Vector(),
         Vector(),
+        Vector(),
         Vector(PFunctionDecl(
           PIdnDef("foo"),
           inArgs.map(_._1),
           PResult(Vector()),
-          PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = false),
+          PFunctionSpec(Vector(), Vector(), Vector(), isPure = false),
           Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
         ))
       )

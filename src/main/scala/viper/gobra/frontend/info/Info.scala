@@ -221,6 +221,79 @@ object Info extends LazyLogging {
     } yield typeInfo
   }
 
+  /**
+    * Resolves the parser's deliberate ambiguity between composite literals and predicate
+    * constructors: turns each `PCompositeLitOrPredConstructor` emitted by the parser into either a
+    * `PCompositeLit` or a `PPredConstructor`, depending on whether its name resolves to a predicate.
+    *
+    * Runs once per package, just before the package's `TypeInfoImpl` is constructed. By that
+    * point all imported packages have been type-checked (Gobra processes packages in
+    * dependency order), so we have access to:
+    *   - the current package's top-level `pred` declarations,
+    *   - the import qualifiers visible in each file (imports are file-scoped), and
+    *   - each imported package's exported function-predicate names (via `dependentTypeInfo`).
+    *
+    * The fpredicate-only restriction on the imported side avoids spurious rewrites of
+    * `pkg.T{...}` when `T` happens to share its name with a method predicate of some imported
+    * type: imported method predicates aren't reachable as `pkg.id`, so they don't compete with
+    * the type-name interpretation here.
+    */
+  private def rewritePredConstructors(
+    pkg: PPackage,
+    deps: Map[AbstractImport, ExternalTypeInfo],
+  ): PPackage = {
+    import viper.gobra.ast.frontend.{PAdtType, PExplicitGhostMember, PExplicitQualifiedImport, PFPredicateDecl, PMPredicateDecl, PProgram, PQualifiedImport, PTypeDef}
+
+    // Tracked separately: the rewriter consults a different bucket per syntactic form
+    // (`IDENT{...}` vs `qual.id{...}`).
+    val localFPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+      case d: PFPredicateDecl => d.id.name
+    }).toSet
+    val localMPredicateNames: Set[String] = pkg.programs.flatMap(_.declarations.collect {
+      case d: PMPredicateDecl => d.id.name
+    }).toSet
+
+    // Local ADT type -> clause names, so the rewriter keeps `X.A{...}` an ADT literal even when
+    // clause `A` collides with an mpredicate name (legal: clauses and mpredicates live in
+    // different namespaces). ADTs are ghost, so unwrap `PExplicitGhostMember` too.
+    val localAdtClauses: Map[String, Set[String]] = pkg.programs.flatMap(_.declarations.collect {
+      case PTypeDef(adt: PAdtType, id) => id.name -> adt.clauses.map(_.id.name).toSet
+      case PExplicitGhostMember(PTypeDef(adt: PAdtType, id)) => id.name -> adt.clauses.map(_.id.name).toSet
+    }).toMap
+
+    // Per-file (per-program) map: import qualifier -> *function*-predicate names declared at the
+    // top level of the imported package. Computed per program because imports are file-scoped: a
+    // qualifier imported in one file of the package is not in scope in another. Method predicates
+    // are omitted (they attach to types and so aren't reachable as `qualifier.id`).
+    def importedFPredicatesFor(prog: PProgram): Map[String, Set[String]] =
+      prog.imports.collect {
+        case pi: PExplicitQualifiedImport =>
+          val names: Set[String] = deps.get(RegularImport(pi.importPath)).toVector.flatMap { extInfo =>
+            val progsOfImportedPkg = extInfo.getTypeInfo match {
+              case ti: TypeInfoImpl => ti.tree.root.programs
+              case _ => Vector.empty
+            }
+            progsOfImportedPkg.flatMap(_.declarations.collect {
+              case d: PFPredicateDecl => d.id.name
+            })
+          }.toSet
+          pi.qualifier.name -> names
+        case pi: PQualifiedImport =>
+          // implicitly qualified imports should have already been resolved to explicit one by
+          // the parser's `ImportPostprocessor`. Thus, any non-explicit, qualified imports are
+          // unexpected:
+          Violation.violation(s"unexpected qualified by non-explicit import left in the Parse AST $pi")
+      }.toMap
+
+    viper.gobra.frontend.Parser.PredicateConstructorRewriter.rewrite(
+      pkg,
+      localFPredicateNames,
+      localMPredicateNames,
+      importedFPredicatesFor,
+      (typeName, clauseName) => localAdtClauses.get(typeName).exists(_.contains(clauseName)),
+    )(pkg.positions.positions)
+  }
+
   type TypeInfoCacheKey = String
   private val typeInfoCache: ConcurrentMap[TypeInfoCacheKey, TypeInfoImpl] = new ConcurrentHashMap()
 
@@ -235,8 +308,7 @@ object Info extends LazyLogging {
       .mkString("")
     val isMainContextKey = if (isMainContext) "1" else "0"
     val configKey = config.typeBounds.hashCode().toString ++
-      (if (config.int32bit) "1" else "0") ++
-      (if (config.enableLazyImports) "1" else "0")
+      (if (config.int32bit) "1" else "0")
 
     val key = pkgKey ++
       dependentTypeInfoKey ++
@@ -256,7 +328,11 @@ object Info extends LazyLogging {
     var cacheHit: Boolean = true
     def getTypeInfo(pkg: PPackage, dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], isMainContext: Boolean, config: Config): TypeInfoImpl = {
       cacheHit = false
-      val tree = new GoTree(pkg)
+      // Resolve `name { args }` composite-literal-vs-predicate-constructor ambiguity now that
+      // we know the current package's predicates and (from `dependentTypeInfo`) those of every
+      // imported package -- see [[rewritePredConstructors]].
+      val rewrittenPkg = rewritePredConstructors(pkg, dependentTypeInfo)
+      val tree = new GoTree(rewrittenPkg)
       new TypeInfoImpl(tree, dependentTypeInfo, isMainContext)(config: Config)
     }
 

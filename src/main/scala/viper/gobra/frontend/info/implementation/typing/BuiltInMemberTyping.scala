@@ -34,25 +34,32 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
         AbstractType(
           {
-            case (n, ts@PermissionT +: s +: v) => underlyingType(s) match {
-              case t: SliceT => v match {
-                case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => noMessages
-                case tail if tail.forall(assignableTo(_, t.elem)) => noMessages
+            case (n, ts@PermissionT +: s +: v) =>
+              val mayInit = isEnclosingMayInit(n)
+              underlyingType(s) match {
+                case t: SliceT => v match {
+                  case Vector(v: VariadicT) if assignableTo(v.elem, t.elem, mayInit) => noMessages
+                  case tail if tail.forall(assignableTo(_, t.elem, mayInit)) => noMessages
+                  case _ => appendTypeError(n, ts)
+                }
                 case _ => appendTypeError(n, ts)
               }
-              case _ => appendTypeError(n, ts)
-            }
             case (n, ts) => appendTypeError(n, ts)
           },
           {
-            case ts@PermissionT +: s +: v => underlyingType(s) match {
-              case t: SliceT => v match {
-                case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => FunctionT(ts, s)
-                case tail if tail.forall(assignableTo(_, t.elem)) => FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
-                case _ => Violation.violation(s"Unexpected pattern found for v: $v")
+            case ts@PermissionT +: s +: v =>
+              underlyingType(s) match {
+                case t: SliceT => v match {
+                  // we use the most permissive `mayInit` parameter here, as we cannot recover precise information
+                  // about whether it is in "mayInit" regions of the code.
+                  case Vector(v: VariadicT) if assignableTo(v.elem, t.elem, false) =>
+                    FunctionT(ts, s)
+                  case tail if tail.forall(assignableTo(_, t.elem, false)) =>
+                    FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
+                  case _ => Violation.violation(s"Unexpected pattern found for v: $v")
+                }
+                case t => Violation.violation(s"expected $s to have a slice type as underlying type, got $t instead")
               }
-              case t => Violation.violation(s"expected $s to have a slice type as underlying type, got $t instead")
-            }
           })
       }
 

@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000943
+
+//:: ExpectedOutput(type_error)
+preserves forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+decreases
+pure func test1(b []int) bool
+
+//:: ExpectedOutput(type_error)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+decreases
+pure func test2(b []int) bool
+
+// Preserves clauses are always unnecessary in pure functions.
+// One should always prefer writing 'requires A' over 'preserves A',
+// as preconditions of pure functions are guaranteed to hold after the
+// call anyway. Gobra now actively rejects the use of preserves clauses
+// in pure functions.
+//:: ExpectedOutput(type_error)
+preserves true
+decreases
+pure func test3(b []int) bool

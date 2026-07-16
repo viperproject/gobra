@@ -1299,7 +1299,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /**
     * Visits the rule
     * primaryExpr: operand | conversion | methodExpr | ghostPrimaryExpr | new_
-    *         | primaryExpr ( (DOT IDENTIFIER)| index| slice_| seqUpdExp| typeAssertion| arguments| predConstructArgs );
+    *         | primaryExpr ( (DOT IDENTIFIER)| index| slice_| seqUpdExp| typeAssertion| arguments)
+    *         | primaryExpr DOT IDENTIFIER predConstructArgs
+    *         | L_PAREN (primaryExpr DOT IDENTIFIER | operandName) R_PAREN predConstructArgs;
     *
     * @param ctx the parse tree
     * @return the unpositioned visitor result
@@ -1313,14 +1315,21 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitPredConstrPrimaryExpr(ctx: PredConstrPrimaryExprContext): AnyRef = super.visitPredConstrPrimaryExpr(ctx) match {
-    case Vector(pe: PExpression, PredArgs(args)) => val id = pe match {
-      case recvWithId@PDot(_, _) => PDottedBase(recvWithId).at(recvWithId)
-      case PNamedOperand(identifier@PIdnUse(_)) => PFPredBase(identifier).at(identifier)
-      case _ => fail(ctx.primaryExpr(), "Wrong base type for predicate constructor.")
-    }
-      PPredConstructor(id, args).at(ctx)
+    case Vector(pe: PExpression, ".", idnUse(id), PredArgs(args)) =>
+      val recvWithId = PDot(pe, id).range(pe, id)
+      PPredConstructor(PDottedBase(recvWithId).at(recvWithId), args).at(ctx)
     case _ => fail(ctx)
   }
+
+  override def visitParenthesizedPredConstrPrimaryExpr(ctx: ParenthesizedPredConstrPrimaryExprContext): AnyRef =
+    super.visitParenthesizedPredConstrPrimaryExpr(ctx) match {
+      case Vector("(", pe: PExpression, ".", idnUse(id), ")", PredArgs(args)) =>
+        val recvWithId = PDot(pe, id).range(pe, id)
+        PPredConstructor(PDottedBase(recvWithId).at(recvWithId), args).at(ctx)
+      case Vector("(", PNamedOperand(identifier@PIdnUse(_)), ")", PredArgs(args)) =>
+        PPredConstructor(PFPredBase(identifier).at(identifier), args).at(ctx)
+      case _ => fail(ctx)
+    }
 
   override def visitInvokePrimaryExpr(ctx: InvokePrimaryExprContext): AnyRef = super.visitInvokePrimaryExpr(ctx) match {
     case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)

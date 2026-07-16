@@ -412,7 +412,16 @@ primaryExpr:
   | primaryExpr arguments #invokePrimaryExpr
   | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
-  | primaryExpr predConstructArgs #predConstrPrimaryExpr
+  // Predicate constructors are parsed as follows:
+  // Unparenthesized names such as `P{...}` and `pkg.P{...}` (with up to 1 dot expression)
+  // are parsed as composite literals and disambiguated later. Here, we parse predicate
+  // constructors with 1 or more dot expressions and parenthesized names (as a way to force
+  // their classification as predicate constructors). Note that we require a dot expression
+  // as opposed to an arbitrary `primaryExpr` before `predConstructArgs` to ensure that
+  // calls do not end up as predicate constructors. Otherwise, the empty proof block in
+  // `package P() --* P() {}` would end up being parsed as predicate constructor arguments.
+  | primaryExpr DOT IDENTIFIER predConstructArgs #predConstrPrimaryExpr
+  | L_PAREN (primaryExpr DOT IDENTIFIER | operandName) R_PAREN predConstructArgs #parenthesizedPredConstrPrimaryExpr
   | call_op=(
   LEN
     | CAP

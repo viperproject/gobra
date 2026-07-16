@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.interfaces
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.dependencyAnalysis.ImplProofDependencyAnalysisSourceInfo
+import viper.gobra.dependencyAnalysis.{GobraDependencyAnalysisSourceInfo, ImplProofDependencyAnalysisSourceInfo}
 import viper.gobra.reporting._
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -20,7 +20,8 @@ import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
 import viper.silver.ast.MakeInfoPair
-import viper.silver.dependencyAnalysis.{AdditionalAssertionNode, EdgeType, JoinType, SimpleDependencyAnalysisJoin}
+import viper.silver.ast.utility.ViperStrategy
+import viper.silver.dependencyAnalysis.{AdditionalAssertionNode, DependencyAnalysisSourceInfo, EdgeType, JoinType, SimpleDependencyAnalysisJoin}
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
@@ -736,6 +737,32 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   /**
+    * If the user wrote an `implements` clause for this generated implementation proof, attaches the clause as the
+    * dependency-analysis source info of every sub-node of the proof. As a result, the dependency analysis presents
+    * all Viper nodes of the generated proof as a single dependency node (the clause) instead of scattering them
+    * across the interface's and the concrete method's pre-/postconditions.
+    *
+    * This only influences the dependency analysis: each node's Verifier.Info, position and error transformer are
+    * preserved (so the position of verification errors is unchanged), and nodes that already carry a source info
+    * (e.g. because they stem from a user-provided proof body) are left untouched. If there is no `implements`
+    * clause, the proof is left exactly as before.
+    */
+  private def withGeneratedProofDependencySource[N <: vpr.Node](node: N, clauseSrc: Option[Source.Parser.Info]): N = {
+    clauseSrc match {
+      case Some(s: Source.Parser.Single) =>
+        val source: DependencyAnalysisSourceInfo = GobraDependencyAnalysisSourceInfo(s.pnode, vpr.TranslatedPosition(s.src.pos))
+        def enrich(i: vpr.Info): vpr.Info =
+          if (i.getUniqueInfo[DependencyAnalysisSourceInfo].isDefined) i else MakeInfoPair(i, source)
+        ViperStrategy.Slim({
+          case n: vpr.Member => n.withMeta((n.meta._1, enrich(n.meta._2), n.meta._3))
+          case n: vpr.Stmt   => n.withMeta((n.meta._1, enrich(n.meta._2), n.meta._3))
+          case n: vpr.Exp    => n.withMeta((n.meta._1, enrich(n.meta._2), n.meta._3))
+        }).forceCopy().execute[N](node)
+      case _ => node
+    }
+  }
+
+  /**
     * function proof_T_I_F(x: T, args)
     *   requires PRE where PRE = [I_F.PRE][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
     *   ensures  POST where POST = [I_F.POST][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
@@ -776,7 +803,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
 
     // TODO ake: should every proof obligation in the impl proof be a dependency of every upcast?
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    pureMethodDummy.map(res => withGeneratedProofDependencySource(
+      res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT),
+      p.implementsClauseSrc))
   }
 
   /**
@@ -827,7 +856,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
 
     // TODO ake: should every proof obligation in the impl proof be a dependency of every upcast?
-    methodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    methodDummy.map(res => withGeneratedProofDependencySource(
+      res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT),
+      p.implementsClauseSrc))
   }
 
 

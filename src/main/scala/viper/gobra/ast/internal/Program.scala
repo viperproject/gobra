@@ -223,7 +223,11 @@ case class MethodSubtypeProof(
                                receiver: Parameter.In,
                                args: Vector[Parameter.In],
                                results: Vector[Parameter.Out],
-                               body: Option[Block] // empty if it is generated
+                               body: Option[Block], // empty if it is generated
+                               // for a generated proof, the source of the `implements` clause that demanded it (if any).
+                               // used exclusively by the dependency analysis to present all Viper nodes of the generated
+                               // proof as a single dependency node; it does not affect verification or error positions.
+                               implementsClauseSrc: Option[Parser.Info] = None
                              )(val info: Source.Parser.Info) extends Member
 
 case class PureMethodSubtypeProof(
@@ -233,7 +237,9 @@ case class PureMethodSubtypeProof(
                                receiver: Parameter.In,
                                args: Vector[Parameter.In],
                                results: Vector[Parameter.Out],
-                               body: Option[Expr] // empty if it is generated
+                               body: Option[Expr], // empty if it is generated
+                               // see MethodSubtypeProof.implementsClauseSrc
+                               implementsClauseSrc: Option[Parser.Info] = None
                              )(val info: Source.Parser.Info) extends Member {
   require(results.size <= 1)
 }

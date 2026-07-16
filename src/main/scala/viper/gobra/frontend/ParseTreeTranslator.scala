@@ -731,7 +731,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
             spec
           }
         }
-        Vector(PConstDecl(expandedDecls))
+        Vector(PConstDecl(expandedDecls).at(ctx))
     }
   }
 
@@ -2251,9 +2251,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #   visitChildren} on {@code ctx}.</p>
     */
   override def visitDeferStmt(ctx: DeferStmtContext): PDeferStmt = super.visitDeferStmt(ctx) match {
-    case Vector("defer", expr: PExpression) => PDeferStmt(expr)
-    case Vector("defer", "fold", predAcc : PPredicateAccess)   => PDeferStmt(PFold(predAcc).at(ctx))
-    case Vector("defer", "unfold", predAcc : PPredicateAccess) => PDeferStmt(PUnfold(predAcc).at(ctx))
+    case Vector("defer", expr: PExpression) => PDeferStmt(expr).at(ctx)
+    case Vector("defer", "fold", predAcc : PPredicateAccess)   => PDeferStmt(PFold(predAcc).at(ctx)).at(ctx)
+    case Vector("defer", "unfold", predAcc : PPredicateAccess) => PDeferStmt(PUnfold(predAcc).at(ctx)).at(ctx)
   }
   //endregion
 

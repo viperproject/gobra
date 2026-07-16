@@ -412,14 +412,14 @@ primaryExpr:
   | primaryExpr arguments #invokePrimaryExpr
   | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
-  // This postfix form must select the predicate identifier explicitly. Requiring a final selector
-  // prevents the `{ ... }` of an enclosing construct (for example, a magic-wand package proof block
-  // after `P() --* P()`) from being consumed as predicate-constructor arguments after an arbitrary
-  // primary expression. The receiver before the final selector can still be any primary expression.
-  // Single- and two-component unparenthesized names (`P{...}` and `pkg.P{...}`) are parsed as
-  // composite literals and disambiguated later. Keep the documented parenthesized escape syntax
-  // (`(P){...}` and `(pkg.P){...}`) with the same restriction: either a bare predicate name or a
-  // primary expression with a final selected predicate identifier.
+  // Predicate constructors are parsed as follows:
+  // Unparenthesized names such as `P{...}` and `pkg.P{...}` (with up to 1 dot expression)
+  // are parsed as composite literals and disambiguated later. Here, we parse predicate
+  // constructors with 1 or more dot expressions and parenthesized names (as a way to force
+  // their classification as predicate constructors). Note that we require a dot expression
+  // as opposed to an arbitrary `primaryExpr` before `predConstructArgs` to ensure that
+  // calls do not end up as predicate constructors. Otherwise, the empty proof block in
+  // `package P() --* P() {}` would end up being parsed as predicate constructor arguments.
   | primaryExpr DOT IDENTIFIER predConstructArgs #predConstrPrimaryExpr
   | L_PAREN (primaryExpr DOT IDENTIFIER | operandName) R_PAREN predConstructArgs #parenthesizedPredConstrPrimaryExpr
   | call_op=(

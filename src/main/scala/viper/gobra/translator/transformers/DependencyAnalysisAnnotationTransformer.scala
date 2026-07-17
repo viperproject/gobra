@@ -35,17 +35,20 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
 
 
   private def addDependencyAnalysisSourceInfo(p: vpr.Program): vpr.Program = {
-    ViperStrategy.Slim({
-      case member: vpr.Member =>
+    ViperStrategy.Ancestor({
+      case (member: vpr.Member, ctxt) =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
         val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo)
-        member.withMeta(member.pos, newInfo2, member.errT) // TODO ake: try to avoid using withMeta
-      case stmt: vpr.Stmt =>
+        (member.withMeta(member.pos, newInfo2, member.errT), ctxt) // TODO ake: try to avoid using withMeta
+      case (seqn: vpr.Seqn, ctxt) => (seqn, ctxt)
+      case (stmt: vpr.Stmt, ctxt) =>
         val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info)
-        stmt.withMeta(stmt.pos, newInfo, stmt.errT)
-      case exp: vpr.Exp =>
+        val newInfo2 = if(stmt.isInstanceOf[ast.Seqn]) newInfo else attachDepInfoAsAnnotation(newInfo)
+        (stmt.withMeta(stmt.pos, newInfo2, stmt.errT), ctxt)
+      case (exp: vpr.Exp, ctxt) =>
         val newInfo = getDependencyAnalysisEnhancedInfo(exp.info)
-        exp.withMeta(exp.pos, newInfo, exp.errT)
+        val newInfo2 = if(ctxt.ancestorList.count(_.isInstanceOf[ast.Exp]) > 1) newInfo else attachDepInfoAsAnnotation(newInfo)
+        (exp.withMeta(exp.pos, newInfo2, exp.errT), ctxt)
     }).forceCopy().execute(p)
   }
 
@@ -60,6 +63,33 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       resInfo
     } else
       oldInfo
+  }
+
+  private def attachDepInfoAsAnnotation(info: ast.Info): ast.Info = {
+
+    val depAnalysisSourceInfoOpt = info.getUniqueInfo[DependencyAnalysisSourceInfo]
+    val depTypeInfoOpt = info.getUniqueInfo[DependencyTypeInfo]
+
+    if (depAnalysisSourceInfoOpt.isDefined || depTypeInfoOpt.isDefined) {
+      val baseAnnotation: Map[String, Seq[String]] = info.getUniqueInfo[AnnotationInfo].map(_.values).getOrElse(Map.empty)
+      val finalAnnotation = baseAnnotation
+        .updated("daInfo", Seq(info.getUniqueInfo[DependencyAnalysisSourceInfo].map(sourceInfo => s"source: $sourceInfo")
+          .getOrElse("source: unknown") +
+          ", " +
+          info.getUniqueInfo[DependencyTypeInfo]
+            .map(depTypeInfo => {
+              val depType = depTypeInfo.dependencyType
+              if (depType.assertionType == depType.assumptionType)
+                s"dependencyType: ${depType.assumptionType}"
+              else
+                s"assumptionType: ${depTypeInfo.dependencyType.assumptionType}, assertionType: ${depTypeInfo.dependencyType.assertionType}"
+            })
+            .getOrElse("dependencyType: unknown")))
+
+      MakeInfoPair(info.removeUniqueInfo[AnnotationInfo], AnnotationInfo(finalAnnotation))
+    } else {
+      info
+    }
   }
 
   private def attachInfoIfNotExists[T <: Info : ClassTag](oldInfo: Info, newInfo: Info) = {

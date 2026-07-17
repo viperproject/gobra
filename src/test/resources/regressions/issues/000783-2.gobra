@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue783_2
+
+func main() {
+    //:: ExpectedOutput(type_error)
+	assert 1e2 > 0
+	assert false
+}

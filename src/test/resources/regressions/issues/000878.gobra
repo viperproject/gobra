@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on)
+
+package issue878
+
+
+type Path struct {
+	length int
+}
+
+type Struct struct {
+	New func() Path
+}
+
+decreases
+func NewPathSpec() (p Path)
+
+func test() {
+	tmp := Struct{
+		New:
+			decreases
+			func newPath() (p Path) {
+				return Path{}
+			},
+	}
+	proof tmp.New implements NewPathSpec {
+		return tmp.New() as newPath
+	}
+}

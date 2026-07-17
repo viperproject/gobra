@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+func test1() {
+	var j uint16
+	for i := 0; i < 256; i++ {
+	    //:: ExpectedOutput(type_error)
+		if i < j { // Go compiler reports "invalid operation: i < j (mismatched types int and uint16)"
+			j = 42
+		}
+	}
+}
+
+func test2() {
+    invariant 0 <= i && i <= 256
+    //:: ExpectedOutput(type_error)
+    invariant forall j uint16 :: 0 <= j && j < i ==> true
+    decreases 256 - i
+    for i := 0; i < 256; i++ {}
+}

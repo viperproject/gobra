@@ -51,18 +51,33 @@ object AstPattern {
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
   case class BlankIdentifier(decl: PBlankIdentifier) extends Expr
 
-  sealed trait FunctionKind extends Expr {
+  sealed trait FunctionKind extends Expr with Symbolic {
     def id: PIdnUse
+    def ghost: Boolean = symb.ghost
+    def isPure: Boolean
   }
 
-  case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic
-  case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind with Symbolic
-  case class DomainFunction(id: PIdnUse, symb: st.DomainFunction) extends FunctionKind with Symbolic
-  case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
-  case class ImplicitlyReceivedInterfaceMethod(id: PIdnUse, symb: st.MethodSpec) extends FunctionKind with Symbolic // for method references withing an interface definition
-  case class MethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
+  case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind {
+    override val isPure: Boolean = symb.isPure
+  }
+  case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind {
+    override val isPure: Boolean = symb.isPure
+  }
+  case class DomainFunction(id: PIdnUse, symb: st.DomainFunction) extends FunctionKind {
+    override val isPure: Boolean = true
+  }
+  case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind {
+    override val isPure: Boolean = symb.isPure
+  }
+  /** for method references withing an interface definition */
+  case class ImplicitlyReceivedInterfaceMethod(id: PIdnUse, symb: st.MethodSpec) extends FunctionKind {
+    override val isPure: Boolean = symb.isPure
+  }
+  case class MethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind {
+    override val isPure: Boolean = symb.isPure
+  }
 
-  sealed trait BuiltInFunctionKind extends FunctionKind with Symbolic {
+  sealed trait BuiltInFunctionKind extends FunctionKind {
     def symb: st.BuiltInActualEntity
   }
   sealed trait BuiltInMethodKind extends BuiltInFunctionKind {
@@ -70,9 +85,15 @@ object AstPattern {
     def symb: st.BuiltInMethod
   }
 
-  case class BuiltInFunction(id: PIdnUse, symb: st.BuiltInFunction) extends BuiltInFunctionKind with Symbolic
-  case class BuiltInReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInMethodKind
-  case class BuiltInMethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInMethodKind
+  case class BuiltInFunction(id: PIdnUse, symb: st.BuiltInFunction) extends BuiltInFunctionKind with Symbolic {
+    override val isPure: Boolean = symb.isPure
+  }
+  case class BuiltInReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInMethodKind {
+    override val isPure: Boolean = symb.isPure
+  }
+  case class BuiltInMethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInMethodKind {
+    override val isPure: Boolean = symb.isPure
+  }
 
   sealed trait Assertion extends Pattern
 

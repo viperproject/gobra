@@ -41,7 +41,8 @@ class DefaultPureMethodEncoding extends Encoding {
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
     val fixResultvar = (x: vpr.Exp) => {
-      x.transform { case v: vpr.LocalVar if v.name == meth.results.head.id => vpr.Result(resultType)() }
+      val (pos, info, errT) = (x.pos, x.info, x.errT)
+      x.transform { case v: vpr.LocalVar if v.name == meth.results.head.id => vpr.Result(resultType)(pos, info, errT) }
     }
 
     for {
@@ -86,7 +87,8 @@ class DefaultPureMethodEncoding extends Encoding {
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
     val fixResultvar = (x: vpr.Exp) => {
-      x.transform { case v: vpr.LocalVar if v.name == func.results.head.id => vpr.Result(resultType)() }
+      val (pos, info, errT) = (x.pos, x.info, x.errT)
+      x.transform { case v: vpr.LocalVar if v.name == func.results.head.id => vpr.Result(resultType)(pos, info, errT) }
     }
 
     for {

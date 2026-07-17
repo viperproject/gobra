@@ -59,6 +59,7 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ keySet(e: map[K]V) ] -> [ e ] == null? 0 : MapDomain(getCorrespondingMap([ e ]))
     * R[ valueSet(e: map[K]V) ] -> [ e ] == null? 0 : MapRange(getCorrespondingMap([ e ]))
     * R[ k in (e: map[K]V) ] -> [ e ] == null? false : MapContains([ k ], getCorrespondingMap([ e ]))
+    * R[ dict(e: map[K]V) ] -> getCorrespondingMap([ e ])
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -124,6 +125,9 @@ class MapEncoding extends LeafTypeEncoding {
             correspondingMapRange
           ), v)
         } yield res
+
+      case in.MapConversion(exp :: ctx.Map(keys, values)) =>
+        getCorrespondingMap(exp, keys, values)(ctx)
     }
   }
 

@@ -17,6 +17,7 @@ DECIMAL_FLOAT_LIT      : DECIMALS ('.'{_input.LA(1) != '.'}? DECIMALS? EXPONENT?
 // ->mode(NLSEMI) means line breaks directly after this token
 // emit a semicolon. (just like after identifiers, literals, ')}]' etc in base Go)
 
+// NOTE: if you prepend a new token, do not forget to update InformativeErrorListener.FIRST_GOBRA_TOKEN
 TRUE        : 'true' -> mode(NLSEMI);
 FALSE       : 'false' -> mode(NLSEMI);
 ASSERT      : 'assert';
@@ -24,6 +25,8 @@ REFUTE      : 'refute';
 ASSUME      : 'assume';
 INHALE      : 'inhale';
 EXHALE      : 'exhale';
+CONTRA      : 'contra';
+BY          : 'by';
 PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';
@@ -41,9 +44,11 @@ ACCESS      : 'acc' -> mode(NLSEMI);
 FOLD        : 'fold';
 UNFOLD      : 'unfold';
 UNFOLDING   : 'unfolding';
+ASSERTING   : 'asserting';
 LET         : 'let';
-GHOST       : 'ghost';
 IN          : 'in';
+GHOST       : 'ghost';
+ELEM        : 'elem';
 MULTI       : '#';
 SUBSET      : 'subset';
 UNION       : 'union';
@@ -53,8 +58,6 @@ IMPLIES     : '==>';
 WAND        : '--*';
 APPLY       : 'apply';
 QMARK       : '?';
-L_PRED      : '!<';
-R_PRED      : '!>' -> mode(NLSEMI);
 SEQ         : 'seq'-> mode(NLSEMI);
 SET         : 'set'-> mode(NLSEMI);
 MSET        : 'mset'-> mode(NLSEMI);
@@ -75,6 +78,8 @@ NONE        : 'none' -> mode(NLSEMI);
 PRED        : 'pred';
 TYPE_OF      : 'typeOf'-> mode(NLSEMI);
 IS_COMPARABLE: 'isComparable'-> mode(NLSEMI);
+LOW         : 'low'-> mode(NLSEMI);
+LOWC        : 'lowContext'-> mode(NLSEMI);
 SHARE       : 'share';
 ADDR_MOD    : '@'-> mode(NLSEMI);
 DOT_DOT     : '..';
@@ -85,12 +90,18 @@ WRITEPERM   : 'writePerm' -> mode(NLSEMI);
 NOPERM      : 'noPerm' -> mode(NLSEMI);
 TRUSTED     : 'trusted' -> mode(NLSEMI);
 OUTLINE     : 'outline';
-INIT_POST   : 'initEnsures';
+DUPLICABLE  : 'dup';
+PKG_INV     : 'pkgInvariant';
+OPEN_DUP_SINV : 'openDupPkgInv' -> mode(NLSEMI);
 IMPORT_PRE  : 'importRequires';
 PROOF       : 'proof';
 GHOST_EQUALS     : '===';
 GHOST_NOT_EQUALS : '!==';
 WITH        : 'with';
 OPAQUE      : 'opaque' -> mode(NLSEMI);
+MAYINIT     : 'mayInit' -> mode(NLSEMI);
 REVEAL      : 'reveal';
 BACKEND     : '#backend';
+FRIENDPKG   : 'friendPkg';
+REL         : 'rel';
+// NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

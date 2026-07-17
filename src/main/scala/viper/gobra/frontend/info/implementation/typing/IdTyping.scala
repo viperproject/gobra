@@ -25,9 +25,17 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case ErrorMsgEntity(msg) => LocalMessages(msg) // use provided error message instead of creating an own one
       case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
       case _: BuiltInEntity => LocalMessages(noMessages) // built-in entities are assumed to be well-formed
-      case entity: ActualRegular => wellDefActualRegular(entity, id)
-      case entity: GhostRegular => wellDefGhostRegular(entity, id)
+      case entity: ActualRegular => omitMessagesForUseLikeId(id, wellDefActualRegular(entity, id))
+      case entity: GhostRegular => omitMessagesForUseLikeId(id, wellDefGhostRegular(entity, id))
     }
+  }
+
+  private def omitMessagesForUseLikeId(id: PIdnNode, msgs: ValidityMessages): ValidityMessages = id match {
+    // to avoid duplicated messages, we return an unsafe message (containing no messages) for PUseLikeId as the
+    // same messages will already be reported for the corresponding definition
+    case _: PUseLikeId => unsafeMessage(!msgs.valid)
+    case n: PIdnUnk if !isDef(n) => unsafeMessage(!msgs.valid)
+    case _ => msgs
   }
 
   /**

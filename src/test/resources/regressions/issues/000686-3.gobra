@@ -3,7 +3,7 @@
 
 package pkg
 
-type X adt {
+ghost type X adt {
   A { int }
   B { bool; bool }
   C {}

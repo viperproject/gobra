@@ -99,10 +99,10 @@ trait Implements { this: TypeInfoImpl =>
     if (encounteredTypes contains t) {
       true
     } else {
-      def go(t: Type): Boolean = isIdentityPreservingType(t, encounteredTypes + t)
+      def go(subT: Type): Boolean = isIdentityPreservingType(subT, encounteredTypes + t)
       underlyingType(t) match {
         case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
-        case ut: Type.PointerT => go(ut.elem)
+        case _: Type.PointerT => true
         case ut: Type.StructT =>
           // a struct with ghost fields or ghost embeddings is not identity preserving.
           // E.g., for `type S struct { val int, ghost gval int }`, `S{0, 0} == S{0, 42}` holds in Go (after erasing the ghost fields).
@@ -113,6 +113,13 @@ trait Implements { this: TypeInfoImpl =>
         case ut: Type.OptionT => go(ut.elem)
         case ut: Type.AdtT =>
           ut.clauses.forall(_.fields.forall(f => go(f._2)))
+        case ut: Type.DomainT =>
+          // check that all types (besides `ut` itself) occurring as input or output parameter types are identity preserving
+          val inAndOutParams = ut.decl.funcs.flatMap(f => f.args ++ f.result.outs)
+          inAndOutParams
+            .map(param => ut.context.typ(param))
+            .filter(_ != ut) // ignore the domain itself
+            .forall(typ => go(typ))
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true
         case _ => false

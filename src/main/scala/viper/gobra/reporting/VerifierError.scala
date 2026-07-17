@@ -181,11 +181,21 @@ case class AssertError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Assert might fail"
 }
 
+case class AssertByError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assert_by_error"
+  override def localMessage: String = "Assert by might fail"
+}
+
+case class AssignSuchThatError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assign_such_that_error"
+  override def localMessage: String = "Assignment might fail"
+}
+
 case class RefuteError(info: Source.Verifier.Info) extends VerificationError {
 
   override def localId: String = "refute_error"
 
-  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds."
+  override def localMessage: String = "Refute statement failed. Assertion is either unreachable or it always holds"
 }
 
 case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {
@@ -375,6 +385,11 @@ case class LoopTerminationError(info: Source.Verifier.Info) extends Verification
   override def localMessage: String = s"The loop ${info.origin.tag.trim} might not terminate"
 }
 
+case class SIFGotoError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "sif_goto_error"
+  override def localMessage: String = s"The side conditions for the goto statement ${info.origin.tag.trim} caused by verifying hyper properties might not hold"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
@@ -413,6 +428,21 @@ case class RefutationTrueError(info: Source.Verifier.Info) extends VerificationE
   override def id: String = "refutation_true_error"
 
   override def message: String = s"Assertion ${info.origin.tag.trim} definitely holds."
+}
+
+case class AssertByProofBodyError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assert_by_proof_body_error"
+  override def message: String = "The proof block might not establish the assertion"
+}
+
+case class AssertByContraBodyError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assert_by_contra_body_error"
+  override def message: String = "The proof block might not derive a contradiction after assuming the negated expression"
+}
+
+case class AssignSuchThatNoWitnessError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assign_such_that_no_witness_error"
+  override def message: String = s"Witness for assertion '${info.origin.tag.trim}' not found."
 }
 
 case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
@@ -503,6 +533,11 @@ case class TerminationConditionFalseError(info: Source.Verifier.Info) extends Ve
   override def message: String = s"Required termination condition might not hold."
 }
 
+case class ImplMeasureHigherThanInterfaceReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "term_measure_impl_higher_than_interface"
+  override def message: String = s"The termination measure of this method might exceed the termination measure of the corresponding interface method."
+}
+
 case class TupleConditionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "tuple_condition_false_error"
   override def message: String = s"Required tuple condition might not hold."
@@ -531,6 +566,11 @@ case class LabelledStateNotReached(info: Source.Verifier.Info) extends Verificat
 case class SpecNotImplementedByClosure(info: Verifier.Info, closure: String, spec: String) extends VerificationErrorReason {
   override def id = "spec_not_implemented"
   override def message: String = s"$closure might not implement $spec."
+}
+
+case class SIFGotoNotLowEvent(info: Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "sif_goto_not_low_event"
+  override def message: String = s"${info.origin.tag.trim} might not be executed by both executions."
 }
 
 sealed trait VerificationErrorClarification {

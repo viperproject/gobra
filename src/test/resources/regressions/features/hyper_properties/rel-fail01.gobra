@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relfail01
+
+// tests that `rel(e, _)` has the same type as `e`
+
+//:: ExpectedOutput(type_error)
+requires rel(i, 0)
+func foo(i int)

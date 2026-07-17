@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ErrorReportingImport2
+
+// this test triggers a special case within `getTypeFromCtxt` namely where typing the base of a PInvoke
+// returns UnknownType as the invoked function contains a type error.
+// However, this has been addressed by PR #855 that stops this package from getting type-checked in the first place
+// as foo contains a type error. Thus, the only error occurring in this file is located at the import clause (as
+// opposed to reporting an error for the pure function's definition or its use).
+
+// ##(-I ./)
+
+//:: ExpectedOutput(type_error)
+import foo "foo"
+
+const ConstantForWhichTypeMustBeInferred = 42
+
+ghost
+decreases
+pure func ErroneousFunction(paramTriggeringIntResolution int) foo.ErroneousType {
+    return foo.None{}
+}
+
+func triggerGetTypeFromCtxtCornerCase() {
+    assert ErroneousFunction(0) == foo.None{}
+}

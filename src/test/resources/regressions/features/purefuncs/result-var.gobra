@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package debug
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures res
+decreases
+pure func P1() (res bool) {
+    return false
+}
+
+type I struct{}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures res
+decreases
+pure func (i I) P2() (res bool) {
+    return false
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures b
+decreases
+pure func P3(b bool) (res bool) {
+    return false
+}

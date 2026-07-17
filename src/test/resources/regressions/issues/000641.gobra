@@ -3,14 +3,17 @@
 
 package pkg
 
-type X adt {
+ghost type X adt {
   C{ c int }
 }
 
 ghost
+decreases
 func foo1(x X)
 
+// ADTs can also be used as receivers:
 ghost
+decreases
 func (x X) bar1()
 
 func client() {

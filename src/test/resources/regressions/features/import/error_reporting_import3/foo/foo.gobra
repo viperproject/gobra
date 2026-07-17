@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package foo
+
+//:: ExpectedOutput(type_error)
+type ErroneousType adt { // invalid as this must be a _ghost_ type definition
+    None {}
+}

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostStructComparison01
+
+// when comparing ghost structs, ghost equality should be used. I.e., `==` behaves like `===`.
+
+ghost type GhostStruct ghost struct {
+    f int
+}
+
+func test1(ghost x, y GhostStruct) {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x == y
+}
+
+func test2(ghost x, y GhostStruct) {
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x === y
+}

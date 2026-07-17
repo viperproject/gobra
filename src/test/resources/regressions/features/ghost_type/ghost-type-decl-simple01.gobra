@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package GhostTypeDeclSimple01
+
+// checks that assignments work irrespective of actual / ghost parameters being type definitions or aliases
+
+type ActualIntDef int
+type ActualIntAlias = int
+
+decreases
+func actualFn(a ActualIntDef, ghost b ActualIntDef, c ActualIntAlias, ghost d ActualIntAlias) {
+    a = 42
+    b = 42
+    c = 42
+    d = 42
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

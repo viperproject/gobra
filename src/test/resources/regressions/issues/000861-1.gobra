@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue0008611
+
+//:: ExpectedOutput(type_error)
+func test() bool {
+    ghost var x = 42
+    ghost var y = 0
+    return isEqual(x, y)
+}
+
+decreases
+pure func isEqual(x, y int) bool {
+    return x == y
+}

@@ -11,12 +11,14 @@ import f "foo"
 
 type FooImpl2 struct{}
 
-//:: ExpectedOutput(generated_implementation_proof:pure_function_termination_error)
+// Rejected: method without a termination measure tries to implement method with termination measure
+//:: ExpectedOutput(type_error)
 pure func (foo FooImpl2) PureFn() bool {
     return true
 }
 
-//:: ExpectedOutput(generated_implementation_proof:function_termination_error)
+// Rejected: method without a termination measure tries to implement method with termination measure
+//:: ExpectedOutput(type_error)
 func (foo FooImpl2) Fn() bool {
     return true
 }

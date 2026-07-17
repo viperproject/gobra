@@ -1,0 +1,60 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue805
+
+const bufSize = 9000
+
+type packet struct {
+	rawPacket []byte
+	buffer *[bufSize]byte
+}
+
+requires acc(&p.buffer[0])
+func (p packet) test1() {
+	p.rawPacket = p.buffer[:]
+	y := p.rawPacket[0]
+}
+
+preserves acc(&p[0])
+ensures p[0] == 0
+func test2(p *[10]int) {
+	p[0] = 0
+}
+
+// Tests array operations on a variable containing a pointer to an array
+func testArr() {
+	var arr@ [1000]int
+	parr := &arr
+	// len
+	assert len(arr) == 1000
+	assert len(parr) == 1000
+	// cap
+	assert cap(arr) == 1000
+	assert cap(parr) == 1000
+	// reslice
+	sub := parr[:10]
+	assert cap(sub) == 1000
+	assert cap(parr[10:]) == 990
+	// indexing (reading and writing)
+	assert sub[0] == 0
+	sub[0] = 1
+	assert sub[0] == 1
+	assert parr[0] == 1
+	assert arr[0] == 1
+	parr[0] = 2
+	assert sub[0] == 2
+	assert parr[0] == 2
+	assert arr[0] == 2
+	arr[0] = 3
+	assert sub[0] == 3
+	assert parr[0] == 3
+	assert arr[0] == 3
+	// reference
+	assert &sub[0] == &parr[0]
+	ref := &parr[0]
+	*ref = 4
+	assert sub[0] == 4
+	assert parr[0] == 4
+	assert arr[0] == 4
+}

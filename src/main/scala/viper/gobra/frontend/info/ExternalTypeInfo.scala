@@ -15,13 +15,12 @@ import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
-import viper.gobra.reporting.VerifierError
 
 trait ExternalTypeInfo {
 
   def pkgName: PPkgDef
   def pkgInfo: PackageInfo
-  def dependentTypeInfo: Map[AbstractImport, () => Either[Vector[VerifierError], ExternalTypeInfo]]
+  def dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo]
 
   /** returns this (unless disabled via parameter) and the type information of directly and transitively dependent packages */
   def getTransitiveTypeInfos(includeThis: Boolean = true): Set[ExternalTypeInfo]

@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type MyType struct {
+	x int
+}
+
+func main() {
+	mySlice := make([]MyType, 0)
+	snd := []MyType{MyType{1}}
+	mySlice = append(perm(1/2), mySlice, snd...)
+}

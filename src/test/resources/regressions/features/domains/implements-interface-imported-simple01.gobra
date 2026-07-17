@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks whether an imported domain can implement an interface
+
+package ImplementsInterfaceImportedSimple01
+
+// ##(-I ./implements-interface-imported-simple01/)
+import "foo"
+
+// the following clause should be permitted by the type-checker:
+foo.IntPair implements any
+
+func test() {
+    ghost var x any
+    x = foo.pair(1,2)
+    assert equal(x, x) // succeeds as `equal` is ghost
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+decreases
+requires isComparable(a)
+pure func equal(a, b any) bool {
+    return a == b
+}

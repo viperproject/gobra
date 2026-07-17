@@ -71,9 +71,11 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * R[ len(e: []T) ] -> slen([e])
     * R[ cap(e: []T) ] -> scap([e])
     * R[ (e: [n]T@)[e1:e2] ] -> sliceFromArray([e], [e1], [e2])
+    * R[ (e: *[n]T)[e1:e2] ] -> sliceFromArray([*e], [e1], [e2])
     * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray([e], [e1], [e2], [e3])
-    * R[ (e: []T@)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
-    * R[ (e: []T@)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
+    * R[ (e: *[n]T)[e1:e2:e3] ] -> fullSliceFromArray([*e], [e1], [e2], [e3])
+    * R[ (e: []T)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
+    * R[ (e: []T)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
     *
     */
   override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
@@ -107,6 +109,12 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case None => withSrc(sliceFromArray(unboxedBaseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromArray(unboxedBaseT, lowT, highT, maxT)(ctx), exp)
       }
+      case n@in.Slice(base :: ctx.*(t: in.ArrayT), low, high, max, _) =>
+        val baseInfo = base.info
+        val derefBase = in.Deref(base, in.PointerT(t, t.addressability))(baseInfo)
+        val nInfo = n.info
+        val newSliceExpr = in.Slice(derefBase, low, high, max, t)(nInfo)
+        expression(ctx)(newSliceExpr)
 
       case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low, high, max, _) => for {
         baseT <- goE(base)

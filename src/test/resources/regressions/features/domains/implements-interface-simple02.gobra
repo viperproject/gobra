@@ -1,0 +1,54 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks whether a domain can implement a non-empty interface
+
+package ImplementsInterfaceSimple02
+
+ghost type intPair domain {
+    func fst(intPair) int
+    func snd(intPair) int
+    func pair(int, int) intPair
+
+    axiom {
+      forall p intPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+    } // pair
+
+    axiom {
+      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+    }
+}
+
+type Equality interface {
+    ghost
+    pure hash() int
+
+    ghost
+    isEqual(other Equality) bool
+}
+
+// the following clause should be permitted by the type-checker as intPair implements the interface:
+intPair implements Equality
+
+ghost
+decreases
+pure func (i intPair) hash() int {
+    return 42 // best implementation of a hash function
+}
+
+ghost
+decreases
+func (i intPair) isEqual(other Equality) bool {
+    if typeOf(other) == intPair {
+        return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair))
+    }
+    return false
+}
+
+func test() {
+    ghost var x Equality
+    x = pair(1,2)
+    assert x.hash() == 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

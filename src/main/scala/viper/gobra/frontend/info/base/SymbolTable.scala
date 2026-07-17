@@ -155,11 +155,9 @@ object SymbolTable extends Environments[Entity] {
   }
 
   case class NamedType(decl: PTypeDef, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
-    require(!ghost, "type entities are not supported to be ghost yet") // TODO
     override def rep: PNode = decl
   }
   case class TypeAlias(decl: PTypeAlias, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
-    require(!ghost, "type entities are not supported to be ghost yet") // TODO
     override def rep: PNode = decl
   }
 

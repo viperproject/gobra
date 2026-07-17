@@ -41,3 +41,10 @@ func fullslice_from_slice_1 () {
   s2 := s1[-1:1:2] // negative low bound
 }
 
+func fullslice_from_slice_2 () {
+	a@ := [4]int { 1, 2, 4, 8 }
+	s1 := a[:]
+	//:: ExpectedOutput(type_error)
+	s2 := s1[1:0:3] // low bound exceeds high bound
+}
+

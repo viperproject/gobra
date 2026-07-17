@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks that domains do not get dropped by the product construction
+
+// ##(--hyperMode on)
+
+package domainsSimple01
+
+ghost type MyDomain domain {
+    func hash(int) int
+    func hashDeconstruct(int) int
+
+    axiom { // hash is injective
+        forall i int :: { hash(i) } hashDeconstruct(hash(i)) == i
+    }
+}
+
+ghost
+decreases
+requires low(i)
+ensures  low(res)
+func test(i int) (res int) {
+    res = hash(i + 42)
+    return
+}

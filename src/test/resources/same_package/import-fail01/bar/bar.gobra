@@ -1,9 +1,0 @@
-// Any copyright is dedicated to the Public Domain.
-// http://creativecommons.org/publicdomain/zero/1.0/
-
-initEnsures acc(&A) && acc(&B) && acc(&C)
-package bar
-
-var A@ int = 1
-var B@ int = 2
-var C@ int = 3

@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relsimple01
+
+// ##(--hyperMode extended --enableExperimentalHyperFeatures)
+
+requires rel(i, 0) == rel(i, 1)
+ensures  low(res)
+func foo(i int) (res int) {
+    return i + 42
+}
+
+requires rel(i, 0) < rel(i, 1)
+ensures  rel(res, 0) < rel(res, 1)
+func bar(i int) (res int) {
+    return i + 42
+}

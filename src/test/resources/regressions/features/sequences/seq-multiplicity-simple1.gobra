@@ -50,8 +50,8 @@ func example8(ghost x int, ghost xs seq[int], ghost ys seq[int]) {
 }
 
 func example9(ghost x int, ghost xs seq[int]) {
-  assert x in xs ==> 0 < x # xs
-  assert 0 < x # xs ==> x in xs
+  assert x elem xs ==> 0 < x # xs
+  assert 0 < x # xs ==> x elem xs
 }
 
 func example10() {

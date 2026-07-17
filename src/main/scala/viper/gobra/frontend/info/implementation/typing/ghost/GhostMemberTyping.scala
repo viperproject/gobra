@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMember, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -44,13 +44,39 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     needsMeasureError
   }
 
+  private[typing] def noConditionalMeasureIfGhostOrPure(member: PMember): Messages = {
+    val spec = member match {
+      case m: PMethodDecl => m.spec
+      case f: PFunctionDecl => f.spec
+      case _ => return noMessages
+    }
+    if (spec.isPure || isEnclosingGhost(member))
+      noConditionalMeasureErrors(spec.terminationMeasures)
+    else noMessages
+  }
+
+  private def pureFunctionsDoNotNeedMayInitMsg = "Pure functions and methods cannot open package invariants," +
+    "and thus, they must not be annotated with 'mayInit'."
+
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        pureMembersCannotHavePreserves(member.spec) ++
+        nonVariadicArguments(member.args) ++
+        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
+  }
+
+  // Preserves clauses are unnecessary in pure functions. Any condition that holds on entry is guaranteed to
+  // hold on exit, thus it is redundant to make properties both pre- and postconditions.
+  private[typing] def pureMembersCannotHavePreserves(member: PFunctionSpec): Messages = {
+    assert(member.isPure)
+    member.clauses.collect{ case PPreserves(exp) => exp } flatMap { c =>
+      error(c, "Pure functions and pure methods cannot have preserves clauses." +
+        "Considering replacing this preserves clause with a precondition.")
+    }
   }
 
   private[typing] def wellDefIfPureMethodImplementationProof(implProof: PMethodImplementationProof): Messages = {
@@ -64,7 +90,9 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
-        nonVariadicArguments(member.args)
+        pureMembersCannotHavePreserves(member.spec) ++
+        nonVariadicArguments(member.args) ++
+        error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
   }
 
@@ -87,7 +115,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def isPurePostcondition(spec: PFunctionSpec): Messages = (spec.posts ++ spec.preserves) flatMap isPureExpr
+  private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap isPureExpr
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
@@ -108,7 +136,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   /**
     * Depends on which packages are loaded. Only call at the end of type checking.
-    * Either returns a set of errors caused by missing implementation proofs
+    * Either returns a set of errors caused by invalid or missing implementation proofs
     * or a set of implementation proofs that have to be generated.
     **/
   def wellImplementationProofs: Either[Messages, Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]] = {
@@ -173,7 +201,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         if (msgs.nonEmpty) Left(msgs)
         else {
-          // missing implementation proofs
 
           val requiredImplMethAndSuperMeth = allRequiredImplements.flatMap { case (impl, itf) =>
             val superMethNames = memberSet(itf).collect { case (n, m: MethodSpec) => (n, m) }
@@ -183,17 +210,35 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             }}
           }
 
-          val missingImplMethAndSuperMeth = requiredImplMethAndSuperMeth
-            .filter{ case (implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb))}
+          // syntactically detect errors that prevent one method from implementing a spec
+          val implErrors = requiredImplMethAndSuperMeth.toVector flatMap {
+            case (mImpl, mSpec) => methodImplMightImplementSpec(mImpl, mSpec)
+          }
+          if (implErrors.nonEmpty) {
+            Left(implErrors)
+          } else {
+            // compute missing implementation proofs
+            val missingImplMethAndSuperMeth = requiredImplMethAndSuperMeth
+              .filter { case (implSymb, itfSymb) => !groupedProofs2.contains((implSymb, itfSymb)) }
 
-          Right(missingImplMethAndSuperMeth.toVector.map{ case (implSymb, itfSymb) =>
-            val impl = implSymb.context.symbType(implSymb.decl.receiver.typ)
-            val itf = itfSymb.itfType
-            (impl, itf, implSymb, itfSymb)
-          })
+            Right(missingImplMethAndSuperMeth.toVector.map { case (implSymb, itfSymb) =>
+              val impl = implSymb.context.symbType(implSymb.decl.receiver.typ)
+              val itf = itfSymb.itfType
+              (impl, itf, implSymb, itfSymb)
+            })
+          }
         }
       } else Left(noMessages)
     } else Left(noMessages)
   }
 
+  // Syntactically determine if a method implementation mImpl cannot possibly implement a specification mSpec.
+  // This is useful to provide feedback quickly, before we verify the program.
+  private def methodImplMightImplementSpec(mImpl: MethodImpl, mSpec: MethodSpec): Messages = {
+    if (mSpec.spec.spec.terminationMeasures.nonEmpty && mImpl.decl.spec.terminationMeasures.isEmpty)
+      error(mImpl.decl.spec, s"This method tries to implement a terminating interface method, " +
+        s"but it does not provide a termination measure.")
+    else
+      noMessages
+  }
 }

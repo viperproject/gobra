@@ -1,0 +1,53 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this testcase checks that a domain cannot implement an interface containing actual functions by defining ghost
+// methods (complementing `implements-interface-simple02.gobra`).
+
+package ImplementsInterfaceFail04
+
+ghost type intPair domain {
+    func fst(intPair) int
+    func snd(intPair) int
+    func pair(int, int) intPair
+
+    axiom {
+      forall p intPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+    } // pair
+
+    axiom {
+      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+    }
+}
+
+type Equality interface {
+    pure hash() int
+
+    isEqual(other Equality) bool
+}
+
+//:: ExpectedOutput(type_error)
+intPair implements Equality // fails as the ghostness of the implementation does not match the interface
+
+ghost
+decreases
+pure func (i intPair) hash() int {
+    return 42 // best implementation of a hash function
+}
+
+ghost
+decreases
+func (i intPair) isEqual(other Equality) bool {
+    if typeOf(other) == intPair {
+        //:: ExpectedOutput(type_error)
+        return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair)) // `other` cannot be cast to `intPair`
+    }
+    return false
+}
+
+func test() {
+    var x Equality
+    //:: ExpectedOutput(type_error)
+    x = pair(1,2) // `pair` does not implement `Equality`
+    assert x.hash() == 42
+}

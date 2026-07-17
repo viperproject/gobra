@@ -3,13 +3,15 @@
 
 package pkg
 
-type X seq[int]
+ghost type X seq[int]
 
 ghost
+decreases
 requires x == x ++ y
 func client1(x seq[int], y X)
 
 ghost
+decreases
 requires typeOf(y) == type[X]
 requires x == x ++ y.(X)
 func client2(x seq[int], y any)

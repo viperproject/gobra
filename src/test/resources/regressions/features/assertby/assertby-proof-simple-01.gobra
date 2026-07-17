@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package assertbyproofsimple01
+
+func foo(x, y int) {
+    // due to #1000, assert by proof are currently rejected by the type checker
+    //:: ExpectedOutput(type_error)
+    assert x <= y by {
+        mylemma(x, y)
+    }
+
+    assert x <= y
+
+    // due to #1000, assert by proof are currently rejected by the type checker so this example does not even reach the
+    // verification phase, so the following assertion error is commented:
+    // ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+ghost
+ensures x <= y
+decreases
+func mylemma(x, y int)

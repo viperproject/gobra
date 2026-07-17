@@ -3,7 +3,7 @@
 
 package pkg
 
-type List adt {
+ghost type List adt {
 	Cons {
 		head int
 		tail List
@@ -12,11 +12,10 @@ type List adt {
 	Nil {}
 }
 
-type Tree adt {
+ghost type Tree adt {
     Leaf{}
     Branch{ Left, Right Tree }
 }
 
 func Leaf() {
 }
-

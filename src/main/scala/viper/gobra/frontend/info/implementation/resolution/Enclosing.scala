@@ -84,23 +84,31 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingOutline: PNode => Option[POutline] =
     down[Option[POutline]](None) { case x: POutline => Some(x) }
 
-  lazy val isEnclosingExplicitGhost: PNode => Boolean =
-    down(false){ case _: PGhostifier[_] => true }
+  lazy val tryEnclosingGlobalVarDeclaration: PNode => Option[PVarDecl] =
+    down[Option[PVarDecl]](None) {
+      case x: PVarDecl if isGlobalVarDeclaration(x) => Some(x)
+    }
 
   lazy val isEnclosingGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
 
-  lazy val isEnclosingDomain: PNode => Boolean =
-    down(false){ case _: PDomainType => true }
+  // Returns true iff n occurs in an init() function, or a function marked with
+  // 'mayInit' or in the rhs of a global variable declaration.
+  def isEnclosingMayInit(n: PNode): Boolean = {
+    val cond1 = tryEnclosingFunctionOrMethod(n) match {
+      case Some(f: PFunctionDecl) => f.id.name == "init" || f.spec.mayBeUsedInInit
+      case Some(m: PMethodDecl) => m.spec.mayBeUsedInInit
+      case _ => false
+    }
+    val cond2 = tryEnclosingGlobalVarDeclaration(n).isDefined
+    cond1 || cond2
+  }
 
   lazy val isEnclosingMagicWand: PNode => Boolean =
     down(false) { case _: PMagicWand => true }
 
   def isGlobalVarDeclaration(n: PVarDecl): Boolean =
     enclosingCodeRoot(n).isInstanceOf[PPackage]
-
-  lazy val enclosingInterface: PNode => PInterfaceType =
-    down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
   lazy val tryEnclosingFunctionLit: PNode => Option[PFunctionLit] =
     down[Option[PFunctionLit]](None) { case x: PFunctionLit => Some(x) }
@@ -190,6 +198,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
+          case p: PAsserting => aux(p)
             // no array type
             // no range
             // no function spec, no invariants, no predicate body
@@ -200,7 +209,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
             // no implication, access
             // no forall or exists body
-          case PIn(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
+          case PElem(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
           case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
             // no cardinality
             // no sequence append, sequence conversion
@@ -243,6 +252,7 @@ trait Enclosing { this: TypeInfoImpl =>
       val allDeclared = allChildren(node).collect[Vector[PIdnNode]] {
         case decl: PVarDecl => decl.left.collect{ case id: PIdnDef => id }
         case decl: PShortVarDecl => decl.left.collect { case id: PIdnUnk if isDef(id) => id }
+        case decl: PAssignSuchThat => Vector(decl.left)
       }.flatten.distinctBy(_.name)
 
       freeVariables(node).filter(l => allDeclared.exists(r => l.name == r.name))

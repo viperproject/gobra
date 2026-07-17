@@ -17,7 +17,8 @@ type TestWithActualEmbedding struct {
 }
 
 type TestWithGhostEmbedding struct {
-    ghost Embedded
+    //:: ExpectedOutput(type_error)
+    ghost Embedded // invalid as an embedding changes struct's method set and this cannot be ghost
     actualField2 int
     ghost ghostField2 int
 }
@@ -30,22 +31,6 @@ func foo(s *TestWithActualEmbedding) {
 
     //:: ExpectedOutput(type_error)
     s.actualEmbeddedField = 42
-
-    s.ghostEmbeddedField = 42
-
-    //:: ExpectedOutput(type_error)
-    s.actualField2 = 42
-
-    s.ghostField2 = 42
-}
-
-ghost
-decreases
-preserves acc(s)
-func foo2(s *TestWithGhostEmbedding) {
-    // writing to an actual field is forbidden in ghost code but writing to fields treated as ghost is fine
-
-    s.actualEmbeddedField = 42 // this is fine as it's a ghost embedding
 
     s.ghostEmbeddedField = 42
 

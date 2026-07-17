@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue815
+
+type cell struct {
+	value int
+}
+
+pure
+requires acc(c)
+// old expressions not allowed in postconditions of pure functions
+//:: ExpectedOutput(type_error)
+ensures r == old(c.value)
+decreases
+func read(c *cell) (r int) {
+	return c.value
+}
+
+// old expressions not allowed in preconditions
+//:: ExpectedOutput(type_error)
+requires old(true)
+func oldInPre()
+
+// old expressions not allowed in termination measures
+//:: ExpectedOutput(type_error)
+decreases old(1)
+func oldInDecreasesClause()

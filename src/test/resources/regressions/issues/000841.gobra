@@ -3,11 +3,21 @@
 
 package issue000841
 
+// Issue #841: pure method signatures in an interface must satisfy the same
+// requirements as pure implementations. Requiring a termination measure is
+// gated behind the same flag as for pure functions and methods
+// (`disableCheckTerminationPureFns`), which the regression test suite disables;
+// hence this file exercises the requirements that are always checked: exactly
+// one result parameter, non-variadic parameters, and the rejection of
+// conditional termination measures.
+
 type J interface {
-	// Type error, pure interface method does not have a termination measure.
+	// Type error, a pure interface method must have exactly one result parameter.
+	// The error is reported at the start of the method specification.
 	//:: ExpectedOutput(type_error)
+	decreases
 	pure
-	M1(a int) int
+	M1(a int)
 
 	// Type error, we do not permit conditional termination measures for members that must terminate.
 	//:: ExpectedOutput(type_error)
@@ -15,20 +25,14 @@ type J interface {
 	pure
 	M2(a int) int
 
+	// Type error, a pure interface method cannot have variadic parameters.
 	decreases
 	pure
-	// Type error, pure interface method cannot have variadic parameters.
 	//:: ExpectedOutput(type_error)
 	M3(a ...int) int
-
-	// Type error, pure interface method must have exactly one result parameter.
-	// The error is reported at the start of the method specification.
-	//:: ExpectedOutput(type_error)
-	decreases
-	pure
-	M4(a int)
 }
 
+// Conditional termination measures are likewise rejected for top-level pure functions.
 pure
 //:: ExpectedOutput(type_error)
 decreases _ if b // we syntactically disallow conditional termination measures for members that must terminate

@@ -10,14 +10,14 @@ type foo interface {
 }
 
 type bar interface {
-	pure g()
+	pure g() int
 }
 
 type test int
 
 func (x test) f()
 
-func (x test) g()
+func (x test) g() int
 
 //:: ExpectedOutput(type_error)
 test implements foo

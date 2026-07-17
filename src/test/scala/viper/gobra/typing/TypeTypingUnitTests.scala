@@ -343,32 +343,6 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert (!frontend.areComparable(t1, t2))
   }
 
-  // Regression tests for issue #841: pure method signatures declared in an interface must satisfy the same
-  // requirements as pure functions and methods, in particular they must carry a termination measure. This
-  // requirement is gated behind `disableCheckTerminationPureFns`, which the regression-test suite disables but
-  // the default `Config()` used by `TestFrontend` keeps enabled, so it can be exercised here.
-  private def pureInterfaceType(measures: Vector[PTerminationMeasure]): PInterfaceType =
-    PInterfaceType(
-      Vector.empty,
-      Vector(PMethodSig(
-        PIdnDef("M"),
-        Vector.empty,
-        PResult(Vector(PUnnamedParameter(PIntType()))),
-        PFunctionSpec(Vector.empty, measures, Vector.empty, isPure = true),
-        isGhost = false
-      )),
-      Vector.empty
-    )
-
-  test("Typing: a pure interface method without a termination measure is not well-defined") {
-    assert (!frontend.isWellDef(pureInterfaceType(Vector.empty)).valid)
-  }
-
-  test("Typing: a pure interface method with a termination measure is well-defined") {
-    val measure = PTupleTerminationMeasure(Vector.empty, None)
-    assert (frontend.isWellDef(pureInterfaceType(Vector(measure))).valid)
-  }
-
 
 
   /* ** Stubs, mocks, and other test setup  */

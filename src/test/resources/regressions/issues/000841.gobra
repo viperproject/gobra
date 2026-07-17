@@ -13,27 +13,21 @@ package issue000841
 
 type J interface {
 	// Type error, a pure interface method must have exactly one result parameter.
-	// The error is reported at the start of the method specification.
 	//:: ExpectedOutput(type_error)
-	decreases
-	pure
-	M1(a int)
+	decreases pure M1(a int)
 
 	// Type error, we do not permit conditional termination measures for members that must terminate.
 	//:: ExpectedOutput(type_error)
 	decreases if a == 42
-	pure
-	M2(a int) int
+	pure M2(a int) int
 
 	// Type error, a pure interface method cannot have variadic parameters.
 	decreases
-	pure
 	//:: ExpectedOutput(type_error)
-	M3(a ...int) int
+	pure M3(a ...int) int
 }
 
 // Conditional termination measures are likewise rejected for top-level pure functions.
-pure
 //:: ExpectedOutput(type_error)
 decreases _ if b // we syntactically disallow conditional termination measures for members that must terminate
-func f(b bool) bool
+pure func f(b bool) bool

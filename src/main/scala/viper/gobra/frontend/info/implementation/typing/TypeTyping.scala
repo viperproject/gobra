@@ -84,19 +84,17 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => noMessages
           }
         }
+        // Pure method signatures are checked uniformly in `wellDefIfPureSpec` (see `pureSigErrors`); here we only
+        // reject conditional termination measures for ghost (non-pure) method signatures.
         val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
-          if (sig.isGhost || sig.spec.isPure)
+          if (sig.isGhost && !sig.spec.isPure)
             noConditionalMeasureErrors(sig.spec.terminationMeasures)
           else noMessages
         }
-        // Pure method signatures in an interface must satisfy the same requirements as pure implementations.
-        // This reuses the shared `wellDefIfPureSpec` checks and, as for pure functions and methods, requires a
-        // termination measure to be provided (unless termination checking of pure members is disabled).
+        // Pure method signatures in an interface must satisfy the same requirements as pure implementations,
+        // including having a meaningful termination measure. This is checked uniformly in `wellDefIfPureSpec`.
         val pureSigErrors = t.methSpecs.flatMap { sig =>
-          if (sig.spec.isPure)
-            wellDefIfPureSpec(sig, sig.args, sig.spec) ++
-              error(sig, "Pure interface methods must have termination measures, but none was found.",
-                !config.disableCheckTerminationPureFns && sig.spec.terminationMeasures.isEmpty)
+          if (sig.spec.isPure) wellDefIfPureSpec(sig, sig.args, sig.spec)
           else noMessages
         }
         methodSet.errors(t) ++

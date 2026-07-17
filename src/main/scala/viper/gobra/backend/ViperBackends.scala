@@ -55,7 +55,7 @@ trait ViperBackend extends CliEnumConverter.EnumCase {
 trait SiliconBasedBackend extends ViperBackend {
   override protected def buildOptions(exePaths: Vector[String], config: Config, pkgInfo: PackageInfo): Vector[String] = {
     var options: Vector[String] = super.buildOptions(exePaths, config, pkgInfo)
-    options ++= Vector("--logLevel", "ERROR")
+    options ++= Vector("--logLevel", "WARN")
     options ++= Vector("--disableCatchingExceptions")
     if (config.conditionalizePermissions) {
       options ++= Vector("--conditionalizePermissions")
@@ -94,13 +94,15 @@ trait SiliconBasedBackend extends ViperBackend {
         Files.write(axiomTmpPath, source.mkString.getBytes)
       }
 
-      options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString())
+      options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString)
     }
-    if (config.analyzeInfeasiblePaths) {
+    if (config.analyzeInfeasiblePaths) { // TODO ake: remove this flag from Gobra and adjust default da config flags?
       options ++= Vector("--analyzeInfeasiblePaths")
     }
-    if (config.enableDependencyAnalysis) {
+    if (config.enableDependencyAnalysis || config.dependencyAnalysisMode.isDefined) {
       options ++= Vector("--enableDependencyAnalysis")
+      if (!config.disableTerminationPlugin) options ++= Vector("--disableTerminationPlugin") // TODO ake: warning
+      //      options ++= Vector("--enableDependencyAnalysisDebugging")
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")
     } else if (config.enableUnsatCores) {
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")

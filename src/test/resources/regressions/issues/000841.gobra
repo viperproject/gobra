@@ -14,7 +14,8 @@ package issue000841
 type J interface {
 	// Type error, a pure interface method must have exactly one result parameter.
 	//:: ExpectedOutput(type_error)
-	decreases pure M1(a int)
+	decreases
+	pure M1(a int)
 
 	// Type error, we do not permit conditional termination measures for members that must terminate.
 	//:: ExpectedOutput(type_error)

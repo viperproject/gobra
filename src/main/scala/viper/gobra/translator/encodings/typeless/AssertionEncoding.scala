@@ -44,7 +44,7 @@ class AssertionEncoding extends Encoding {
       val (pos, info, errT) = n.vprMeta
       for {
         (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
-        newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
+        newForall = vu.dropBoundedFromOnlyTriggers(vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger)
       } yield newForall.check match {
         case Seq() => newForall
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
@@ -54,7 +54,7 @@ class AssertionEncoding extends Encoding {
       val (pos, info, errT) = n.vprMeta
       for {
         (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
-        newExists =  vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
+        newExists =  vu.dropBoundedFromOnlyTriggers(vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger)
       } yield newExists.check match {
         case Seq() => newExists
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
@@ -95,7 +95,7 @@ class AssertionEncoding extends Encoding {
         newBody <- pure(ctx.assertion(body))(ctx)
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
         desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
-        triggeredForall = desugaredForall.map(_.autoTrigger)
+        triggeredForall = desugaredForall.map(f => vu.dropBoundedFromOnlyTriggers(f.autoTrigger))
         reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
       } yield reducedForall
   }
@@ -123,7 +123,7 @@ class AssertionEncoding extends Encoding {
       val vprBoundVar = ctx.variable(boundVar)
       seqnUnits(Vector(for {
         vprBody <- ctx.expression(renamedCond)
-        existsExpr = vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(condPos, condInfo, condErrT).autoTrigger
+        existsExpr = vu.dropBoundedFromOnlyTriggers(vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(condPos, condInfo, condErrT).autoTrigger)
         condEnc <- ctx.assertion(condAss)
         _ <- assert(existsExpr,
           (info, _) => AssignSuchThatError(info) dueTo AssignSuchThatNoWitnessError(info)

@@ -108,4 +108,41 @@ object ViperUtil {
   /** Adds simple (source) information to a node without source information. */
   def synthesized[T](node: (Position, Info, ErrorTrafo) => T)(comment: String): T =
     node(NoPosition, SimpleInfo(Seq(comment)), NoTrafos)
+
+  /**
+    * Drops auto-inferred trigger sets that consist solely of bounded-int `from` bridge
+    * applications (see [[viper.gobra.translator.Names.boundedIntFrom]]), provided at least one
+    * other trigger set remains.
+    *
+    * Rationale: quantifiers over bounded-int values compile comparisons like `0 <= j` to
+    * `k$from(j) >= 0`, so Silver's trigger inference discovers `{ k$from(j) }` as a valid
+    * trigger set — but `from` appears on essentially every bounded term in a trace, making
+    * this trigger fire for every bounded ground term ever created. That eagerness is a
+    * performance disaster (each loop iteration mints fresh terms, each of which re-instantiates
+    * every such quantifier). Before the domain encoding, plain integer comparisons contributed
+    * no trigger candidates at all, so inference picked heap- or container-based terms
+    * (`m[j]`, `j in domain(m)`, …); dropping the `from`-only sets restores exactly that
+    * behavior. If `from`-sets are the only candidates, they are kept — a quantifier without
+    * triggers would be worse (the backend or Z3 would infer something at least as permissive).
+    */
+  def dropBoundedFromOnlyTriggers[T <: QuantifiedExp](q: T): T = {
+    def isFromApp(e: Exp): Boolean = e match {
+      case app: DomainFuncApp =>
+        app.funcname.endsWith("$from") && app.domainName.startsWith("Bounded_")
+      case _ => false
+    }
+    q match {
+      case forall: Forall =>
+        val (fromOnly, rest) = forall.triggers.partition(t => t.exps.nonEmpty && t.exps.forall(isFromApp))
+        if (rest.nonEmpty && fromOnly.nonEmpty)
+          forall.copy(triggers = rest)(forall.pos, forall.info, forall.errT).asInstanceOf[T]
+        else q
+      case exists: Exists =>
+        val (fromOnly, rest) = exists.triggers.partition(t => t.exps.nonEmpty && t.exps.forall(isFromApp))
+        if (rest.nonEmpty && fromOnly.nonEmpty)
+          exists.copy(triggers = rest)(exists.pos, exists.info, exists.errT).asInstanceOf[T]
+        else q
+      case _ => q
+    }
+  }
 }

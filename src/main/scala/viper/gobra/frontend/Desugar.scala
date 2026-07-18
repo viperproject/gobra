@@ -2431,6 +2431,16 @@ object Desugar extends LazyLogging {
         // expected) and Viper consistency-checks fail.
         case (in.IntT(_, fromK), in.IntT(_, toK)) if fromK != toK =>
           in.Conversion(to, exp)(exp.info)
+        // Option types with mismatched integer element kinds (e.g. `opt = some(34)`, where
+        // `some(34)` is typed option[untyped] but the target is option[int]): push the
+        // alignment into the option constructor — there is no Viper-level mapping function
+        // between Option[Int] and Option[Bounded_k].
+        case (in.OptionT(in.IntT(_, fromK), _), in.OptionT(toElem@ in.IntT(_, toK), _)) if fromK != toK =>
+          exp match {
+            case in.OptionSome(x) => in.OptionSome(alignElementKind(x, toElem))(exp.info)
+            case _: in.OptionNone => in.OptionNone(toElem.withAddressability(Addressability.rValue))(exp.info)
+            case _ => exp
+          }
         case _ =>
           exp
       }
@@ -2522,7 +2532,9 @@ object Desugar extends LazyLogging {
         // index to match the map's declared key type.
         dindex = baseUnderlyingType match {
           case _: in.SliceT | _: in.ArrayT | _: in.SequenceT | _: in.StringT =>
-            dindexRaw.typ match {
+            // Resolve the index's *underlying* type: the index may have a defined type whose
+            // underlying type is a bounded integer (e.g. `type Type uint8`).
+            underlyingType(dindexRaw.typ) match {
               case in.IntT(_, k) if k != viper.gobra.util.TypeBounds.UnboundedInteger =>
                 in.Conversion(in.IntT(Addressability.rValue, viper.gobra.util.TypeBounds.UnboundedInteger), dindexRaw)(dindexRaw.info)
               case _ => dindexRaw
@@ -3292,7 +3304,7 @@ object Desugar extends LazyLogging {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
-            entryKey <- key match {
+            entryKeyRaw <- key match {
               case v: PCompositeVal => compositeValD(ctx, info)(v, keys)
               case k: PIdentifierKey => info.regular(k.id) match {
                 case _: st.Variable => unit(varD(ctx, info)(k.id))
@@ -3300,7 +3312,13 @@ object Desugar extends LazyLogging {
                 case _ => violation(s"unexpected key $key")
               }
             }
-            entryVal <- compositeValD(ctx, info)(value, values)
+            // Identifier keys (variables/constants) bypass compositeValD's implicit
+            // conversion, so their integer kind may not match the declared key type.
+            entryKey = alignElementKind(entryKeyRaw, keys)
+            // Align the value's integer kind with the declared value type as well: an
+            // untyped literal value (e.g. `5` in `dict[string]int{"k": 5}`) may otherwise
+            // keep a kind whose Viper sort differs from the map's value sort.
+            entryVal <- compositeValD(ctx, info)(value, values).map(alignElementKind(_, values))
           } yield (entryKey, entryVal)
 
           case _ => violation("unexpected pattern, missing key in map literal")
@@ -4564,14 +4582,35 @@ object Desugar extends LazyLogging {
         }
 
         case PMultiplicity(left, right) => for {
-          dleft <- go(left)
+          dleftRaw <- go(left)
           dright <- go(right)
+          // Align the searched element's kind with the collection's element type (like PElem);
+          // e.g. in `42 # m` with `m: mset[int]`, the literal must become a bounded int.
+          dleft = underlyingType(dright.typ) match {
+            case t: in.SequenceT => alignElementKind(dleftRaw, t.t)
+            case t: in.MultisetT => alignElementKind(dleftRaw, t.t)
+            case _ => dleftRaw
+          }
         } yield in.Multiplicity(dleft, dright)(src)
 
         case PRangeSequence(low, high) => for {
           dlow <- go(low)
           dhigh <- go(high)
-        } yield in.RangeSequence(dlow, dhigh)(src)
+          // The bounds must be mathematical integers (Viper's RangeSeq is over Int) …
+          rng = in.RangeSequence(
+            viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(dlow),
+            viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(dhigh))(src)
+        } yield typ match {
+          // … but the *element* kind follows the frontend-inferred type: `seq[1..4]` in an
+          // `int` context has bounded elements, so wrap with a Conversion that the sequence
+          // encoding turns into the per-kind `Seq[Int] -> Seq[Bounded_k]` mapping function.
+          // Without this, `seq[1..4] ++ seq[int]{1}` etc. mixes Viper sorts.
+          case in.SequenceT(in.IntT(_, k: viper.gobra.util.TypeBounds.BoundedIntegerKind), _) =>
+            in.Conversion(
+              in.SequenceT(in.IntT(Addressability.mathDataStructureElement, k), Addressability.rValue),
+              rng)(src)
+          case _ => rng
+        }
 
         case PSequenceAppend(left, right) => for {
           dleft <- go(left)
@@ -4582,8 +4621,20 @@ object Desugar extends LazyLogging {
           case (dcol, clause) => for {
             dcolExp <- dcol
             baseUnderlyingType = underlyingType(dcolExp.typ)
-            dleft <- go(clause.left)
-            dright <- go(clause.right)
+            dleftRaw <- go(clause.left)
+            drightRaw <- go(clause.right)
+            // Align the key/index and the value with the collection's declared types:
+            // sequence indices must be mathematical integers (Viper Int), while values, map
+            // keys, and map values must match the (possibly bounded) element kind.
+            (dleft, dright) = baseUnderlyingType match {
+              case t: in.SequenceT =>
+                (viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(dleftRaw), alignElementKind(drightRaw, t.t))
+              case t: in.MathMapT =>
+                (alignElementKind(dleftRaw, t.keys), alignElementKind(drightRaw, t.values))
+              case t: in.MapT =>
+                (alignElementKind(dleftRaw, t.keys), alignElementKind(drightRaw, t.values))
+              case _ => (dleftRaw, drightRaw)
+            }
           } yield in.GhostCollectionUpdate(dcol.res, dleft, dright, baseUnderlyingType)(src)
         }
 
@@ -4648,10 +4699,13 @@ object Desugar extends LazyLogging {
         } yield in.OptionGet(dop)(src)
 
         case m: PMatchExp =>
+          // The match expression is encoded as a chain of Viper conditionals, so every case
+          // body (and the default) must land in the same Viper sort as the overall type —
+          // align integer kinds (e.g. an untyped literal body vs. a bounded `int` match type).
           val defaultD: Writer[Option[in.Expr]] = if (m.hasDefault) {
             for {
               e <- exprD(ctx, info)(m.defaultClauses.head.exp)
-            } yield Some(e)
+            } yield Some(alignElementKind(e, typ))
           } else {
             unit(None)
           }
@@ -4659,7 +4713,7 @@ object Desugar extends LazyLogging {
           def caseD(c: PMatchExpCase): Writer[in.PatternMatchCaseExp] = for {
             p <- matchPatternD(ctx, info)(c.pattern)
             e <- exprD(ctx, info)(c.exp)
-          } yield in.PatternMatchCaseExp(p, e)(src)
+          } yield in.PatternMatchCaseExp(p, alignElementKind(e, typ))(src)
 
           for {
             e <- exprD(ctx, info)(m.exp)

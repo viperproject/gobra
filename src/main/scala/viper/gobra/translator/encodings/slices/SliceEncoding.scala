@@ -155,8 +155,11 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             _ <- local(vprSlice)
 
             capArg = optCapArg.getOrElse(lenArg)
-            vprLength <- ctx.expression(lenArg)
-            vprCapacity <- ctx.expression(capArg)
+            // Project the (possibly bounded-int) size arguments to mathematical integers before
+            // building raw Viper comparisons / quantifier bounds: `make([]T, 6)` types `6` as Go
+            // `int`, whose direct encoding is a `Bounded_int` domain value — not a Viper Int.
+            vprLength <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(lenArg, underlyingType(lenArg.typ)(ctx)))
+            vprCapacity <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(capArg, underlyingType(capArg.typ)(ctx)))
 
             // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
             // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
@@ -300,7 +303,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   override def reference(ctx : Context) : in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)) {
     case (exp @ in.IndexedExp(base :: ctx.Slice(_), idx, _)) :: _ / Shared => for {
       baseT <- ctx.expression(base)
-      idxT <- ctx.expression(idx)
+      // slice indices are Viper Ints; project bounded-int indices via `from`
+      idxT <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(idx, underlyingType(idx.typ)(ctx)))
     } yield withSrc(ctx.slice.loc(baseT, idxT), exp)
   }
 

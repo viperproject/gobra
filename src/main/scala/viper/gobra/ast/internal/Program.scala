@@ -976,8 +976,8 @@ case class MapKeys(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser
 
 case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
   override val typ : Type = expUnderlyingType match {
-    case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
-    case t: MapT => SetT(t.keys, Addressability.rValue)
+    case t: MathMapT => SetT(t.values, Addressability.mathDataStructureElement)
+    case t: MapT => SetT(t.values, Addressability.rValue)
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
@@ -1076,7 +1076,10 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
     // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
     // As an exception to the addressability requirement, x may also be a (possibly parenthesized) composite literal.
-    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.merge(kind1, kind2))
+    // `mergeLenient`, not `merge`: the desugarer synthesizes arithmetic mixing user
+    // expressions with internally-created `integer`-kinded nodes (range-loop indices,
+    // `len`/`cap` results), which the strict frontend rule would reject.
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.mergeLenient(kind1, kind2))
 
     // A binary expression may have one operand of a defined type T and another operand that is an unbounded integer.
     // If T's underlying type is an integer type, then the result of the expression should be of type T.

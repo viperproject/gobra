@@ -85,7 +85,8 @@ class StringEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = e.vprMeta
         for {
           baseExp <- goE(base)
-          indexExp <- goE(index)
+          // string indices are Viper Ints; project bounded-int indices via `from`
+          indexExp <- goE(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(index, underlyingType(index.typ)(ctx)))
         } yield stringIndex(baseExp, indexExp)(ctx)(pos, info, errT)
     }
   }

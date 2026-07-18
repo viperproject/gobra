@@ -96,4 +96,19 @@ object TypeBounds {
     // untyped constant (handled above).
     case _ => violation(s"kinds $integerKind1 and $integerKind2 cannot be merged")
   }
+
+  /**
+    * Like [[merge]], but additionally lets the `integer` ghost kind adapt to a bounded sibling.
+    * The strict [[merge]] is a *frontend type-checking* rule: user code mixing `integer` with a
+    * bounded kind must be rejected. The internal AST, in contrast, must tolerate such mixes:
+    * the desugarer synthesizes arithmetic combining user expressions with internally-created
+    * nodes of kind `integer` (e.g. range-loop index increments, `len`/`cap` results). The
+    * encoding handles mixed operands by projecting both to mathematical integers, so picking
+    * the bounded kind as the merged result is sound.
+    */
+  def mergeLenient(integerKind1: IntegerKind, integerKind2: IntegerKind): IntegerKind = (integerKind1, integerKind2) match {
+    case (a, UnboundedInteger) if a != UnboundedInteger => a
+    case (UnboundedInteger, b) => b
+    case _ => merge(integerKind1, integerKind2)
+  }
 }

@@ -524,10 +524,10 @@ class AdtEncoding extends LeafTypeEncoding {
         unit(vpr.TrueLit()(pos,info,errT))
 
       case in.MatchValue(exp) =>
-        for {
-          e1 <- ctx.expression(exp)
-          e2 <- ctx.expression(expr)
-        } yield vpr.EqCmp(e1, e2)(pos, info, errT)
+        // Use the equality dispatch instead of a raw vpr.EqCmp: the pattern literal and the
+        // scrutinee may have different integer kinds (e.g. untyped literal `5` vs. a bounded
+        // `int` ADT field), in which case BoundedIntEncoding must project both to Int.
+        ctx.equal(exp, expr)(pattern)
 
       case in.MatchAdt(clause, patternArgs) =>
         val destructorOverExp = clause.fields.map(f => in.AdtDestructor(expr, f)(expr.info))

@@ -16,7 +16,12 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
-class ChannelEncoding extends LeafTypeEncoding {
+/**
+  * @param goIntKind the IntegerKind the frontend uses for Go's `int` type. The synthesized
+  *                  `BufferSize` call must declare this kind so its internal type matches the
+  *                  generated built-in member's (bounded) Viper return sort.
+  */
+class ChannelEncoding(goIntKind: viper.gobra.util.TypeBounds.IntegerKind) extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -139,7 +144,9 @@ class ChannelEncoding extends LeafTypeEncoding {
             // var a [ chan T ]
             _ <- local(vprA)
 
-            vprBufferSize <- ctx.expression(bufferSizeArg)
+            // project a (possibly bounded-int) buffer size to a mathematical integer for the
+            // raw Viper comparison below
+            vprBufferSize <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(bufferSizeArg, underlyingType(bufferSizeArg.typ)(ctx)))
 
             // assert 0 <= [bufferSize]
             vprIsBufferSizePositive = vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprBufferSize)(pos, info, errT)
@@ -155,7 +162,7 @@ class ChannelEncoding extends LeafTypeEncoding {
             _ <- write(vprIsChannelInhale)
 
             // inhale [a].BufferSize() == [bufferSize]
-            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), in.IntT(Addressability.outParameter), false)(makeStmt.info)
+            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), in.IntT(Addressability.outParameter, goIntKind), false)(makeStmt.info)
             bufferSizeEq = in.EqCmp(bufferSizeCall, bufferSizeArg)(makeStmt.info)
             vprBufferSizeEq <- ctx.expression(bufferSizeEq)
             vprBufferSizeInhale = vpr.Inhale(vprBufferSizeEq)(pos, info, errT)

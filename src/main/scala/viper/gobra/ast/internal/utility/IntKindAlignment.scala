@@ -51,14 +51,110 @@ object IntKindAlignment {
           return (l, in.IntLit(lit.v, lk, lit.base)(lit.info))
         case _ =>
       }
-      // 2) Otherwise, demote the bounded operand to integer.
-      if (lk == TypeBounds.UnboundedInteger)
+      // 2) A constant expression (e.g. `-1`, i.e. Sub(0, 1)) of mathematical/untyped kind
+      //    next to a bounded sibling: fold it to a literal of the bounded kind, when it fits.
+      //    Demoting the bounded side instead would leak a Viper `Int` into a context whose
+      //    surrounding sort (e.g. a pure function's bounded return type) is a domain type.
+      if (isMathematical(lk) && rk.isInstanceOf[TypeBounds.BoundedIntegerKind])
+        foldConst(l) match {
+          case Some(v) if fitsInKind(v, rk) => return (in.IntLit(v, rk)(l.info), r)
+          case _ =>
+        }
+      if (isMathematical(rk) && lk.isInstanceOf[TypeBounds.BoundedIntegerKind])
+        foldConst(r) match {
+          case Some(v) if fitsInKind(v, lk) => return (l, in.IntLit(v, lk)(r.info))
+          case _ =>
+        }
+      // 3) Otherwise, demote the bounded operand to integer.
+      if (isMathematical(lk))
         (l, in.Conversion(unboundedT, r)(r.info))
-      else if (rk == TypeBounds.UnboundedInteger)
+      else if (isMathematical(rk))
         (in.Conversion(unboundedT, l)(l.info), r)
       else
         (l, r)
+
+    // Ghost collections of ints whose element kinds disagree (e.g. `seq[1..4] == seq[int]{1,2,3}`,
+    // where the range sequence has mathematical-integer elements while the literal has bounded
+    // `int` elements). The mathematical side is promoted to the bounded element kind — see
+    // [[coerceToElemKind]].
+    case (lt, rt) if elemKindMismatch(lt, rt) =>
+      (elemIntKind(lt), elemIntKind(rt)) match {
+        case (Some(lk: TypeBounds.BoundedIntegerKind), Some(_)) => (l, coerceToElemKind(r, lk))
+        case (Some(_), Some(rk: TypeBounds.BoundedIntegerKind)) => (coerceToElemKind(l, rk), r)
+        case _ => (l, r)
+      }
+
     case _ => (l, r)
+  }
+
+  /** True for the kinds whose Viper encoding is a plain `Int` (as opposed to a bounded domain). */
+  private def isMathematical(k: TypeBounds.IntegerKind): Boolean =
+    k == TypeBounds.UnboundedInteger || k == TypeBounds.UntypedConstInteger
+
+  /** Statically evaluates simple constant integer expressions (literals combined with +, -, *). */
+  private def foldConst(e: in.Expr): Option[BigInt] = e match {
+    case lit: in.IntLit => Some(lit.v)
+    case in.Add(l, r) => for { a <- foldConst(l); b <- foldConst(r) } yield a + b
+    case in.Sub(l, r) => for { a <- foldConst(l); b <- foldConst(r) } yield a - b
+    case in.Mul(l, r) => for { a <- foldConst(l); b <- foldConst(r) } yield a * b
+    case _ => None
+  }
+
+  /** The integer element/member kind of a ghost collection type, if any. */
+  private def elemIntKind(t: in.Type): Option[TypeBounds.IntegerKind] = t match {
+    case in.SequenceT(in.IntT(_, k), _) => Some(k)
+    case in.SetT(in.IntT(_, k), _) => Some(k)
+    case in.MultisetT(in.IntT(_, k), _) => Some(k)
+    case _ => None
+  }
+
+  /** True if both types are the same ghost collection over ints but with different elem kinds,
+    * where exactly one side is mathematical (`integer` / untyped). */
+  private def elemKindMismatch(lt: in.Type, rt: in.Type): Boolean = {
+    def unbounded(k: TypeBounds.IntegerKind): Boolean =
+      k == TypeBounds.UnboundedInteger || k == TypeBounds.UntypedConstInteger
+    ((lt, rt) match {
+      case (_: in.SequenceT, _: in.SequenceT) => true
+      case (_: in.SetT, _: in.SetT) => true
+      case (_: in.MultisetT, _: in.MultisetT) => true
+      case _ => false
+    }) && ((elemIntKind(lt), elemIntKind(rt)) match {
+      case (Some(lk), Some(rk)) => lk != rk && (unbounded(lk) ^ unbounded(rk))
+      case _ => false
+    })
+  }
+
+  /**
+    * Coerces a ghost collection expression with mathematical-integer elements to the bounded
+    * element kind `k`. Sequence-typed expressions are wrapped with an `in.Conversion` to
+    * `seq[k]`, which the encoding translates to a per-kind `Seq[Int] -> Seq[Bounded_k]`
+    * mapping function. Set-/multiset-typed expressions have no direct mapping function;
+    * instead, the coercion is pushed through the structure (conversions from sequences and
+    * set operations) until it reaches sequence level.
+    */
+  def coerceToElemKind(e: in.Expr, k: TypeBounds.BoundedIntegerKind): in.Expr = {
+    def boundedElemT: in.Type = in.IntT(Addressability.mathDataStructureElement, k)
+    e.typ match {
+      case in.IntT(_, ek) if ek != k => // element-level coercion (used for recursion helpers)
+        in.Conversion(in.IntT(Addressability.rValue, k), e)(e.info)
+      case _: in.SequenceT =>
+        in.Conversion(in.SequenceT(boundedElemT, e.typ.addressability), e)(e.info)
+      case t: in.SetT => e match {
+        case in.SetConversion(s) => in.SetConversion(coerceToElemKind(s, k))(e.info)
+        case in.Union(a, b, _)        => in.Union(coerceToElemKind(a, k), coerceToElemKind(b, k), in.SetT(boundedElemT, t.addressability))(e.info)
+        case in.Intersection(a, b, _) => in.Intersection(coerceToElemKind(a, k), coerceToElemKind(b, k), in.SetT(boundedElemT, t.addressability))(e.info)
+        case in.SetMinus(a, b, _)     => in.SetMinus(coerceToElemKind(a, k), coerceToElemKind(b, k), in.SetT(boundedElemT, t.addressability))(e.info)
+        case _ => e // no general Set[Int] -> Set[Bounded_k] mapping; leave unchanged
+      }
+      case t: in.MultisetT => e match {
+        case in.MultisetConversion(s) => in.MultisetConversion(coerceToElemKind(s, k))(e.info)
+        case in.Union(a, b, _)        => in.Union(coerceToElemKind(a, k), coerceToElemKind(b, k), in.MultisetT(boundedElemT, t.addressability))(e.info)
+        case in.Intersection(a, b, _) => in.Intersection(coerceToElemKind(a, k), coerceToElemKind(b, k), in.MultisetT(boundedElemT, t.addressability))(e.info)
+        case in.SetMinus(a, b, _)     => in.SetMinus(coerceToElemKind(a, k), coerceToElemKind(b, k), in.MultisetT(boundedElemT, t.addressability))(e.info)
+        case _ => e
+      }
+      case _ => e
+    }
   }
 
   /** True if `v` is representable in `kind`. UnboundedInteger admits any value. */
@@ -74,9 +170,24 @@ object IntKindAlignment {
     * indices, perm-constructor numerator/denominator, etc.) but that may receive a bounded
     * integer value because the frontend infers a concrete kind for sibling literals.
     */
-  def asUnboundedInt(e: in.Expr): in.Expr = e.typ match {
+  def asUnboundedInt(e: in.Expr): in.Expr = asUnboundedInt(e, e.typ)
+
+  /**
+    * Like [[asUnboundedInt(e:viper\.gobra\.ast\.internal\.Expr)*]], but decides based on a
+    * caller-resolved type. Use this variant when `e`'s type may be a defined type whose
+    * *underlying* type is a bounded integer (e.g. `type Type uint8`): the caller resolves the
+    * underlying type (`underlyingType(e.typ)(ctx)` in encodings, `underlyingType` in the
+    * desugarer) since this utility has no access to type-declaration lookups.
+    */
+  def asUnboundedInt(e: in.Expr, resolvedTyp: in.Type): in.Expr = resolvedTyp match {
     case in.IntT(_, k) if k != TypeBounds.UnboundedInteger =>
-      in.Conversion(unboundedT, e)(e.info)
+      e match {
+        // Retype literals in place: a bounded literal is always in range (enforced by the
+        // type checker), so `integer(c) == c` and the `from(to(c))` roundtrip the general
+        // Conversion would produce is pure encoding noise.
+        case lit: in.IntLit => in.IntLit(lit.v, TypeBounds.UnboundedInteger, lit.base)(lit.info)
+        case _ => in.Conversion(unboundedT, e)(e.info)
+      }
     case _ => e
   }
 }

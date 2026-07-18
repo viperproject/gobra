@@ -7,6 +7,7 @@
 package viper.gobra.translator.encodings.sequences
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.utility.IntKindAlignment
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -16,7 +17,7 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.silver.plugin.standard.termination
 import viper.silver.{ast => vpr}
 
@@ -27,6 +28,54 @@ class SequenceEncoding extends LeafTypeEncoding {
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     emptySeqFunc.finalize(addMemberFn)
+    seqToBoundedFunc.finalize(addMemberFn)
+  }
+
+  /**
+    * Generates, per bounded integer kind k, a mapping function from mathematical-integer
+    * sequences to sequences of the bounded domain type:
+    *
+    *   function k$seqToBounded(s: Seq[Int]): Seq[Bounded_k]
+    *     ensures |result| == |s|
+    *     ensures forall i: Int :: { result[i] } 0 <= i && i < |s| ==> result[i] == k$to(s[i])
+    *
+    * Used to encode `in.Conversion`s between `seq[integer]` and `seq[k]`, which the desugarer
+    * inserts when a mathematical sequence (e.g. a range `seq[a..b]`, which Viper only supports
+    * over Int) meets a bounded-element context (e.g. `seq[1..4] == seq[int]{1,2,3}`).
+    */
+  private val seqToBoundedFunc: FunctionGenerator[TypeBounds.BoundedIntegerKind] = new FunctionGenerator[TypeBounds.BoundedIntegerKind] {
+    override def genFunction(k: TypeBounds.BoundedIntegerKind)(ctx: Context): vpr.Function = {
+      val domT   = vpr.DomainType(Names.boundedIntDomain(k), Map.empty[vpr.TypeVar, vpr.Type])(Seq.empty)
+      val sDecl  = vpr.LocalVarDecl("s", vpr.SeqType(vpr.Int))()
+      val s      = sDecl.localVar
+      val result = vpr.Result(vpr.SeqType(domT))()
+      val iDecl  = vpr.LocalVarDecl("i", vpr.Int)()
+      val i      = iDecl.localVar
+      val toElem = vpr.DomainFuncApp(
+        funcname = Names.boundedIntTo(k),
+        args = Seq(vpr.SeqIndex(s, i)()),
+        typVarMap = Map.empty
+      )(vpr.NoPosition, vpr.NoInfo, domT, Names.boundedIntDomain(k), vpr.NoTrafos)
+
+      val lenPost = vpr.EqCmp(vpr.SeqLength(result)(), vpr.SeqLength(s)())()
+      val idxPost = vpr.Forall(
+        Seq(iDecl),
+        Seq(vpr.Trigger(Seq(vpr.SeqIndex(result, i)()))()),
+        vpr.Implies(
+          vpr.And(vpr.LeCmp(vpr.IntLit(0)(), i)(), vpr.LtCmp(i, vpr.SeqLength(s)())())(),
+          vpr.EqCmp(vpr.SeqIndex(result, i)(), toElem)()
+        )()
+      )()
+
+      vpr.Function(
+        name = s"${k.name}$$seqToBounded",
+        formalArgs = Seq(sDecl),
+        typ = vpr.SeqType(domT),
+        pres = Seq(synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")),
+        posts = Seq(lenPost, idxPost),
+        body = None
+      )()
+    }
   }
 
   /**
@@ -84,16 +133,25 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         for {
           vE <- goE(e)
-          vIdx <- goE(idx)
+          // sequence indices are Viper Ints; a bounded-int index (e.g. a Go `int` loop
+          // variable) must be projected via `from`
+          vIdx <- goE(IntKindAlignment.asUnboundedInt(idx, underlyingType(idx.typ)(ctx)))
         } yield vpr.SeqIndex(vE, vIdx)(pos, info, errT)
 
       case n@ in.GhostCollectionUpdate(base :: ctx.Seq(_), left, right, _) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vBase <- goE(base)
-          vLeft <- goE(left)
+          vLeft <- goE(IntKindAlignment.asUnboundedInt(left, underlyingType(left.typ)(ctx)))
           vRight <- goE(right)
         } yield vpr.SeqUpdate(vBase, vLeft, vRight)(pos, info, errT)
+
+      // seq[integer] -> seq[k] for a bounded kind k: apply the per-kind mapping function
+      // (see seqToBoundedFunc). Inserted by the desugarer for range sequences in a
+      // bounded-element context and by IntKindAlignment when aligning collection operands.
+      case n@ in.Conversion(in.SequenceT(in.IntT(_, k: TypeBounds.BoundedIntegerKind), _), expr :: ctx.Seq(in.IntT(_, TypeBounds.UnboundedInteger | TypeBounds.UntypedConstInteger)))=>
+        val (pos, info, errT) = n.vprMeta
+        for { vE <- goE(expr) } yield seqToBoundedFunc(Vector(vE), k)(pos, info, errT)(ctx)
 
       case (e: in.DfltVal) :: ctx.Seq(t) / Exclusive =>
         unit(withSrc(vpr.EmptySeq(ctx.typ(t)), e))
@@ -146,8 +204,8 @@ class SequenceEncoding extends LeafTypeEncoding {
       case n@ in.RangeSequence(low, high) =>
         val (pos, info, errT) = n.vprMeta
         for {
-          lowT <- goE(low)
-          highT <- goE(high)
+          lowT <- goE(IntKindAlignment.asUnboundedInt(low, underlyingType(low.typ)(ctx)))
+          highT <- goE(IntKindAlignment.asUnboundedInt(high, underlyingType(high.typ)(ctx)))
         } yield vpr.RangeSeq(lowT, highT)(pos, info, errT)
 
       case n: in.SequenceAppend =>
@@ -161,14 +219,14 @@ class SequenceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         for {
           leftT <- goE(n.left)
-          rightT <- goE(n.right)
+          rightT <- goE(IntKindAlignment.asUnboundedInt(n.right, underlyingType(n.right.typ)(ctx)))
         } yield vpr.SeqDrop(leftT, rightT)(pos, info, errT)
 
       case n: in.SequenceTake =>
         val (pos, info, errT) = n.vprMeta
         for {
           leftT <- goE(n.left)
-          rightT <- goE(n.right)
+          rightT <- goE(IntKindAlignment.asUnboundedInt(n.right, underlyingType(n.right.typ)(ctx)))
         } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
     }
   }

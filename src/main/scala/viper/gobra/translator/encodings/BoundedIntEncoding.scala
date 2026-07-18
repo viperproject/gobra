@@ -40,12 +40,15 @@ import scala.collection.mutable
   * — a classic matching loop, which manifested as Gobra hanging on the StatsCollector tests.
   *
   * By keeping the helpers over `Int` and applying `from`/`to` only at concrete (ground) call sites,
-  * the only quantified axioms over the domain are `from`'s range axiom and `to`'s inverse axiom,
-  * neither of which generates a term matching the other's trigger. A bounded binary operation
+  * the only quantified axioms over the domain are `from`'s range axiom, `from`'s injectivity axiom
+  * (whose body creates no terms at all), and `to`'s inverse axiom — none of which generates a term
+  * matching another's trigger. A bounded binary operation
   * `l <op> r` of kind `k` is therefore encoded as `k$to( k$op( k$from(l), k$from(r) ) )`, where the
-  * helper `k$op` carries the range postcondition (and, when `checkOverflows`, the range precondition
+  * helper `k$op` carries the range contract (and, when `checkOverflows`, the range precondition
   * that makes overflow a verification error) and `k$to` merely lifts the in-range `Int` back into
-  * the domain.
+  * the domain. Without `checkOverflows`, the result value is known exactly only under the
+  * no-overflow condition (`rangeOk ==> result == computed`): proofs about possibly-overflowing
+  * arithmetic are meant to break unless the specs exclude the overflow.
   */
 class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
 
@@ -58,6 +61,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     from:        vpr.DomainFunc,    // (x: domType): Int  — DOMAIN function; characterised by domain axioms
     to:          vpr.DomainFunc,    // (x: Int): domType  — DOMAIN function; characterised by domain axioms
     rangeAxiom:  vpr.DomainAxiom,   // forall x: domType :: lower <= from(x) && from(x) <= upper
+    injAxiom:    vpr.DomainAxiom,   // forall x, y: domType :: { from(x), from(y) } from(x) == from(y) ==> x == y
     toFromAxiom: vpr.DomainAxiom,   // forall n: Int    :: { to(n) }   inRange(n) ==> from(to(n)) == n
     add:    vpr.Function,  // (x y: Int): Int
     sub:    vpr.Function,  // (x y: Int): Int
@@ -119,16 +123,23 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
         } yield vpr.FieldAssign(vLoc, asDomain(ctx)(k, rhs, vRhs))(pos, info, errT)
     }
 
-  // ===== Equal: use from(lhs) == from/rhs to compare domain values mathematically =====
+  // ===== Equal: compare the `from`-images so domain values are compared mathematically =====
 
+  /** True iff at least one of the two expressions has a bounded integer type. */
+  private def hasBoundedOperand(ctx: Context)(l: in.Expr, r: in.Expr): Boolean =
+    ctx.BoundedInt.unapply(l.typ).isDefined || ctx.BoundedInt.unapply(r.typ).isDefined
+
+  // A bounded operand can appear on EITHER side (e.g. `0 == c.BufferSize()`, or mixed
+  // bounded/unbounded siblings the desugarer did not align). Both operands are projected
+  // to Int, applying `from` to the bounded one(s).
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] =
     default(super.equal(ctx)) {
-      case (lhs :: ctx.BoundedInt(k), rhs, src) =>
+      case (lhs, rhs, src) if hasBoundedOperand(ctx)(lhs, rhs) =>
         val (pos, info, errT) = src.vprMeta
         for {
           vLhs <- ctx.expression(lhs)
           vRhs <- ctx.expression(rhs)
-        } yield vpr.EqCmp(fromApp(k, vLhs), asInt(ctx)(rhs, vRhs))(pos, info, errT): vpr.Exp
+        } yield vpr.EqCmp(asInt(ctx)(lhs, vLhs), asInt(ctx)(rhs, vRhs))(pos, info, errT): vpr.Exp
     }
 
   // ===== Expression encoding =====
@@ -189,27 +200,29 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       case e @ in.ShiftLeft(l, r) :: ctx.BoundedInt(k) => handleShift(ctx, k, funcsOf(k).shl)(l, r, e)
       case e @ in.ShiftRight(l, r) :: ctx.BoundedInt(k) => handleShift(ctx, k, funcsOf(k).shr)(l, r, e)
 
-      // Comparisons — MemoryEncoding is guarded to skip bounded-int operands,
-      // so we must handle them here using from(lhs) cmp from/rhs
-      case e @ in.LessCmp(l :: ctx.BoundedInt(k), r) =>
+      // Comparisons — MemoryEncoding is guarded to skip comparisons with a bounded-int
+      // operand on either side, so we must handle them here. Both operands are projected
+      // to Int (`from` is applied to the bounded one(s)); a bounded operand can appear on
+      // either side (e.g. `0 < c.BufferSize()`).
+      case e @ in.LessCmp(l, r) if hasBoundedOperand(ctx)(l, r) =>
         val (pos, info, errT) = e.vprMeta
         for { vl <- goE(l); vr <- goE(r) }
-          yield vpr.LtCmp(fromApp(k, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
+          yield vpr.LtCmp(asInt(ctx)(l, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
 
-      case e @ in.AtMostCmp(l :: ctx.BoundedInt(k), r) =>
+      case e @ in.AtMostCmp(l, r) if hasBoundedOperand(ctx)(l, r) =>
         val (pos, info, errT) = e.vprMeta
         for { vl <- goE(l); vr <- goE(r) }
-          yield vpr.LeCmp(fromApp(k, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
+          yield vpr.LeCmp(asInt(ctx)(l, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
 
-      case e @ in.GreaterCmp(l :: ctx.BoundedInt(k), r) =>
+      case e @ in.GreaterCmp(l, r) if hasBoundedOperand(ctx)(l, r) =>
         val (pos, info, errT) = e.vprMeta
         for { vl <- goE(l); vr <- goE(r) }
-          yield vpr.GtCmp(fromApp(k, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
+          yield vpr.GtCmp(asInt(ctx)(l, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
 
-      case e @ in.AtLeastCmp(l :: ctx.BoundedInt(k), r) =>
+      case e @ in.AtLeastCmp(l, r) if hasBoundedOperand(ctx)(l, r) =>
         val (pos, info, errT) = e.vprMeta
         for { vl <- goE(l); vr <- goE(r) }
-          yield vpr.GeCmp(fromApp(k, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
+          yield vpr.GeCmp(asInt(ctx)(l, vl), asInt(ctx)(r, vr))(pos, info, errT): vpr.Exp
 
       // Type conversions
 
@@ -259,21 +272,23 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
     // Emit one domain per kind, holding `from`, `to`, and the bridging axioms.
     //
-    // We deliberately encode only the `from(to(n)) == n` direction (under the in-range
-    // precondition) and *no* injectivity axiom for `from`. Adding both directions of the
-    // bijection — `to(from(x)) == x` triggered on `{from(x)}` and `from(to(n)) == n`
-    // triggered on `{to(n)}` — sets up a matching loop in Z3: each instantiation of
-    // `to(from(x))` matches the to-trigger and introduces `from(to(from(x)))`, which
-    // matches the from-trigger and introduces `to(from(to(from(x))))`, ad infinitum.
-    //
-    // Equality on bounded-int values in Gobra is reduced to equality on `from`-images
-    // by the `equal` override above, so the encoder never relies on `from` being
-    // injective at the Viper level.
+    // The bijection between the domain and [lower, upper] is axiomatised as:
+    //   1. range:        forall x :: { from(x) }          lower <= from(x) <= upper
+    //   2. injectivity:  forall x, y :: { from(x), from(y) } from(x) == from(y) ==> x == y
+    //   3. right-inverse: forall n :: { to(n) }           inRange(n) ==> from(to(n)) == n
+    // We deliberately do NOT emit the left-inverse direction `to(from(x)) == x` triggered
+    // on `{from(x)}`: together with (3) it sets up a matching loop in Z3 — each
+    // instantiation of `to(from(x))` matches the to-trigger and introduces
+    // `from(to(from(x)))`, which matches the from-trigger and introduces
+    // `to(from(to(from(x))))`, ad infinitum. The left inverse is nevertheless derivable
+    // by e-matching from (2) + (3): a ground term `to(from(x))` instantiates (3) to give
+    // `from(to(from(x))) == from(x)`, and (2) then yields `to(from(x)) == x` — without
+    // creating further terms.
     for ((k, fns) <- kindCache) {
       addMemberFn(vpr.Domain(
         name = Names.boundedIntDomain(k),
         functions = Seq(fns.from, fns.to),
-        axioms = Seq(fns.rangeAxiom, fns.toFromAxiom)
+        axioms = Seq(fns.rangeAxiom, fns.injAxiom, fns.toFromAxiom)
       )())
     }
     for ((_, fns) <- kindCache)       fns.topLevelFns.foreach(addMemberFn)
@@ -391,12 +406,23 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
 
   /**
     * If `expr` has a bounded integer type, wrap `v` with `from`; otherwise return `v` unchanged.
-    * Used to normalise the right-hand side of mixed (bounded/unbounded) comparisons and equalities.
+    * Used to normalise operands of mixed (bounded/unbounded) comparisons, equalities, and
+    * arithmetic helper applications.
+    *
+    * Literals and default values are folded to their plain Int value instead of emitting
+    * `from(to(c))`: the type checker guarantees a bounded literal is in range, where
+    * `from(to(c)) == c` holds by the bridge axiom. This keeps quantifier bodies free of
+    * `from`/`to` chatter (e.g. `0 <= from(j)` instead of `from(to(0)) <= from(j)`), which
+    * matters both for prover performance and for trigger inference.
     */
   private def asInt(ctx: Context)(expr: in.Expr, v: vpr.Exp): vpr.Exp =
     ctx.BoundedInt.unapply(expr.typ) match {
-      case Some(k) => fromApp(k, v)
-      case None    => v
+      case Some(k) => expr match {
+        case lit: in.IntLit => vpr.IntLit(lit.v)(v.pos, v.info, v.errT)
+        case _: in.DfltVal  => vpr.IntLit(0)(v.pos, v.info, v.errT)
+        case _              => fromApp(k, v)
+      }
+      case None => v
     }
 
   // ===== Build per-kind functions =====
@@ -431,13 +457,41 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       )(domainName = domName)
     }
 
+    // Axiom: forall x, y: domType :: { from(x), from(y) } from(x) == from(y) ==> x == y.
+    //
+    // `from` must be injective: equality of domain values has to coincide with equality of
+    // their integer images wherever Viper compares domain values natively — map domains
+    // (`k in domain(m)`), set membership, sequence/tuple/ADT equality, etc. The encoder's
+    // `equal` override only covers *direct* equalities on bounded-int expressions; without
+    // this axiom, `n !in domain(m) && 0 in domain(m)` fails to entail `from(n) != 0` and
+    // e.g. map-based caches become unverifiable (same_package/pkg_init/fib regression).
+    //
+    // The pair trigger cannot cause a matching loop: the axiom's body introduces no new
+    // function applications, so instantiations never feed further e-matching rounds. Its
+    // cost is quadratic in the number of distinct `from`-terms per query, which stays small
+    // now that the arithmetic helpers operate on `Int` (they no longer manufacture
+    // `from`-applications of quantified variables; see the class comment).
+    val injAxiom = {
+      val xDecl = vpr.LocalVarDecl("x", domTyp)()
+      val yDecl = vpr.LocalVarDecl("y", domTyp)()
+      val fx    = fromE(xDecl.localVar)
+      val fy    = fromE(yDecl.localVar)
+      val body  = vpr.Implies(
+        vpr.EqCmp(fx, fy)(),
+        vpr.EqCmp(xDecl.localVar, yDecl.localVar)()
+      )()
+      vpr.NamedDomainAxiom(
+        name = s"${k.name}$$from_injective",
+        exp  = vpr.Forall(Seq(xDecl, yDecl), Seq(vpr.Trigger(Seq(fx, fy))()), body)()
+      )(domainName = domName)
+    }
+
     // `to` is a total domain function (no precondition). Its defining property is
     // expressed by the domain axiom `toFromAxiom` below (under the in-range condition).
     //
     // We deliberately do NOT also emit a `to(from(x)) == x` axiom — the pair of
     // directions would form a matching loop in Z3 (see comment in `finalize`).
-    // The encoder reduces equality on bounded ints to equality on `from`-images,
-    // so `from`'s injectivity is not relied upon at the Viper level.
+    // That direction is instead recovered by `injAxiom` + `toFromAxiom`.
     val toFn = vpr.DomainFunc(
       name       = Names.boundedIntTo(k),
       formalArgs = Seq(vpr.LocalVarDecl("x", vpr.Int)()),
@@ -466,6 +520,11 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     // axiom mentions `from` of a quantified variable. The result range is asserted unconditionally;
     // the value equality is conditional on no overflow when --overflow is off.
 
+    // The result value is known exactly only when the mathematical result lies within the
+    // kind's range (`rangeOk ==> result == computed`); a possibly-overflowing operation is
+    // deliberately opaque (only `inRange(result)` is known). Callers must either prove the
+    // absence of overflow via their specs or run with --overflow, which turns `rangeOk`
+    // into a precondition whose violation is reported as an integer overflow error.
     def binaryArithFunc(name: String, compute: (vpr.Exp, vpr.Exp) => vpr.Exp,
                         extraPres: Seq[vpr.Exp] = Seq.empty): vpr.Function = {
       val xDecl    = vpr.LocalVarDecl("x", vpr.Int)()
@@ -570,7 +629,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     val shlFn = shiftFn(Names.boundedIntShl(k))
     val shrFn = shiftFn(Names.boundedIntShr(k))
 
-    KindFunctions(fromFn, toFn, rangeAxiom, toFromAxiom, addFn, subFn, mulFn, divFn, modFn,
+    KindFunctions(fromFn, toFn, rangeAxiom, injAxiom, toFromAxiom, addFn, subFn, mulFn, divFn, modFn,
       bandFn, borFn, bxorFn, bclearFn, bnegFn, shlFn, shrFn)
   }
 

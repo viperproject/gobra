@@ -16,21 +16,26 @@ import viper.silver.{ast => vpr}
 
 class MemoryEncoding extends Encoding {
 
+  /** True iff neither expression has a bounded integer type. */
+  private def noBoundedOperand(ctx: Context)(l: in.Expr, r: in.Expr): Boolean =
+    ctx.BoundedInt.unapply(l.typ).isEmpty && ctx.BoundedInt.unapply(r.typ).isEmpty
+
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case r: in.Ref => ctx.reference(r.ref.op)
     case x@ in.EqCmp(l, r) => ctx.goEqual(l, r)(x)
     case x@ in.UneqCmp(l, r) => ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))
     case x@ in.GhostEqCmp(l, r) => ctx.equal(l, r)(x)
     case x@ in.GhostUneqCmp(l, r) => ctx.equal(l, r)(x).map(v => withSrc(vpr.Not(v), x))
-    // Bounded-int comparisons are handled by BoundedIntEncoding (which converts via `from`).
-    // Guard here to avoid a SafeTypeEncodingCombiner "supported by more than one encoding" error.
-    case n@ in.LessCmp(l, r)    if !ctx.BoundedInt.unapply(l.typ).isDefined =>
+    // Comparisons with a bounded-int operand on EITHER side are handled by BoundedIntEncoding
+    // (which projects both operands to Int via `from`). Guard here to avoid a
+    // SafeTypeEncodingCombiner "supported by more than one encoding" error.
+    case n@ in.LessCmp(l, r)    if noBoundedOperand(ctx)(l, r) =>
       for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.LtCmp(vl, vr), n)
-    case n@ in.AtMostCmp(l, r)  if !ctx.BoundedInt.unapply(l.typ).isDefined =>
+    case n@ in.AtMostCmp(l, r)  if noBoundedOperand(ctx)(l, r) =>
       for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.LeCmp(vl, vr), n)
-    case n@ in.GreaterCmp(l, r) if !ctx.BoundedInt.unapply(l.typ).isDefined =>
+    case n@ in.GreaterCmp(l, r) if noBoundedOperand(ctx)(l, r) =>
       for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GtCmp(vl, vr), n)
-    case n@ in.AtLeastCmp(l, r) if !ctx.BoundedInt.unapply(l.typ).isDefined =>
+    case n@ in.AtLeastCmp(l, r) if noBoundedOperand(ctx)(l, r) =>
       for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GeCmp(vl, vr), n)
   }
 

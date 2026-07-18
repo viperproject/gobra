@@ -182,14 +182,6 @@ object Names {
   // built-in members
   def builtInMember: String = "built_in"
 
-  // ints (unbounded / ghost `integer` type — these are concrete functions over vpr.Int)
-  def integerAdd: String = "integerAdd"
-  def integerSub: String = "integerSub"
-  def integerMul: String = "integerMul"
-  def integerDiv: String = "integerDiv"
-  def integerMod: String = "integerMod"
-  def integerNeg: String = "integerNeg"
-
   // bounded integer domains: one domain per IntegerKind
   // Use a "Bounded_" prefix to avoid clashing with Viper's built-in Int sort when
   // the kind name (e.g. "int") would otherwise produce a sort named "int~_int",
@@ -203,7 +195,6 @@ object Names {
   def boundedIntMul(k: IntegerKind): String    = s"${k.name}$$mul"
   def boundedIntDiv(k: IntegerKind): String    = s"${k.name}$$div"
   def boundedIntMod(k: IntegerKind): String    = s"${k.name}$$mod"
-  def boundedIntNeg(k: IntegerKind): String    = s"${k.name}$$neg"
   def boundedIntBand(k: IntegerKind): String   = s"${k.name}$$band"
   def boundedIntBor(k: IntegerKind): String    = s"${k.name}$$bor"
   def boundedIntBxor(k: IntegerKind): String   = s"${k.name}$$bxor"

@@ -47,6 +47,9 @@ func largeLiteral() {
     assert big > 0
 }
 
+// The bound is required: without it `n + 1` may overflow (n == MaxInt64), in which
+// case the result is unspecified under Gobra's sound bounded-integer semantics.
+requires n < 9223372036854775807
 ensures integer(result) == integer(n) + 1
 decreases
 func convertToInteger(n int) (result int) {

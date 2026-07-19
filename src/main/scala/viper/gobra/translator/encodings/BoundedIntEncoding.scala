@@ -360,6 +360,17 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
   private def domainType(k: BoundedIntegerKind): vpr.DomainType =
     vpr.DomainType(Names.boundedIntDomain(k), Map.empty)(Seq.empty)
 
+  /** Floor of the square root of a non-negative BigInt (Newton's method). */
+  private def sqrtFloor(n: BigInt): BigInt = {
+    require(n >= 0)
+    if (n < 2) n else {
+      var x = BigInt(1) << ((n.bitLength + 1) / 2)
+      var y = (x + n / x) / 2
+      while (y < x) { x = y; y = (x + n / x) / 2 }
+      x
+    }
+  }
+
   /** lower <= e && e <= upper */
   private def inRange(k: BoundedIntegerKind, e: vpr.Exp): vpr.Exp =
     vpr.And(
@@ -525,7 +536,8 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     // absence of overflow via their specs or run with --overflow, which turns `rangeOk`
     // into a precondition whose violation is reported as an integer overflow error.
     def binaryArithFunc(name: String, compute: (vpr.Exp, vpr.Exp) => vpr.Exp,
-                        extraPres: Seq[vpr.Exp] = Seq.empty): vpr.Function = {
+                        extraPres: Seq[vpr.Exp] = Seq.empty,
+                        extraPosts: Seq[vpr.Exp] = Seq.empty): vpr.Function = {
       val xDecl    = vpr.LocalVarDecl("x", vpr.Int)()
       val yDecl    = vpr.LocalVarDecl("y", vpr.Int)()
       val computed = compute(xDecl.localVar, yDecl.localVar)
@@ -535,15 +547,48 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       val pres = if (checkOverflows) extraPres ++ Seq(rangeOk, decreases)
                  else                extraPres :+ decreases
 
-      val posts = if (checkOverflows) Seq(inRange(k, result), vpr.EqCmp(result, computed)())
-                  else                Seq(inRange(k, result), vpr.Implies(rangeOk, vpr.EqCmp(result, computed)())())
+      val posts = (if (checkOverflows) Seq(inRange(k, result), vpr.EqCmp(result, computed)())
+                   else                Seq(inRange(k, result), vpr.Implies(rangeOk, vpr.EqCmp(result, computed)())())) ++ extraPosts
 
       vpr.Function(name, Seq(xDecl, yDecl), vpr.Int, pres, posts, None)()
     }
 
     val addFn = binaryArithFunc(Names.boundedIntAdd(k), (x, y) => vpr.Add(x, y)())
     val subFn = binaryArithFunc(Names.boundedIntSub(k), (x, y) => vpr.Sub(x, y)())
-    val mulFn = binaryArithFunc(Names.boundedIntMul(k), (x, y) => vpr.Mul(x, y)())
+
+    // "sqrt box" lemma for multiplication: whenever |x| and |y| are at most
+    // floor(sqrt(upper)), the product provably fits the range, so the exact-value
+    // equation holds unconditionally. This is a sound consequence of the conditional
+    // post (|x|,|y| <= B ==> |x*y| <= B^2 <= upper <= |lower|), but making it a
+    // separate post lets Z3 obtain exactness for small operands LINEARLY — without
+    // the nonlinear `lower <= x*y <= upper` derivation against the huge range
+    // constants, on which Z3's nlsat is fragile (the stats_collector Area methods
+    // diverged for minutes on exactly that step).
+    val mulFn = {
+      val sqrtBox: BigInt = sqrtFloor(k.upper)
+      def inBox(e: vpr.Exp): vpr.Exp = vpr.And(
+        vpr.LeCmp(vpr.IntLit(-sqrtBox)(), e)(),
+        vpr.LeCmp(e, vpr.IntLit(sqrtBox)())()
+      )()
+      val xRef = vpr.LocalVar("x", vpr.Int)()
+      val yRef = vpr.LocalVar("y", vpr.Int)()
+      val res = vpr.Result(vpr.Int)()
+      val bothInBox = vpr.And(inBox(xRef), inBox(yRef))()
+      val boxPost = vpr.Implies(bothInBox, vpr.EqCmp(res, vpr.Mul(xRef, yRef)())())()
+      // Sign lemmas (sound consequences of exactness inside the box): they let Z3 derive
+      // the sign of a product linearly — `w > 0 && h > 0 ==> w*h > 0` is itself a
+      // nonlinear step that Z3 otherwise fails on or grinds over.
+      val zero = vpr.IntLit(0)()
+      val nonNegPost = vpr.Implies(
+        vpr.And(bothInBox, vpr.And(vpr.GeCmp(xRef, zero)(), vpr.GeCmp(yRef, zero)())())(),
+        vpr.GeCmp(res, zero)()
+      )()
+      val posPost = vpr.Implies(
+        vpr.And(bothInBox, vpr.And(vpr.GtCmp(xRef, zero)(), vpr.GtCmp(yRef, zero)())())(),
+        vpr.GtCmp(res, zero)()
+      )()
+      binaryArithFunc(Names.boundedIntMul(k), (x, y) => vpr.Mul(x, y)(), extraPosts = Seq(boxPost, nonNegPost, posPost))
+    }
 
     // div: Go truncation-towards-zero semantics; divisor must be non-zero.
     val divFn = {

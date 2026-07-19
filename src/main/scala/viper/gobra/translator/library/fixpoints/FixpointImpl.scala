@@ -27,9 +27,19 @@ class FixpointImpl extends Fixpoint {
 
     val getFunc = constantGetDomainFunc(gc.left)(ctx)
     val getFuncApp = get(gc.left)(ctx)
+    // The defining equation's RHS must land in the same Viper sort as the constant's
+    // declared type: with bounded integers encoded as domain types, a kind mismatch
+    // between the constant and its (possibly implicitly converted) value expression
+    // would otherwise equate values of different sorts (e.g. `const C = 42` with an
+    // untyped constant type but a value converted to bounded `int`).
+    val alignedRight = (gc.left.typ, gc.right.typ) match {
+      case (l: in.IntT, r: in.IntT) if l.kind != r.kind =>
+        in.Conversion(l.withAddressability(viper.gobra.theory.Addressability.rValue), gc.right)(gc.right.info)
+      case _ => gc.right
+    }
     val getAxiom = vpr.NamedDomainAxiom(
       name = s"get_constant${gc.left.id}",
-      exp = vpr.EqCmp(getFuncApp, ctx.expression(gc.right).res)(pos, info, errT),
+      exp = vpr.EqCmp(getFuncApp, ctx.expression(alignedRight).res)(pos, info, errT),
     )(domainName = domainName)
 
     val domain = vpr.Domain(

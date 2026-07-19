@@ -19,7 +19,7 @@ import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.{BackendAnnotation, Decimal, NumBase, TypeBounds, Violation}
-import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger, UntypedConstInteger}
 import viper.gobra.util.Violation.violation
 
 import scala.collection.SortedSet
@@ -1086,8 +1086,8 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // Here, the underlying type of a defined type is not checked, as the information is not available at this point.
     // However, this should not pose a problem assuming that the original program has been type-checked before the
     // translation to the internal language.
-    case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
-    case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+    case (x, IntT(_, UnboundedInteger | UntypedConstInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
+    case (IntT(_, UnboundedInteger | UntypedConstInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
     case (x, y) if x.equalsWithoutMod(y) => x.withAddressability(Addressability.Exclusive)
     case (l, r) => violation(s"cannot merge types $l and $r")
 

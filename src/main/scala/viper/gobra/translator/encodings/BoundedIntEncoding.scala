@@ -59,9 +59,10 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
 
   private case class KindFunctions(
     from:        vpr.DomainFunc,    // (x: domType): Int  — DOMAIN function; characterised by domain axioms
+    inv:         vpr.DomainFunc,    // (n: Int): domType  — Skolem inverse witnessing from's injectivity
     to:          vpr.DomainFunc,    // (x: Int): domType  — DOMAIN function; characterised by domain axioms
     rangeAxiom:  vpr.DomainAxiom,   // forall x: domType :: lower <= from(x) && from(x) <= upper
-    injAxiom:    vpr.DomainAxiom,   // forall x, y: domType :: { from(x), from(y) } from(x) == from(y) ==> x == y
+    invAxiom:    vpr.DomainAxiom,   // forall x: domType :: { from(x) } inv(from(x)) == x
     toFromAxiom: vpr.DomainAxiom,   // forall n: Int    :: { to(n) }   inRange(n) ==> from(to(n)) == n
     add:    vpr.Function,  // (x y: Int): Int
     sub:    vpr.Function,  // (x y: Int): Int
@@ -274,7 +275,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     //
     // The bijection between the domain and [lower, upper] is axiomatised as:
     //   1. range:        forall x :: { from(x) }          lower <= from(x) <= upper
-    //   2. injectivity:  forall x, y :: { from(x), from(y) } from(x) == from(y) ==> x == y
+    //   2. injectivity:  forall x :: { from(x) } inv(from(x)) == x  (Skolem-inverse form)
     //   3. right-inverse: forall n :: { to(n) }           inRange(n) ==> from(to(n)) == n
     // We deliberately do NOT emit the left-inverse direction `to(from(x)) == x` triggered
     // on `{from(x)}`: together with (3) it sets up a matching loop in Z3 — each
@@ -287,8 +288,8 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     for ((k, fns) <- kindCache) {
       addMemberFn(vpr.Domain(
         name = Names.boundedIntDomain(k),
-        functions = Seq(fns.from, fns.to),
-        axioms = Seq(fns.rangeAxiom, fns.injAxiom, fns.toFromAxiom)
+        functions = Seq(fns.from, fns.inv, fns.to),
+        axioms = Seq(fns.rangeAxiom, fns.invAxiom, fns.toFromAxiom)
       )())
     }
     for ((_, fns) <- kindCache)       fns.topLevelFns.foreach(addMemberFn)
@@ -453,32 +454,34 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       )(domainName = domName)
     }
 
-    // Axiom: forall x, y: domType :: { from(x), from(y) } from(x) == from(y) ==> x == y.
+    // Injectivity of `from` via a Skolem inverse: forall x: D :: { from(x) } inv(from(x)) == x.
     //
     // `from` must be injective: equality of domain values has to coincide with equality of
     // their integer images wherever Viper compares domain values natively — map domains
     // (`k in domain(m)`), set membership, sequence/tuple/ADT equality, etc. The encoder's
     // `equal` override only covers *direct* equalities on bounded-int expressions; without
-    // this axiom, `n !in domain(m) && 0 in domain(m)` fails to entail `from(n) != 0` and
+    // injectivity, `n !in domain(m) && 0 in domain(m)` fails to entail `from(n) != 0` and
     // e.g. map-based caches become unverifiable (same_package/pkg_init/fib regression).
     //
-    // The pair trigger cannot cause a matching loop: the axiom's body introduces no new
-    // function applications, so instantiations never feed further e-matching rounds. Its
-    // cost is quadratic in the number of distinct `from`-terms per query, which stays small
-    // now that the arithmetic helpers operate on `Int` (they no longer manufacture
-    // `from`-applications of quantified variables; see the class comment).
-    val injAxiom = {
+    // The Skolem-inverse form is preferred over the classic pair-trigger axiom
+    // `forall x, y :: { from(x), from(y) } from(x) == from(y) ==> x == y`: it needs only ONE
+    // instantiation per ground `from`-term (the pair trigger needs one per PAIR of them),
+    // yet gives the same power via congruence: from(a) == from(b) implies
+    // inv(from(a)) == inv(from(b)), i.e. a == b. It cannot feed a matching loop either:
+    // `inv` occurs in no other axiom and in no encoded program term, so the freshly created
+    // `inv(from(x))` terms trigger nothing.
+    val invFn = vpr.DomainFunc(
+      name       = Names.boundedIntInv(k),
+      formalArgs = Seq(vpr.LocalVarDecl("n", vpr.Int)()),
+      typ        = domTyp
+    )(domainName = domName)
+    val invAxiom = {
       val xDecl = vpr.LocalVarDecl("x", domTyp)()
-      val yDecl = vpr.LocalVarDecl("y", domTyp)()
       val fx    = fromE(xDecl.localVar)
-      val fy    = fromE(yDecl.localVar)
-      val body  = vpr.Implies(
-        vpr.EqCmp(fx, fy)(),
-        vpr.EqCmp(xDecl.localVar, yDecl.localVar)()
-      )()
+      val invFx = vpr.DomainFuncApp(invFn, Seq(fx), Map.empty)()
       vpr.NamedDomainAxiom(
         name = s"${k.name}$$from_injective",
-        exp  = vpr.Forall(Seq(xDecl, yDecl), Seq(vpr.Trigger(Seq(fx, fy))()), body)()
+        exp  = vpr.Forall(Seq(xDecl), Seq(vpr.Trigger(Seq(fx))()), vpr.EqCmp(invFx, xDecl.localVar)())()
       )(domainName = domName)
     }
 
@@ -487,7 +490,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     //
     // We deliberately do NOT also emit a `to(from(x)) == x` axiom — the pair of
     // directions would form a matching loop in Z3 (see comment in `finalize`).
-    // That direction is instead recovered by `injAxiom` + `toFromAxiom`.
+    // That direction is instead recovered by `invAxiom` + `toFromAxiom`.
     val toFn = vpr.DomainFunc(
       name       = Names.boundedIntTo(k),
       formalArgs = Seq(vpr.LocalVarDecl("x", vpr.Int)()),
@@ -625,7 +628,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     val shlFn = shiftFn(Names.boundedIntShl(k))
     val shrFn = shiftFn(Names.boundedIntShr(k))
 
-    KindFunctions(fromFn, toFn, rangeAxiom, injAxiom, toFromAxiom, addFn, subFn, mulFn, divFn, modFn,
+    KindFunctions(fromFn, invFn, toFn, rangeAxiom, invAxiom, toFromAxiom, addFn, subFn, mulFn, divFn, modFn,
       bandFn, borFn, bxorFn, bclearFn, bnegFn, shlFn, shrFn)
   }
 

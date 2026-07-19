@@ -409,20 +409,16 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     * Used to normalise operands of mixed (bounded/unbounded) comparisons, equalities, and
     * arithmetic helper applications.
     *
-    * Literals and default values are folded to their plain Int value instead of emitting
-    * `from(to(c))`: the type checker guarantees a bounded literal is in range, where
-    * `from(to(c)) == c` holds by the bridge axiom. This keeps quantifier bodies free of
-    * `from`/`to` chatter (e.g. `0 <= from(j)` instead of `from(to(0)) <= from(j)`), which
-    * matters both for prover performance and for trigger inference.
+    * Bounded literals deliberately stay as `from(to(c))` rather than being folded to `c`:
+    * the ground `to(c)` terms instantiate the bridge axiom and act as congruence anchors
+    * linking the domain values to their integer images. Folding them away was measured to
+    * send otherwise-fast nonlinear queries (division/multiplication chains) from seconds
+    * into multi-minute Z3 timeouts (blank-identifier1: 12s -> 600s+ on identical Silicon).
     */
   private def asInt(ctx: Context)(expr: in.Expr, v: vpr.Exp): vpr.Exp =
     ctx.BoundedInt.unapply(expr.typ) match {
-      case Some(k) => expr match {
-        case lit: in.IntLit => vpr.IntLit(lit.v)(v.pos, v.info, v.errT)
-        case _: in.DfltVal  => vpr.IntLit(0)(v.pos, v.info, v.errT)
-        case _              => fromApp(k, v)
-      }
-      case None => v
+      case Some(k) => fromApp(k, v)
+      case None    => v
     }
 
   // ===== Build per-kind functions =====

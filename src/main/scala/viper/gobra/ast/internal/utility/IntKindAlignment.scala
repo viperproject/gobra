@@ -181,13 +181,10 @@ object IntKindAlignment {
     */
   def asUnboundedInt(e: in.Expr, resolvedTyp: in.Type): in.Expr = resolvedTyp match {
     case in.IntT(_, k) if k != TypeBounds.UnboundedInteger =>
-      e match {
-        // Retype literals in place: a bounded literal is always in range (enforced by the
-        // type checker), so `integer(c) == c` and the `from(to(c))` roundtrip the general
-        // Conversion would produce is pure encoding noise.
-        case lit: in.IntLit => in.IntLit(lit.v, TypeBounds.UnboundedInteger, lit.base)(lit.info)
-        case _ => in.Conversion(unboundedT, e)(e.info)
-      }
+      // Bounded literals are NOT retyped to plain integer literals here: the Conversion's
+      // `from(to(c))` roundtrip keeps the ground `to(c)` bridge-axiom anchors that Z3's
+      // nonlinear reasoning demonstrably relies on (see BoundedIntEncoding.asInt).
+      in.Conversion(unboundedT, e)(e.info)
     case _ => e
   }
 }

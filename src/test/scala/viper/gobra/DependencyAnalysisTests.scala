@@ -16,8 +16,6 @@ class DependencyAnalysisTests extends GobraTests {
       packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
       checkConsistency = true,
       z3Exe = z3Exe,
-      enableDependencyAnalysis = true,
-      analyzeInfeasiblePaths = true,
       disableTerminationPlugin = true,
       disableCheckTerminationPureFns = true,
       dependencyAnalysisMode = Some("test"),

@@ -27,7 +27,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
   private lazy val resourceDirectories: Seq[Path] = Seq("builtin", "noaxioms", "stubs") flatMap getResourcesPathOpt
 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
-    if(!config.enableDependencyAnalysis) return Right(task)
+    if(config.dependencyAnalysisMode.isEmpty) return Right(task)
 
     val programWithAnalysisSources = addDependencyAnalysisSourceInfo(task.program)
     Right(task.copy(program = programWithAnalysisSources))

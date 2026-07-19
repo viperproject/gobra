@@ -16,9 +16,8 @@ import viper.gobra.ast.internal.transform.{ConstantPropagation, InternalTransfor
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
-import viper.gobra.frontend._
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, InputConfig, PackageInfo, Parser, ScallopGobraConfig}
+import viper.gobra.frontend._
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
@@ -299,7 +298,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     // can be found by the well-formedness checks.
     val startMs = System.currentTimeMillis()
     // TODO: disabled the CGEdgesTerminationTransform as we don't support termination for the time-being
-    var transformations: Vector[InternalTransform] = /*Vector(CGEdgesTerminationTransform) ++*/ (if(config.enableDependencyAnalysis) Vector() else Vector(ConstantPropagation))
+    var transformations: Vector[InternalTransform] = /*Vector(CGEdgesTerminationTransform) ++*/ (if(config.dependencyAnalysisMode.isDefined) Vector() else Vector(ConstantPropagation))
     if (config.checkOverflows) {
       transformations :+= OverflowChecksTransform
     }

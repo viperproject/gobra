@@ -96,14 +96,11 @@ trait SiliconBasedBackend extends ViperBackend {
 
       options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString)
     }
-    if (config.analyzeInfeasiblePaths) { // TODO ake: remove this flag from Gobra and adjust default da config flags?
-      options ++= Vector("--analyzeInfeasiblePaths")
-    }
-    if (config.enableDependencyAnalysis || config.dependencyAnalysisMode.isDefined) {
-      options ++= Vector("--enableDependencyAnalysis")
+    if (config.dependencyAnalysisMode.isDefined) {
+      options ++= Vector("--proverArgs", "proof=true unsat-core=true")
+      options ++= Vector(s"--dependencyAnalysisMode", config.dependencyAnalysisMode.get)
       if (!config.disableTerminationPlugin) options ++= Vector("--disableTerminationPlugin") // TODO ake: warning
       //      options ++= Vector("--enableDependencyAnalysisDebugging")
-      options ++= Vector("--proverArgs", "proof=true unsat-core=true")
     } else if (config.enableUnsatCores) {
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")
       options ++= Vector("--enableUnsatCores")
@@ -113,9 +110,6 @@ trait SiliconBasedBackend extends ViperBackend {
     }
     if (config.numberOfErrorsToReport.isDefined) {
       options ++= Vector(s"--numberOfErrorsToReport=${config.numberOfErrorsToReport.get}")
-    }
-    if (config.dependencyAnalysisMode.isDefined) {
-      options ++= Vector(s"--dependencyAnalysisMode", config.dependencyAnalysisMode.get)
     }
 
     options

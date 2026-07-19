@@ -96,9 +96,9 @@ trait SiliconBasedBackend extends ViperBackend {
 
       options ++= Vector("--setAxiomatizationFile", axiomTmpPath.toString)
     }
-    if (config.dependencyAnalysisMode.isDefined) {
+    if (config.dependencyAnalysis.isDefined) {
       options ++= Vector("--proverArgs", "proof=true unsat-core=true")
-      options ++= Vector(s"--dependencyAnalysisMode", config.dependencyAnalysisMode.get)
+      options ++= Vector(s"--dependencyAnalysis", config.dependencyAnalysis.get)
       if (!config.disableTerminationPlugin) options ++= Vector("--disableTerminationPlugin") // TODO ake: warning
       //      options ++= Vector("--enableDependencyAnalysisDebugging")
     } else if (config.enableUnsatCores) {

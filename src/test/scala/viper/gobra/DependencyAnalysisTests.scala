@@ -18,6 +18,6 @@ class DependencyAnalysisTests extends GobraTests {
       z3Exe = z3Exe,
       disableTerminationPlugin = true,
       disableCheckTerminationPureFns = true,
-      dependencyAnalysisMode = Some("test"),
+      dependencyAnalysis = Some("test"),
     )
 }

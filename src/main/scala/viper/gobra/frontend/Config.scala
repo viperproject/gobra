@@ -83,7 +83,7 @@ object ConfigDefaults {
   val DefaultEnableExperimentalFriendClauses: Boolean = false
   val DefaultAnalyzeInfeasiblePaths: Boolean = false
   val DefaultEnableDependencyAnalysis: Boolean = false
-  val DefaultDependencyAnalysisMode: Option[String] = None
+  val DefaultDependencyAnalysis: Option[String] = None
   val DefaultEnableUnsatCores: Boolean = false
   val DefaultDisableTerminationPlugin: Boolean = false
   val DefaultNumberOfErrorsToReport: Option[Int] = None
@@ -249,7 +249,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
-                   dependencyAnalysisMode: Option[String] = ConfigDefaults.DefaultDependencyAnalysisMode,
+                   dependencyAnalysis: Option[String] = ConfigDefaults.DefaultDependencyAnalysis,
                    enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
                    disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
                    numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
@@ -306,7 +306,7 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
-      dependencyAnalysisMode = dependencyAnalysisMode orElse input.dependencyAnalysisMode.value,
+      dependencyAnalysis = dependencyAnalysis orElse input.dependencyAnalysis.value,
       enableUnsatCores = enableUnsatCores || input.enableUnsatCores.value.contains(true),
       disableTerminationPlugin = disableTerminationPlugin || input.disableTerminationPlugin.value.contains(true),
       numberOfErrorsToReport = numberOfErrorsToReport orElse input.numberOfErrorsToReport.value,
@@ -359,7 +359,7 @@ case class Config(
       "noVerify" -> noVerify,
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
-      "dependencyAnalysisMode" -> dependencyAnalysisMode,
+      "dependencyAnalysis" -> dependencyAnalysis,
       "enableUnsatCores" -> enableUnsatCores,
       "disableTerminationPlugin" -> disableTerminationPlugin,
       "numberOfErrorsToReport" -> numberOfErrorsToReport,
@@ -441,7 +441,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
-                      dependencyAnalysisMode: Option[String] = ConfigDefaults.DefaultDependencyAnalysisMode,
+                      dependencyAnalysis: Option[String] = ConfigDefaults.DefaultDependencyAnalysis,
                       enableUnsatCores: Boolean = ConfigDefaults.DefaultEnableUnsatCores,
                       disableTerminationPlugin: Boolean = ConfigDefaults.DefaultDisableTerminationPlugin,
                       numberOfErrorsToReport: Option[Int] = ConfigDefaults.DefaultNumberOfErrorsToReport,
@@ -528,7 +528,7 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
-  dependencyAnalysisMode: InputConfigOption[String] = InputConfigOption("dependencyAnalysisMode", None),
+  dependencyAnalysis: InputConfigOption[String] = InputConfigOption("dependencyAnalysis", None),
   enableUnsatCores: InputConfigOption[Boolean] = InputConfigOption("enableUnsatCores", None),
   disableTerminationPlugin: InputConfigOption[Boolean] = InputConfigOption("disableTerminationPlugin", None),
   numberOfErrorsToReport: InputConfigOption[Int] = InputConfigOption("numberOfErrorsToReport", None),
@@ -593,7 +593,7 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
-    dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
+    dependencyAnalysis = dependencyAnalysis orElse other.dependencyAnalysis,
     enableUnsatCores = enableUnsatCores orElse other.enableUnsatCores,
     disableTerminationPlugin = disableTerminationPlugin orElse other.disableTerminationPlugin,
     numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
@@ -699,7 +699,7 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
-      dependencyAnalysisMode = dependencyAnalysisMode orElse other.dependencyAnalysisMode,
+      dependencyAnalysis = dependencyAnalysis orElse other.dependencyAnalysis,
       enableUnsatCores = enableUnsatCores orElse other.enableUnsatCores,
       disableTerminationPlugin = disableTerminationPlugin orElse other.disableTerminationPlugin,
       numberOfErrorsToReport = numberOfErrorsToReport orElse other.numberOfErrorsToReport,
@@ -1000,7 +1000,7 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
-    dependencyAnalysisMode = dependencyAnalysisMode.value.orElse(ConfigDefaults.DefaultDependencyAnalysisMode),
+    dependencyAnalysis = dependencyAnalysis.value.orElse(ConfigDefaults.DefaultDependencyAnalysis),
     enableUnsatCores = enableUnsatCores.value.getOrElse(false),
     disableTerminationPlugin = disableTerminationPlugin.value.getOrElse(false),
     numberOfErrorsToReport = numberOfErrorsToReport.value.orElse(ConfigDefaults.DefaultNumberOfErrorsToReport),
@@ -1129,7 +1129,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
-    dependencyAnalysisMode = baseConfig.dependencyAnalysisMode,
+    dependencyAnalysis = baseConfig.dependencyAnalysis,
     enableUnsatCores = baseConfig.enableUnsatCores,
     disableTerminationPlugin = baseConfig.disableTerminationPlugin,
     numberOfErrorsToReport = baseConfig.numberOfErrorsToReport,
@@ -1769,10 +1769,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val dependencyAnalysisMode: ScallopOption[String] = opt[String](
-    name = "dependencyAnalysisMode",
+  val dependencyAnalysis: ScallopOption[String] = opt[String](
+    name = "dependencyAnalysis",
     descr = "Enable dependency analysis and set the commands (separated by ;) to be executed after verification. Available are `interactive` and all commands supported by the interactive CLI tool.",
-    default = ConfigDefaults.DefaultDependencyAnalysisMode,
+    default = ConfigDefaults.DefaultDependencyAnalysis,
     noshort = true
   )
 
@@ -1854,7 +1854,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
-    dependencyAnalysisMode = toInputConfigOption(dependencyAnalysisMode),
+    dependencyAnalysis = toInputConfigOption(dependencyAnalysis),
     enableUnsatCores = toInputConfigOption(enableUnsatCores),
     disableTerminationPlugin = toInputConfigOption(disableTerminationPlugin),
     numberOfErrorsToReport= toInputConfigOption(numberOfErrorsToReport),

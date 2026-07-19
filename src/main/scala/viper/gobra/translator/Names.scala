@@ -189,6 +189,7 @@ object Names {
   def boundedIntDomain(k: IntegerKind): String = s"Bounded_${k.name}"
   // bounded integer functions (abstract, with contracts)
   def boundedIntFrom(k: IntegerKind): String   = s"${k.name}$$from"
+  def boundedIntInv(k: IntegerKind): String    = s"${k.name}$$inv"
   def boundedIntTo(k: IntegerKind): String     = s"${k.name}$$to"
   def boundedIntAdd(k: IntegerKind): String    = s"${k.name}$$add"
   def boundedIntSub(k: IntegerKind): String    = s"${k.name}$$sub"

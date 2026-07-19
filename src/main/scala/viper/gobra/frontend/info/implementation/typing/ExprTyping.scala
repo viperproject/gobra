@@ -1339,7 +1339,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
       case ActualPointerT(_: ArrayT) => INT_TYPE
-      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
+      // Ghost collection sizes are mathematical integers (ghost values, not constants).
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => IntT(UnboundedInteger)
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 

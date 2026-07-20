@@ -623,7 +623,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case Hexadecimal => "0x"
       }
       prefix + lit.toString(base.base)
-    case StringLit(s) => "\"" <> s <> "\""
+    case StringLit(s) => s.quoted
     case PermLit(a, b) => "perm" <> parens(a.toString() <> "/" <> b.toString())
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))

@@ -12,7 +12,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.ParserError
-import viper.gobra.util.{Decimal, Hexadecimal}
+import viper.gobra.util.{Decimal, GoString, Hexadecimal}
 
 class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   private val frontend = new ParserTestFrontend()
@@ -2674,19 +2674,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: raw string") {
     frontend.parseExp("`Hello World`") should matchPattern {
-      case Right(PStringLit("Hello World")) =>
+      case Right(PStringLit(value)) if value == GoString.fromRawLiteral("Hello World") =>
     }
   }
 
   test("Parser: interpreted string") {
     frontend.parseExp("\"Hello World\"") should matchPattern {
-      case Right(PStringLit("Hello World")) =>
+      case Right(PStringLit(value)) if value == GoString.fromRawLiteral("Hello World") =>
     }
   }
 
   test("Parser: interpreted string with a quote") {
     frontend.parseExp("\"\\\"\"") should matchPattern {
-      case Right(PStringLit("""\"""")) =>
+      case Right(PStringLit(value)) if value == GoString(Vector('"'.toByte)) =>
     }
   }
 

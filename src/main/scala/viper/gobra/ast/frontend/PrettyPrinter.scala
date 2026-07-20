@@ -486,7 +486,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         prefix + lit.toString(base.base)
       case PFloatLit(lit) => lit.toString()
       case PNilLit() => "nil"
-      case PStringLit(lit) => "\"" <> lit <> "\""
+      case PStringLit(lit) => lit.quoted
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PCompositeLitOrPredConstructor(typ, lit) => showLiteralType(typ) <> showLiteralValue(lit)
       case lit: PFunctionLit => showFunctionLit(lit)

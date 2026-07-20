@@ -209,9 +209,11 @@ trait MemberResolution { this: TypeInfoImpl =>
         AdvancedMemberSet.union {
           topLevel +: es.map(e => interfaceMethodSet(
             entity(e.typ.id) match {
-              case NamedType(PTypeDef(t: PInterfaceType, _), _, context) =>
-                context.symbType(t).asInstanceOf[InterfaceT]
-              case _ => ???
+              case NamedType(PTypeDef(t: PInterfaceType, _), _, ownerCtxt) =>
+                ownerCtxt.symbType(t) match {
+                  case itf: InterfaceT => itf
+                  case other => Violation.violation(s"expected interface type, but got $other")
+                }
             }
           ).promoteItf(e.typ.name))
         }

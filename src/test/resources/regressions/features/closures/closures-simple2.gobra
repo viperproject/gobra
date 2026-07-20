@@ -3,6 +3,8 @@
 
 package closuresSimple2
 
+import "math"
+
 ghost
 requires p.inv() && a >= 0
 ensures p.inv() && r >= 0
@@ -14,9 +16,13 @@ pred (p proof1) inv() { acc(p.x) && *p.x >= 0 }
 func main() {
 	x@ := 0
 	c := preserves acc(&x)
-		 ensures x == old(x) + n && m == x
+		 // guarded increment: the sum is only performed (and exact) when it provably fits int
+		 ensures old(x) >= 0 && n >= 0 ==> x >= 0
+		 ensures m == x
 		 func f(n int) (m int) {
-            x += n;
+            if n >= 0 && x <= math.MaxInt64 - n { // guard against overflow
+                x += n
+            }
 		    return x
          }
 

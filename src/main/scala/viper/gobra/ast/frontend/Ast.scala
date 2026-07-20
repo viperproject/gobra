@@ -13,7 +13,7 @@ import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
-import viper.gobra.util.{Decimal, NumBase}
+import viper.gobra.util.{Decimal, GoString, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -425,7 +425,7 @@ case class PFloatLit(lit: BigDecimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
-case class PStringLit(lit: String) extends PBasicLiteral
+case class PStringLit(lit: GoString) extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 

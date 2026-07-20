@@ -18,7 +18,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{BackendAnnotation, Decimal, NumBase, TypeBounds, Violation}
+import viper.gobra.util.{BackendAnnotation, Decimal, GoString, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -1163,7 +1163,7 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }
 
-case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+case class StringLit(s: GoString)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = StringT(Addressability.literal)
 }
 

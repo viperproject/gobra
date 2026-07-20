@@ -11,7 +11,7 @@ import org.antlr.v4.runtime.tree.{ParseTree, RuleNode, TerminalNode}
 import org.bitbucket.inkytonik.kiama.util.{Position, Source}
 import viper.carbon.boogie.Implicits.lift
 import viper.gobra.ast.frontend._
-import viper.gobra.util.{Binary, Hexadecimal, Octal}
+import viper.gobra.util.{Binary, GoString, Hexadecimal, Octal}
 import viper.gobra.frontend.GobraParser._
 import viper.gobra.frontend.Parser.PRewriter
 import viper.gobra.frontend.TranslationHelpers._
@@ -196,11 +196,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitString_(ctx: GobraParser.String_Context): PStringLit = {
+    val token = visitChildren(ctx).asInstanceOf[String]
     // Remove the delimiters
-    val string = ".((?:.|\n)*).".r
-    visitChildren(ctx).asInstanceOf[String] match {
-      case string(str) => PStringLit(str).at(ctx)
+    val content = token.substring(1, token.length - 1)
+    val value = if (ctx.RAW_STRING_LIT() != null) {
+      GoString.fromRawLiteral(content)
+    } else {
+      GoString.fromInterpretedLiteral(content) match {
+        case Right(string) => string
+        case Left(message) => fail(ctx, message)
+      }
     }
+    PStringLit(value).at(ctx)
   }
   //endregion
 
@@ -2281,7 +2288,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitFriendPkgDecl(ctx: FriendPkgDeclContext): PFriendPkgDecl = {
-    val path = visitString_(ctx.importPath().string_()).lit
+    val path = visitString_(ctx.importPath().string_()).lit.utf8
     val assertion = visitNode[PExpression](ctx.assertion())
     PFriendPkgDecl(path, assertion).at(ctx)
   }
@@ -2474,7 +2481,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
     // Get the actual path
-    val path = visitString_(ctx.importPath().string_()).lit
+    val path = visitString_(ctx.importPath().string_()).lit.utf8
     val importPres: Vector[PExpression] = visitListNode(ctx.importPre())
     if(ctx.DOT() != null){
       // . "<path>"

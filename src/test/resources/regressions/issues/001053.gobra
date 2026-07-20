@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001053
+
+// ##(-I ./)
+import interfaces "001053"
+
+requires x != nil && x.Mem()
+func use(x interfaces.Derived) {
+	x.M()
+}

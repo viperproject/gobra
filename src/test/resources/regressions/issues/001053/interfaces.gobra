@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package interfaces
+
+type Base interface {
+	pred Mem()
+
+	requires Mem()
+	M()
+}
+
+type Derived interface {
+	Base
+}

@@ -100,16 +100,17 @@ object IntKindAlignment {
     case _ => None
   }
 
-  /** The integer element/member kind of a ghost collection type, if any. */
+  /** The integer element/member kind of a ghost collection or option type, if any. */
   private def elemIntKind(t: in.Type): Option[TypeBounds.IntegerKind] = t match {
     case in.SequenceT(in.IntT(_, k), _) => Some(k)
     case in.SetT(in.IntT(_, k), _) => Some(k)
     case in.MultisetT(in.IntT(_, k), _) => Some(k)
+    case in.OptionT(in.IntT(_, k), _) => Some(k)
     case _ => None
   }
 
-  /** True if both types are the same ghost collection over ints but with different elem kinds,
-    * where exactly one side is mathematical (`integer` / untyped). */
+  /** True if both types are the same ghost collection / option over ints but with different elem
+    * kinds, where exactly one side is mathematical (`integer` / untyped). */
   private def elemKindMismatch(lt: in.Type, rt: in.Type): Boolean = {
     def unbounded(k: TypeBounds.IntegerKind): Boolean =
       k == TypeBounds.UnboundedInteger || k == TypeBounds.UntypedConstInteger
@@ -117,6 +118,7 @@ object IntKindAlignment {
       case (_: in.SequenceT, _: in.SequenceT) => true
       case (_: in.SetT, _: in.SetT) => true
       case (_: in.MultisetT, _: in.MultisetT) => true
+      case (_: in.OptionT, _: in.OptionT) => true
       case _ => false
     }) && ((elemIntKind(lt), elemIntKind(rt)) match {
       case (Some(lk), Some(rk)) => lk != rk && (unbounded(lk) ^ unbounded(rk))
@@ -151,6 +153,14 @@ object IntKindAlignment {
         case in.Union(a, b, _)        => in.Union(coerceToElemKind(a, k), coerceToElemKind(b, k), in.MultisetT(boundedElemT, t.addressability))(e.info)
         case in.Intersection(a, b, _) => in.Intersection(coerceToElemKind(a, k), coerceToElemKind(b, k), in.MultisetT(boundedElemT, t.addressability))(e.info)
         case in.SetMinus(a, b, _)     => in.SetMinus(coerceToElemKind(a, k), coerceToElemKind(b, k), in.MultisetT(boundedElemT, t.addressability))(e.info)
+        case _ => e
+      }
+      // Options: push the element coercion into the constructor — `some(v)` -> `some(int(v))`,
+      // `none[integer]` -> `none[int]`. There is no general Option[Int] -> Option[Bounded_k]
+      // mapping function, so a plain option variable is left unchanged.
+      case _: in.OptionT => e match {
+        case in.OptionSome(x) => in.OptionSome(coerceToElemKind(x, k))(e.info)
+        case _: in.OptionNone => in.OptionNone(boundedElemT)(e.info)
         case _ => e
       }
       case _ => e

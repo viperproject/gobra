@@ -157,10 +157,14 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
                 case _: Unsigned =>
                   aux(l, r){
                     x => y =>
-                      // The type system ensures that x is convertible to long and y is convertible to int
-                      violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
+                      // The type system ensures that y is convertible to int
                       violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                      BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
+                      // An unsigned constant is non-negative, and for non-negative values the
+                      // arithmetic shift equals the logical shift — no need to round-trip
+                      // through Long (which crashed for constants above Long.MaxValue, e.g.
+                      // anything near MaxUint64).
+                      violation(x >= 0, s"unsigned operand expected to be non-negative")
+                      x >> y.toInt
                   }
               }
               case _ => None

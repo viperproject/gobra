@@ -126,9 +126,20 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
 
   // ===== Equal: compare the `from`-images so domain values are compared mathematically =====
 
-  /** True iff at least one of the two expressions has a bounded integer type. */
+  /** True iff `e` has some integer type (bounded, `integer`, or untyped constant). */
+  private def isIntegerTyped(ctx: Context)(e: in.Expr): Boolean =
+    ctx.BoundedInt.unapply(e.typ).isDefined || ctx.UnboundedInt.unapply(e.typ)
+
+  /**
+    * True iff BOTH expressions are integer-typed and at least one is bounded. Claiming a
+    * comparison/equality on a bounded operand alone is too greedy: `x == itf` compares a
+    * bounded int against an interface value (boxing equality), which belongs to the
+    * interface encoding — claiming it here made the combiner report the node as supported
+    * by more than one encoding.
+    */
   private def hasBoundedOperand(ctx: Context)(l: in.Expr, r: in.Expr): Boolean =
-    ctx.BoundedInt.unapply(l.typ).isDefined || ctx.BoundedInt.unapply(r.typ).isDefined
+    (ctx.BoundedInt.unapply(l.typ).isDefined || ctx.BoundedInt.unapply(r.typ).isDefined) &&
+      isIntegerTyped(ctx)(l) && isIntegerTyped(ctx)(r)
 
   // A bounded operand can appear on EITHER side (e.g. `0 == c.BufferSize()`, or mixed
   // bounded/unbounded siblings the desugarer did not align). Both operands are projected

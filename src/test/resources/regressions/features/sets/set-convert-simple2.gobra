@@ -32,7 +32,9 @@ func example5(ghost xs seq[int], ghost ys seq[int]) {
 func example6() {
   assert set(seq[int] { }) == set[int] { }
   assert set(seq[int] { 1, 2, 3 }) == set[int] { 1, 2, 3 }
-  assert set(seq[1..4]) == set[int] { 1, 2, 3 }
+  // the range sequence has mathematical `integer` elements, so its set
+  // conversion is compared against a set[integer] literal
+  assert set(seq[1..4]) == set[integer] { 1, 2, 3 }
   assert set(seq[int] { 1, 2, 3, 2, 1 }) == set[int] { 3, 1, 2 }
 }
 

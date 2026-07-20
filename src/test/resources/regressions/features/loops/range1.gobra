@@ -3,9 +3,11 @@
 
 package pkg
 
+import "math"
 
 preserves acc(x)
 requires len(x) > 0
+requires len(x) <= math.MaxInt64 // bound so the range counter's int assignment stays exact
 ensures forall i int :: 0 <= i && i < len(x) ==> max >= x[i]
 decreases
 func foo(x []uint) (max uint) {

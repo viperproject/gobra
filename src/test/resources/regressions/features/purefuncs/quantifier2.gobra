@@ -7,6 +7,7 @@ pure func test(a int)(res int){
     return a+1
 }
 
-// bound i so that i+1 in test provably does not overflow
-ensures forall i int :: i < 9223372036854775807 ==> i == test(i)-1
+// The quantified i is a mathematical integer, so it must be bounded to the
+// int64 range on both sides for the call test(i) and i+1 to be provably exact.
+ensures forall i int :: -9223372036854775808 <= i && i < 9223372036854775807 ==> i == test(i)-1
 func client(){}

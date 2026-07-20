@@ -18,7 +18,7 @@ func init() {
 	// @ fold acc(StaticInv(), _)
 }
 
-// @ requires  0 <= n
+// @ requires  0 <= n && FibFits(n)
 // @ ensures   res == FibSpec(n)
 // termination cannot be proven due to calls to Lock()
 func FibV1(n int) (res int) {
@@ -33,6 +33,7 @@ func FibV1(n int) (res int) {
 	}
 	// @ fold lockInv!<!>()
 	lock.Unlock()
+	// @ assert FibSpec(n) == FibSpec(n-1) + FibSpec(n-2)
 	v := FibV1(n-1) + FibV1(n-2)
 	lock.Lock()
 	// @ unfold lockInv!<!>()
@@ -42,7 +43,7 @@ func FibV1(n int) (res int) {
 	return v
 }
 
-// @ requires  0 <= n
+// @ requires  0 <= n && FibFits(n)
 // @ ensures   res == FibSpec(n)
 // termination cannot be proven due to calls to Lock()
 func FibV2(n int) (res int) {
@@ -54,7 +55,7 @@ func FibV2(n int) (res int) {
 	return v
 }
 
-// @ requires  0 <= n
+// @ requires  0 <= n && FibFits(n)
 // @ preserves lockInv!<!>()
 // @ ensures   res == FibSpec(n)
 // @ decreases n
@@ -65,6 +66,7 @@ func fibImpl(n int) (res int) {
 		return v
 	}
 	// @ fold lockInv!<!>()
+	// @ assert FibSpec(n) == FibSpec(n-1) + FibSpec(n-2)
 	v := fibImpl(n-1) + fibImpl(n-2)
 	// @ unfold lockInv!<!>()
 	cache[n] = v

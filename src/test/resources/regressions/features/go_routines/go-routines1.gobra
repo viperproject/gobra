@@ -71,7 +71,7 @@ func lostPermissionGoMethod() {
     assert n.f == 0 
 }
 
-requires x > 0 && y > 0
+requires 0 < x && x < 1000000 && 0 < y && y < 1000000
 ensures ret > 0
 pure func sumAbs(x int, y int) (ret int) {
 	return x + y

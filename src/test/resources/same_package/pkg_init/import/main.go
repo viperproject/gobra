@@ -26,6 +26,10 @@ func init() {
 	foo()
 
 	// this one is not checked for mayInit, it is imported.
+	// @ assert fib.FibSpec(0) == 1
+	// @ assert fib.FibSpec(1) == 1
+	// @ assert fib.FibSpec(2) == 2
+	// @ assert fib.FibSpec(3) == 3
 	y := fib.Fib(3)
 	// also, the call above requires fib.StaticInv(). We can actually
 	// perform this call because the runtime guarantes that the main thread of
@@ -43,6 +47,10 @@ func init() {
 }
 
 func Test() {
+	// @ assert concfib.FibSpec(0) == 1
+	// @ assert concfib.FibSpec(1) == 1
+	// @ assert concfib.FibSpec(2) == 2
+	// @ assert concfib.FibSpec(3) == 3
 	x := concfib.FibV1(3)
 	// @ assert concfib.FibSpec(0) == 1
 	// @ assert concfib.FibSpec(1) == 1
@@ -88,6 +96,10 @@ type I interface {
 // @ requires fib.StaticInv()
 // @ decreases
 func main() {
+	// @ assert fib.FibSpec(0) == 1
+	// @ assert fib.FibSpec(1) == 1
+	// @ assert fib.FibSpec(2) == 2
+	// @ assert fib.FibSpec(3) == 3
 	x := fib.Fib(3)
 	// @ assert fib.FibSpec(0) == 1
 	// @ assert fib.FibSpec(1) == 1

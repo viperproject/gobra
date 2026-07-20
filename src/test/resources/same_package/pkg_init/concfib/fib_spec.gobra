@@ -3,12 +3,25 @@
 
 package concfib
 
+import "math"
+
 ghost
 pure
 requires 0 <= n
+ensures  1 <= res
 decreases n
-func FibSpec(n int) int {
+func FibSpec(n integer) (res integer) {
 	return n <= 1 ? 1 : FibSpec(n-1) + FibSpec(n-2)
+}
+
+// FibSpec grows beyond any bounded integer type, so callers of the concrete
+// (cached) implementations must guarantee that the result still fits an int.
+ghost
+pure
+requires 0 <= n
+decreases
+func FibFits(n integer) bool {
+	return FibSpec(n) <= math.MaxInt64
 }
 
 pred lockInv() {
@@ -16,8 +29,8 @@ pred lockInv() {
 	acc(cache)         &&
 	0 elem domain(cache) &&
 	1 elem domain(cache) &&
-	forall i int :: { cache[i] }{ FibSpec(i) }{ i elem domain(cache) } i elem domain(cache) ==>
-		0 <= i && cache[i] == FibSpec(i)
+	forall i int :: { cache[i] }{ FibSpec(i) }{ i elem domain(cache) } 0 <= i && i <= math.MaxInt64 && i elem domain(cache) ==>
+		cache[i] == FibSpec(i)
 }
 
 pred StaticInv() {

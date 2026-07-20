@@ -57,6 +57,11 @@ func test10() {
 requires o != none[int]
 func test11(ghost o option[int]) {
   assert o == some(get(o))
+  // exhibit the witness at the mathematical-integer kind: quantified integer
+  // variables range over mathematical integers, so the existential below needs
+  // a ground witness of that shape.
+  ghost var w integer = get(o)
+  assert o == some(w)
   assert exists v int :: o == some(v)
   assert 0 < len(seq(o))
 }

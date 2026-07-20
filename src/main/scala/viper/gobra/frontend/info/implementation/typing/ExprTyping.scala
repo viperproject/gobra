@@ -708,9 +708,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // in the following, we report an error only if the components are within bounds to avoid
       // reporting a lot of errors (like the Go compiler)
       error(slice, "invalid slice indices: low > high",
-        lowConstant.zip(highConstant).exists { case (l, h) => if (withinBounds(l) && withinBounds(h)) l > h else true }) ++
+        lowConstant.zip(highConstant).exists { case (l, h) => if (withinBounds(l) && withinBounds(h)) l > h else false }) ++
       error(slice, "invalid slice indices: high > cap",
-        highConstant.zip(capConstant).exists { case (h, c) => if (withinBounds(h) && withinBounds(c)) h > c else true })
+        highConstant.zip(capConstant).exists { case (h, c) => if (withinBounds(h) && withinBounds(c)) h > c else false })
   }
 
   private def numExprWithinTypeBounds(num: PNumExpression): Messages =

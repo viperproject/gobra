@@ -23,5 +23,6 @@ func example4() {
   assert len(seq[bool] { true, false }) == 2
   assert len(seq[bool] { true }) == len(seq[int] { 42 })
   assert len(seq[seq[int]] { seq[int] { 1 }, seq[int] { 17, 142 } }) == 2;
-  assert seq[int] { len(seq[int] { 1 }), len(seq[int] { 17, 142 }) } == seq[int] { 1, 2 };
+  // int conversions needed since len() on ghost sequences has type integer
+  assert seq[int] { int(len(seq[int] { 1 })), int(len(seq[int] { 17, 142 })) } == seq[int] { 1, 2 };
 }

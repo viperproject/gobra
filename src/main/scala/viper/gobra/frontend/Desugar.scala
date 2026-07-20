@@ -4589,6 +4589,7 @@ object Desugar extends LazyLogging {
           dleft = underlyingType(dright.typ) match {
             case t: in.SequenceT => alignElementKind(dleftRaw, t.t)
             case t: in.MultisetT => alignElementKind(dleftRaw, t.t)
+            case t: in.SetT      => alignElementKind(dleftRaw, t.t)
             case _ => dleftRaw
           }
         } yield in.Multiplicity(dleft, dright)(src)

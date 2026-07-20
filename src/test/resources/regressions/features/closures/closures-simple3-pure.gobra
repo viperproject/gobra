@@ -4,12 +4,12 @@
 package closuresSimple3Pure
 
 ghost
-requires p.inv() && a >= 0
+requires p.inv() && a >= 0 && a < 1000000 // upper bound so that additions in implementations provably do not overflow
 ensures r >= 0
 pure func pos(ghost p interface{pred inv();}, a int) (r int)
 
 type proof1 struct { x *int }
-pred (p proof1) inv() { acc(p.x, perm(1, 2)) && *p.x >= 0 }
+pred (p proof1) inv() { acc(p.x, perm(1, 2)) && *p.x >= 0 && *p.x < 1000000 } // upper bound excludes overflow in *p.x + n
 
 func main() {
 	x@ := 10

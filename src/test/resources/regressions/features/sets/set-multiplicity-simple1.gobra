@@ -6,7 +6,8 @@ package pkg
 ensures 0 <= n && n <= 1
 ensures n == 0 ==> !(x elem s)
 ensures n == 1 ==> x elem s
-func example1(ghost x int, ghost s set[int]) (ghost n int) {
+// multiplicity on ghost collections has the mathematical `integer` type
+func example1(ghost x int, ghost s set[int]) (ghost n integer) {
   n = x # s
 }
 

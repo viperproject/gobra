@@ -7,5 +7,6 @@ pure func test(a int)(res int){
     return a+1
 }
 
-ensures forall i int :: i == test(i)-1
+// bound i so that i+1 in test provably does not overflow
+ensures forall i int :: i < 9223372036854775807 ==> i == test(i)-1
 func client(){}

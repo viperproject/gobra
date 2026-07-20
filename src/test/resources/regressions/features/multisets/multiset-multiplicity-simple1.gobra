@@ -4,8 +4,9 @@
 package pkg
 
 func example1(ghost x int, y int, ghost m mset[int]) {
-  ghost var n1 int
-  ghost var n2 int
+  // multiplicity on ghost collections has the mathematical `integer` type
+  ghost var n1 integer
+  ghost var n2 integer
 
   n1 = x # m
   n2 = y # m
@@ -20,7 +21,8 @@ func example2(ghost x int, ghost y int, ghost m mset[int]) {
 }
 
 func example3(ghost x int, ghost m1 mset[int], ghost m2 mset[int]) {
-  ghost var n int
+  // multiplicity on ghost collections has the mathematical `integer` type
+  ghost var n integer
   n = x # m1 # m2
   assert x # m1 # m2 == (x # m1) # m2
 }

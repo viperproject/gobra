@@ -8,6 +8,7 @@ type Cell struct {
     b int;
 };
 
+requires c.a < 9223372036854775807; // bound so that x+1 provably does not overflow
 func test1(c Cell) () {
     q@ := c
     x := q.a;

@@ -6,11 +6,12 @@ package pkg
 
 
 requires x >= 0
+requires x < 100000 && -100000 < y && y < 100000 // bounds so that i*y and z += y provably do not overflow
 ensures  z == x*y
 func test(x, y int) (z int) {
 
+	invariant 0 <= i && i <= x // lower bound needed so i*y and z += y are provably exact
 	invariant z == i*y
-	invariant i <= x
 	for i := 0; i < x; i += 1 {
 		z += y
 	}

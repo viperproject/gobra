@@ -4775,8 +4775,24 @@ object Desugar extends LazyLogging {
       } yield (newVars, newTriggers, newBody)
     }
 
-    def boundVariableD(x: PBoundVariable) : in.BoundVar =
-      in.BoundVar(idName(x.id, info), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x, info)))(meta(x, info))
+    // A quantifier variable of a *bounded* integer kind is bound at the mathematical `integer`
+    // type rather than the opaque `Bounded_k` domain sort. Quantified integers are treated
+    // mathematically (as in most verifiers): the variable ranges over all integers, and a proof
+    // that needs it constrained to a type's range states that bound explicitly in the quantifier
+    // (e.g. `forall k int :: 0 <= k && k < len(s) ==> ...`) — the encoder does not infer it.
+    // Besides matching the usual mathematical reading, this keeps `forall k int :: acc(&s[k])`
+    // using `k` directly as the array index (a linear injective inverse for Silicon, instead of
+    // the divergent `sadd(offset, from(k))` form) and unifies with internal/stub quantifiers,
+    // which already range over `Int`.
+    def boundVariableD(x: PBoundVariable) : in.BoundVar = {
+      val src = meta(x, info)
+      val declaredT = info.symbType(x.typ) match {
+        case Type.IntT(_: viper.gobra.util.TypeBounds.BoundedIntegerKind) =>
+          in.IntT(Addressability.boundVariable, viper.gobra.util.TypeBounds.UnboundedInteger)
+        case t => typeD(t, Addressability.boundVariable)(src)
+      }
+      in.BoundVar(idName(x.id, info), declaredT)(src)
+    }
 
     def pureExprD(ctx: FunctionContext, info: TypeInfo)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx, info)(expr)

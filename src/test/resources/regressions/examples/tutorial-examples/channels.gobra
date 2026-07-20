@@ -3,6 +3,8 @@
 
 package tutorial
 
+import "math"
+
 pred sendInvariant(v *int) {
 	acc(v) && *v > 0
 }
@@ -18,8 +20,13 @@ func incChannel(c chan *int) {
 	res, ok := <- c
 	if (ok) {
 		unfold sendInvariant!<_!>(res)
-		// we now have write access after unfolding the invariant:
-		*res = *res + 1
+		// we now have write access after unfolding the invariant. Guard the
+		// increment: under the sound bounded-integer semantics `*res + 1` would
+		// overflow to a non-positive value at MaxInt64, breaking the `*v > 0`
+		// invariant; the guard keeps *res positive in either branch.
+		if *res < math.MaxInt64 {
+			*res = *res + 1
+		}
 		// fold the invariant and send pointer and permission back:
 		fold sendInvariant!<_!>(res)
 		c <- res

@@ -134,6 +134,9 @@ object GobraDependencyAnalysisHelper {
       case PExplicitGhostMember(m) => go(Set(m)) // TODO ake: for ghost code Some(DependencyType(Ghost))
       case PImplementationProof(_, _, _, methodImplProofs) => go(methodImplProofs)
 
+      case PDomainType(_, axioms) => go(axioms, Some(AssumptionType.DomainAxiom.asDepType()))
+      case PDomainAxiom(exp) => goS(exp)
+
       // TODO ake: closures
       case PClosureDecl(args, result, spec, body) => go(args ++ Set(result)) ++ goOpt(body.map(_._2)) ++ goSpec(spec, body.isEmpty)
       case PClosureImplProof(impl, block) => goS(impl) ++ goS(block)

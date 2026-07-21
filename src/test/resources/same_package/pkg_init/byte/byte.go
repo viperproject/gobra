@@ -13,9 +13,9 @@ var byteCache /*@@@*/ [256]*Byte
 
 func init() {
 	// @ invariant 0 <= i && i <= 256 && acc(&byteCache)
-	// @ invariant (forall j, k int :: 0 <= j && j < k && k < i  ==>
+	// @ invariant (forall j, k integer :: 0 <= j && j < k && k < integer(i)  ==>
 	// @ 	byteCache[j] != byteCache[k])
-	// @ invariant (forall j int :: 0 <= j && j < i ==>
+	// @ invariant (forall j integer :: 0 <= j && j < integer(i) ==>
 	// @ 	acc(byteCache[j]) && byteCache[j].value == byte(j))
 	// @ decreases 256 - i
 	for i := 0; i < 256; i++ {
@@ -34,17 +34,17 @@ func alloc(val byte) (res *Byte) {
 }
 
 // @ pure
-// @ requires acc(b.Mem(), _)
+// @ requires b.Mem()
 // @ decreases
 func (b *Byte) ByteValue() byte {
-	return /*@ unfolding acc(b.Mem(), _) in @*/ b.value
+	return /*@ unfolding b.Mem() in @*/ b.value
 }
 
 // @ ensures acc(res.Mem(), _)
 // @ ensures res.ByteValue() == val
 // @ decreases
 func ToVal(val byte) (res *Byte) {
-	// @ assume 0 <= val && val <= 255
+	// @ assert 0 <= val && val <= 255
 	// @ openDupPkgInv
 	// @ unfold acc(StaticInv(), _)
 	res = byteCache[val]

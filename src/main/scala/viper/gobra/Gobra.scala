@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, ConstantPropagation, InternalTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
@@ -50,6 +50,8 @@ object GoVerifier {
 }
 
 trait GoVerifier extends StrictLogging {
+
+  protected val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 
   def name: String = {
     this.getClass.getSimpleName
@@ -87,7 +89,6 @@ trait GoVerifier extends StrictLogging {
       }
     })
 
-    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
     config.packageInfoInputMap.keys.foreach(pkgInfo => {
       val pkgId = pkgInfo.id
       logger.info(s"Verifying package $pkgId [${LocalTime.now().format(timeFormatter)}]")
@@ -255,6 +256,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   // that all imported packages have been parsed successfully (this is only checked during type-checking)
   private def performParsing(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
     if (config.shouldParse) {
+      logger.info(s"Phase 1/6: parsing [${LocalTime.now().format(timeFormatter)}]")
       val startMs = System.currentTimeMillis()
       val res = Parser.parse(config, pkgInfo)
       logger.debug {
@@ -269,6 +271,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, TypeInfo] = {
     if (config.shouldTypeCheck) {
+      logger.info(s"Phase 2/6: type-checking [${LocalTime.now().format(timeFormatter)}]")
       Info.check(config, RegularPackage(pkgInfo.id), parseResults)
     } else {
       EitherT.left(Vector.empty)
@@ -277,6 +280,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performDesugaring(config: Config, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
     if (config.shouldDesugar) {
+      logger.info(s"Phase 3/6: desugaring [${LocalTime.now().format(timeFormatter)}]")
       val startMs = System.currentTimeMillis()
       val res = EitherT.right[Vector[VerifierError], Future, Program](Desugar.desugar(config, typeInfo)(executor))
       logger.debug {
@@ -290,18 +294,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   }
 
   /**
-    * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
-    * be easily extended to perform more transformations
+    * Applies transformations to programs in the internal language.
     */
   private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
-    // constant propagation does not cause duplication of verification errors caused
-    // by overflow checks (if enabled) because all overflows in constant declarations 
-    // can be found by the well-formedness checks.
+    logger.info(s"Phase 4/6: internal transformations [${LocalTime.now().format(timeFormatter)}]")
     val startMs = System.currentTimeMillis()
-    var transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
-    if (config.checkOverflows) {
-      transformations :+= OverflowChecksTransform
-    }
+    val transformations: Vector[InternalTransform] = Vector(CGEdgesTerminationTransform, ConstantPropagation)
     val result = transformations.foldLeft(program)((prog, transf) => transf.transform(prog))
     logger.debug {
       val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
@@ -313,6 +311,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
+      logger.info(s"Phase 5/6: Viper encoding [${LocalTime.now().format(timeFormatter)}]")
       val startMs = System.currentTimeMillis()
       val res = EitherT.fromEither[Future, Vector[VerifierError], BackendVerifier.Task](Future.successful(Translator.translate(program, pkgInfo)(config)))
       logger.debug {
@@ -329,6 +328,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     if (config.noVerify) {
       Future(VerifierResult.Success)(executor)
     } else {
+      logger.info(s"Phase 6/6: backend verification [${LocalTime.now().format(timeFormatter)}]")
       verifyAst(config, pkgInfo, ast, backtrack)(executor)
     }
   }

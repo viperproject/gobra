@@ -3,32 +3,34 @@
 
 package pkg
 
+import "math"
+
 type Tree struct {}
 
 // res in the following postconditions should correctly be translated to `result` in the Viper file
 
 ghost
 ensures res == seq[int] { }
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
+ensures forall i int :: (0 <= i && i < math.MaxInt64 && i + 1 < len(res) ==> res[i] < res[i + 1])
 pure func (t *Tree) test1() (res seq[int]) {
     return seq[int] { }
 }
 
 ghost
 ensures res == seq[int] { }
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
+ensures forall i int :: (0 <= i && i < math.MaxInt64 && i + 1 < len(res) ==> res[i] < res[i + 1])
 pure func test2() (res seq[int]) {
     return seq[int] { }
 }
 
 ensures res == seq[int] { }
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
+ensures forall i int :: (0 <= i && i < math.MaxInt64 && i + 1 < len(res) ==> res[i] < res[i + 1])
 pure func (t *Tree) test3() (ghost res seq[int]) {
     return seq[int] { }
 }
 
 ensures res == seq[int] { }
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1])
+ensures forall i int :: (0 <= i && i < math.MaxInt64 && i + 1 < len(res) ==> res[i] < res[i + 1])
 pure func test4() (ghost res seq[int]) {
     return seq[int] { }
 }

@@ -541,7 +541,8 @@ object Desugar extends LazyLogging {
             in.StringLit(constValue.get)(src)
           case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
-            in.IntLit(constValue.get)(src)
+            val kind = underlyingType(x).asInstanceOf[in.IntT].kind
+            in.IntLit(constValue.get, kind)(src)
           case in.PermissionT(Addressability.Exclusive) =>
             val constValue = sc.context.permConstantEvaluation(sc.exp)
             in.PermLit(constValue.get._1, constValue.get._2)(src)
@@ -2389,6 +2390,31 @@ object Desugar extends LazyLogging {
       }
     }
 
+    def alignIntKinds(l: in.Expr, r: in.Expr): (in.Expr, in.Expr) =
+      viper.gobra.ast.internal.utility.IntKindAlignment.alignIntKinds(l, r)
+
+    /**
+      * If `e`'s type is an integer with a different `IntegerKind` than the expected element
+      * type `elemT`, retype an `in.IntLit` (when the value fits) or insert an `in.Conversion`.
+      * Used at sites that expect `e` to match a container's element type.
+      */
+    def alignElementKind(e: in.Expr, elemT: in.Type): in.Expr = (e.typ, elemT) match {
+      case (in.IntT(_, ek), in.IntT(_, tk)) if ek != tk =>
+        e match {
+          case lit: in.IntLit if isInRangeForKind(lit.v, tk) =>
+            in.IntLit(lit.v, tk, lit.base)(lit.info)
+          case _ =>
+            in.Conversion(elemT.withAddressability(Addressability.rValue), e)(e.info)
+        }
+      case _ => e
+    }
+
+    private def isInRangeForKind(v: BigInt, kind: viper.gobra.util.TypeBounds.IntegerKind): Boolean = kind match {
+      case viper.gobra.util.TypeBounds.UnboundedInteger => true
+      case bk: viper.gobra.util.TypeBounds.BoundedIntegerKind => v >= bk.lower && v <= bk.upper
+      case _ => true
+    }
+
     def implicitConversion(from: in.Type, to: in.Type, exp: in.Expr): in.Expr = {
 
       val fromUt = underlyingType(from)
@@ -2396,8 +2422,27 @@ object Desugar extends LazyLogging {
 
       if (toUt.isInstanceOf[in.InterfaceT] && !fromUt.isInstanceOf[in.InterfaceT]) {
         in.ToInterface(exp, toUt)(exp.info)
-      } else {
-        exp
+      } else (fromUt, toUt) match {
+        // With domain-encoded bounded integers, distinct integer kinds map to distinct
+        // Viper sorts (e.g. Bounded_int vs Int). An implicit assignment between operands
+        // of different IntegerKind needs an explicit Conversion so the encoder can route
+        // through the appropriate `to`/`wrap` bridge function. Without this, the encoder
+        // sees a sort mismatch (e.g. Tuple2[Int] passed where Tuple2[Bounded_int] is
+        // expected) and Viper consistency-checks fail.
+        case (in.IntT(_, fromK), in.IntT(_, toK)) if fromK != toK =>
+          in.Conversion(to, exp)(exp.info)
+        // Option types with mismatched integer element kinds (e.g. `opt = some(34)`, where
+        // `some(34)` is typed option[untyped] but the target is option[int]): push the
+        // alignment into the option constructor — there is no Viper-level mapping function
+        // between Option[Int] and Option[Bounded_k].
+        case (in.OptionT(in.IntT(_, fromK), _), in.OptionT(toElem@ in.IntT(_, toK), _)) if fromK != toK =>
+          exp match {
+            case in.OptionSome(x) => in.OptionSome(alignElementKind(x, toElem))(exp.info)
+            case _: in.OptionNone => in.OptionNone(toElem.withAddressability(Addressability.rValue))(exp.info)
+            case _ => exp
+          }
+        case _ =>
+          exp
       }
     }
 
@@ -2479,8 +2524,25 @@ object Desugar extends LazyLogging {
     private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext, info : TypeInfo)(src : Meta) : Writer[in.IndexedExp] = {
       for {
         dbase <- exprD(ctx, info)(base)
-        dindex <- exprD(ctx, info)(index)
+        dindexRaw <- exprD(ctx, info)(index)
         baseUnderlyingType = underlyingType(dbase.typ)
+        // For seq/slice/array/string indexes the encoding expects a Viper Int (not a bounded
+        // integer domain value). Demote a bounded-int index to integer via Conversion, which
+        // routes through the (precondition-free) `from` bridge function. For maps, retype the
+        // index to match the map's declared key type.
+        dindex = baseUnderlyingType match {
+          case _: in.SliceT | _: in.ArrayT | _: in.SequenceT | _: in.StringT =>
+            // Resolve the index's *underlying* type: the index may have a defined type whose
+            // underlying type is a bounded integer (e.g. `type Type uint8`).
+            underlyingType(dindexRaw.typ) match {
+              case in.IntT(_, k) if k != viper.gobra.util.TypeBounds.UnboundedInteger =>
+                in.Conversion(in.IntT(Addressability.rValue, viper.gobra.util.TypeBounds.UnboundedInteger), dindexRaw)(dindexRaw.info)
+              case _ => dindexRaw
+            }
+          case t: in.MapT      => alignElementKind(dindexRaw, t.keys)
+          case t: in.MathMapT  => alignElementKind(dindexRaw, t.keys)
+          case _ => dindexRaw
+        }
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
@@ -2509,6 +2571,22 @@ object Desugar extends LazyLogging {
       ctx.expD(expr) match {
         case Some(res) => return res
         case None =>
+      }
+
+      // Constant-fold pure integer expressions whose inferred type is a bounded integer kind
+      // AND whose statically-evaluated value fits in that kind. This handles patterns like
+      // `PSub(PIntLit(0), PIntLit(128))` (Gobra's representation of unary `-128`) in an int8
+      // context: the value -128 fits even though the inner literal 128 does not. Without
+      // folding, the encoding wraps 128 with the lossy `wrap` function (its postcondition is
+      // conditional on the input being in range), losing the constant -128.
+      info.typ(expr) match {
+        case Type.IntT(k: viper.gobra.util.TypeBounds.BoundedIntegerKind) =>
+          info.intConstantEvaluation(expr) match {
+            case Some(v) if v >= k.lower && v <= k.upper =>
+              return unit(in.IntLit(v, k)(src))
+            case _ =>
+          }
+        case _ =>
       }
 
       expr match {
@@ -2596,8 +2674,9 @@ object Desugar extends LazyLogging {
               } yield in.EqCmp(l, r)(src)
             } else {
               for {
-                l <- exprAndTypeAsExpr(ctx, info)(left)
-                r <- exprAndTypeAsExpr(ctx, info)(right)
+                l0 <- exprAndTypeAsExpr(ctx, info)(left)
+                r0 <- exprAndTypeAsExpr(ctx, info)(right)
+                (l, r) = alignIntKinds(l0, r0)
               } yield in.EqCmp(l, r)(src)
             }
 
@@ -2612,8 +2691,9 @@ object Desugar extends LazyLogging {
               } yield in.UneqCmp(l, r)(src)
             } else {
               for {
-                l <- exprAndTypeAsExpr(ctx, info)(left)
-                r <- exprAndTypeAsExpr(ctx, info)(right)
+                l0 <- exprAndTypeAsExpr(ctx, info)(left)
+                r0 <- exprAndTypeAsExpr(ctx, info)(right)
+                (l, r) = alignIntKinds(l0, r0)
               } yield in.UneqCmp(l, r)(src)
             }
 
@@ -2624,7 +2704,7 @@ object Desugar extends LazyLogging {
               // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
               for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
             } else {
-              for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostEqCmp(l, r)(src)
+              for { l0 <- exprD(ctx, info)(left); r0 <- exprD(ctx, info)(right); (l, r) = alignIntKinds(l0, r0) } yield in.GhostEqCmp(l, r)(src)
             }
 
           case PGhostUnequals(left, right) =>
@@ -2634,35 +2714,35 @@ object Desugar extends LazyLogging {
               // E.g. the right-hand side of perm(1/2) == 1/2 is treated as a permission.
               for { l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
             } else {
-              for { l <- exprD(ctx, info)(left); r <- exprD(ctx, info)(right) } yield in.GhostUneqCmp(l, r)(src)
+              for { l0 <- exprD(ctx, info)(left); r0 <- exprD(ctx, info)(right); (l, r) = alignIntKinds(l0, r0) } yield in.GhostUneqCmp(l, r)(src)
             }
 
           case PLess(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLtCmp(l, r)(src)
             } else {
-              for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
+              for {l0 <- go(left); r0 <- go(right); (l, r) = alignIntKinds(l0, r0)} yield in.LessCmp(l, r)(src)
             }
 
           case PAtMost(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLeCmp(l, r)(src)
             } else {
-              for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
+              for {l0 <- go(left); r0 <- go(right); (l, r) = alignIntKinds(l0, r0)} yield in.AtMostCmp(l, r)(src)
             }
 
           case PGreater(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermGtCmp(l, r)(src)
             } else {
-              for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)
+              for {l0 <- go(left); r0 <- go(right); (l, r) = alignIntKinds(l0, r0)} yield in.GreaterCmp(l, r)(src)
             }
 
           case PAtLeast(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermGeCmp(l, r)(src)
             } else {
-              for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
+              for {l0 <- go(left); r0 <- go(right); (l, r) = alignIntKinds(l0, r0)} yield in.AtLeastCmp(l, r)(src)
             }
 
           case PAnd(left, right) =>
@@ -2729,12 +2809,12 @@ object Desugar extends LazyLogging {
             // both operands are statically evaluable so that `var d int = 1 << 2` becomes
             // `d := 4` in Viper, making `assert(d == 4)` provable.
             info.intConstantEvaluation(e) match {
-              case Some(v) => unit(in.IntLit(v)(src))
+              case Some(v) => unit(in.IntLit(v, inferredIntKind(info)(e))(src))
               case None => for {l <- go(e.left); r <- go(e.right)} yield in.ShiftLeft(l, r)(src)
             }
           case e: PShiftRight =>
             info.intConstantEvaluation(e) match {
-              case Some(v) => unit(in.IntLit(v)(src))
+              case Some(v) => unit(in.IntLit(v, inferredIntKind(info)(e))(src))
               case None => for {l <- go(e.left); r <- go(e.right)} yield in.ShiftRight(l, r)(src)
             }
           case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
@@ -2750,9 +2830,14 @@ object Desugar extends LazyLogging {
 
           case PSliceExp(base, low, high, cap) => for {
             dbase <- go(base)
-            dlow <- option(low map go)
-            dhigh <- option(high map go)
-            dcap <- option(cap map go)
+            dlowRaw <- option(low map go)
+            dhighRaw <- option(high map go)
+            dcapRaw <- option(cap map go)
+            // Slice / sequence bounds are passed to the encoding as Viper Int, so demote any
+            // bounded-integer kind that the frontend may have inferred for the bound expression.
+            dlow = dlowRaw.map(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt)
+            dhigh = dhighRaw.map(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt)
+            dcap = dcapRaw.map(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt)
           } yield underlyingType(dbase.typ) match {
             case _: in.SequenceT => (dlow, dhigh) match {
               case (None, None) => dbase
@@ -2989,13 +3074,23 @@ object Desugar extends LazyLogging {
     }
 
 
+    /** Returns the IntegerKind inferred for an expression, or UnboundedInteger if it isn't an integer type. */
+    def inferredIntKind(info: TypeInfo)(e: PExpression): viper.gobra.util.TypeBounds.IntegerKind = info.typ(e) match {
+      case Type.IntT(k) => k
+      case _            => viper.gobra.util.TypeBounds.UnboundedInteger
+    }
+
     def litD(ctx: FunctionContext, info: TypeInfo)(lit: PLiteral): Writer[in.Expr] = {
 
       val src: Meta = meta(lit, info)
       def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
-        case PIntLit(v, base)  => single(in.IntLit(v, base = base))
+        case lit @ PIntLit(v, base) =>
+          // Propagate the frontend-inferred integer kind (e.g. int8 in `0 < x` where x: int8)
+          // so the internal IntLit's typ matches its sibling's. Without this, BoundedIntEncoding
+          // sees mixed-kind operands (Int vs Bounded_int8) and Silicon rejects the Viper output.
+          single(in.IntLit(v, inferredIntKind(info)(lit), base))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.ActualPointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
@@ -3209,7 +3304,7 @@ object Desugar extends LazyLogging {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
-            entryKey <- key match {
+            entryKeyRaw <- key match {
               case v: PCompositeVal => compositeValD(ctx, info)(v, keys)
               case k: PIdentifierKey => info.regular(k.id) match {
                 case _: st.Variable => unit(varD(ctx, info)(k.id))
@@ -3217,7 +3312,13 @@ object Desugar extends LazyLogging {
                 case _ => violation(s"unexpected key $key")
               }
             }
-            entryVal <- compositeValD(ctx, info)(value, values)
+            // Identifier keys (variables/constants) bypass compositeValD's implicit
+            // conversion, so their integer kind may not match the declared key type.
+            entryKey = alignElementKind(entryKeyRaw, keys)
+            // Align the value's integer kind with the declared value type as well: an
+            // untyped literal value (e.g. `5` in `dict[string]int{"k": 5}`) may otherwise
+            // keep a kind whose Viper sort differs from the map's value sort.
+            entryVal <- compositeValD(ctx, info)(value, values).map(alignElementKind(_, values))
           } yield (entryKey, entryVal)
 
           case _ => violation("unexpected pattern, missing key in map literal")
@@ -4417,8 +4518,9 @@ object Desugar extends LazyLogging {
         case PBefore(op) => for {o <- go(op)} yield in.LabeledOld(in.LabelProxy("before")(src), o)(src)
         case PConditional(cond, thn, els) =>  for {
           wcond <- go(cond)
-          wthn <- go(thn)
-          wels <- go(els)
+          wthnRaw <- go(thn)
+          welsRaw <- go(els)
+          (wthn, wels) = viper.gobra.ast.internal.utility.IntKindAlignment.alignIntKinds(wthnRaw, welsRaw)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PLet(ass, op) =>
@@ -4461,8 +4563,17 @@ object Desugar extends LazyLogging {
         } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
 
         case PElem(left, right) => for {
-          dleft <- go(left)
+          dleftRaw <- go(left)
           dright <- go(right)
+          // Align the element kind with the container's element type to avoid mixed-kind
+          // arguments at the encoding level (e.g. `0 elem set[int]{...}` where 0 is untyped).
+          dleft = underlyingType(dright.typ) match {
+            case t: in.SequenceT => alignElementKind(dleftRaw, t.t)
+            case t: in.SetT      => alignElementKind(dleftRaw, t.t)
+            case t: in.MultisetT => alignElementKind(dleftRaw, t.t)
+            case t: in.MapT      => alignElementKind(dleftRaw, t.keys)
+            case _ => dleftRaw
+          }
         } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
@@ -4471,14 +4582,36 @@ object Desugar extends LazyLogging {
         }
 
         case PMultiplicity(left, right) => for {
-          dleft <- go(left)
+          dleftRaw <- go(left)
           dright <- go(right)
+          // Align the searched element's kind with the collection's element type (like PElem);
+          // e.g. in `42 # m` with `m: mset[int]`, the literal must become a bounded int.
+          dleft = underlyingType(dright.typ) match {
+            case t: in.SequenceT => alignElementKind(dleftRaw, t.t)
+            case t: in.MultisetT => alignElementKind(dleftRaw, t.t)
+            case t: in.SetT      => alignElementKind(dleftRaw, t.t)
+            case _ => dleftRaw
+          }
         } yield in.Multiplicity(dleft, dright)(src)
 
         case PRangeSequence(low, high) => for {
           dlow <- go(low)
           dhigh <- go(high)
-        } yield in.RangeSequence(dlow, dhigh)(src)
+          // The bounds must be mathematical integers (Viper's RangeSeq is over Int) …
+          rng = in.RangeSequence(
+            viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(dlow),
+            viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(dhigh))(src)
+        } yield typ match {
+          // … but the *element* kind follows the frontend-inferred type: `seq[1..4]` in an
+          // `int` context has bounded elements, so wrap with a Conversion that the sequence
+          // encoding turns into the per-kind `Seq[Int] -> Seq[Bounded_k]` mapping function.
+          // Without this, `seq[1..4] ++ seq[int]{1}` etc. mixes Viper sorts.
+          case in.SequenceT(in.IntT(_, k: viper.gobra.util.TypeBounds.BoundedIntegerKind), _) =>
+            in.Conversion(
+              in.SequenceT(in.IntT(Addressability.mathDataStructureElement, k), Addressability.rValue),
+              rng)(src)
+          case _ => rng
+        }
 
         case PSequenceAppend(left, right) => for {
           dleft <- go(left)
@@ -4489,8 +4622,20 @@ object Desugar extends LazyLogging {
           case (dcol, clause) => for {
             dcolExp <- dcol
             baseUnderlyingType = underlyingType(dcolExp.typ)
-            dleft <- go(clause.left)
-            dright <- go(clause.right)
+            dleftRaw <- go(clause.left)
+            drightRaw <- go(clause.right)
+            // Align the key/index and the value with the collection's declared types:
+            // sequence indices must be mathematical integers (Viper Int), while values, map
+            // keys, and map values must match the (possibly bounded) element kind.
+            (dleft, dright) = baseUnderlyingType match {
+              case t: in.SequenceT =>
+                (viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(dleftRaw), alignElementKind(drightRaw, t.t))
+              case t: in.MathMapT =>
+                (alignElementKind(dleftRaw, t.keys), alignElementKind(drightRaw, t.values))
+              case t: in.MapT =>
+                (alignElementKind(dleftRaw, t.keys), alignElementKind(drightRaw, t.values))
+              case _ => (dleftRaw, drightRaw)
+            }
           } yield in.GhostCollectionUpdate(dcol.res, dleft, dright, baseUnderlyingType)(src)
         }
 
@@ -4555,10 +4700,13 @@ object Desugar extends LazyLogging {
         } yield in.OptionGet(dop)(src)
 
         case m: PMatchExp =>
+          // The match expression is encoded as a chain of Viper conditionals, so every case
+          // body (and the default) must land in the same Viper sort as the overall type —
+          // align integer kinds (e.g. an untyped literal body vs. a bounded `int` match type).
           val defaultD: Writer[Option[in.Expr]] = if (m.hasDefault) {
             for {
               e <- exprD(ctx, info)(m.defaultClauses.head.exp)
-            } yield Some(e)
+            } yield Some(alignElementKind(e, typ))
           } else {
             unit(None)
           }
@@ -4566,7 +4714,7 @@ object Desugar extends LazyLogging {
           def caseD(c: PMatchExpCase): Writer[in.PatternMatchCaseExp] = for {
             p <- matchPatternD(ctx, info)(c.pattern)
             e <- exprD(ctx, info)(c.exp)
-          } yield in.PatternMatchCaseExp(p, e)(src)
+          } yield in.PatternMatchCaseExp(p, alignElementKind(e, typ))(src)
 
           for {
             e <- exprD(ctx, info)(m.exp)
@@ -4627,8 +4775,24 @@ object Desugar extends LazyLogging {
       } yield (newVars, newTriggers, newBody)
     }
 
-    def boundVariableD(x: PBoundVariable) : in.BoundVar =
-      in.BoundVar(idName(x.id, info), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x, info)))(meta(x, info))
+    // A quantifier variable of a *bounded* integer kind is bound at the mathematical `integer`
+    // type rather than the opaque `Bounded_k` domain sort. Quantified integers are treated
+    // mathematically (as in most verifiers): the variable ranges over all integers, and a proof
+    // that needs it constrained to a type's range states that bound explicitly in the quantifier
+    // (e.g. `forall k int :: 0 <= k && k < len(s) ==> ...`) — the encoder does not infer it.
+    // Besides matching the usual mathematical reading, this keeps `forall k int :: acc(&s[k])`
+    // using `k` directly as the array index (a linear injective inverse for Silicon, instead of
+    // the divergent `sadd(offset, from(k))` form) and unifies with internal/stub quantifiers,
+    // which already range over `Int`.
+    def boundVariableD(x: PBoundVariable) : in.BoundVar = {
+      val src = meta(x, info)
+      val declaredT = info.symbType(x.typ) match {
+        case Type.IntT(_: viper.gobra.util.TypeBounds.BoundedIntegerKind) =>
+          in.IntT(Addressability.boundVariable, viper.gobra.util.TypeBounds.UnboundedInteger)
+        case t => typeD(t, Addressability.boundVariable)(src)
+      }
+      in.BoundVar(idName(x.id, info), declaredT)(src)
+    }
 
     def pureExprD(ctx: FunctionContext, info: TypeInfo)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx, info)(expr)
@@ -4941,7 +5105,10 @@ object Desugar extends LazyLogging {
             if (info.typ(num) == PermissionT)
               Some(for { vp <- permissionD(ctx, info)(num); vd <- goE(den) } yield in.PermConstructorFromPerm(vp, vd)(src))
             else
-              Some(for { vn <- goE(num); vd <- goE(den) } yield in.PermConstructorFromInt(vn, vd)(src))
+              Some(for {
+                vn <- goE(num).map(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt)
+                vd <- goE(den).map(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt)
+              } yield in.PermConstructorFromInt(vn, vd)(src))
           case _ => None
         }
         case PFullPerm() => Some(unit(in.FullPerm(src)))

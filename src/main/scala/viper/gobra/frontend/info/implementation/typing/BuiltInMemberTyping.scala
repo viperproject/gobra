@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
-import viper.gobra.util.TypeBounds.UnboundedInteger
+import viper.gobra.util.TypeBounds.{UnboundedInteger, UntypedConstInteger}
 import viper.gobra.util.Violation
 
 trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -22,11 +22,11 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: BuiltInFunctionTag => t match {
       case CloseFunctionTag => AbstractType(
         {
-          case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger) /* PermissionT */ , PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
+          case (_, Vector(c: ChannelT, IntT(UnboundedInteger | UntypedConstInteger), IntT(UnboundedInteger | UntypedConstInteger) /* PermissionT */ , PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
           case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
         },
         {
-          case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger) /* PermissionT */ , PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
+          case ts@Vector(c: ChannelT, IntT(UnboundedInteger | UntypedConstInteger), IntT(UnboundedInteger | UntypedConstInteger) /* PermissionT */ , PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
         })
       case AppendFunctionTag => {
         def appendTypeError(n: PNode, ts: Vector[Type]): Messages =

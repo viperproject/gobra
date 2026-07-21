@@ -16,18 +16,18 @@ func increment8(u int8) (ret int8) {
 }
 
 // Operation may overflow, no bound checks are performed
+//:: ExpectedOutput(integer_overflow_error)
 ensures ret == u + 1
 func incrementU8(u uint8) (ret uint8) {
-	//:: ExpectedOutput(integer_overflow_error)
 	ret = u + 1
 	return
 }
 
 // Should overflow when running in 32 bit mode, not in 64
 requires i <= 2147483647
+//:: ExpectedOutput(integer_overflow_error)
 ensures res == i + 1
 func overflowInt32(i int) (res int) {
-	//:: ExpectedOutput(integer_overflow_error)
 	return i + 1
 }
 
@@ -84,8 +84,8 @@ func strangeAbs(x int) int {
 // Test loop conditions
 func whileCheck() {
 	x := 0
+	//:: ExpectedOutput(integer_overflow_error)
 	for x + 1 > 0 {
-		//:: ExpectedOutput(integer_overflow_error)
 		x += 1
 	}
 }

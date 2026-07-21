@@ -3,7 +3,9 @@
 
 package pkg
 
-func example1(ghost m mset[int]) (ghost n int) {
+// Ghost collection sizes have the mathematical `integer` type; assigning one to a
+// bounded `int` would need an explicit conversion, so the out-parameter is `integer`.
+func example1(ghost m mset[int]) (ghost n integer) {
 	n = len(m)
 }
 

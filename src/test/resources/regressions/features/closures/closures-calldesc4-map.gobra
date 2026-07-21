@@ -5,6 +5,8 @@
 
 package mapVec
 
+import "math"
+
 type Inv interface {
     pred inv(ghost seq[int])
 
@@ -14,11 +16,14 @@ type Inv interface {
 }
 
 ghost
+// the call count is capped so that concrete counters tracking it stay exact
+requires len(prev_calls) < math.MaxInt32
 requires inv != nil && inv.inv(prev_calls)
 ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int]{x})
 func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
 ghost
+requires len(v) <= math.MaxInt64 // keeps the index len(v) - 1 exact in the recursion
 requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i], _)
 ensures len(s) == len(v)
 ensures forall i int :: i >= 0 && i < len(v) ==> s[i] == v[i]
@@ -27,6 +32,7 @@ pure func toSeq(v []int) (s seq[int]) {
 }
 
 requires inv != nil && inv.inv(seq[int]{}) && f implements fspec{inv}
+requires len(v) <= math.MaxInt32 // keeps the loop counter exact and satisfies fspec's call-count cap
 requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i])
 ensures inv.inv(old(toSeq(v)))
 ensures forall i int :: i >= 0 && i < len(v) ==> acc(&v[i]) && v[i] == inv.res(old(toSeq(v))[:(i+1)])
@@ -79,7 +85,8 @@ pred (self CntFrom) inv(ghost calls seq[int]) { acc(self.c) && *self.c == self.f
 ghost
 requires len(calls) > 0
 pure func (self CntFrom) res(ghost calls seq[int]) int {
-    return self.from + len(calls) - 1
+    // compute exactly over ghost integers, converting to int once at the end
+    return int(self.from + len(calls) - 1)
 }
 
 func test2() {
@@ -111,18 +118,20 @@ func test2() {
 }
 
 ghost
-ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+// unrolling lemma stated via len(s) (exact ghost-integer arithmetic, no bounded index terms)
+ensures len(s) > 0 ==> res == seqSumFrom(base, s[:(len(s)-1)]) + s[len(s)-1]
 decreases len(s)
-pure func seqSum(s seq[int]) (res int) {
-    return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
+pure func seqSumFrom(base int, s seq[int]) (res int) {
+    // base innermost and recursive sum first: matches the accumulator's evaluation order
+    return len(s) == 0 ? base : (seqSumFrom(base, s[:(len(s)-1)]) + s[len(s)-1])
 }
 
 type Acc struct { s *int; from int }
-pred (self Acc) inv(ghost calls seq[int]) { acc(self.s) && *self.s == seqSum(calls) + self.from }
+pred (self Acc) inv(ghost calls seq[int]) { acc(self.s) && *self.s == seqSumFrom(self.from, calls) }
 ghost
 requires len(calls) > 0
 pure func (self Acc) res(ghost calls seq[int]) int {
-    return self.from + seqSum(calls)
+    return seqSumFrom(self.from, calls)
 }
 
 func test3() {

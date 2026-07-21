@@ -3,59 +3,91 @@
 
 package closuresCallDesc1
 
+import "math"
+
 // This example shows how it is possible for a higher-order function to express
 // that some calls happened (in any order, and there might be more calls)
 
 type Calls interface {
     pred inv()
 
+    // Evidence high-water mark. Its monotonicity replaces the two-state property
+    // `forall x int :: old(called(x)) ==> called(x)`, whose quantified variable under
+    // old() the closure-proof encoding cannot currently handle.
+    ghost
+    requires inv()
+    pure mark() int
+
     // This describes properties that must be true if a call happened
     ghost
     requires inv()
-    pure called(x int)bool
-    
+    ensures r == (x <= mark())
+    pure called(x int) (r bool)
+
     // This describes the properties of the result
     ghost pure res(x int, res int)bool
 }
 
 ghost
-requires x >= 0 && cs != nil && cs.inv()
+// the argument is bounded so that accumulated values and sums of results stay exact
+requires x >= 0 && x <= math.MaxInt32 && cs != nil && cs.inv()
 ensures cs.inv() && cs.called(x) && cs.res(x, res)
-ensures forall x int :: old(cs.called(x)) ==> cs.called(x)
+ensures 0 <= res && res <= math.MaxInt32 // result bound keeps sums of results exact
+ensures cs.mark() >= old(cs.mark()) // earlier call evidence is preserved (quantifier-free)
 func spec(ghost cs Calls, x int) (res int)
 
 requires f implements spec{cs}
 requires cs != nil && cs.inv()
-ensures cs.inv() && exists a int, b int :: cs.res(2, a) && cs.res(3, b) && res == a + b
+// the summands are bounded inside the existential so that the sum is exact
+ensures cs.inv() && exists a int, b int :: 0 <= a && a <= math.MaxInt32 && 0 <= b && b <= math.MaxInt32 && cs.res(2, a) && cs.res(3, b) && res == a + b
 ensures cs.called(2) && cs.called(3)
 func hof(ghost cs Calls, f func(int)int, choice bool)(res int) {
     if choice {
-        res = (f(2) as spec{cs}) + (f(3) as spec{cs})
+        r2 := f(2) as spec{cs}
+        r3 := f(3) as spec{cs}
+        res = r2 + r3
+        // materialise the int(integer(..)) witness terms the existential postcondition triggers on
+        assert cs.res(2, int(integer(r2))) && cs.res(3, int(integer(r3)))
     } else {
-        res = (f(3) as spec{cs}) +  (f(2) as spec{cs})
+        r3 := f(3) as spec{cs}
+        r2 := f(2) as spec{cs}
+        res = r2 + r3
+        assert cs.res(2, int(integer(r2))) && cs.res(3, int(integer(r3)))
     }
     f(5) as spec{cs}
 }
 
 type Acc struct { accum *int }
-pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 }
+// the accumulator is capped at math.MaxInt32 (saturating add) so bounds stay provable
+pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 && *self.accum <= math.MaxInt32 }
 ghost
 requires self.inv()
-pure func (self Acc) called(x int)bool {
+pure func (self Acc) mark() int {
+    return unfolding self.inv() in *self.accum
+}
+ghost
+requires self.inv()
+ensures r == (x <= self.mark())
+pure func (self Acc) called(x int) (r bool) {
     return unfolding self.inv() in (*self.accum >= x)
 }
 ghost
 pure func (self Acc) res(x int, y int)bool {
-    return y >= x
+    return y >= x && y <= math.MaxInt32 // upper bound keeps sums of results exact
 }
 
 func main() {
     accum@ := 0
-    cl :=   requires x >= 0
-            preserves acc(&accum) && accum >= 0
-            ensures accum == old(accum) + x && y == accum
+    cl :=   requires x >= 0 && x <= math.MaxInt32
+            preserves acc(&accum) && accum >= 0 && accum <= math.MaxInt32
+            // saturating accumulation: only monotonicity and dominance over x are promised
+            ensures accum >= old(accum) && accum >= x && y == accum
             func accumulate(x int)(y int) {
-                accum += x
+                if accum <= math.MaxInt32 - x { // guard: add only when the sum stays within the cap
+                    accum += x
+                } else {
+                    accum = math.MaxInt32
+                }
                 return accum
             }
 

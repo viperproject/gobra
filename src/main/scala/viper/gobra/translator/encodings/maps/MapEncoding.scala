@@ -204,10 +204,12 @@ class MapEncoding extends LeafTypeEncoding {
       case makeStmt@in.MakeMap(target, t@in.MapT(keys, values, _), makeArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
 
-        // Runtime check asserting 0 <= [n]
+        // Runtime check asserting 0 <= [n]. The size argument is projected to a mathematical
+        // integer first: `make(map[int]int, 1)` types `1` as Go `int`, whose direct encoding
+        // is a `Bounded_int` domain value — not the Viper Int the raw comparison needs.
         val runtimeCheck = makeArg.toVector map { n =>
           for {
-            nVpr <- goE(n)
+            nVpr <- goE(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(n, underlyingType(n.typ)(ctx)))
             runtimeCheckExp = vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), nVpr)(pos, info, errT)
           } yield vpr.Exhale(runtimeCheckExp)(pos, info, errT)
         }

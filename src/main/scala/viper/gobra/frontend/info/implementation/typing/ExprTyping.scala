@@ -256,11 +256,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Right(_), Some(fc: ap.FractionalPermConstructor)) =>
-          // perm(num, den): num must be Int or perm; den must be Int
+          // perm(num, den): num must be `integer` (mathematical, unbounded) or `perm`; den
+          // must be `integer`. Untyped int constants are accepted on either side because Go
+          // freely coerces them. Bounded integer kinds (int, int8, …) are not auto-coerced —
+          // callers must convert explicitly with `integer(x)`. Conceptual signature:
+          // `perm(integer, integer): perm`.
+          def isIntegerOrUntypedConst(t: Type): Boolean = t match {
+            case IntT(UnboundedInteger | TypeBounds.UntypedConstInteger) => true
+            case _ => false
+          }
           val numT = exprType(fc.num)
           val numOk = if (numT == PermissionT) noMessages
-                      else assignableTo.errors(numT, UNTYPED_INT_CONST, mayInit)(fc.num)
-          val denOk = assignableTo.errors(exprType(fc.den), UNTYPED_INT_CONST, mayInit)(fc.den)
+                      else error(fc.num,
+                        s"the numerator of `perm` must be of type `integer` or `perm`, but got $numT",
+                        !isIntegerOrUntypedConst(numT))
+          val denOk = {
+            val denT = exprType(fc.den)
+            error(fc.den,
+              s"the denominator of `perm` must be of type `integer`, but got $denT",
+              !isIntegerOrUntypedConst(denT))
+          }
           isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
@@ -554,12 +569,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 }
               } else noMessages
             }
+            // Bitwise operations are not defined for the ghost `integer` type (unbounded precision)
             val bitwiseOnUnbounded = op match {
               case _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear =>
                 error(n, "bitwise operations are not defined for the `integer` type",
-                  !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger)) ++
-                  error(n, "bitwise operations are not defined for the `integer` type",
-                    !asExpr(n.right).exists(isUntypedIntConst) && r == IntT(UnboundedInteger))
+                  !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger)) ++
+                error(n, "bitwise operations are not defined for the `integer` type",
+                  !isUntypedIntConst(n.right) && r == IntT(UnboundedInteger))
               case _ => noMessages
             }
             lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds ++ bitwiseOnUnbounded
@@ -567,7 +583,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
-              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
+              !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
               shiftOnUnbounded ++ intConstantEval(n.right.asInstanceOf[PExpression]).map { v =>
                   // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
@@ -575,7 +591,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
                   val nBits = underlyingType(exprOrTypeType(n.left)) match {
                     case IntT(t: BoundedIntegerKind) => t.nbits
-                    case IntT(UnboundedInteger) => MAX_SHIFT
+                    case IntT(UnboundedInteger | TypeBounds.UntypedConstInteger) => MAX_SHIFT
                     case t => violation(s"unexpected type $t")
                   }
                   val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)
@@ -586,7 +602,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
-              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
+              !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
               shiftOnUnbounded ++ (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
@@ -1323,7 +1339,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
       case ActualPointerT(_: ArrayT) => INT_TYPE
-      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
+      // Ghost collection sizes are mathematical integers (ghost values, not constants).
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => IntT(UnboundedInteger)
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 

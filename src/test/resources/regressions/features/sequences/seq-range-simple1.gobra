@@ -25,6 +25,7 @@ func example5() {
 }
 
 requires x <= y
+requires -1000000 <= x && y <= 1000000 // bounds so that y + 1 and y - x + 1 provably do not overflow
 func example6(x int, y int) {
   assert len(seq[x..y + 1]) == y - x + 1
 }

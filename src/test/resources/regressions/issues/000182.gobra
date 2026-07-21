@@ -3,6 +3,8 @@
 
 package pkg
 
+import "math"
+
 type Tree struct {
     root *node
 }
@@ -21,8 +23,8 @@ pred (n *node) tree() {
     acc(&n.value) && acc(&n.left) && acc(&n.right) &&
     (n.left != nil ==> n.left.tree()) &&
     (n.right != nil ==> n.right.tree()) &&
-    (n.left != nil ==> forall i int :: (0 <= i && i + 1 < len(n.left.orderedValues()) ==> (n.left.orderedValues())[i] < n.value)) &&
-    (n.right != nil ==> forall i int :: (0 <= i && i + 1 < len(n.right.orderedValues()) ==> (n.right.orderedValues())[i] > n.value))
+    (n.left != nil ==> forall i int :: (0 <= i && i < math.MaxInt64 && i < len(n.left.orderedValues()) && i + 1 < len(n.left.orderedValues()) ==> (n.left.orderedValues())[i] < n.value)) &&
+    (n.right != nil ==> forall i int :: (0 <= i && i < math.MaxInt64 && i < len(n.right.orderedValues()) && i + 1 < len(n.right.orderedValues()) ==> (n.right.orderedValues())[i] > n.value))
 }
 
 ghost

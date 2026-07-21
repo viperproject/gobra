@@ -43,6 +43,9 @@ func example7(n int) {
 }
 
 requires 0 < n
-ensures n - 1 elem seq[0 ..n]
+// With a typed (bounded) upper bound the range elements would be bounded ints, and
+// membership of the arithmetic result n - 1 in the converted sequence is not derivable;
+// with mathematical `integer` bounds the range elements are exact integers.
+ensures n - 1 elem seq[0 .. integer(n)]
 func example8(n int) {
 }

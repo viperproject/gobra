@@ -60,7 +60,7 @@ func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBoun
 
 ghost
 requires acc(t.tree(), _)
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
+ensures forall i integer :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered; index quantified over exact `integer` so `i + 1` cannot overflow
 pure func (t *Tree) sortedValues() (res seq[int]) {
     return unfolding acc(t.tree(), _) in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
 }
@@ -68,8 +68,8 @@ pure func (t *Tree) sortedValues() (res seq[int]) {
 ghost
 requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
 ensures n.sorted(lowerBound, upperBound)
-ensures forall i int :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound))))
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
+ensures forall i integer :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound)))) // index quantified over exact `integer` to match sequence-length arithmetic
+ensures forall i integer :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered; index quantified over exact `integer` so `i + 1` cannot overflow
 pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int]) {
     return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }
@@ -88,32 +88,32 @@ pure func (t *Tree) IsEmpty() (res bool) {
 }
 
 requires dividend > 0
-requires acc(t.tree(), perm(1, dividend))
-ensures acc(t.tree(), perm(1, dividend))
+requires acc(t.tree(), perm(1, integer(dividend)))
+ensures acc(t.tree(), perm(1, integer(dividend)))
 ensures res == t.pureContains(value, dividend)
 func (t *Tree) Contains(value, dividend int) (res bool) {
-    unfold acc(t.tree(), perm(1, dividend))
+    unfold acc(t.tree(), perm(1, integer(dividend)))
     if (t.root == nil) {
         res = false
     } else {
         res = t.root.contains(value, dividend, none[int], none[int])
     }
-    fold acc(t.tree(), perm(1, dividend))
+    fold acc(t.tree(), perm(1, integer(dividend)))
     return res
 }
 
 ghost
-requires dividend > 0 && acc(t.tree(), perm(1, dividend))
+requires dividend > 0 && acc(t.tree(), perm(1, integer(dividend)))
 pure func (t *Tree) pureContains(value, dividend int) bool {
-  return unfolding acc(t.tree(), perm(1, dividend)) in t.root != nil && value elem t.root.sortedValues(none[int], none[int])
+  return unfolding acc(t.tree(), perm(1, integer(dividend))) in t.root != nil && value elem t.root.sortedValues(none[int], none[int])
 }
 
 requires dividend > 0
-requires acc(n.tree(), perm(1, dividend)) && n.sorted(lowerBound, upperBound)
-ensures acc(n.tree(), perm(1, dividend)) && n.sorted(lowerBound, upperBound)
+requires acc(n.tree(), perm(1, integer(dividend))) && n.sorted(lowerBound, upperBound)
+ensures acc(n.tree(), perm(1, integer(dividend))) && n.sorted(lowerBound, upperBound)
 ensures res == value elem n.sortedValues(lowerBound, upperBound) // res is correct
 func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBound option[int]) (res bool) {
-    unfold acc(n.tree(), perm(1, dividend))
+    unfold acc(n.tree(), perm(1, integer(dividend)))
     if (n.value == value) {
         res = true
     } else if (value < n.value && n.left != nil) {
@@ -123,7 +123,7 @@ func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBo
     } else {
         res = false
     }
-    fold acc(n.tree(), perm(1, dividend))
+    fold acc(n.tree(), perm(1, integer(dividend)))
     return res
 }
 

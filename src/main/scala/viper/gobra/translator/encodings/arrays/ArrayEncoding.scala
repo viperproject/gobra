@@ -7,6 +7,7 @@
 package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.utility.IntKindAlignment
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{LoadError, InsufficientPermissionError, Source}
 import viper.gobra.theory.Addressability
@@ -151,13 +152,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expression(base)
-        vIdx <- ctx.expression(idx)
+        // array indices are Viper Ints; project bounded-int indices via `from`
+        vIdx <- ctx.expression(IntKindAlignment.asUnboundedInt(idx, underlyingType(idx.typ)(ctx)))
       } yield ex.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
 
     case (upd: in.ArrayUpdate) :: ctx.Array(len, t) =>
       for {
         vBase <- ctx.expression(upd.base)
-        vIdx <- ctx.expression(upd.left)
+        vIdx <- ctx.expression(IntKindAlignment.asUnboundedInt(upd.left, underlyingType(upd.left.typ)(ctx)))
         vVal <- ctx.expression(upd.right)
       } yield ex.update(vBase, vIdx, vVal, cptParam(len, t)(ctx))(upd)(ctx)
 
@@ -245,13 +247,13 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Shared =>
       for {
         vBase <- ctx.reference(base.asInstanceOf[in.Location])
-        vIdx <- ctx.expression(idx)
+        vIdx <- ctx.expression(IntKindAlignment.asUnboundedInt(idx, underlyingType(idx.typ)(ctx)))
       } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
     case loc@in.IndexedExp(base :: ctx.*(in.ArrayT(len, t, _)), idx, ptrT) =>
       val derefBase = in.Deref(base, ptrT)(base.info)
       for {
         vBase <- ctx.reference(derefBase.asInstanceOf[in.Location])
-        vIdx <- ctx.expression(idx)
+        vIdx <- ctx.expression(IntKindAlignment.asUnboundedInt(idx, underlyingType(idx.typ)(ctx)))
       } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
   }
 

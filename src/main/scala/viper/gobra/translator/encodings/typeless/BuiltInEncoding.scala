@@ -18,6 +18,7 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation
+import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
@@ -27,7 +28,13 @@ import scala.language.postfixOps
 /**
   * Encodes built-in members by translating them to 'regular' members and calling the corresponding encoding
   */
-class BuiltInEncoding extends Encoding {
+/**
+  * @param goIntKind the IntegerKind the frontend uses for Go's `int` type
+  *                  (depends on the 32-/64-bit configuration). Built-in members with
+  *                  Go-visible `int` results must declare this kind so their generated
+  *                  Viper signatures match the frontend-typed call sites.
+  */
+class BuiltInEncoding(goIntKind: TypeBounds.IntegerKind) extends Encoding {
 
   // the implementation uses 4 distinct generators (instead of a single one) such that the exposed
   // methods (i.e. method, function, fpredicate, and mpredicate) can return the translated 'regular' member.
@@ -211,7 +218,9 @@ class BuiltInEncoding extends Encoding {
           */
         assert(recv.addressability == Addressability.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
-        val kParam = in.Parameter.Out("k", in.IntT(Addressability.outParameter))(src)
+        // Go-visible `int` result: use the configured `int` kind so the generated Viper
+        // function's return sort matches the frontend type of `c.BufferSize()` call sites.
+        val kParam = in.Parameter.Out("k", in.IntT(Addressability.outParameter, goIntKind))(src)
         val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector())(src)(ctx)
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.WildcardPerm(src))(src),
@@ -264,7 +273,7 @@ class BuiltInEncoding extends Encoding {
         val aParam = in.Parameter.In("A", predTType)(src)
         val bParam = in.Parameter.In("B", predType)(src)
         val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector())(src)(ctx)
-        val bufferSizeType = in.IntT(Addressability.inParameter)
+        val bufferSizeType = in.IntT(Addressability.inParameter, goIntKind)
         val bufferSizeCall = builtInPureMethodCall(BuiltInMemberTag.BufferSizeMethodTag, recvParam, Vector(), bufferSizeType)(src)(ctx)
         val predTrueProxy = getOrGenerateFPredicate(BuiltInMemberTag.PredTrueFPredTag, Vector())(src)(ctx)
         val predTrueConstr = in.PredicateConstructor(predTrueProxy, predType, Vector())(src) // pred_true{}
@@ -538,7 +547,9 @@ class BuiltInEncoding extends Encoding {
         val args = Vector(dstParam, srcParam, pParam)
 
         // results
-        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter))(src)
+        // Go-visible `int` result (number of copied elements): use the configured `int` kind
+        // so the generated Viper function's return sort matches the frontend type at call sites.
+        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter, goIntKind))(src)
         val results = Vector(resParam)
 
         // preconditions

@@ -134,6 +134,16 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
+  override def localImplementationProofNode(subT: Type, superT: InterfaceT): Option[PImplementationProof] = {
+    val implementationProofs = tree.root.programs.flatMap(_.declarations.collect{ case m: PImplementationProof => m})
+    implementationProofs.find { ip =>
+      (symbType(ip.subT), underlyingType(symbType(ip.superT))) match {
+        case (`subT`, `superT`) => true
+        case _ => false
+      }
+    }
+  }
+
   /**
     * Depends on which packages are loaded. Only call at the end of type checking.
     * Either returns a set of errors caused by invalid or missing implementation proofs

@@ -170,13 +170,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showMethodSubtypeProof(m: MethodSubtypeProof): Doc = m match {
-    case MethodSubtypeProof(subProxy, superT, _, receiver, args, results, body) =>
+    case MethodSubtypeProof(subProxy, superT, _, receiver, args, results, body, _) =>
       "proof" <+> parens(showType(superT)) <+> parens(showVarDecl(receiver)) <+> subProxy.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         opt(body)(b => block(showStmt(b)))
   }
 
   def showPureMethodSubtypeProof(m: PureMethodSubtypeProof): Doc = m match {
-    case PureMethodSubtypeProof(subProxy, superT, _, receiver, args, results, body) =>
+    case PureMethodSubtypeProof(subProxy, superT, _, receiver, args, results, body, _) =>
       "proof" <+> parens(showType(superT)) <+> "pure" <+> parens(showVarDecl(receiver)) <+> subProxy.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         opt(body)(b => block("return" <+> showExpr(b)))
   }

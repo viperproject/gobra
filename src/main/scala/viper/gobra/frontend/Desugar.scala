@@ -3438,9 +3438,15 @@ object Desugar extends LazyLogging {
         val args = implSymb.args.zipWithIndex.map{ case (arg, idx) => inParameterD(arg, idx, implSymb.context.getTypeInfo)._1 }
         val results = implSymb.result.outs.zipWithIndex.map{ case (res, idx) => outParameterD(res, idx, implSymb.context.getTypeInfo)._1 }
 
+        // If the user wrote an `implements` clause (possibly without a proof body), remember its source so that
+        // the dependency analysis can present all Viper nodes of this generated proof as the single clause node.
+        // This does not influence verification or the position of verification errors (which stay on `src`).
+        val clauseSrc: Option[Source.Parser.Info] =
+          info.localImplementationProofNode(implT, itfT).map(clause => meta(clause, info))
+
         val src = meta(implSymb.decl, implSymb.context.getTypeInfo).createAnnotatedInfo(AutoImplProofAnnotation(implT.toString, itfT.toString))
-        if (itfSymb.isPure) in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
-        else in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
+        if (itfSymb.isPure) in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None, clauseSrc)(src)
+        else in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None, clauseSrc)(src)
       }
     }
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty

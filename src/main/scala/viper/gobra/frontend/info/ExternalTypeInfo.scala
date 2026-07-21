@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PImplementationProof, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
@@ -102,6 +102,9 @@ trait ExternalTypeInfo {
 
   /** returns all implementation proofs found in the current package */
   def localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])]
+
+  /** returns the `implements` clause node declared in the current package for the given subtype/supertype pair, if any */
+  def localImplementationProofNode(subT: Type, superT: InterfaceT): Option[PImplementationProof]
 
   /** returns the code root for a given node; can only be called on nodes that are enclosed in a code root */
   def codeRoot(n: PNode): PCodeRoot with PScope

@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.dependencyAnalysis.ImplProofDependencyAnalysisSourceInfo
+import viper.gobra.reporting.Source.Parser.DAEnhancedInfo
 import viper.gobra.reporting._
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -20,7 +21,7 @@ import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
 import viper.silver.ast.MakeInfoPair
-import viper.silver.dependencyAnalysis.{AdditionalAssertionNode, EdgeType, JoinType, SimpleDependencyAnalysisJoin}
+import viper.silver.dependencyAnalysis._
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
@@ -689,6 +690,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
 
     val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
+    val infoWithInternalDepType = MakeInfoPair(info, DependencyTypeInfo.getInternalDepTypeInfo)
 
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
@@ -712,7 +714,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val fullArgs = valueOf(recv, impl)(pos, info, errT)(ctx) +: args
       val call = vpr.FuncApp(funcname = proofName(impl, proxy, pProxy), fullArgs)(pos, info, typ = resultType, errT)
       // typeOf(i) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
-      vpr.Implies(lhs, vpr.EqCmp(result, call)(pos, info, errT))(pos, info, errT)
+      vpr.Implies(lhs, vpr.EqCmp(result, call)(pos, infoWithInternalDepType, errT))(pos, infoWithInternalDepType, errT)
     }
 
     val fixResultvar = (x: vpr.Exp) => {
@@ -746,10 +748,19 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def functionProof(p: in.PureMethodSubtypeProof)(ctx: Context): MemberWriter[vpr.Function] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
 
+    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
+
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.PureMethod]
     val vItfFun = ctx.defaultEncoding.pureMethod(itfSymb)(ctx).res
 
-    val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ, false)(p.info))
+    // everything that depends on the impl proof should depend on any proof obligation in the impl proof -> every assertion node is a join node
+    val daEnhancedInfo =
+      if (p.body.isDefined)
+        DAEnhancedInfo(depAnJoinInfo, p.info)
+      else
+        DAEnhancedInfo(MakeInfoPair(DependencyTypeInfo.getInternalDepTypeInfo, depAnJoinInfo), p.info) // generated impl proofs are additionally marked internal
+
+    val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ, false)(daEnhancedInfo))
 
     val pureMethodDummy = ctx.defaultEncoding.pureMethod(in.PureMethod(
       receiver = p.receiver,
@@ -762,7 +773,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       backendAnnotations = Vector.empty,
       body = Some(body),
       isOpaque = false
-    )(p.info))(ctx)
+    )(daEnhancedInfo))(ctx)
 
     val pres = vItfFun.pres.map { pre =>
       instantiateInterfaceSpecForProof(pre, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
@@ -773,10 +784,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
 
-    // TODO ake: should every proof obligation in the impl proof be a dependency of every upcast?
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT))
+    )(pos, MakeInfoPair(depAnJoinInfo, info), errT))
   }
 
   /**
@@ -792,12 +802,21 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.Method]
     val vItfMeth = ctx.defaultEncoding.method(itfSymb)(ctx).res
 
+    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
+
+    // everything that depends on the impl proof should depend on any proof obligation in the impl proof -> every assertion node is a join node
+    val daEnhancedInfo =
+      if (p.body.isDefined)
+        DAEnhancedInfo(depAnJoinInfo, p.info)
+      else
+        DAEnhancedInfo(MakeInfoPair(DependencyTypeInfo.getInternalDepTypeInfo, depAnJoinInfo), p.info) // generated impl proofs are additionally marked internal
+
     val body = p.body match {
       case Some(b) => b.toMethodBody
       case _ =>
         val targets = p.results.map(out => in.LocalVar(out.id, out.typ)(out.info))
-        val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info) // TODO ake: should have dependency type internal?
-        in.Block(Vector.empty, Vector(call))(p.info).toMethodBody
+        val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(daEnhancedInfo)
+        in.Block(Vector.empty, Vector(call))(daEnhancedInfo).toMethodBody
     }
 
     val methodDummy = ctx.defaultEncoding.method(in.Method(
@@ -810,7 +829,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       terminationMeasures = Vector.empty,
       backendAnnotations = Vector.empty,
       body = Some(body)
-    )(p.info))(ctx)
+    )(daEnhancedInfo))(ctx)
 
     val pres = vItfMeth.pres.map { exp =>
       val variablesOfExp = vItfMeth.formalArgs.toVector ++ vItfMeth.formalReturns.toVector
@@ -824,10 +843,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
 
-    // TODO ake: should every proof obligation in the impl proof be a dependency of every upcast?
-    methodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT)))(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    methodDummy.map(res => res.copy(pres = pres,
+      posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT))
+    )(pos, MakeInfoPair(depAnJoinInfo, info), errT))
   }
 
 

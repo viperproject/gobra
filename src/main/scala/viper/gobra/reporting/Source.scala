@@ -6,12 +6,13 @@
 
 package viper.gobra.reporting
 
+import viper.gobra.ast.internal.Node
 import viper.gobra.ast.{frontend, internal}
 import viper.gobra.util.Violation
-import viper.silver.ast.SourcePosition
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
 import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
-import viper.silver.{ast => vpr}
+import viper.silver.ast.{ErrorTrafo, MakeInfoPair, Position, SourcePosition}
+import viper.silver.{ast, ast => vpr}
 
 import java.nio.file.Paths
 import scala.annotation.tailrec
@@ -69,6 +70,16 @@ object Source {
         (vpr.TranslatedPosition(src.pos), Verifier.Info(pnode, node, src), vpr.NoTrafos)
 
       def createAnnotatedInfo(annotation: Annotation): Single = Single(pnode, AnnotatedOrigin(src, annotation))
+    }
+
+    case class DAEnhancedInfo(daInfo: vpr.Info, originalInfo: Info) extends Info {
+
+      override def origin: Option[AbstractOrigin] = originalInfo.origin
+
+      override def vprMeta(node: Node): (Position, ast.Info, ErrorTrafo) = {
+        val (pos, info, errT) = originalInfo.vprMeta(node)
+        (pos, MakeInfoPair(info, daInfo), errT)
+      }
     }
 
     object Single {

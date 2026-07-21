@@ -1,0 +1,28 @@
+package defertestweir
+
+type TransitionSystem interface {
+    requires @dependencyInfo("assumptionType:Precondition, label:L1, expectedDependencies:[L5]")(x > 0)
+    pure foo(x int) (int)
+}
+
+type ts struct {}
+
+ts implements TransitionSystem
+
+requires @dependencyInfo("assumptionType:Precondition, label:L2, expectedDependencies:[L1,L5]")(x > 0)
+ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:L3, expectedDependencies:[L1,L5,L2,L4]")(res >= 0)
+pure func (t ts) foo(x int) (res int) {
+    return @dependencyInfo("assumptionType:FunctionBody, label:L4, expectedDependencies:[L1,L5,L2]")(1/x)
+}
+
+
+requires @dependencyInfo("assumptionType:Precondition, label:L5, expectedDependencies:[]")(x > 0)
+func client (t ts, x int) {
+
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L6, expectedDependencies:[L1]")
+    var I TransitionSystem = t
+
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L7, expectedDependencies:[L5]")
+    I.foo(x)
+}
+

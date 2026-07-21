@@ -3,10 +3,10 @@ package interfaces
 type Counter interface {
     pred mem()
 
-    preserves @dependencyInfo("assumptionType:Precondition, assertionType:ImplicitPostcondition, label:I21")(acc(mem(), 1/2))
+    preserves @dependencyInfo("label:I21")(acc(mem(), 1/2))
     requires @dependencyInfo("assumptionType:Precondition, label:I0, expectedDependencies:[I18]")(delta > 0)
     requires @dependencyInfo("assumptionType:Precondition, label:I0b, expectedDependencies:[]")(delta < 100)
-    ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:I1, expectedDependencies:[I0, I0b, I3]")(res > 0)
+    ensures @dependencyInfo("assertionType:ImportedPostcondition, label:I1, expectedDependencies:[I0, I0b, I3]")(res > 0)
     AddOne(delta int) (res int)
 }
 
@@ -16,16 +16,16 @@ type SimpleCounter struct {
 
 pred (self *SimpleCounter) mem() {acc(self) && self.value >= 0}
 
-preserves @dependencyInfo("assumptionType:Precondition, assertionType:ImplicitPostcondition, label:I23, expectedDependencies:[I21, I5, I7, I9, I10, I15, I16]")(acc(sc.mem(), 1/2))
+preserves @dependencyInfo("label:I23, expectedDependencies:[I21, I5, I7, I9, I10, I15, I16]")(acc(sc.mem(), 1/2))
 requires @dependencyInfo("assumptionType:Precondition, label:I2, expectedDependencies:[I11, I0]")(delta > 0) // TODO ake: I18, I30?
 ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:I3, expectedDependencies:[I2, I11, I0, I6, I21, I5, I7, I9, I10, I15, I16]")(res > 0)
 ensures @dependencyInfo("assertionType:ImplicitPostcondition, label:I4, expectedDependencies:[I2, I6, I11, I0, I23, I21, I5, I7, I9, I10, I15, I16]")(unfolding acc(sc.mem(), 1/2) in res == sc.value + delta)
 func (sc *SimpleCounter) AddOne(delta int) (res int) {
-    @dependencyInfo("assumptionType:SourceCode, label:I5, expectedDependencies:[I21, I7, I9, I10, I15, I16]")
+    @dependencyInfo("assumptionType:Rewrite, label:I5, expectedDependencies:[I21, I7, I9, I10, I15, I16]")
     unfold acc(sc.mem(), 1/2)
     @dependencyInfo("assumptionType:SourceCode, label:I6, expectedDependencies:[I21, I5, I7, I9, I10, I15, I16]")
     res = sc.value + delta
-    @dependencyInfo("assumptionType:SourceCode, label:I7, expectedDependencies:[I21, I5, I9, I10, I15, I16]")
+    @dependencyInfo("assumptionType:Rewrite, label:I7, expectedDependencies:[I21, I5, I9, I10, I15, I16]")
     fold acc(sc.mem(), 1/2)
 
     return
@@ -34,7 +34,7 @@ func (sc *SimpleCounter) AddOne(delta int) (res int) {
 func clientConcrete() {
     @dependencyInfo("assumptionType:SourceCode, label:I9, expectedDependencies:[]")
     counter := &SimpleCounter{value: 0}
-    @dependencyInfo("assumptionType:SourceCode, label:I10, expectedDependencies:[I9]")
+    @dependencyInfo("assumptionType:Rewrite, label:I10, expectedDependencies:[I9]")
     fold counter.mem()
     @dependencyInfo("assumptionType:SourceCode, label:I11, expectedDependencies:[]")
     delta := 5
@@ -47,7 +47,7 @@ func clientConcrete() {
 func clientInterface() {
     @dependencyInfo("assumptionType:SourceCode, label:I15, expectedDependencies:[]")
     concreteCounter := &SimpleCounter{value: 10}
-    @dependencyInfo("assumptionType:SourceCode, label:I16, expectedDependencies:[I15]")
+    @dependencyInfo("assumptionType:Rewrite, label:I16, expectedDependencies:[I15]")
     fold concreteCounter.mem()
     @dependencyInfo("assumptionType:SourceCode, label:I17, expectedDependencies:[I15, I21, I0, I23, I3, I2, I5, I6, I7]") // TODO ake: I1, I16?
     var c Counter = concreteCounter

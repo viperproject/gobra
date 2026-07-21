@@ -9,6 +9,8 @@ package viper.gobra.translator.encodings.interfaces
 import viper.gobra.ast.internal.theory.TypeHead
 import viper.gobra.reporting.Source
 import viper.gobra.translator.context.Context
+import viper.silver.ast.MakeInfoPair
+import viper.silver.dependencyAnalysis.DependencyTypeInfo
 import viper.silver.{ast => vpr}
 
 class InterfaceUtils(interfaces: InterfaceComponent, types: TypeComponent, poly: PolymorphValueComponent) {
@@ -16,7 +18,8 @@ class InterfaceUtils(interfaces: InterfaceComponent, types: TypeComponent, poly:
   /** Returns [x != nil: Interface{}] */
   def receiverNotNil(recv: vpr.Exp)(pos: vpr.Position, info: Source.Verifier.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
     // In Go, checking that an interface receiver is not nil never panics.
-    vpr.Not(vpr.EqCmp(recv, nilInterface()(pos, info, errT)(ctx))(pos, info, errT))(pos, info.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation), errT)
+    val outerInfo = MakeInfoPair(info.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation), DependencyTypeInfo.getInternalDepTypeInfo)
+    vpr.Not(vpr.EqCmp(recv, nilInterface()(pos, info, errT)(ctx))(pos, info, errT))(pos, outerInfo, errT)
   }
 
   /** Returns nil interface */

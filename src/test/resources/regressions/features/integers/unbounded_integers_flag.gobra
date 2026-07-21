@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--unboundedIntegers)
+
+// With --unboundedIntegers, every integer type (including bounded types like int8) is encoded as
+// Viper's mathematical (unbounded) Int. Arithmetic no longer overflows, so properties that only
+// hold under unbounded semantics become provable. This restores Gobra's integer encoding prior to
+// the sound bounded-integer semantics.
+package unboundedInts
+
+// Under sound bounded int8 semantics (without --overflow), `u + u` may overflow, so `ret >= u` is
+// not provable for `u > 63`. With --unboundedIntegers, int8 behaves as a mathematical integer and
+// the property holds for every non-negative u.
+requires 0 <= u
+ensures ret >= u
+decreases
+func doubleGeq(u int8) (ret int8) {
+	ret = u + u
+	return
+}
+
+// The sum of two non-negative values dominates each summand under unbounded semantics, even when
+// the sum would overflow int8 under Go's bounded semantics.
+requires 0 <= u && 0 <= v
+ensures ret >= u && ret >= v
+decreases
+func addBothGeq(u int8, v int8) (ret int8) {
+	ret = u + v
+	return
+}

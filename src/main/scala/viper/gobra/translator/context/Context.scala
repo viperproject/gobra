@@ -57,6 +57,9 @@ trait Context {
 
   def defaultEncoding: DefaultEncoding
 
+  /** When enabled, all integer types (including bounded ones) are encoded as Viper's unbounded Int. */
+  def unboundedIntegers: Boolean
+
   def typ(x: in.Type): vpr.Type = typeEncoding.typ(this)(x)
 
   def variable(x: in.BodyVar): vpr.LocalVarDecl = typeEncoding.variable(this)(x)

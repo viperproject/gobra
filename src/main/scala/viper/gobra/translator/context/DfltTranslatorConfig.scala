@@ -58,6 +58,8 @@ class DfltTranslatorConfig(
 
   val arrayEncoding: ArrayEncoding = new ArrayEncoding()
 
+  val unboundedIntegers: Boolean = config.unboundedIntegers
+
   val methodEncoding = new DefaultMethodEncoding
   val pureMethodEncoding = new DefaultPureMethodEncoding
   val predicateEncoding = new DefaultPredicateEncoding

@@ -29,3 +29,19 @@ func addBothGeq(u int8, v int8) (ret int8) {
 	ret = u + v
 	return
 }
+
+// Negative checks: with --unboundedIntegers no range axioms are emitted for the bounded kinds, so a
+// bounded value is an arbitrary mathematical integer and nothing is known about its range. If either
+// assertion below ever starts to verify, the bounded range axioms are leaking into this encoding.
+
+decreases
+func uint8IsNotKnownNonNegative(x uint8) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x >= 0
+}
+
+decreases
+func int8IsNotKnownWithinRange(x int8) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x <= 127
+}

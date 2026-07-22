@@ -1,0 +1,58 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type ACounter interface {
+    pred mem()
+
+    requires @dependencyInfo("assumptionType:Precondition, label:L0, expectedDependencies:[]")(mem())
+    // no postcondition on purpose to test impl proofs
+    getAndIncr() int
+}
+
+
+// implementation
+
+type counter struct{ f int }
+
+requires @dependencyInfo("assumptionType:Precondition, label:L2, expectedDependencies:[L0,L7]")(acc(&x.f))
+requires @dependencyInfo("assumptionType:Precondition, label:L2b, expectedDependencies:[L0,L7]")(x.f >= 0)
+ensures  @dependencyInfo("assumptionType:ImplicitPostcondition, assertionType:ImplicitPostcondition, label:L3, expectedDependencies:[L0,L7,L2]")(acc(&x.f))
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, assertionType:ImplicitPostcondition, label:L3a, expectedDependencies:[L0,L7,L2,L2b,L6,L3]")(x.f > 0)
+ensures @dependencyInfo("assumptionType:ImplicitPostcondition, assertionType:ImplicitPostcondition, label:L4, expectedDependencies:[L0,L7,L2,L2b,L5]")(y >= 0)
+func (x *counter) getAndIncr() (y int) {
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L5, expectedDependencies:[L0,L7,L2]")
+  y = x.f
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L6, expectedDependencies:[L0,L7,L2]")
+  x.f += 1
+  return
+}
+
+
+// implementation proof
+
+pred (x *counter) mem() { acc(x) && x.f >= 0 }
+
+(*counter) implements ACounter {
+
+  (x *counter) getAndIncr() (res int) {
+    @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L7, expectedDependencies:[L0]")
+    unfold x.mem()
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L8, expectedDependencies:[L0,L7]")
+    res = x.getAndIncr()
+    @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L9, expectedDependencies:[L0,L7,L2,L2b,L3,L3a,L6,L8]")
+    fold x.mem()
+  }
+}
+
+
+// client code
+
+func client() {
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L10, expectedDependencies:[]")
+  x := &counter{0}
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L11, expectedDependencies:[L0,L7,L8,L9]")
+  var y ACounter = x
+}

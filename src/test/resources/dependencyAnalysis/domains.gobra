@@ -1,0 +1,53 @@
+package test
+
+ghost type Value domain {
+    func AddOne(a Value) Value
+    func AddTwo(b Value) Value
+    func MinusOne(a Value) Value
+
+    axiom  {
+    @dependencyInfo("assumptionType:DomainAxiom, label:L0, expectedDependencies:[]")(
+        forall a Value ::
+            { AddOne(AddOne(a)), AddTwo(a) } (
+                AddOne(AddOne(a)) == AddTwo(a)))
+    }
+
+    axiom {
+    @dependencyInfo("assumptionType:DomainAxiom, label:L1, expectedDependencies:[]")(
+        forall a Value ::
+        { AddOne(MinusOne(a)) } (
+         AddOne(MinusOne(a)) == a))
+    }
+
+    axiom {
+    @dependencyInfo("assumptionType:DomainAxiom, label:L2, expectedDependencies:[]")(
+        forall a Value ::
+        { MinusOne(AddOne(a))  }(
+        MinusOne(AddOne(a)) == a))
+    }
+
+    axiom {
+    @dependencyInfo("assumptionType:DomainAxiom, label:L3, expectedDependencies:[]")(
+        forall a Value ::
+        { MinusOne(AddTwo(a)), AddOne(a) }(
+        MinusOne(AddTwo(a)) == AddOne(a)))
+    }
+}
+
+
+ghost func client(a Value) {
+    @dependencyInfo("assumptionType:SourceCode, label:L4, expectedDependencies:[]")
+    b := AddTwo(a)
+    @dependencyInfo("assumptionType:SourceCode, label:L5, expectedDependencies:[]")
+    c := AddOne(a)
+    @dependencyInfo("assumptionType:SourceCode, label:L6, expectedDependencies:[]")
+    d := AddOne(c)
+
+    @dependencyInfo("assertionType:Explicit, label:L7, expectedDependencies:[L0,L5,L6]")
+    assert AddTwo(a) == d
+
+    @dependencyInfo("assumptionType:SourceCode, label:L8, expectedDependencies:[]")
+    e := MinusOne(b)
+    @dependencyInfo("assertionType:Explicit, label:L9, expectedDependencies:[L3,L4,L5,L8]")
+    assert e == c
+}

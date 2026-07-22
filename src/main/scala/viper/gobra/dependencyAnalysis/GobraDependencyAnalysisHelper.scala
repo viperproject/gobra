@@ -101,7 +101,7 @@ object GobraDependencyAnalysisHelper {
         val info = ast.MakeInfoPair(depTypeInfo,  analysisSourceInfo)
         Set(info)
       } catch {
-        case _ => Set.empty
+        case _: Throwable => Set.empty
       }
     }
 

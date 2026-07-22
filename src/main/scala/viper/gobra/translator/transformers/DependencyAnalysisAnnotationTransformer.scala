@@ -47,7 +47,7 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
         (stmt.withMeta(stmt.pos, newInfo2, stmt.errT), ctxt)
       case (exp: vpr.Exp, ctxt) =>
         val newInfo = getDependencyAnalysisEnhancedInfo(exp.info)
-        val newInfo2 = if(ctxt.ancestorList.count(_.isInstanceOf[ast.Exp]) > 1) newInfo else attachDepInfoAsAnnotation(newInfo)
+        val newInfo2 = if(ctxt.ancestorList.count(_.isInstanceOf[ast.Exp]) > 1 || ctxt.ancestorList.count(_.isInstanceOf[ast.Stmt]) > 0) newInfo else attachDepInfoAsAnnotation(newInfo)
         (exp.withMeta(exp.pos, newInfo2, exp.errT), ctxt)
     }).forceCopy().execute(p)
   }

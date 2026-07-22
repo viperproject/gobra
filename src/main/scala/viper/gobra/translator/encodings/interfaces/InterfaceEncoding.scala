@@ -20,7 +20,7 @@ import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
-import viper.silver.ast.MakeInfoPair
+import viper.silver.ast.utility.ViperStrategy
 import viper.silver.dependencyAnalysis._
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
@@ -194,10 +194,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n@ in.ToInterface(exp, toType) =>
         val (pos, info, errT) = n.vprMeta
 
-        val depAnJoinInfo = MakeInfoPair(
-          SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(exp.typ, toType), JoinType.Sink, EdgeType.Down),
+        val depAnJoinInfo = vpr.MakeInfoPair(
+          SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(exp.typ, toType), JoinType.Sink, EdgeType.Down, assertOnly=true),
           AdditionalAssertionNode())
-        val dependencyAnalysisEnhancedInfo = MakeInfoPair(info, depAnJoinInfo)
+        val dependencyAnalysisEnhancedInfo = vpr.MakeInfoPair(info, depAnJoinInfo)
         if (Comparability.comparable(exp.typ)(ctx.lookup).isDefined) {
           for {
             dynValue <- goE(exp)
@@ -690,7 +690,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
 
     val (pos, info: Source.Verifier.Info, errT) = p.vprMeta
-    val infoWithInternalDepType = MakeInfoPair(info, DependencyTypeInfo.getInternalDepTypeInfo)
+    val infoWithInternalDepType = vpr.MakeInfoPair(info, DependencyTypeInfo.getInternalDepTypeInfo)
 
     val pProxy = Names.InterfaceMethod.origin(p.name)
 
@@ -748,7 +748,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def functionProof(p: in.PureMethodSubtypeProof)(ctx: Context): MemberWriter[vpr.Function] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
 
-    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
+    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down, assertOnly=true)
 
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.PureMethod]
     val vItfFun = ctx.defaultEncoding.pureMethod(itfSymb)(ctx).res
@@ -758,7 +758,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       if (p.body.isDefined)
         DAEnhancedInfo(depAnJoinInfo, p.info)
       else
-        DAEnhancedInfo(MakeInfoPair(DependencyTypeInfo.getInternalDepTypeInfo, depAnJoinInfo), p.info) // generated impl proofs are additionally marked internal
+        DAEnhancedInfo(vpr.MakeInfoPair(DependencyTypeInfo.getInternalDepTypeInfo, depAnJoinInfo), p.info) // generated impl proofs are additionally marked internal
 
     val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ, false)(daEnhancedInfo))
 
@@ -773,7 +773,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       backendAnnotations = Vector.empty,
       body = Some(body),
       isOpaque = false
-    )(daEnhancedInfo))(ctx)
+    )(p.info))(ctx)
 
     val pres = vItfFun.pres.map { pre =>
       instantiateInterfaceSpecForProof(pre, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
@@ -785,8 +785,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val (pos, info, errT) = p.vprMeta
 
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT))
-    )(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    pureMethodDummy.map(res => res.copy(pres = pres,
+      posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, vpr.MakeInfoPair(depAnJoinInfo, p.info), p.errT)),
+      body = res.body.map(b => b.withMeta(b.pos, vpr.MakeInfoPair(b.info, depAnJoinInfo), b.errT))
+    )(pos, info, errT))
   }
 
   /**
@@ -802,14 +804,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.Method]
     val vItfMeth = ctx.defaultEncoding.method(itfSymb)(ctx).res
 
-    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down)
+    val depAnJoinInfo = SimpleDependencyAnalysisJoin(ImplProofDependencyAnalysisSourceInfo(p.receiver.typ, p.superT), JoinType.Source, EdgeType.Down, assertOnly=true)
 
     // everything that depends on the impl proof should depend on any proof obligation in the impl proof -> every assertion node is a join node
     val daEnhancedInfo =
       if (p.body.isDefined)
         DAEnhancedInfo(depAnJoinInfo, p.info)
       else
-        DAEnhancedInfo(MakeInfoPair(DependencyTypeInfo.getInternalDepTypeInfo, depAnJoinInfo), p.info) // generated impl proofs are additionally marked internal
+        DAEnhancedInfo(vpr.MakeInfoPair(DependencyTypeInfo.getInternalDepTypeInfo, depAnJoinInfo), p.info) // generated impl proofs are additionally marked internal
 
     val body = p.body match {
       case Some(b) => b.toMethodBody
@@ -829,7 +831,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       terminationMeasures = Vector.empty,
       backendAnnotations = Vector.empty,
       body = Some(body)
-    )(daEnhancedInfo))(ctx)
+    )(p.info))(ctx)
 
     val pres = vItfMeth.pres.map { exp =>
       val variablesOfExp = vItfMeth.formalArgs.toVector ++ vItfMeth.formalReturns.toVector
@@ -844,11 +846,23 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val (pos, info, errT) = p.vprMeta
 
-    methodDummy.map(res => res.copy(pres = pres,
-      posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, MakeInfoPair(depAnJoinInfo, p.info), p.errT))
-    )(pos, MakeInfoPair(depAnJoinInfo, info), errT))
+    attachJoinInfoToBody(methodDummy.map(res => res.copy(pres = pres,
+      posts = posts.flatMap(_.topLevelConjuncts).map(p => p.withMeta(p.pos, vpr.MakeInfoPair(depAnJoinInfo, p.info), p.errT))
+    )(pos, info, errT)), depAnJoinInfo)
   }
 
+  // TODO ake: this is super hacky. Find another way to attach the join info.
+  private def attachJoinInfoToBody(method: MemberWriter[vpr.Method], joinInfo: vpr.Info): MemberWriter[vpr.Method] = {
+    method.map(res => res.copy(body = res.body.map(b =>
+      ViperStrategy.Slim({
+        case stmt: vpr.Stmt =>
+          stmt.withMeta(stmt.pos, vpr.MakeInfoPair(stmt.info, joinInfo), stmt.errT)
+        case exp: vpr.Exp =>
+          exp.withMeta(exp.pos, vpr.MakeInfoPair(exp.info, joinInfo), exp.errT)
+      }).forceCopy().execute(b).asInstanceOf[vpr.Seqn]
+    ))(res.pos, res.info, res.errT)
+    )
+  }
 
   /**
     * Instantiates a condition of a spec from an interface I for an implementation T.

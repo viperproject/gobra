@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type ACounter interface {
+    pred mem()
+
+    requires @dependencyInfo("assumptionType:Precondition, label:L0, expectedDependencies:[L7,L10,L11,L12]")(mem())
+    ensures @dependencyInfo("assumptionType:ImportedPostcondition, assertionType:ImportedPostcondition, label:L1, expectedDependencies:[L0,L2,L3,L7,L8,L9]")(mem())
+    getAndIncr() int
+}
+
+
+// implementation
+
+type counter struct{ f int }
+
+requires @dependencyInfo("assumptionType:Precondition, label:L2, expectedDependencies:[L0,L7,L10,L11,L12]")(acc(&x.f))
+ensures  @dependencyInfo("assumptionType:ImplicitPostcondition, assertionType:ImplicitPostcondition, label:L3, expectedDependencies:[L0,L7,L10,L11,L12,L2]")(acc(&x.f))
+ensures  @dependencyInfo("assumptionType:ImplicitPostcondition, assertionType:ImplicitPostcondition, label:L4, expectedDependencies:[L0,L7,L10,L11,L12,L2,L6]")(x.f == old(x.f)+1)
+ensures  @dependencyInfo("assumptionType:ImplicitPostcondition, assertionType:ImplicitPostcondition, label:L5, expectedDependencies:[L0,L7,L10,L11,L12,L2,L5]")(y == old(x.f))
+func (x *counter) getAndIncr() (y int) {
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L5, expectedDependencies:[L0,L7,L10,L11,L12,L2]")
+  y = x.f
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L6, expectedDependencies:[L0,L7,L10,L11,L12,L2]")
+  x.f += 1
+  return
+}
+
+
+// implementation proof
+
+pred (x *counter) mem() { acc(x) }
+
+(*counter) implements ACounter {
+
+  (x *counter) getAndIncr() (res int) {
+    @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L7, expectedDependencies:[L0]")
+    unfold x.mem()
+    @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L8, expectedDependencies:[L0,L7]")
+    res = x.getAndIncr()
+    @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L9, expectedDependencies:[L0,L7,L2,L3,L8]")
+    fold x.mem()
+  }
+}
+
+
+// client code
+
+func client() {
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L10, expectedDependencies:[]")
+  x := &counter{0}
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L11, expectedDependencies:[L0,L2,L3,L7,L8,L9]")
+  var y ACounter = x
+  @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L12, expectedDependencies:[L0,L2,L3,L7,L8,L9,L10,L11]")
+  fold y.mem()
+  @dependencyInfo("assumptionType:SourceCode, assertionType:SourceCode, label:L13, expectedDependencies:[L0,L2,L3,L7,L8,L9,L10,L11,L12]")
+  var z int = y.getAndIncr()
+  @dependencyInfo("assumptionType:Rewrite, assertionType:Rewrite, label:L14, expectedDependencies:[L0,L1,L2,L3,L7,L8,L9,L10,L11,L12,L13]")
+  unfold y.mem()
+}

@@ -346,7 +346,8 @@ expression:
   |<assoc=right> expression IMPLIES expression #implication
   |<assoc=right> expression QMARK expression COLON expression #ternaryExpr
   | UNFOLDING predicateAccess IN expression #unfolding
-  | ASSERTING assertion IN expression #asserting
+  // disabled for now bc it is cumbersome for the evaluation
+  // | ASSERTING assertion IN expression #asserting
   | LET shortVarDecl IN expression #let
   | (FORALL | EXISTS) boundVariables COLON COLON triggers expression #quantification
   | annotatedExpression #annot

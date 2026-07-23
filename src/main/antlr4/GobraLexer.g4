@@ -44,7 +44,8 @@ ACCESS      : 'acc' -> mode(NLSEMI);
 FOLD        : 'fold';
 UNFOLD      : 'unfold';
 UNFOLDING   : 'unfolding';
-ASSERTING   : 'asserting';
+// disabled for now bc it is cumbersome for the evaluation
+// ASSERTING   : 'asserting';
 LET         : 'let';
 IN          : 'in';
 GHOST       : 'ghost';

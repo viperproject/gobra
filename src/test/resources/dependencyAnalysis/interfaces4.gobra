@@ -8,7 +8,7 @@ type ACounter interface {
     pred mem()
 
     requires @dependencyInfo("assumptionType:Precondition, label:L0, expectedDependencies:[L7,L10,L11,L12]")(mem())
-    ensures @dependencyInfo("assumptionType:ImportedPostcondition, assertionType:ImportedPostcondition, label:L1, expectedDependencies:[L0,L2,L3,L7,L8,L9]")(mem())
+    ensures @dependencyInfo("assumptionType:Imported, assertionType:Imported, label:L1, expectedDependencies:[L0,L2,L3,L7,L8,L9]")(mem())
     getAndIncr() int
 }
 

@@ -71,24 +71,25 @@ object GobraDependencyAnalysisHelper {
         case _ => None
       }
 
-      if(enforcedDepTypeOpt.isDefined)
+      if (isImported)
+        DependencyType(AssumptionType.Imported)
+      else if (enforcedDepTypeOpt.isDefined)
         enforcedDepTypeOpt.get
-      else if(dependencyType.isDefined)
+      else if (dependencyType.isDefined)
         dependencyType.get
-      else
+      else {
         pNode match {
           case _: PInvoke => DependencyType(AssumptionType.MethodCall)
           case _: PFold | _: PUnfold | _: PPackageWand | _: PApplyWand => DependencyType(AssumptionType.Rewrite)
           case _: PExplicitGhostStatement => DependencyType(AssumptionType.Ghost)
           case _: PGhostStatement | _: PProofAnnotation | _: PImplementationProof | _: PDecreasesClause | _: PTerminationMeasure => DependencyType(AssumptionType.Ghost)
-          case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec if isImported => DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)
           case m: PMethodDecl if m.body.isDefined   => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
           case f: PFunctionDecl if f.body.isDefined => DependencyType(AssumptionType.Precondition, AssumptionType.ImplicitPostcondition)
           case _: PMethodDecl | _: PFunctionDecl | _: PMethodSig | _: PFunctionSpec => DependencyType(AssumptionType.Precondition, AssumptionType.ExplicitPostcondition)
           case _: PActualStatement => DependencyType(AssumptionType.SourceCode)
           case _ => DependencyType(AssumptionType.SourceCode)
         }
-
+      }
     }
 
     def getGobraDependencyAnalysisInfo(pNode: PNode, dependencyType: Option[DependencyType]=dependencyTypeOuter): Set[ast.Info] = {
@@ -115,7 +116,7 @@ object GobraDependencyAnalysisHelper {
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)
-      case PInterfaceType(_, methSpecs, _) => go(methSpecs, Some(DependencyType(AssumptionType.Precondition, AssumptionType.ImportedPostcondition)))
+      case PInterfaceType(_, methSpecs, _) => go(methSpecs, Some(DependencyType(AssumptionType.Precondition, AssumptionType.Imported)))
 
       // constants
       case PConstDecl(specs) => go(specs)

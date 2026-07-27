@@ -6,7 +6,7 @@ type Counter interface {
     preserves @dependencyInfo("label:I21")(acc(mem(), 1/2))
     requires @dependencyInfo("assumptionType:Precondition, label:I0, expectedDependencies:[I18]")(delta > 0)
     requires @dependencyInfo("assumptionType:Precondition, label:I0b, expectedDependencies:[]")(delta < 100)
-    ensures @dependencyInfo("assertionType:ImportedPostcondition, label:I1, expectedDependencies:[I0, I0b, I3]")(res > 0)
+    ensures @dependencyInfo("assertionType:Imported, label:I1, expectedDependencies:[I0, I0b, I3]")(res > 0)
     AddOne(delta int) (res int)
 }
 

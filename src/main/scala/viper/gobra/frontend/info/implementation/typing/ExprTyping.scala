@@ -993,6 +993,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case UnknownType => None
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
@@ -1013,6 +1014,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case UnknownType => None
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 

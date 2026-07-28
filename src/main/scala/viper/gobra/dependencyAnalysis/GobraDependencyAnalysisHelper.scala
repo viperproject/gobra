@@ -66,7 +66,7 @@ object GobraDependencyAnalysisHelper {
       val enforcedDepTypeOpt = pNode match {
         case _: PAssert | _: PExhale | _: PRefute => Some(DependencyType.ExplicitAssertion)
         case _: PAssume | _: PInhale => Some(DependencyType.ExplicitAssumption)
-        case _: PParameter | _: PResult | _: PReceiver => Some(AssumptionType.Internal.asDepType())
+        case _: PParameter | _: PResult | _: PReceiver | _: PDeclaration => Some(AssumptionType.Internal.asDepType())
         case _: PPkgInvariant => Some(DependencyType(AssumptionType.LoopInvariant))
         case _ => None
       }

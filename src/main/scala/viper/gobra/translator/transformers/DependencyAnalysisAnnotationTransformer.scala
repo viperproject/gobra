@@ -9,7 +9,7 @@ import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.dependencyAnalysis.{DependencyAnalysisSourceInfo, DependencyTypeInfo}
+import viper.silver.dependencyAnalysis.{AssumptionType, DependencyAnalysisSourceInfo, DependencyTypeInfo, StringDependencyAnalysisSourceInfo}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast, ast => vpr}
 
@@ -38,21 +38,21 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     ViperStrategy.Ancestor({
       case (member: vpr.Member, ctxt) =>
         val newInfo = getNewInfo(member, member.pos, {_ => NoInfo}, disableDependencyAnalysis)
-        val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo)
+        val newInfo2 = getDependencyAnalysisEnhancedInfo(newInfo, member.pos)
         (member.withMeta(member.pos, newInfo2, member.errT), ctxt) // TODO ake: try to avoid using withMeta
       case (seqn: vpr.Seqn, ctxt) => (seqn, ctxt)
       case (stmt: vpr.Stmt, ctxt) =>
-        val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info)
+        val newInfo = getDependencyAnalysisEnhancedInfo(stmt.info, stmt.pos)
         val newInfo2 = if(stmt.isInstanceOf[ast.Seqn]) newInfo else attachDepInfoAsAnnotation(newInfo)
         (stmt.withMeta(stmt.pos, newInfo2, stmt.errT), ctxt)
       case (exp: vpr.Exp, ctxt) =>
-        val newInfo = getDependencyAnalysisEnhancedInfo(exp.info)
+        val newInfo = getDependencyAnalysisEnhancedInfo(exp.info, exp.pos)
         val newInfo2 = if(ctxt.ancestorList.count(_.isInstanceOf[ast.Exp]) > 1 || ctxt.ancestorList.count(_.isInstanceOf[ast.Stmt]) > 0) newInfo else attachDepInfoAsAnnotation(newInfo)
         (exp.withMeta(exp.pos, newInfo2, exp.errT), ctxt)
     }).forceCopy().execute(p)
   }
 
-  private def getDependencyAnalysisEnhancedInfo(oldInfo: Info) = {
+  private def getDependencyAnalysisEnhancedInfo(oldInfo: Info, pos: ast.Position): ast.Info = {
     val sourceInfo = oldInfo.getUniqueInfo[Verifier.Info]
     val depInfoOpt = getDependencyAnalysisInfoFromAncestorPNode(sourceInfo)
     if (depInfoOpt.isDefined) {
@@ -61,8 +61,17 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       val newInfo = attachInfoIfNotExists[DependencyAnalysisSourceInfo](oldInfo, depInfo)
       val resInfo = attachInfoIfNotExists[DependencyTypeInfo](newInfo, depInfo)
       resInfo
-    } else
-      oldInfo
+    } else {
+      pos match {
+        case position: AbstractSourcePosition if isUnderResources(position.file.toAbsolutePath) =>
+          val newInfo = attachInfoIfNotExists[DependencyAnalysisSourceInfo](oldInfo, StringDependencyAnalysisSourceInfo(pos.toString, pos))
+          attachInfoIfNotExists[DependencyTypeInfo](newInfo, DependencyTypeInfo(AssumptionType.Internal.asDepType()))
+        case FilePosition(file, _, _) if isUnderResources(file.toAbsolutePath) =>
+          val newInfo = attachInfoIfNotExists[DependencyAnalysisSourceInfo](oldInfo, StringDependencyAnalysisSourceInfo(pos.toString, pos))
+          attachInfoIfNotExists[DependencyTypeInfo](newInfo, DependencyTypeInfo(AssumptionType.Internal.asDepType()))
+        case _ => oldInfo
+      }
+    }
   }
 
   private def attachDepInfoAsAnnotation(info: ast.Info): ast.Info = {
@@ -139,12 +148,12 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
     if (sourceInfo.isDefined && sourceFileOpt.exists(file => !isUnderResources(file)))
       pNodeMapper(sourceInfo.get.pnode)
     else {
+      // DA is disabled for builtin Gobra code for performance reasons
       val annotationInfos = node.info.getAllInfos[AnnotationInfo]
       val enableDependencyAnalysisInfos = annotationInfos.filter(i =>
         i.values.contains("enableDependencyAnalysis") && i.values("enableDependencyAnalysis").contains("false"))
       if (enableDependencyAnalysisInfos.nonEmpty) {
-        println(s"node has info: $node")
-        node.info
+        node.info // DA already disabled
       } else
         default
     }

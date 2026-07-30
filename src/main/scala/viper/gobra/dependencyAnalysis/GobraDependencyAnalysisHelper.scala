@@ -20,7 +20,7 @@ object GobraDependencyAnalysisHelper {
    */
   def identifyGobraNodes(typeInfo: TypeInfo): Iterable[ast.Info] = {
     val positionManager = typeInfo.tree.originalRoot.positions
-    val importedNodes = typeInfo.getTransitiveTypeInfos(includeThis=false).filterNot(_.pkgName.name.equals("builtin")).flatMap(pkg =>
+    val importedNodes = typeInfo.getTransitiveTypeInfos(includeThis=false).filterNot(_.pkgInfo.isBuiltIn).flatMap(pkg =>
       identifyGobraNodes(pkg.getTypeInfo.tree.originalRoot)(pkg.getTypeInfo.tree.originalRoot.positions, isImported=true)
     )
     identifyGobraNodes(typeInfo.tree.originalRoot)(positionManager, isImported=false) ++ importedNodes

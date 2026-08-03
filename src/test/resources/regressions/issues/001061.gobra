@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue1061
+
+// this test case checks that `append` and `copy` possess specification that states
+// that the source element / slice is not modified, even if full permissions are passed (
+// as in that case framing does not apply).
+
+requires acc(s)
+ensures  len(result) == len(s) + 1
+ensures  acc(result)
+ensures  result[len(result) - 1] == v
+func appendOne(s []string, v string) (result []string) {
+	result = append(writePerm, s, v) // using fractional permission would side-step the issue
+	return
+}
+
+preserves acc(s)
+ensures   len(result) == len(s)
+ensures   acc(result)
+ensures   forall i int :: {&result[i]} 0 <= i && i < len(result) ==> result[i] == s[i]
+func myCopy(s []string) (result []string) {
+    result = make([]string, len(s))
+	copy(result, s, writePerm) // using fractional permission would side-step the issue
+	return
+}

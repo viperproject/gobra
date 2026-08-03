@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue1063_1
+
+// Tests that ClientImpl.Ping has the same signature as Client.Ping.
+
+type CallOption interface{}
+
+type Client interface {
+	Ping(req *int, opts ...CallOption) (*int, error)
+}
+
+type ClientImpl struct{}
+
+func (c *ClientImpl) Ping(req *int, opts ...CallOption) (*int, error) {
+	return req, nil
+}
+
+func New() Client {
+	return &ClientImpl{}
+}

@@ -1130,7 +1130,13 @@ case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) exte
 case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
   override val typ: Type = left.typ
 }
-case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation {
+  // ^x has its operand's type. The inherited unbounded-Int typ would misreport the
+  // complement of a bounded operand: the encoding produces a domain-typed value for it,
+  // and enclosing operations decide based on this typ whether the value still needs the
+  // domain-to-Int projection.
+  override def typ: Type = op.typ.withAddressability(Addressability.rValue)
+}
 
 /*
  * Convert 'expr' to non-interface type 'newType'. If 'newType' is

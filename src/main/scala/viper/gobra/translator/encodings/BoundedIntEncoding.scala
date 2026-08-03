@@ -201,8 +201,8 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bxor)(l, r, e)
       case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bclear)(l, r, e)
 
-      // Bitwise unary NOT — BitNeg.typ is always UnboundedInteger; the operand is bounded by the
-      // pattern. Encode as to(bneg(from(op))).
+      // Bitwise unary NOT — encode as to(bneg(from(op))). BitNeg.typ equals the operand's type,
+      // so enclosing operations correctly treat the result as a domain value.
       case e @ in.BitNeg(op :: ctx.BoundedInt(k)) =>
         val (pos, info, errT) = e.vprMeta
         for { ve <- goE(op) } yield

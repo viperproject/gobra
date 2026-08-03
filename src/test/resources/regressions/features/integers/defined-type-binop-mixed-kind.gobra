@@ -31,3 +31,20 @@ func shiftPart(parsed AS) AS {
 	res <<= asPartBits
 	return res
 }
+
+type HostSVC uint16
+
+const SVCMcast HostSVC = 0x8000
+
+// bit-negation of a defined-type constant used inside a binary operation
+// (crashed with a Viper consistency error: BitNeg's internal type claimed
+// an unbounded integer while its encoding produced a domain value)
+decreases
+func base(h HostSVC) HostSVC {
+	return h & ^SVCMcast
+}
+
+decreases
+func multicast(h HostSVC) HostSVC {
+	return h | SVCMcast
+}

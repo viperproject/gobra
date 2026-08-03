@@ -14,7 +14,10 @@ import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.gobra.util.TypeBounds.BoundedIntegerKind
+import viper.gobra.translator.Names
 import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.silver.ast.utility.ViperStrategy
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.{refute => vprrefute}
 import viper.silver.plugin.sif._
@@ -22,6 +25,7 @@ import viper.silver.plugin.sif._
 class AssertionEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
+  import viper.gobra.translator.util.TypePatterns._
   import cl._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
@@ -43,8 +47,9 @@ class AssertionEncoding extends Encoding {
     case n@ in.PureForall(vars, triggers, body) =>
       val (pos, info, errT) = n.vprMeta
       for {
-        (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
-        newForall = vu.dropBoundedFromOnlyTriggers(vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger)
+        (newVars, newTriggers, guard, newBody) <- quantifier(vars, triggers, body)(ctx)
+        guardedBody = guard.fold(newBody)(g => vpr.Implies(g, newBody)(pos, info, errT))
+        newForall = vu.dropBoundedFromOnlyTriggers(vpr.Forall(newVars, newTriggers, guardedBody)(pos, info, errT).autoTrigger)
       } yield newForall.check match {
         case Seq() => newForall
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
@@ -53,8 +58,9 @@ class AssertionEncoding extends Encoding {
     case n@ in.Exists(vars, triggers, body) =>
       val (pos, info, errT) = n.vprMeta
       for {
-        (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
-        newExists =  vu.dropBoundedFromOnlyTriggers(vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger)
+        (newVars, newTriggers, guard, newBody) <- quantifier(vars, triggers, body)(ctx)
+        guardedBody = guard.fold(newBody)(g => vpr.And(g, newBody)(pos, info, errT))
+        newExists =  vu.dropBoundedFromOnlyTriggers(vpr.Exists(newVars, newTriggers, guardedBody)(pos, info, errT).autoTrigger)
       } yield newExists.check match {
         case Seq() => newExists
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
@@ -88,11 +94,15 @@ class AssertionEncoding extends Encoding {
     case n@ in.Implication(l, r) => for {vl <- ctx.expression(l); vr <- ctx.assertion(r)} yield withSrc(vpr.Implies(vl, vr), n)
 
     case n@ in.SepForall(vars, triggers, body) =>
-      val newVars = vars map ctx.variable
+      val lowering = BoundedQuantLowering(ctx, vars)
+      val newVars = lowering.decls
       val (pos, info, errT) = n.vprMeta
       for {
-        newTriggers <- sequence(triggers map (trigger(_)(ctx)))
-        newBody <- pure(ctx.assertion(body))(ctx)
+        rawTriggers <- sequence(triggers map (trigger(_)(ctx)))
+        newTriggers = lowering.rewriteTriggers(rawTriggers)
+        rawBody <- pure(ctx.assertion(body))(ctx)
+        rewrittenBody = lowering.rewrite(rawBody)
+        newBody = lowering.guard.fold(rewrittenBody)(g => vpr.Implies(g, rewrittenBody)(pos, info, errT))
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
         desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
         triggeredForall = desugaredForall.map(f => vu.dropBoundedFromOnlyTriggers(f.autoTrigger))
@@ -120,9 +130,12 @@ class AssertionEncoding extends Encoding {
       val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)
       val renamedCond = cond.replace(renaming)
       val condAss = in.ExprAssertion(cond)(n.info)
-      val vprBoundVar = ctx.variable(boundVar)
+      val lowering = BoundedQuantLowering(ctx, Vector(boundVar))
+      val vprBoundVar = lowering.decls.head
       seqnUnits(Vector(for {
-        vprBody <- ctx.expression(renamedCond)
+        rawBody <- ctx.expression(renamedCond)
+        rewrittenBody = lowering.rewrite(rawBody)
+        vprBody = lowering.guard.fold(rewrittenBody)(g => vpr.And(g, rewrittenBody)(condPos, condInfo, condErrT))
         existsExpr = vu.dropBoundedFromOnlyTriggers(vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(condPos, condInfo, condErrT).autoTrigger)
         condEnc <- ctx.assertion(condAss)
         _ <- assert(existsExpr,
@@ -203,12 +216,92 @@ class AssertionEncoding extends Encoding {
       yield vpr.Trigger(expr)(pos, info, errT)
   }
 
-  def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {
-    val newVars = vars map ctx.variable
+  def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], Option[vpr.Exp], vpr.Exp)] = {
+    val lowering = BoundedQuantLowering(ctx, vars)
 
     for {
       newTriggers <- sequence(triggers map (trigger(_)(ctx)))
       newBody <- ctx.expression(body)
-    } yield (newVars, newTriggers, newBody)
+    } yield (lowering.decls, lowering.rewriteTriggers(newTriggers), lowering.guard, lowering.rewrite(newBody))
+  }
+
+  /**
+    * Lowering for quantified variables of bounded integer kinds.
+    *
+    * A bound variable declared at a bounded integer kind `k` ranges over exactly the values of
+    * the corresponding `Bounded_k` domain (`forall x uint8 :: x >= 0` holds). Binding the Viper
+    * variable at the domain sort, however, would force every arithmetic or indexing use of the
+    * variable through `k$from(x)`, which destroys the linear injective receivers Silicon needs
+    * for quantified permissions (`acc(&s[x])` would become `sadd(offset, from(x))`, a shape on
+    * which Z3's inverse-function reasoning diverges). The variable is therefore bound at the
+    * `Int` sort, the kind's range is added as an explicit guard, and body and triggers are
+    * rewritten:
+    *   - `k$from(x)`                             --> `x` (now Int-sorted)
+    *   - any remaining domain-sorted use of `x`  --> `k$to(x)`
+    * This is equivalent to quantifying over the domain: by the bridge axioms, `from` is
+    * injective and `from(to(n)) == n` for in-range `n` (hence `to(from(x)) == x`), so `from`/
+    * `to` restrict to a bijection between the domain values and `[lower, upper]`.
+    *
+    * Under `--unboundedIntegers`, `ctx.BoundedInt` matches nothing and the lowering is a no-op.
+    */
+  private case class BoundedQuantLowering(ctx: Context, vars: Vector[in.BoundVar]) {
+    // maps the encoded variable name to the bounded kind, for bound variables of bounded kinds
+    private val lowered: Map[String, BoundedIntegerKind] =
+      vars.flatMap(x => ctx.BoundedInt.unapply(x.typ).map(k => ctx.variable(x).name -> k)).toMap
+
+    private val isTrivial: Boolean = lowered.isEmpty
+
+    /** The bound-variable declarations, with lowered variables declared at the Int sort. */
+    def decls: Seq[vpr.LocalVarDecl] = vars.map { x =>
+      val decl = ctx.variable(x)
+      if (lowered.contains(decl.name)) vpr.LocalVarDecl(decl.name, vpr.Int)(decl.pos, decl.info, decl.errT)
+      else decl
+    }
+
+    /** Conjunction of the range guards `lower <= x && x <= upper` of all lowered variables. */
+    def guard: Option[vpr.Exp] = {
+      val conjuncts = vars.flatMap { x =>
+        val decl = ctx.variable(x)
+        lowered.get(decl.name).map { k =>
+          val v = vpr.LocalVar(decl.name, vpr.Int)(decl.pos, decl.info, decl.errT)
+          vpr.And(
+            vpr.LeCmp(vpr.IntLit(k.lower)(decl.pos, decl.info, decl.errT), v)(decl.pos, decl.info, decl.errT),
+            vpr.LeCmp(v, vpr.IntLit(k.upper)(decl.pos, decl.info, decl.errT))(decl.pos, decl.info, decl.errT)
+          )(decl.pos, decl.info, decl.errT): vpr.Exp
+        }
+      }
+      conjuncts.reduceOption((a, b) => vpr.And(a, b)(a.pos, a.info, a.errT))
+    }
+
+    private def isFromOfLowered(app: vpr.DomainFuncApp): Boolean = app.args match {
+      case Seq(lv: vpr.LocalVar) => lowered.get(lv.name).exists(k => app.funcname == Names.boundedIntFrom(k))
+      case _ => false
+    }
+
+    /** Rewrites `from(x)` to Int-sorted `x` and remaining domain-sorted `x` to `to(x)`. */
+    def rewrite[T <: vpr.Node](n: T): T =
+      if (isTrivial) n else ViperStrategy.Slim({
+        case app: vpr.DomainFuncApp if isFromOfLowered(app) =>
+          val lv = app.args.head.asInstanceOf[vpr.LocalVar]
+          vpr.LocalVar(lv.name, vpr.Int)(app.pos, app.info, app.errT)
+        case lv: vpr.LocalVar if lv.typ != vpr.Int && lowered.contains(lv.name) =>
+          val k = lowered(lv.name)
+          vpr.DomainFuncApp(
+            Names.boundedIntTo(k),
+            Seq(vpr.LocalVar(lv.name, vpr.Int)(lv.pos, lv.info, lv.errT)),
+            Map.empty
+          )(lv.pos, lv.info, vpr.DomainType(Names.boundedIntDomain(k), Map.empty)(Seq.empty), Names.boundedIntDomain(k), lv.errT)
+      }).execute[T](n)
+
+    /**
+      * Rewrites trigger expressions, dropping those that degenerate to a bare bound variable
+      * (`{ from(x) }` becomes `{ x }`, which is not a valid trigger term) and any trigger left
+      * without expressions. A quantifier that loses all triggers falls back to auto-triggering.
+      */
+    def rewriteTriggers(ts: Seq[vpr.Trigger]): Seq[vpr.Trigger] =
+      if (isTrivial) ts else ts.flatMap { t =>
+        val exps = t.exps.map(rewrite(_)).filterNot(_.isInstanceOf[vpr.LocalVar])
+        if (exps.isEmpty) None else Some(vpr.Trigger(exps)(t.pos, t.info, t.errT))
+      }
   }
 }

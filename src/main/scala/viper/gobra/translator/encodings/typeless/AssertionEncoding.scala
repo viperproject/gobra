@@ -55,12 +55,18 @@ class AssertionEncoding extends Encoding {
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
+    // Existential bound variables of bounded kinds stay at the domain sort: domain values are
+    // intrinsically in-range (no guard needed) and, unlike the Int-plus-range-guard lowering
+    // used for universals, the domain sort does not break witness finding — a pure arithmetic
+    // guard gives Z3 no term to instantiate ('exists n int :: true' would fail), whereas SMT
+    // sorts are non-empty and ground 'to'/'from' terms anchor instantiation.
     case n@ in.Exists(vars, triggers, body) =>
+      val newVars = vars map ctx.variable
       val (pos, info, errT) = n.vprMeta
       for {
-        (newVars, newTriggers, guard, newBody) <- quantifier(vars, triggers, body)(ctx)
-        guardedBody = guard.fold(newBody)(g => vpr.And(g, newBody)(pos, info, errT))
-        newExists =  vu.dropBoundedFromOnlyTriggers(vpr.Exists(newVars, newTriggers, guardedBody)(pos, info, errT).autoTrigger)
+        newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+        newBody <- ctx.expression(body)
+        newExists =  vu.dropBoundedFromOnlyTriggers(vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger)
       } yield newExists.check match {
         case Seq() => newExists
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
@@ -126,16 +132,15 @@ class AssertionEncoding extends Encoding {
       // The existential carries `cond`'s source info so error messages show
       // just `P` rather than the whole `var x T :| P` statement.
       val (condPos, condInfo, condErrT) = cond.vprMeta
+      // The witness existential keeps the bound variable at its (possibly domain) sort — see
+      // the in.Exists case for why the Int-plus-guard lowering is not used for existentials.
       val boundVar = in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info)
       val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)
       val renamedCond = cond.replace(renaming)
       val condAss = in.ExprAssertion(cond)(n.info)
-      val lowering = BoundedQuantLowering(ctx, Vector(boundVar))
-      val vprBoundVar = lowering.decls.head
+      val vprBoundVar = ctx.variable(boundVar)
       seqnUnits(Vector(for {
-        rawBody <- ctx.expression(renamedCond)
-        rewrittenBody = lowering.rewrite(rawBody)
-        vprBody = lowering.guard.fold(rewrittenBody)(g => vpr.And(g, rewrittenBody)(condPos, condInfo, condErrT))
+        vprBody <- ctx.expression(renamedCond)
         existsExpr = vu.dropBoundedFromOnlyTriggers(vpr.Exists(Seq(vprBoundVar), Seq.empty, vprBody)(condPos, condInfo, condErrT).autoTrigger)
         condEnc <- ctx.assertion(condAss)
         _ <- assert(existsExpr,
@@ -226,7 +231,8 @@ class AssertionEncoding extends Encoding {
   }
 
   /**
-    * Lowering for quantified variables of bounded integer kinds.
+    * Lowering for universally quantified variables of bounded integer kinds (existentials keep
+    * the domain sort — see the in.Exists case).
     *
     * A bound variable declared at a bounded integer kind `k` ranges over exactly the values of
     * the corresponding `Bounded_k` domain (`forall x uint8 :: x >= 0` holds). Binding the Viper

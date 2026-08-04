@@ -187,7 +187,8 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | OPENSINV {$opensInv = true;} |  MAYINIT {$mayInit = true;} | ATOMIC {$atomic = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
+  // The order of the alternatives matches the order of the attributes in the `returns` clause above.
+  ((specStatement | TRUSTED {$trusted = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | OPENSINV {$opensInv = true;} | ATOMIC {$atomic = true;} | OPAQUE {$opaque = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;

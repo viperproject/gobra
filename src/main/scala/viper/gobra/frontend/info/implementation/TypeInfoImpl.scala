@@ -37,6 +37,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   with TypeTyping
   with IdTyping
   with MiscTyping
+  with TerminationTyping
 
   with GhostMemberTyping
   with GhostStmtTyping

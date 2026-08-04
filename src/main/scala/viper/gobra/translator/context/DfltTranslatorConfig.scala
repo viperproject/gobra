@@ -54,11 +54,21 @@ class DfltTranslatorConfig(
 
   val seqToMultiset : SeqToMultiset = new SeqToMultisetImpl(seqMultiplicity)
   val optionToSeq : OptionToSeq = new OptionToSeqImpl(option)
-  val slice : Slices = new SlicesImpl(array)
-
-  val arrayEncoding: ArrayEncoding = new ArrayEncoding()
 
   val unboundedIntegers: Boolean = config.unboundedIntegers
+
+  // Go guarantees that len/cap of arrays, slices, and strings fit in `int`; under bounded
+  // integer semantics the container libraries axiomatize this upper bound.
+  private val intUpperBound: Option[BigInt] =
+    if (config.unboundedIntegers) None else config.typeBounds.Int match {
+      case k: viper.gobra.util.TypeBounds.BoundedIntegerKind => Some(k.upper)
+      case _ => None
+    }
+  array.intUpperBound = intUpperBound
+
+  val slice : Slices = new SlicesImpl(array, intUpperBound)
+
+  val arrayEncoding: ArrayEncoding = new ArrayEncoding()
 
   val methodEncoding = new DefaultMethodEncoding
   val pureMethodEncoding = new DefaultPureMethodEncoding
@@ -71,7 +81,7 @@ class DfltTranslatorConfig(
       new BoolEncoding, new BoundedIntEncoding(config.checkOverflows), new IntEncoding, new PermissionEncoding,
       new PointerEncoding, new StructEncoding, arrayEncoding, new ClosureEncoding(config), new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding, new DomainEncoding, new AdtEncoding,
-      new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding(config.typeBounds.Int), new StringEncoding,
+      new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding(config.typeBounds.Int), new StringEncoding(intUpperBound),
       new MapEncoding, new MathematicalMapEncoding, new FloatEncoding,
       new AssertionEncoding, new CallEncoding, new MemoryEncoding, new ControlEncoding,
       new TerminationEncoding, new BuiltInEncoding(config.typeBounds.Int), new OutlineEncoding, new DeferEncoding,

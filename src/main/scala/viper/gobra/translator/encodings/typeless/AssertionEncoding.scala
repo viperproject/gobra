@@ -243,10 +243,15 @@ class AssertionEncoding extends Encoding {
     * `Int` sort, the kind's range is added as an explicit guard, and body and triggers are
     * rewritten:
     *   - `k$from(x)`                             --> `x` (now Int-sorted)
-    *   - any remaining domain-sorted use of `x`  --> `k$to(x)`
-    * This is equivalent to quantifying over the domain: by the bridge axioms, `from` is
-    * injective and `from(to(n)) == n` for in-range `n` (hence `to(from(x)) == x`), so `from`/
-    * `to` restrict to a bijection between the domain values and `[lower, upper]`.
+    *   - any remaining domain-sorted use of `x`  --> `k$inv(x)`
+    * This is equivalent to quantifying over the domain: by the bridge axioms `inv(from(x)) == x`
+    * and `from(to(n)) == n`, `from` restricts to a bijection between the domain values and
+    * `[lower, upper]` whose inverse on that range is `inv` (== `to` there). `inv` is used
+    * rather than `to` because its axiom triggers on `{ from(x) }`: every ground projected
+    * value `i` yields a known `inv(from(i)) == i`, so a lowered trigger like `{ m[inv(v)] }`
+    * e-matches the ground `m[i]` via congruence — with `to`, the corresponding link
+    * `to(from(i)) == i` is never established and quantifiers over map keys, set elements,
+    * etc. of bounded kinds silently fail to instantiate.
     *
     * Under `--unboundedIntegers`, `ctx.BoundedInt` matches nothing and the lowering is a no-op.
     */
@@ -293,7 +298,7 @@ class AssertionEncoding extends Encoding {
         case lv: vpr.LocalVar if lv.typ != vpr.Int && lowered.contains(lv.name) =>
           val k = lowered(lv.name)
           vpr.DomainFuncApp(
-            Names.boundedIntTo(k),
+            Names.boundedIntInv(k),
             Seq(vpr.LocalVar(lv.name, vpr.Int)(lv.pos, lv.info, lv.errT)),
             Map.empty
           )(lv.pos, lv.info, vpr.DomainType(Names.boundedIntDomain(k), Map.empty)(Seq.empty), Names.boundedIntDomain(k), lv.errT)

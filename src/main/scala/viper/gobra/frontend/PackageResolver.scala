@@ -57,7 +57,15 @@ object PackageResolver {
             case Left(_) => NoPackage(imp)
             case Right(inputResource) =>
               try {
-                RegularPackage(Source.uniquePath(inputResource.path, config.projectRoot).toString)
+                // Normalize both paths before deriving the package id: the same directory
+                // reached through different import spellings (e.g. "encoding/binary" via an
+                // include path vs "verification/dependencies/encoding/binary" via the project
+                // root) must map to the same package. Without normalization the two spellings
+                // produce distinct ids ("./x/y" vs "x/y"), the package is parsed, checked, and
+                // encoded twice, and the resulting Viper program contains duplicate identifiers.
+                val normalizedPath = inputResource.path.toAbsolutePath.normalize()
+                val normalizedRoot = config.projectRoot.toAbsolutePath.normalize()
+                RegularPackage(Source.uniquePath(normalizedPath, normalizedRoot).toString)
               } catch { case _: Throwable => NoPackage(imp) }
           }
       }

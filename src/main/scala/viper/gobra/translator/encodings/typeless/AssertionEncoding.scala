@@ -77,7 +77,7 @@ class AssertionEncoding extends Encoding {
         exp <- ctx.expression(let.in)
         l = ctx.variable(let.left)
         r <- ctx.expression(let.right)
-      } yield withSrc(vpr.Let(l, r, exp), let)
+      } yield withSrc(vpr.Let(l, alignLetBinding(ctx)(l, let.left.typ, let.right.typ, r), exp), let)
 
     case n@ in.Low(e) => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
     case n: in.LowContext => unit(withSrc(SIFLowEventExp(), n))
@@ -95,7 +95,7 @@ class AssertionEncoding extends Encoding {
         exp <- ctx.assertion(op)
         r <- ctx.expression(right)
         l = ctx.variable(left)
-      } yield withSrc(vpr.Let(l, r, exp), n)
+      } yield withSrc(vpr.Let(l, alignLetBinding(ctx)(l, left.typ, right.typ, r), exp), n)
     case n@ in.MagicWand(l, r) => for {vl <- ctx.assertion(l); vr <- ctx.assertion(r)} yield withSrc(vpr.MagicWand(vl, vr), n)
     case n@ in.Implication(l, r) => for {vl <- ctx.expression(l); vr <- ctx.assertion(r)} yield withSrc(vpr.Implies(vl, vr), n)
 
@@ -214,6 +214,33 @@ class AssertionEncoding extends Encoding {
         w = v.asInstanceOf[vpr.MagicWand]
       } yield vpr.Apply(w)(pos, info, errT)
   }
+
+  /**
+    * Aligns the encoded right-hand side of a let binding with the bound variable's encoded
+    * sort. A bounded-kind let variable is encoded at the Bounded_k domain sort, but its
+    * right-hand side may encode to a plain Int even when its internal type claims a bounded
+    * kind (e.g. `let lenR := len(b) in ...` — container lengths encode to the raw `slen`
+    * application). Without alignment the resulting vpr.Let is ill-sorted, which crashes the
+    * backend. The comparison is on the *encoded* Viper sorts, so it is robust to internal
+    * types whose encodings differ; mirrors the normalization BoundedIntEncoding applies to
+    * assignments.
+    */
+  private def alignLetBinding(ctx: Context)(l: vpr.LocalVarDecl, leftTyp: in.Type, rightTyp: in.Type, r: vpr.Exp): vpr.Exp =
+    (l.typ, r.typ) match {
+      case (dt: vpr.DomainType, vpr.Int)
+        if ctx.BoundedInt.unapply(leftTyp).exists(k => dt.domainName == Names.boundedIntDomain(k)) =>
+        val k = ctx.BoundedInt.unapply(leftTyp).get
+        vpr.DomainFuncApp(
+          Names.boundedIntTo(k), Seq(r), Map.empty
+        )(r.pos, r.info, dt, Names.boundedIntDomain(k), r.errT)
+      case (vpr.Int, dt: vpr.DomainType)
+        if ctx.BoundedInt.unapply(rightTyp).exists(k => dt.domainName == Names.boundedIntDomain(k)) =>
+        val k = ctx.BoundedInt.unapply(rightTyp).get
+        vpr.DomainFuncApp(
+          Names.boundedIntFrom(k), Seq(r), Map.empty
+        )(r.pos, r.info, vpr.Int, Names.boundedIntDomain(k), r.errT)
+      case _ => r
+    }
 
   def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
     val (pos, info, errT) = trigger.vprMeta

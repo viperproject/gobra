@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// A let-bound variable of a bounded kind whose right-hand side encodes to a plain
+// Int (e.g. a length expression) crashed the backend ("No matching local variable
+// ... with type Bounded_int" / "key not found"): the binder was typed from the
+// right-hand side's internal type while the body's references used the frontend
+// type. Found on VerifiedSCION's pkg/slayers/path/scion (DecodeFromBytesSpec).
+
+package letBoundIntWidening
+
+pred Bytes(s []byte, start integer, end integer) {
+	0 <= start && start <= end && end <= cap(s) &&
+	forall i int :: { &s[i] } start <= i && i < end ==> acc(&s[i])
+}
+
+ghost
+requires Bytes(s, start, end)
+requires start <= i && i < end
+decreases
+pure func GetByte(s []byte, start integer, end integer, i integer) byte {
+	return unfolding Bytes(s, start, end) in s[i]
+}
+
+ghost
+requires Bytes(b, 0, len(b)) && 4 <= len(b)
+decreases
+pure func f(b []byte) byte {
+	return let lenR := len(b) in GetByte(b, 0, lenR, 0)
+}

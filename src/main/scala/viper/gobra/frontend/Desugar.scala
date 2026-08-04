@@ -4527,9 +4527,15 @@ object Desugar extends LazyLogging {
           val dOp = pureExprD(ctx, info)(op)
           unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
             val right = pureExprD(ctx, info)(lr._2)
+            // The binder is typed with the variable's frontend type, not right.typ: the two can
+            // differ in integer kind (e.g. `let x := len(b)` — the variable is a bounded `int`
+            // while the internal length expression is unbounded), and the body's references to
+            // the variable are resolved at the frontend type. The encoding aligns the bound
+            // right-hand side with the binder's sort (see AssertionEncoding.alignLetBinding).
+            val leftTyp = typeD(info.typ(lr._1), Addressability.exclusiveVariable)(src)
             val left = in.LocalVar(
               nm.variable(lr._1.name, info.scope(lr._1), info),
-              right.typ.withAddressability(Addressability.exclusiveVariable)
+              leftTyp
             )(src)
             in.PureLet(left, right, letop)(src)
           }))
@@ -4879,9 +4885,11 @@ object Desugar extends LazyLogging {
             dOp <- assertionD(ctx, info)(op)
             lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
               val right = pureExprD(ctx, info)(lr._2)
+              // binder typed at the frontend type — see the PureLet case for the rationale
+              val leftTyp = typeD(info.typ(lr._1), Addressability.exclusiveVariable)(src)
               val left = in.LocalVar(
                 nm.variable(lr._1.name, info.scope(lr._1), info),
-                right.typ.withAddressability(Addressability.exclusiveVariable)
+                leftTyp
               )(src)
               in.Let(left, right, letop)(src)
             })

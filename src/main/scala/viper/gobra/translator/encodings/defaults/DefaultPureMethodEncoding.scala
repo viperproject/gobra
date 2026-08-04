@@ -11,12 +11,37 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.VprInfo
+import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
 
 class DefaultPureMethodEncoding extends Encoding {
 
   import viper.gobra.translator.util.ViperWriter._
+  import viper.gobra.translator.util.TypePatterns._
   import MemberLevel._
+
+  /**
+    * Aligns the encoded body of a pure function/method with the declared result sort. A
+    * bounded-kind result may receive a body that encodes to plain Int (untyped-constant
+    * conditional branches, length expressions), and vice versa; the resulting vpr.Function
+    * would be ill-sorted. Mirrors AssertionEncoding.alignLetBinding.
+    */
+  private def alignResult(ctx: Context)(resultTyp: in.Type, declared: vpr.Type, body: vpr.Exp): vpr.Exp =
+    (declared, body.typ) match {
+      case (dt: vpr.DomainType, vpr.Int)
+        if ctx.BoundedInt.unapply(resultTyp).exists(k => dt.domainName == Names.boundedIntDomain(k)) =>
+        val k = ctx.BoundedInt.unapply(resultTyp).get
+        vpr.DomainFuncApp(
+          Names.boundedIntTo(k), Seq(body), Map.empty
+        )(body.pos, body.info, dt, Names.boundedIntDomain(k), body.errT)
+      case (vpr.Int, dt: vpr.DomainType)
+        if ctx.BoundedInt.unapply(resultTyp).exists(k => dt.domainName == Names.boundedIntDomain(k)) =>
+        val k = ctx.BoundedInt.unapply(resultTyp).get
+        vpr.DomainFuncApp(
+          Names.boundedIntFrom(k), Seq(body), Map.empty
+        )(body.pos, body.info, vpr.Int, Names.boundedIntDomain(k), body.errT)
+      case _ => body
+    }
 
   override def function(ctx: Context): in.Member ==> MemberWriter[vpr.Function] = {
     case x: in.PureMethod => pureMethodDefault(x)(ctx)
@@ -54,7 +79,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pure(
           for {
             results <- ctx.expression(b)
-          } yield results
+          } yield alignResult(ctx)(meth.results.head.typ, resultType, results)
         )(ctx)
       })
 
@@ -100,7 +125,7 @@ class DefaultPureMethodEncoding extends Encoding {
         pure(
           for {
             results <- ctx.expression(b)
-          } yield results
+          } yield alignResult(ctx)(func.results.head.typ, resultType, results)
         )(ctx)
       })
 

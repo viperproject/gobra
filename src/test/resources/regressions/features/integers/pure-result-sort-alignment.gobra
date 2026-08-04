@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// A pure function with a bounded result whose body encodes to a plain Int
+// (untyped-constant conditional branches) crashed with "Type of function body
+// must match function type". Found on VerifiedSCION's pkg/slayers/path/epic.
+
+package pureResultSortAlignment
+
+const MetadataLen = 4
+
+type T struct {
+	x int
+}
+
+pred (t *T) Mem() { acc(t) }
+
+ghost
+requires acc(t.Mem(), _)
+decreases
+pure func (t *T) LenSpec() (l int) {
+	return unfolding acc(t.Mem(), _) in
+		(t.x == 0 ? MetadataLen : MetadataLen + 1)
+}
+
+ghost
+decreases
+pure func mixedCond(b bool) int {
+	return b ? 4 : 4 + 1
+}

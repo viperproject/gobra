@@ -1104,6 +1104,23 @@ object Desugar extends LazyLogging {
         * In the case where the value variable 'j' is missing all the code annotated with [v]
         * is omitted
         */
+      /**
+        * Returns a statement that snapshots the openInvariants set before a loop and a loop
+        * invariant stating that the set still has its snapshotted value. The invariant prevents
+        * loops whose body opens critical regions from havocking the value of openInvariants,
+        * which would prevent opening invariants in later iterations or after the loop. It does
+        * not impose any restrictions on the user, given that the syntax of critical regions
+        * guarantees that no invariant may be open for longer than one loop iteration.
+        */
+      def openInvsUnchangedByLoop(n: PNode)(src: Source.Parser.Info): Writer[(in.Stmt, in.Assertion)] =
+        for {
+          oldOpenInvs <- freshDeclaredExclusiveVar(
+            in.SetT(in.PredT(Vector.empty, Addressability.Exclusive), Addressability.Exclusive), n, info
+          )(src)
+          init = in.SingleAss(in.Assignee.Var(oldOpenInvs), openInvsVar)(src)
+          unchanged = in.ExprAssertion(in.EqCmp(oldOpenInvs, openInvsVar)(src))(src)
+        } yield (init, unchanged)
+
       def desugarArrSliceShortRange(n: PShortForRange, range: PRange, shorts: Vector[PUnkLikeId], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
@@ -1133,7 +1150,9 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
         addedInvariantsBefore = Vector(
+          openInvsDoesNotChange,
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
             in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src),
@@ -1166,6 +1185,7 @@ object Desugar extends LazyLogging {
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
           singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(Vector(
@@ -1272,7 +1292,9 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
         addedInvariantsBefore = Vector(
+          openInvsDoesNotChange,
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
             in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src)
@@ -1308,6 +1330,7 @@ object Desugar extends LazyLogging {
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
           singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1425,11 +1448,12 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+        addedInvariants = openInvsDoesNotChange +: (if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
           Vector(
             in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
             in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
-          else Vector()
+          else Vector())
 
         dBody = blockD(ctx, info)(body)
 
@@ -1461,6 +1485,7 @@ object Desugar extends LazyLogging {
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1507,7 +1532,9 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
         addedInvariants = Vector(
+          openInvsDoesNotChange,
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
 
@@ -1543,6 +1570,7 @@ object Desugar extends LazyLogging {
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1594,18 +1622,7 @@ object Desugar extends LazyLogging {
           case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
-                oldOpenInvs <- freshDeclaredExclusiveVar(
-                  in.SetT(in.PredT(Vector.empty, Addressability.Exclusive), Addressability.Exclusive), n, info
-                )(src)
-                initOldOpenInvs = in.SingleAss(in.Assignee.Var(oldOpenInvs), openInvsVar)(src)
-                // This invariant allows for loops that open critical regions without havocking the value
-                // of openInvs, which would prevent opening invariants in the body of the loop or after the loop.
-                // This invariant does not impose any restrictions on the user, given that the syntax of critical
-                // regions guarantees that no invariant may be open for longer than one loop iteration.
-                // TODO: do the same for range loops
-                openInvsDoesNotChange: in.Assertion = in.ExprAssertion(
-                  in.EqCmp(oldOpenInvs, openInvsVar)(src)
-                )(src)
+                (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
 
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx, info)(cond))

@@ -478,6 +478,21 @@ case class Outline(
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
 
+/**
+  * Critical region `critical inv (body)` that temporarily opens the invariant `inv` around `body`.
+  * The expansion into the entailed proof obligations is performed by
+  * [[viper.gobra.translator.encodings.typeless.CriticalEncoding]].
+  *
+  * @param inv the invariant (an expression of type pred()) opened by this region
+  * @param invIsInv the boolean expression `Invariant(inv)`. It is constructed during desugaring
+  *                 (rather than by the encoding) because the built-in `Invariant` function must
+  *                 be registered with the desugarer.
+  * @param openInvs the per-member variable holding the set of currently open invariants. It is
+  *                 declared and initialized (to the empty set) by the desugarer, which also
+  *                 preserves its value across loops via an implicit loop invariant.
+  */
+case class Critical(inv: Expr, invIsInv: Expr, openInvs: LocalVar, body: Stmt)(val info: Source.Parser.Info) extends Stmt
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**

@@ -16,7 +16,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, InvariantMightBeOpenAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, MainPreNotEstablished}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, IsInvariantAnnotation, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -1923,91 +1923,26 @@ object Desugar extends LazyLogging {
               } yield in.Outline(name, pres, posts, terminationMeasures, annotations, dummyBody, trusted = true)(src)
             }
 
-          case n@PCritical(expr, stmts) =>
-            val exprSrc: Meta = meta(expr, info)
+          case PCritical(expr, stmts) =>
             val exprSrcIsInv = meta(expr, info).createAnnotatedInfo(IsInvariantAnnotation())
-            val exprSrcIsOpen = meta(expr, info).createAnnotatedInfo(InvariantMightBeOpenAnnotation())
-            val exprSrcNotRestored = meta(expr, info).createAnnotatedInfo(InvariantNotRestoredAnnotation())
 
             for {
               e <- goE(expr)
-
-              // check if the invariant is an invariant
-              isInv = in.Assert(
-                in.ExprAssertion(
-                  in.PureFunctionCall(
-                    functionProxy(InvariantFunctionTag, Vector(e.typ))(exprSrcIsInv),
-                    Vector(e),
-                    in.BoolT(Addressability.Exclusive),
-                    false
-                  )(exprSrcIsInv)
-                )(exprSrcIsInv)
+              // `Invariant(e)`: constructed here (rather than in the encoding of the critical
+              // statement) because the built-in `Invariant` function must be registered with
+              // the desugarer.
+              invIsInv = in.PureFunctionCall(
+                functionProxy(InvariantFunctionTag, Vector(e.typ))(exprSrcIsInv),
+                Vector(e),
+                in.BoolT(Addressability.Exclusive),
+                false
               )(exprSrcIsInv)
-              _ <- write(isInv)
-
-              // check the invariant is not open yet
-              checkIsOpen = in.Assert(
-                in.ExprAssertion(
-                  in.Negation(
-                    in.Contains(
-                      e,
-                      openInvsVar
-                    )(exprSrcIsOpen)
-                  )(exprSrcIsOpen)
-                )(exprSrcIsOpen)
-              )(exprSrcIsOpen)
-              _ <- write(checkIsOpen)
-
-              // mark invariant as open
-              markOpen = in.SingleAss(
-                in.Assignee.Var(openInvsVar),
-                in.Union(
-                  openInvsVar,
-                  in.SetLit(
-                    in.PredT(Vector.empty, Addressability.Exclusive),
-                    Vector(e)
-                  )(exprSrc),
-                  in.PredT(Vector.empty, Addressability.Exclusive)
-                )(exprSrc)
-              )(exprSrc)
-              _ <- write(markOpen)
-
-              // inhale the invariant
-              inhaleInv = in.Inhale(
-                in.Access(
-                  in.Accessible.PredExpr(in.PredExprInstance(e, Vector.empty)(exprSrc)),
-                  in.FullPerm(exprSrc)
-                )(exprSrc)
-              )(exprSrc)
-              _ <- write(inhaleInv)
-
-              // stmts
-              stmtsD <- sequence(stmts.map(goS))
-              _ <- write(stmtsD : _*)
-
-              // exhale the invariant
-              exhaleInv = in.Exhale(
-                in.Access(
-                  in.Accessible.PredExpr(in.PredExprInstance(e, Vector.empty)(exprSrcNotRestored)),
-                  in.FullPerm(exprSrcNotRestored)
-                )(exprSrcNotRestored)
-              )(exprSrcNotRestored)
-
-              // mark invariant as closed
-              markClosed = in.SingleAss(
-                in.Assignee.Var(openInvsVar),
-                in.SetMinus(
-                  openInvsVar,
-                  in.SetLit(
-                    in.PredT(Vector.empty, Addressability.Exclusive),
-                    Vector(e)
-                  )(exprSrc),
-                  in.PredT(Vector.empty, Addressability.Exclusive)
-                )(exprSrc)
-              )(exprSrc)
-              _ <- write(markClosed)
-
-            } yield exhaleInv
+              stmtsW = sequence(stmts map goS)
+              // variable declarations from the region's body are propagated to the enclosing
+              // block, keeping the variables accessible after the region.
+              _ <- declare(stmtsW.declared : _*)
+              body = in.Seqn(stmtsW.written ++ stmtsW.res)(src)
+            } yield in.Critical(e, invIsInv, openInvsVar, body)(src)
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 

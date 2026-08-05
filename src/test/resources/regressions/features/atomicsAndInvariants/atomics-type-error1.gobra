@@ -33,10 +33,10 @@ requires Invariant(Own{x})
 func fail2(x *int) {
 	var v int
 
-	// Non-atomic non-ghost operations, like the one below, are disallowed.
-	//:: ExpectedOutput(type_error)
 	critical Own{x} (
 	unfold Own{x}()
+	// Non-atomic non-ghost operations, like the one below, are disallowed.
+	//:: ExpectedOutput(type_error)
 	*x += 1
 	fold Own{x}()
 	)
@@ -47,12 +47,12 @@ requires Invariant(Own{x})
 func fail3(x *int) {
 	var v int
 
+	critical Own{x} (
+	unfold Own{x}()
 	// The arguments of atomic non-ghost operations called inside critical regions
 	// must not contain non-atomic operations. Valid arguments are of a very restricted
 	// form (they are mostly exclusive variables and constants).
 	//:: ExpectedOutput(type_error)
-	critical Own{x} (
-	unfold Own{x}()
 	CAS(x, *x, *x+1)
 	fold Own{x}()
 	)
@@ -69,9 +69,9 @@ decreases
 func nonAtomicOp()
 
 func fail5() {
-	// Non-atomic functions may not be called from critical regions.
-	//:: ExpectedOutput(type_error)
 	critical PredTrue{} (
+		// Non-atomic functions may not be called from critical regions.
+		//:: ExpectedOutput(type_error)
 		nonAtomicOp()
 	)
 }

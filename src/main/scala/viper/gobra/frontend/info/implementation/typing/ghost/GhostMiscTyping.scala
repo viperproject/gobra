@@ -180,14 +180,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   }
 
-  private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
-    case PTupleTerminationMeasure(tuple, cond) =>
-      tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
-        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
-    case PWildcardMeasure(cond) =>
-      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
-  }
-
   private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[(PParameter, Type)]): Messages = c match {
     case PClosureSpecInstance(fName, ps) if ps.size > fArgs.size =>
       error(c, s"spec instance $c has too many parameters (more than the arguments of function $fName)")
@@ -215,25 +207,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }}
       wellDefIfNoDuplicateParams ++ wellDefIfCanAssignParams ++ c.paramExprs.flatMap(exp => isPureExpr(exp))
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
-  }
-
-  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
-    case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
-    case PWildcardMeasure(cond) => cond.nonEmpty
-  }
-
-  private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
-    measures.flatMap { m =>
-      error(m,
-        "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
-        isConditional(m))
-    }
-
-  private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
-    val tupleMeasureTypes =
-      measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
-              .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
-    tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
   }
 
   def assignableToSpec(e: PExpression): Messages = {

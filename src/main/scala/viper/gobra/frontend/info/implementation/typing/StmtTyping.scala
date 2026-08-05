@@ -281,17 +281,27 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(m: PMethodDecl) => (isEnclosingGhost(m), m.spec)
         case _ => violation("Unexpected case reached")
       }
-      // all ops are either ghost or non-ghost atomic operations. Unstructured jumps
-      // (`return`/`break`/`continue`/`goto`) are rejected at their own definition (see the
-      // respective cases below), as they would skip the region's closing exhale.
-      val invalidOpOpt = n.stmts.find(s => !notGhostAtomicOp(s) && !isStmtGhost(s))
+      // Unstructured jumps (`return`/`break`/`continue`/`goto`) are rejected at their own definition
+      // (see the respective cases below), as they would skip the region's closing exhale. They are
+      // filtered out here to avoid reporting two errors for the same statement.
+      def isUnstructuredJump(s: PStatement): Boolean = s match {
+        case _: PReturn | _: PBreak | _: PContinue | _: PGoto => true
+        case l: PLabeledStmt => isUnstructuredJump(l.stmt)
+        case _ => false
+      }
+
+      // The remaining statements of a critical region fall into three disjoint classes:
+      //   (1) ghost statements,
+      //   (2) non-ghost atomic operations (the restricted statement forms accepted by `notGhostAtomicOp`),
+      //   (3) all remaining statements, which are not allowed in a critical region.
+      val nonGhostStmts = n.stmts.filterNot(s => isStmtGhost(s) || isUnstructuredJump(s))
+      val (nonGhostAtomicOps, invalidStmts) = nonGhostStmts.partition(notGhostAtomicOp)
 
       val exprT = exprType(n.expr)
-      val nonGhostAtomicOps = n.stmts.filter(notGhostAtomicOp)
       error(n.expr, s"Expression ${n.expr} is of type $exprT but it should be of type pred()",
-        exprT != PredT(Vector.empty)) ++
-      invalidOpOpt.toVector.flatMap(e => error(n, s"Found invalid operation $e in a critical region.")) ++
-      nonGhostAtomicOps.lift(1).toVector.flatMap(e => error(e, s"At most one atomic operation is allowed in a critical region.")) ++
+        underlyingType(exprT) != PredT(Vector.empty)) ++
+      invalidStmts.flatMap(s => error(s, s"Statement $s is not allowed in a critical region. The only non-ghost statements allowed in a critical region are calls to atomic operations.")) ++
+      nonGhostAtomicOps.drop(1).flatMap(s => error(s, s"At most one atomic operation is allowed in a critical region.")) ++
       error(n, s"Only ghost members marked with 'opensInvariants' may open invariants.", inGhost && !spec.opensInvs)
 
     case _: PEmptyStmt => noMessages

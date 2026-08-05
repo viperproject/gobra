@@ -134,6 +134,9 @@ object OverflowChecksTransform extends InternalTransform {
     case m@SafeMapLookup(_, _, IndexedExp(base, idx, _)) =>
       Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
 
+    case c@Critical(inv, invIsInv, openInvs, body) =>
+      Critical(inv, invIsInv, openInvs, stmtTransform(body))(c.info)
+
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
     case x@(_: Inhale | _: Exhale | _: Assert | _: Refute | _: Assume | _: AssignSuchThat
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold | _: Outline

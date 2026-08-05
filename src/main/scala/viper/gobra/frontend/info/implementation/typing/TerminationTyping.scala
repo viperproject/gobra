@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2026 ETH Zurich.
 
 package viper.gobra.frontend.info.implementation.typing
 
@@ -23,15 +23,21 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Returns true iff `measures` guarantee that a member terminates on every call.
-    * This is the case iff the specification contains a non-conditional termination measure:
+    * Returns true if `measures` guarantee that a member terminates on every call.
+    * This is the case if the specification contains a non-conditional termination measure:
     * conditional measures only guarantee termination when one of their conditions holds.
-    * Note that, unlike Viper, Gobra does not support marking a member as possibly
-    * non-terminating by means of a termination measure, and thus, a non-conditional wildcard
-    * measure also guarantees termination (albeit without proof).
+    * A non-conditional wildcard measure also guarantees termination (albeit without proof).
+    * Note that, unlike Viper, Gobra currently does not support marking a member as possibly
+    * non-terminating by means of a termination measure. To be defensive against the
+    * introduction of such measures, the case analysis below conservatively defaults to
+    * false for kinds of termination measures that it does not know.
     */
   private[typing] def measuresGuaranteeTermination(measures: Vector[PTerminationMeasure]): Boolean =
-    measures.exists(!isConditional(_))
+    measures.exists {
+      case m: PTupleTerminationMeasure => !isConditional(m)
+      case m: PWildcardMeasure => !isConditional(m)
+      case _ => false
+    }
 
   private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
     measures.flatMap { m =>
@@ -41,9 +47,9 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
   private[typing] def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
-    val tupleMeasureTypes =
-      measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
-              .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
+    val tupleMeasureTypes = measures
+      .collect { case ttm: PTupleTerminationMeasure => ttm }
+      .map(_.tuple.map(typ))
     tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
   }
 

@@ -11,13 +11,16 @@ package binary
 // 16-, 32-, or 64-bit unsigned integers.
 type ByteOrder interface {
 	requires acc(&b[0], _) && acc(&b[1], _)
+	decreases
 	pure Uint16(b []byte) uint16
 
 	requires acc(&b[0], _) && acc(&b[1], _) && acc(&b[2], _) && acc(&b[3], _)
+	decreases
 	pure Uint32(b []byte) uint32
 
 	requires acc(&b[0], _) && acc(&b[1], _) && acc(&b[2], _) && acc(&b[3], _)
 	requires acc(&b[4], _) && acc(&b[5], _) && acc(&b[6], _) && acc(&b[7], _)
+	decreases
 	pure Uint64(b []byte) uint64
 
 	requires acc(&b[0]) && acc(&b[1])
@@ -37,6 +40,7 @@ type ByteOrder interface {
 	decreases
 	PutUint64(b []byte, uint64)
 
+	decreases
 	pure String() string
 }
 
@@ -250,6 +254,4 @@ pure func (b bigEndian) GoString() (res string) { return "binary.BigEndian" }
 // If v is neither of these, Size returns -1.
 // (joao) requires support for the reflect package
 decreases
-func Size(v interface{}) int /*{
-	return dataSize(reflect.Indirect(reflect.ValueOf(v)))
-}*/
+func Size(v interface{}) int

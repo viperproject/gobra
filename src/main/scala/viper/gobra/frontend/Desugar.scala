@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
-import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
@@ -16,7 +16,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, IsInvariantAnnotation, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -526,6 +526,13 @@ object Desugar extends LazyLogging {
       in.GlobalVarProxy(v.id.name, name)(meta(v.decl, v.context.getTypeInfo))
     }
 
+    def openInvsVar : in.LocalVar =
+      in.LocalVar(
+        "openInvariants",
+        in.SetT(
+          in.PredT(Vector.empty, Addressability.exclusiveVariable),
+          Addressability.exclusiveVariable))(Source.Parser.Internal)
+
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 
     def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
@@ -692,7 +699,7 @@ object Desugar extends LazyLogging {
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
       val bodyOpt = decl.body.map{ case (_, s) =>
-        val vars = argSubs.flatten ++ capturedSubs ++ returnSubs.flatten
+        val vars = argSubs.flatten ++ capturedSubs ++ returnSubs.flatten ++ Vector(openInvsVar)
         val varsInit = vars map (v => in.Initialization(v)(v.info))
         val body = varsInit ++ argInits ++ capturedInits ++ Vector(blockD(ctx, info)(s))
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
@@ -890,7 +897,7 @@ object Desugar extends LazyLogging {
 
 
       val bodyOpt = decl.body.map{ case (_, s) =>
-        val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
+        val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten ++ Vector(openInvsVar)
         val varsInit = vars map (v => in.Initialization(v)(v.info))
         val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx, info)(s))
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
@@ -1097,6 +1104,23 @@ object Desugar extends LazyLogging {
         * In the case where the value variable 'j' is missing all the code annotated with [v]
         * is omitted
         */
+      /**
+        * Returns a statement that snapshots the openInvariants set before a loop and a loop
+        * invariant stating that the set still has its snapshotted value. The invariant prevents
+        * loops whose body opens critical regions from havocking the value of openInvariants,
+        * which would prevent opening invariants in later iterations or after the loop. It does
+        * not impose any restrictions on the user, given that the syntax of critical regions
+        * guarantees that no invariant may be open for longer than one loop iteration.
+        */
+      def openInvsUnchangedByLoop(n: PNode)(src: Source.Parser.Info): Writer[(in.Stmt, in.Assertion)] =
+        for {
+          oldOpenInvs <- freshDeclaredExclusiveVar(
+            in.SetT(in.PredT(Vector.empty, Addressability.Exclusive), Addressability.Exclusive), n, info
+          )(src)
+          init = in.SingleAss(in.Assignee.Var(oldOpenInvs), openInvsVar)(src)
+          unchanged = in.ExprAssertion(in.EqCmp(oldOpenInvs, openInvsVar)(src))(src)
+        } yield (init, unchanged)
+
       def desugarArrSliceShortRange(n: PShortForRange, range: PRange, shorts: Vector[PUnkLikeId], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
@@ -1126,7 +1150,9 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
         addedInvariantsBefore = Vector(
+          openInvsDoesNotChange,
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
             in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src),
@@ -1159,6 +1185,7 @@ object Desugar extends LazyLogging {
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
           singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(Vector(
@@ -1265,7 +1292,9 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
         addedInvariantsBefore = Vector(
+          openInvsDoesNotChange,
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
             in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src)
@@ -1301,6 +1330,7 @@ object Desugar extends LazyLogging {
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
           singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1418,11 +1448,12 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+        addedInvariants = openInvsDoesNotChange +: (if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
           Vector(
             in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
             in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
-          else Vector()
+          else Vector())
 
         dBody = blockD(ctx, info)(body)
 
@@ -1454,6 +1485,7 @@ object Desugar extends LazyLogging {
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1500,7 +1532,9 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
         addedInvariants = Vector(
+          openInvsDoesNotChange,
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
 
@@ -1536,6 +1570,7 @@ object Desugar extends LazyLogging {
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1587,6 +1622,8 @@ object Desugar extends LazyLogging {
           case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
+                (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx, info)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
@@ -1605,8 +1642,8 @@ object Desugar extends LazyLogging {
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
-                  Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(dCond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                  Vector(initOldOpenInvs, dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(dCond, openInvsDoesNotChange +: dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
                   )
@@ -1903,6 +1940,26 @@ object Desugar extends LazyLogging {
               } yield in.Outline(name, pres, posts, terminationMeasures, annotations, dummyBody, trusted = true)(src)
             }
 
+          case PCritical(expr, stmts) =>
+            val exprSrcIsInv = meta(expr, info).createAnnotatedInfo(IsInvariantAnnotation())
+
+            for {
+              e <- goE(expr)
+              // `Invariant(e)`: constructed here (rather than in the encoding of the critical
+              // statement) because the built-in `Invariant` function must be registered with
+              // the desugarer.
+              invIsInv = in.PureFunctionCall(
+                functionProxy(InvariantFunctionTag, Vector(e.typ))(exprSrcIsInv),
+                Vector(e),
+                in.BoolT(Addressability.Exclusive),
+                false
+              )(exprSrcIsInv)
+              stmtsW = sequence(stmts map goS)
+              // variable declarations from the region's body are propagated to the enclosing
+              // block, keeping the variables accessible after the region.
+              _ <- declare(stmtsW.declared : _*)
+              body = in.Seqn(stmtsW.written ++ stmtsW.res)(src)
+            } yield in.Critical(e, invIsInv, openInvsVar, body)(src)
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 
@@ -3707,7 +3764,7 @@ object Desugar extends LazyLogging {
         backendAnnotations = Vector.empty,
         body = Some(
           in.MethodBody(
-            decls = Vector(),
+            decls = Vector(openInvsVar),
             postprocessing = Vector(),
             seqn = in.MethodBodySeqn{
               // Init all global variables declared in the file (not all declarations in the package!).
@@ -4840,7 +4897,7 @@ object Desugar extends LazyLogging {
           unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInPredicate =>
-          val fproxy = fpredicateProxy(b.id, info)
+          val fproxy = fpredicateProxy(b.symb.tag, convertArgs(dArgs).map(_.typ))(src)
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>

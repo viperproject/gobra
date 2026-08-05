@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, InvariantMightBeOpenAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -205,6 +205,15 @@ class DefaultErrorBackTranslator(
 
       case _ / InvalidImplTermMeasureAnnotation() =>
         x.reasons.foldLeft(MethodTerminationError(x.info): VerificationError) { case (err, _) => err dueTo ImplMeasureHigherThanInterfaceReason(x.info) }
+
+      case _ / IsInvariantAnnotation() =>
+        IsInvariantFailedError(x.info)
+
+      case _ / InvariantMightBeOpenAnnotation() =>
+        InvariantMightBeOpenError(x.info)
+
+      case _ / InvariantNotRestoredAnnotation() =>
+        InvariantNotRestoredError(x.info)
 
       case _ => x
     }

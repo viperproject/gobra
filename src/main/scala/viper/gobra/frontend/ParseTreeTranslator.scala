@@ -936,6 +936,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       isPure = ctx.pure,
       isTrusted = ctx.trusted,
       isOpaque = ctx.opaque,
+      isAtomic = ctx.atomic,
+      opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
     )
   }
@@ -2234,6 +2236,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitGotoStmt(ctx: GotoStmtContext): PGoto = PGoto(visitLabelUse(ctx.IDENTIFIER())).at(ctx)
 
+  override def visitCriticalStmt(ctx: CriticalStmtContext): PCritical = {
+    val e = visit(ctx.expression()).asInstanceOf[PExpression]
+    val l = visitStatementList(ctx.statementList())
+    PCritical(e, l).at(ctx)
+  }
 
   /**
     * Fallthrough

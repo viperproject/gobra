@@ -368,6 +368,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       spec(showPreconditions(pres) <>
         showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <>
         "outline" <> (if (trusted) emptyDoc else parens(nest(line <> showStmt(body)) <> line))
+    case Critical(inv, _, _, body) =>
+      "critical" <+> showExpr(inv) <+> parens(nest(line <> showStmt(body)) <> line)
     case Continue(l, _) => "continue" <+> opt(l)(text)
     case Break(l, _) => "break" <+> opt(l)(text)
   })
@@ -833,5 +835,6 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         showPostconditions(posts) <> showTerminationMeasures(measures)) <>
         showBackendAnnotations(backendAnnotations) <>
         "outline"
+    case Critical(inv, _, _, _) => "critical" <+> showExpr(inv)
   }
 }

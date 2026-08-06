@@ -457,6 +457,7 @@ Gobra encodes `float32` and `float64` into the SMT theory of IEEE 754 floating-p
 - Float division is total: `x / 0.0` is `±Inf` (or `NaN` for `0.0 / 0.0`), and no non-zero divisor proof obligation is generated.
 - Float arithmetic is not associative and rounds; algebraic identities like `x + y - y == x` do not hold and cannot be verified.
 - Conversions from floats to integers are currently uninterpreted: nothing is known about their result.
+- Structs containing floats compare field-wise with Go's float semantics, and maps with float keys are supported (keys compare structurally). Arrays of floats currently compare structurally — a NaN element does not make two arrays unequal, deviating from Go — and floats cannot be stored in interface values, since interfaces require types whose structural equality coincides with Go's equality.
 
 Reasoning in the IEEE 754 theory can be expensive for the SMT solver. With the flag `--uninterpretedFloats`, Gobra falls back to encoding float operations as uninterpreted functions: much faster, but then nothing is known about float arithmetic (no literal values, no `NaN`, no rounding), and `==` on floats is structural.
 

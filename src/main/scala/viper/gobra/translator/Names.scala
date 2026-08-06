@@ -56,6 +56,8 @@ object Names {
     case in.BoolT(addr) => s"Bool${serializeAddressability(addr)}"
     case in.StringT(addr) => s"String${serializeAddressability(addr)}"
     case in.IntT(addr, kind) => s"Int${kind.name}${serializeAddressability(addr)}"
+    case in.Float32T(addr) => s"Float32${serializeAddressability(addr)}"
+    case in.Float64T(addr) => s"Float64${serializeAddressability(addr)}"
     case in.VoidT => ""
     case in.PermissionT(addr) => s"Permission${serializeAddressability(addr)}"
     case in.SortT => "Sort"

@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+// Floats cannot be boxed into interface values: interfaces require types for
+// which Gobra's structural equality coincides with Go's equality (see
+// isIdentityPreservingType), which does not hold for floats under IEEE 754
+// semantics (NaN != NaN and +0.0 == -0.0 in Go).
+func ifaceFloat(x float64) {
+	//:: ExpectedOutput(type_error)
+	var i interface{} = x
+	_ = i
+}

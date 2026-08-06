@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue491_4
+
+// Tests that usages of L-values that cannot panic due to a nil dereference
+// do not generate nil-ness proof obligations. Earlier versions of the nil
+// checks asserted non-nilness of the address of the entire L-value, which
+// the verifier often cannot prove for compound locations such as elements
+// of a resliced slice (see the discussion in PR #531).
+
+requires 8 <= len(raw)
+preserves forall i int :: { &raw[i] } 0 <= i && i < len(raw) ==> acc(&raw[i])
+func DecodeFromBytes(raw []byte) {
+	assert forall i int :: 0 <= i && i < len(raw[2:4]) ==>
+		&raw[2:4][i] == &raw[2 + i]
+}
+
+requires len(s) == 2
+requires acc(&s[0]) && acc(&s[1])
+func reslicedElemAddr(s []int) {
+	assert &s[1:2][0] == &s[1]
+}
+
+type Pair struct {
+	x int
+	y int
+}
+
+// Taking the address of a field only requires the root pointer to be non-nil.
+requires p != nil
+func addrOfField(p *Pair) (r *int) {
+	r = &p.x
+	return
+}
+
+requires acc(p)
+func addrOfFieldWithPermission(p *Pair) (r *int) {
+	r = &p.x
+	return
+}

@@ -341,7 +341,7 @@ trait TypeEncoding extends Generator {
     * Instead of checking that a dereference is safe immediately, the encoding checks that usages of l-values are safe.
     * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
     *
-    * SafeRef[loc: T@] => assert [&loc != nil: *T°]; Ref[loc]
+    * SafeRef[loc: T@] => assert [p != nil]; Ref[loc]    where *p is the root of loc (if any, see checkNotNil)
     */
   final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     val r = reference(ctx); { case loc@r(w) =>
@@ -506,22 +506,60 @@ object TypeEncoding {
 
   /**
     * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * In Go, using an L-value panics if and only if the pointer at the root of the L-value chain is nil.
+    * All other panics that usages of L-values can cause (e.g. an out-of-bounds index) are covered by
+    * separate checks. Thus, a proof obligation is generated only if the root of `loc` is a dereference,
+    * in which case we check that the dereferenced pointer is not nil:
     *
-    * assert [&loc != nil: *T°]; res
+    * assert [p != nil]; res    where *p is the root of loc
     *
+    * Checking the root pointer instead of the address of `loc` keeps the proof obligation independent
+    * of the address arithmetic performed by the encodings of composite types (see PR #531).
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
-    if (cannotBeNil(loc)) cl.unit(res)
-    else {
-      for {
-        cond <- checkNotNil(loc)(ctx)
-        checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
-      } yield checked
+    nilCheckSource(loc) match {
+      case None => cl.unit(res)
+      case Some(d) =>
+        for {
+          cond <- rootPointerNotNil(d)(ctx)
+          checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
+        } yield checked
     }
   }
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Encodes the condition that the pointer dereferenced at the root of an L-value chain is not nil.
+    *
+    * [p != nil]    where d = *p
+    */
+  private def rootPointerNotNil(d: in.Deref)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val annotatedInfo = d.info match {
+      case s: Source.Parser.Single => s.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
+      case i => i
+    }
+    ctx.expression(in.UneqCmp(
+      d.exp,
+      in.NilLit(in.PointerT(d.typ, Exclusive))(annotatedInfo)
+    )(annotatedInfo))
+  }
+
+  /**
+    * Returns the dereference at the root of an L-value chain, if any.
+    * L-values rooted in a variable cannot cause a nil dereference. The same holds for bases that are
+    * exclusive values (e.g. a slice value as the base of an index expression), where an in-bounds
+    * index implies that the accessed element exists.
+    */
+  @tailrec
+  private def nilCheckSource(l: in.Expr): Option[in.Deref] = l match {
+    case d: in.Deref => Some(d)
+    case l: in.FieldRef => nilCheckSource(l.recv)
+    case l: in.IndexedExp => nilCheckSource(l.base)
+    case _ => None
+  }
+
+  /**
+    * Encodes the non-nilness of the address of an L-value. Used as the footprint of zero-sized types
+    * (which have no permission footprint), not as a runtime-panic check.
     *
     * [&loc != nil: *T°]
     *

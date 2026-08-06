@@ -21,7 +21,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util._
 
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
@@ -3602,7 +3602,7 @@ object Desugar extends LazyLogging {
           args = Vector.empty,
           results = Vector.empty,
           pres = pres,
-          posts = posts.map(_.withInfo(src)),
+          posts = posts,
           terminationMeasures = Vector(terminationMeasure),
           backendAnnotations = Vector.empty,
           body = Some(in.MethodBody.empty(src))

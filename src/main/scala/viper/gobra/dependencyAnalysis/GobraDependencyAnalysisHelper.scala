@@ -3,6 +3,7 @@ package viper.gobra.dependencyAnalysis
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.TypeInfo
 import viper.silver.ast
+import viper.silver.dependencyAnalysis.AssumptionType.{ImplicitPostcondition, Precondition}
 import viper.silver.dependencyAnalysis._
 import viper.silver.plugin.standard.termination.PDecreasesClause
 
@@ -113,6 +114,7 @@ object GobraDependencyAnalysisHelper {
       case PPreamble(packageClause, pkgInvariants, imports, friends, _) => go(packageClause +: (pkgInvariants ++ imports ++ friends))
       case PPkgInvariant(inv, _) => goTopLevelConjuncts(inv, Some(DependencyType(AssumptionType.LoopInvariant)))
       case PFriendPkgDecl(_, assertion) => goS(assertion, Some(DependencyType(AssumptionType.Annotation)))
+      case i: PImport => go(i.importPres, Some(DependencyType.apply(Precondition, ImplicitPostcondition)))
 
 
       case PTypeDef(typeDef, _) => goS(typeDef)

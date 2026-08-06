@@ -13,6 +13,7 @@ object Nodes {
   /** Returns a list of all direct sub-nodes of this node. */
   def subnodes(n: PNode): Seq[PNode] = {
 
+    // extracts all reachable `PNode`s including the current node
     def extractChildren(a: Any): Seq[PNode] = a match {
       case t: PNode => Seq(t)
       // Handles Vector, Seq, Option, Map (as iterator of key and value pairs)

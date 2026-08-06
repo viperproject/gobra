@@ -38,3 +38,33 @@ func nestedArrayCompare(s vec, t vec) {
 func mapFloatKey(m map[float64]int) {
 	_ = m
 }
+
+type wrapped struct {
+	f float64
+}
+
+// The float checks are recursive: a struct with a float field is also
+// rejected as a map key ...
+//:: ExpectedOutput(type_error)
+func mapStructKey(m map[wrapped]int) {
+	_ = m
+}
+
+type myFloat float64
+
+// ... and defined types with a float underlying type are treated as floats.
+//:: ExpectedOutput(type_error)
+func mapDefinedKey(m map[myFloat]int) {
+	_ = m
+}
+
+type matrix struct {
+	rows [2][2]float64
+}
+
+// Floats nested arbitrarily deep in arrays inside structs make the type
+// non-comparable.
+func deeplyNestedCompare(a matrix, b matrix) {
+	//:: ExpectedOutput(type_error)
+	assert a == b
+}

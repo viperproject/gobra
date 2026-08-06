@@ -518,12 +518,12 @@ object TypeEncoding {
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
     nilCheckSource(loc) match {
-      case None => cl.unit(res)
-      case Some(d) =>
+      case Some(d) if ctx.emitNilChecks =>
         for {
           cond <- rootPointerNotNil(d)(ctx)
           checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
         } yield checked
+      case _ => cl.unit(res)
     }
   }
 

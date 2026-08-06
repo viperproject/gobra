@@ -1,3 +1,80 @@
+diff --git a/pkg/slayers/extn.go b/pkg/slayers/extn.go
+index 2bbffd8..cb8497a 100644
+--- a/pkg/slayers/extn.go
++++ b/pkg/slayers/extn.go
+@@ -48,7 +48,9 @@ type tlvOption struct {
+ 	OptAlign     [2]uint8 // Xn+Y = [2]uint8{X, Y}
+ }
+ 
+-// @ preserves acc(o, R20)
++// @ requires  acc(o, R20)
++// @ requires  len(o.OptData) <= 255 // TLV option data length must fit in the uint8 OptDataLen wire field
++// @ ensures   acc(o, R20)
+ // @ ensures   0 < res
+ // @ ensures   o.OptType == OptTypePad1 ==> res == 1
+ // @ ensures   o.OptType != OptTypePad1 ==> 2 <= res
+@@ -104,6 +106,7 @@ func (o *tlvOption) serializeTo(data []byte, fixLengths bool) {
+ // @ ensures   (err == nil && res.OptType != OptTypePad1) ==> (
+ // @ 	2 <= res.ActualLength && res.ActualLength <= len(data) && res.OptData === data[2:res.ActualLength])
+ // @ ensures   err == nil ==> 0 < res.ActualLength
++// @ ensures   (err == nil && res.OptType == OptTypePad1) ==> res.ActualLength == 1
+ // @ ensures   err != nil ==> err.ErrorMem()
+ // @ decreases
+ func decodeTLVOption(data []byte) (res *tlvOption, err error) {
+@@ -336,7 +339,7 @@ func (h *HopByHopExtn) SerializeTo(b gopacket.SerializeBuffer,
+ 
+ 	o := make([]*tlvOption, 0, len(h.Options))
+ 	for _, v := range h.Options {
+-		o = append( /*@ perm(0/1), @*/ o, (*tlvOption)(v))
++		o = append( /*@ perm(0, 1), @*/ o, (*tlvOption)(v))
+ 	}
+ 
+ 	return h.extnBase.serializeToWithTLVOptions(b, opts, o)
+@@ -376,7 +379,7 @@ func (h *HopByHopExtn) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback)
+ 	// @ invariant acc(sl.Bytes(data, 0, len(data)), R40)
+ 	// @ invariant h.BaseLayer.Contents === data[:h.ActualLen]
+ 	// @ invariant h.BaseLayer.Payload === data[h.ActualLen:]
+-	// @ decreases h.ActualLen - offset
++	// @ decreases integer(h.ActualLen) - integer(offset)
+ 	for offset < h.ActualLen {
+ 		// @ sl.SplitRange_Bytes(data, offset, h.ActualLen, R40)
+ 		opt, err := decodeTLVOption(data[offset:h.ActualLen])
+@@ -386,7 +389,7 @@ func (h *HopByHopExtn) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback)
+ 			return err
+ 		}
+ 		// @ ghost tmp := (*HopByHopOption)(opt)
+-		h.Options = append( /*@ perm(1/2), @*/ h.Options, (*HopByHopOption)(opt))
++		h.Options = append( /*@ perm(1, 2), @*/ h.Options, (*HopByHopOption)(opt))
+ 		offset += opt.ActualLength
+ 		// @ assert h.Options[lenOptions] === tmp
+ 		// @ fold tmp.Mem(lenOptions)
+@@ -508,7 +511,7 @@ func (e *EndToEndExtn) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback)
+ 	// @ invariant acc(sl.Bytes(data, 0, len(data)), R40)
+ 	// @ invariant e.BaseLayer.Contents === data[:e.ActualLen]
+ 	// @ invariant e.BaseLayer.Payload === data[e.ActualLen:]
+-	// @ decreases e.ActualLen - offset
++	// @ decreases integer(e.ActualLen) - integer(offset)
+ 	for offset < e.ActualLen {
+ 		// @ sl.SplitRange_Bytes(data, offset, e.ActualLen, R40)
+ 		opt, err := decodeTLVOption(data[offset:e.ActualLen])
+@@ -518,7 +521,7 @@ func (e *EndToEndExtn) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback)
+ 			return err
+ 		}
+ 		// @ ghost tmp := (*EndToEndOption)(opt)
+-		e.Options = append( /*@ perm(1/2), @*/ e.Options, (*EndToEndOption)(opt))
++		e.Options = append( /*@ perm(1, 2), @*/ e.Options, (*EndToEndOption)(opt))
+ 		offset += opt.ActualLength
+ 		// @ assert e.Options[lenOptions] === tmp
+ 		// @ fold tmp.Mem(lenOptions)
+@@ -571,7 +574,7 @@ func (e *EndToEndExtn) SerializeTo(b gopacket.SerializeBuffer,
+ 
+ 	o := make([]*tlvOption, 0, len(e.Options))
+ 	for _, v := range e.Options {
+-		o = append( /*@ perm(0/1), @*/ o, (*tlvOption)(v))
++		o = append( /*@ perm(0, 1), @*/ o, (*tlvOption)(v))
+ 	}
+ 
+ 	return e.extnBase.serializeToWithTLVOptions(b, opts, o)
 diff --git a/pkg/slayers/path/epic/epic.go b/pkg/slayers/path/epic/epic.go
 index 8d33b96..485cd4b 100644
 --- a/pkg/slayers/path/epic/epic.go
@@ -705,6 +782,284 @@ index 9eb8eb0..db5ba0b 100644
  		WidenCurrSeg(raw, offsetWithHopfields, currInfIdx, 0, segs.Seg3Len, headerOffset, start, length)
  	}
  	reveal MidSeg(raw, currInfIdx, segs, headerOffset)
+diff --git a/pkg/slayers/scion.go b/pkg/slayers/scion.go
+index b74c6d6..c27ef1d 100644
+--- a/pkg/slayers/scion.go
++++ b/pkg/slayers/scion.go
+@@ -196,7 +196,7 @@ func (s *SCION) NextLayerType( /*@ ghost ub []byte @*/ ) gopacket.LayerType {
+ func (s *SCION) LayerPayload( /*@ ghost ub []byte @*/ ) (res []byte /*@ , ghost start int, ghost end int @*/) {
+ 	//@ unfold acc(s.Mem(ub), R20)
+ 	res = s.Payload
+-	//@ start = int(s.HdrLen*LineLen)
++	//@ start = int(int(s.HdrLen)*LineLen)
+ 	//@ end = len(ub)
+ 	//@ fold acc(s.Mem(ub), R20)
+ 	return res /*@, start, end @*/
+@@ -228,9 +228,9 @@ func (s *SCION) NetworkFlow() (res gopacket.Flow) {
+ func (s *SCION) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeOptions /* @ , ghost ubuf []byte @*/) (e error) {
+ 	// @ unfold acc(s.Mem(ubuf), R1)
+ 	// @ defer fold acc(s.Mem(ubuf), R1)
+-	// @ sl.SplitRange_Bytes(ubuf, int(CmnHdrLen+s.AddrHdrLen(nil, true)), int(s.HdrLen*LineLen), R10)
+-	scnLen := CmnHdrLen + s.AddrHdrLen( /*@ nil, true @*/ ) + s.Path.Len( /*@ ubuf[CmnHdrLen+s.AddrHdrLen(nil, true) : s.HdrLen*LineLen] @*/ )
+-	// @ sl.CombineRange_Bytes(ubuf, int(CmnHdrLen+s.AddrHdrLenSpecInternal()), int(s.HdrLen*LineLen), R10)
++	// @ sl.SplitRange_Bytes(ubuf, int(CmnHdrLen+s.AddrHdrLen(nil, true)), int(int(s.HdrLen)*LineLen), R10)
++	scnLen := CmnHdrLen + s.AddrHdrLen( /*@ nil, true @*/ ) + s.Path.Len( /*@ ubuf[CmnHdrLen+s.AddrHdrLen(nil, true) : int(s.HdrLen)*LineLen] @*/ )
++	// @ sl.CombineRange_Bytes(ubuf, int(CmnHdrLen+s.AddrHdrLenSpecInternal()), int(int(s.HdrLen)*LineLen), R10)
+ 	if scnLen > MaxHdrLen {
+ 		return serrors.New("header length exceeds maximum",
+ 			"max", MaxHdrLen, "actual", scnLen)
+@@ -291,7 +291,7 @@ func (s *SCION) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeO
+ 
+ 	// Serialize path header.
+ 	// @ ghost startP := int(CmnHdrLen+s.AddrHdrLenSpecInternal())
+-	// @ ghost endP := int(s.HdrLen*LineLen)
++	// @ ghost endP := int(int(s.HdrLen)*LineLen)
+ 	// @ ghost pathSlice := ubuf[startP : endP]
+ 	// @ sl.SplitRange_Bytes(uSerBufN, offset, scnLen, HalfPerm)
+ 	// @ sl.SplitRange_Bytes(ubuf, startP, endP, HalfPerm)
+@@ -361,7 +361,7 @@ func (s *SCION) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) (res er
+ 	// @ ensures   0 <= s.PathType && s.PathType < 256
+ 	// @ ensures   path.Type(GetPathType(data)) == s.PathType
+ 	// @ ensures   L4ProtocolType(GetNextHdr(data)) == s.NextHdr
+-	// @ ensures   GetLength(data) == int(s.HdrLen * LineLen)
++	// @ ensures   GetLength(data) == int(int(s.HdrLen) * LineLen)
+ 	// @ ensures   GetAddressOffset(data) ==
+ 	// @	CmnHdrLen + 2*addr.IABytes + s.DstAddrType.Length() + s.SrcAddrType.Length()
+ 	// @ decreases
+@@ -375,9 +375,9 @@ func (s *SCION) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) (res er
+ 	s.PathType = path.Type(data[8])
+ 	// @ assert 0 <= s.PathType && s.PathType < 256
+ 	s.DstAddrType = AddrType(data[9] >> 4 & 0x7)
+-	// @ assert int(s.DstAddrType) == b.BitAnd7(int(data[9] >> 4))
++	// @ assert int(s.DstAddrType) == int(b.BitAnd7(data[9] >> 4))
+ 	s.SrcAddrType = AddrType(data[9] & 0x7)
+-	// @ assert int(s.SrcAddrType) == b.BitAnd7(int(data[9]))
++	// @ assert int(s.SrcAddrType) == int(b.BitAnd7(data[9]))
+ 	// @ fold acc(sl.Bytes(data, 0, len(data)), R41)
+ 	// @ )
+ 	// Decode address header.
+@@ -468,7 +468,7 @@ func (s *SCION) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) (res er
+ 	// @ 	path.Type(GetPathType(data)) == epic.PathType ==>
+ 	// @ 	s.EqAbsHeader(data) && s.ValidScionInitSpec(data)
+ 	// @ assert reveal s.EqPathType(data)
+-	// @ fold acc(s.Mem(data), 1-R54)
++	// @ fold acc(s.Mem(data), writePerm-R54)
+ 	return nil
+ }
+ 
+@@ -675,11 +675,11 @@ func (s *SCION) SrcAddr() (res net.Addr, err error) {
+ // @ ensures   res == nil && !wildcard && isHostSVC(dst) ==> sl.Bytes(s.RawDstAddr, 0, len(s.RawDstAddr))
+ // @ ensures   res == nil && !wildcard ==> acc(dst.Mem(), R18)
+ // @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv4(dst) ==> forall i int :: { &s.RawDstAddr[i] } 0 <= i && i < len(s.RawDstAddr) ==> &s.RawDstAddr[i] == &dst.(*net.IPAddr).IP[i]))
+-// @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv6(dst) && isConvertibleToIPv4(dst) ==> forall i int :: { &s.RawDstAddr[i] } 0 <= i && i < len(s.RawDstAddr) ==> &s.RawDstAddr[i] == &dst.(*net.IPAddr).IP[12+i]))
++// @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv6(dst) && isConvertibleToIPv4(dst) ==> forall i int :: { &s.RawDstAddr[i] } 0 <= i && i < len(s.RawDstAddr) ==> &s.RawDstAddr[i] == &dst.(*net.IPAddr).IP[12 + integer(i)]))
+ // @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (!isIPv4(dst) && !isIPv6(dst) ==> forall i int :: { &s.RawDstAddr[i] } 0 <= i && i < len(s.RawDstAddr) ==> &s.RawDstAddr[i] == &dst.(*net.IPAddr).IP[i]))
+ // @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv6(dst) && !isConvertibleToIPv4(dst) ==> forall i int :: { &s.RawDstAddr[i] } 0 <= i && i < len(s.RawDstAddr) ==> &s.RawDstAddr[i] == &dst.(*net.IPAddr).IP[i]))
+ // @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv4(dst) ==> len(s.RawDstAddr) == len(dst.(*net.IPAddr).IP)))
+-// @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv6(dst) && isConvertibleToIPv4(dst) ==> len(dst.(*net.IPAddr).IP) == len(s.RawDstAddr) + 12))
++// @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv6(dst) && isConvertibleToIPv4(dst) ==> len(dst.(*net.IPAddr).IP) == integer(len(s.RawDstAddr)) + 12))
+ // @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (!isIPv4(dst) && !isIPv6(dst) ==> len(dst.(*net.IPAddr).IP) == len(s.RawDstAddr)))
+ // @ ensures   res == nil && !wildcard && isIP(dst) ==> (unfolding acc(dst.Mem(), R20) in (isIPv6(dst) && !isConvertibleToIPv4(dst) ==> len(dst.(*net.IPAddr).IP) == len(s.RawDstAddr)))
+ // @ ensures   (res == nil) == (typeOf(dst) == type[*net.IPAddr] || typeOf(dst) == type[addr.HostSVC])
+@@ -712,11 +712,11 @@ func (s *SCION) SetDstAddr(dst net.Addr /*@ , ghost wildcard bool @*/) (res erro
+ // @ ensures   res == nil && !wildcard && isHostSVC(src) ==> sl.Bytes(s.RawSrcAddr, 0, len(s.RawSrcAddr))
+ // @ ensures   res == nil && !wildcard ==> acc(src.Mem(), R18)
+ // @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv4(src) ==> forall i int :: { &s.RawSrcAddr[i] } 0 <= i && i < len(s.RawSrcAddr) ==> &s.RawSrcAddr[i] == &src.(*net.IPAddr).IP[i]))
+-// @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv6(src) && isConvertibleToIPv4(src) ==> forall i int :: { &s.RawSrcAddr[i] } 0 <= i && i < len(s.RawSrcAddr) ==> &s.RawSrcAddr[i] == &src.(*net.IPAddr).IP[12+i]))
++// @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv6(src) && isConvertibleToIPv4(src) ==> forall i int :: { &s.RawSrcAddr[i] } 0 <= i && i < len(s.RawSrcAddr) ==> &s.RawSrcAddr[i] == &src.(*net.IPAddr).IP[12 + integer(i)]))
+ // @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (!isIPv4(src) && !isIPv6(src) ==> forall i int :: { &s.RawSrcAddr[i] } 0 <= i && i < len(s.RawSrcAddr) ==> &s.RawSrcAddr[i] == &src.(*net.IPAddr).IP[i]))
+ // @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv6(src) && !isConvertibleToIPv4(src) ==> forall i int :: { &s.RawSrcAddr[i] } 0 <= i && i < len(s.RawSrcAddr) ==> &s.RawSrcAddr[i] == &src.(*net.IPAddr).IP[i]))
+ // @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv4(src) ==> len(s.RawSrcAddr) == len(src.(*net.IPAddr).IP)))
+-// @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv6(src) && isConvertibleToIPv4(src) ==> len(src.(*net.IPAddr).IP) == len(s.RawSrcAddr) + 12))
++// @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv6(src) && isConvertibleToIPv4(src) ==> len(src.(*net.IPAddr).IP) == integer(len(s.RawSrcAddr)) + 12))
+ // @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (!isIPv4(src) && !isIPv6(src) ==> len(src.(*net.IPAddr).IP) == len(s.RawSrcAddr)))
+ // @ ensures   res == nil && !wildcard && isIP(src) ==> (unfolding acc(src.Mem(), R20) in (isIPv6(src) && !isConvertibleToIPv4(src) ==> len(src.(*net.IPAddr).IP) == len(s.RawSrcAddr)))
+ // @ ensures   (res == nil) == (typeOf(src) == type[*net.IPAddr] || typeOf(src) == type[addr.HostSVC])
+@@ -790,11 +790,11 @@ func parseAddr(addrType AddrType, raw []byte) (res net.Addr, err error) {
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> acc(sl.Bytes(b, 0, len(b)), R20)
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (acc(sl.Bytes(b, 0, len(b)), R20) --* acc(hostAddr.Mem(), R20))
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[i]))
+-// @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[12+i]))
++// @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[12 + integer(i)]))
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (!isIPv4(hostAddr) && !isIPv6(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[i]))
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && !isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[i]))
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv4(hostAddr) ==> len(b) == len(hostAddr.(*net.IPAddr).IP)))
+-// @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> len(hostAddr.(*net.IPAddr).IP) == len(b) + 12))
++// @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> len(hostAddr.(*net.IPAddr).IP) == integer(len(b)) + 12))
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (!isIPv4(hostAddr) && !isIPv6(hostAddr) ==> len(hostAddr.(*net.IPAddr).IP) == len(b)))
+ // @ ensures   err == nil && !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && !isConvertibleToIPv4(hostAddr) ==> len(hostAddr.(*net.IPAddr).IP) == len(b)))
+ // @ ensures   (err == nil) == (typeOf(hostAddr) == type[*net.IPAddr] || typeOf(hostAddr) == type[addr.HostSVC])
+@@ -810,10 +810,10 @@ func packAddr(hostAddr net.Addr /*@ , ghost wildcard bool @*/) (addrtyp AddrType
+ 		if ip := a.IP.To4( /*@ wildcard @*/ ); ip != nil {
+ 			// @ ghost if !wildcard && isIPv6(a) {
+ 			// @ 	assert isConvertibleToIPv4(hostAddr) ==>
+-			// @ 		forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &a.IP[12+i]
++			// @ 		forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &a.IP[12 + integer(i)]
+ 			// @ }
+ 			// @ assert !wildcard && isIP(hostAddr) ==>
+-			// @ 	(unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[12+i]))
++			// @ 	(unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[12 + integer(i)]))
+ 			// @ ghost if wildcard {
+ 			// @ 	fold acc(sl.Bytes(ip, 0, len(ip)), _)
+ 			// @ } else {
+@@ -825,7 +825,7 @@ func packAddr(hostAddr net.Addr /*@ , ghost wildcard bool @*/) (addrtyp AddrType
+ 			// @ }
+ 			return T4Ip, ip, nil
+ 		}
+-		// @ assert !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[12+i]))
++		// @ assert !wildcard && isIP(hostAddr) ==> (unfolding acc(hostAddr.Mem(), R20) in (isIPv6(hostAddr) && isConvertibleToIPv4(hostAddr) ==> forall i int :: { &b[i] } 0 <= i && i < len(b) ==> &b[i] == &hostAddr.(*net.IPAddr).IP[12 + integer(i)]))
+ 		verScionTmp := a.IP
+ 		// @ ghost if wildcard {
+ 		// @ 	fold acc(sl.Bytes(verScionTmp, 0, len(verScionTmp)), _)
+@@ -1096,7 +1096,7 @@ func (s *SCION) upperLayerChecksum(upperLayer []byte, csum uint32) uint32 {
+ 	// Odd lengths are handled at the end.
+ 	safeBoundary := len(upperLayer) - 1
+ 	// @ unfold acc(sl.Bytes(upperLayer, 0, len(upperLayer)), R20)
+-	// @ invariant 0 <= i && i < safeBoundary + 2
++	// @ invariant 0 <= i && integer(i) < integer(safeBoundary) + 2
+ 	// @ invariant i % 2 == 0
+ 	// @ invariant forall i int :: { &upperLayer[i] } 0 <= i && i < len(upperLayer) ==> acc(&upperLayer[i], R20)
+ 	// @ decreases safeBoundary - i
+diff --git a/pkg/slayers/scion_spec.gobra b/pkg/slayers/scion_spec.gobra
+index 6182f2a..8f85f74 100644
+--- a/pkg/slayers/scion_spec.gobra
++++ b/pkg/slayers/scion_spec.gobra
+@@ -164,11 +164,11 @@ pred (s *SCION) Mem(ubuf []byte) {
+ 	// end of len of ubuf
+ 	acc(&s.Path) &&
+ 	s.Path != nil &&
+-	s.Path.Mem(ubuf[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen]) &&
++	s.Path.Mem(ubuf[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen]) &&
+ 	acc(&s.BaseLayer) &&
+ 	// base layer fields:
+-	s.Contents === ubuf[:s.HdrLen*LineLen] &&
+-	s.Payload  === ubuf[s.HdrLen*LineLen:] &&
++	s.Contents === ubuf[:int(s.HdrLen)*LineLen] &&
++	s.Payload  === ubuf[int(s.HdrLen)*LineLen:] &&
+ 	// end of base layer fields
+ 	CmnHdrLen <= len(ubuf) &&
+ 	s.HeaderMem(ubuf[CmnHdrLen:]) &&
+@@ -228,7 +228,7 @@ decreases
+ func (s *SCION) DowngradePerm(ghost ub []byte) {
+ 	unfold s.Mem(ub)
+ 	unfold s.HeaderMem(ub[CmnHdrLen:])
+-	s.Path.DowngradePerm(ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen])
++	s.Path.DowngradePerm(ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen])
+ 	s.PathPoolMemExchange(s.PathType, s.Path)
+ 	fold s.NonInitMem()
+ }
+@@ -282,7 +282,7 @@ requires s.Mem(ub)
+ decreases
+ pure func (s *SCION) UBPath(ub []byte) []byte {
+ 	return unfolding s.Mem(ub) in
+-		ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen]
++		ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen]
+ }
+ 
+ ghost
+@@ -290,7 +290,7 @@ requires s.Mem(ub)
+ decreases
+ pure func (s *SCION) UBScionPath(ub []byte) []byte {
+ 	return unfolding s.Mem(ub) in
+-		let ubPath := ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen] in
++		let ubPath := ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen] in
+ 		typeOf(s.Path) == *epic.Path ?
+ 			unfolding s.Path.Mem(ubPath) in ubPath[epic.MetadataLen:] :
+ 			ubPath
+@@ -309,7 +309,7 @@ requires s.Mem(ub)
+ decreases
+ pure func (s *SCION) PathEndIdx(ub []byte) int {
+ 	return unfolding s.Mem(ub) in
+-		int(s.HdrLen*LineLen)
++		int(int(s.HdrLen)*LineLen)
+ }
+ 
+ ghost
+@@ -328,7 +328,7 @@ requires s.Mem(ub)
+ decreases
+ pure func (s *SCION) PathScionEndIdx(ub []byte) int {
+ 	return unfolding s.Mem(ub) in
+-		int(s.HdrLen*LineLen)
++		int(int(s.HdrLen)*LineLen)
+ }
+ 
+ ghost
+@@ -462,7 +462,7 @@ pure func (s *SCION) ValidScionInitSpec(ub []byte) bool {
+ 		// the '_' in the identifier below is now necessary to avoid
+ 		// parsing errors (since the SIF PR in Gobra, low is a keyword).
+ 		let low_ := CmnHdrLen+s.AddrHdrLenSpecInternal() in
+-		let high := s.HdrLen*LineLen                     in
++		let high := int(s.HdrLen)*LineLen                     in
+ 		(typeOf(s.Path) == (*scion.Raw) || typeOf(s.Path) == (*epic.Path)) &&
+ 		(typeOf(s.Path) == (*epic.Path) ?
+ 			s.Path.(*epic.Path).GetBase(ub[low_:high]).WeaklyValid() :
+@@ -655,7 +655,7 @@ decreases
+ pure func (s *SCION) GetScionPath(ub []byte) path.Path {
+ 	return unfolding s.Mem(ub) in (
+ 		typeOf(s.Path) == *epic.Path ?
+-			(let ubPath := ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen] in
++			(let ubPath := ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen] in
+ 				unfolding s.Path.Mem(ubPath) in
+ 				(path.Path)(s.Path.(*epic.Path).ScionPath)) :
+ 			s.Path)
+@@ -823,10 +823,10 @@ requires s.DstAddrType.Has3Bits() && s.SrcAddrType.Has3Bits()
+ requires 0 <= CmnHdrLen+s.AddrHdrLenSpecInternal() &&
+ 	CmnHdrLen+s.AddrHdrLenSpecInternal() <= int(s.HdrLen)*LineLen &&
+ 	int(s.HdrLen)*LineLen <= len(ub)
+-requires s.Path != nil && s.Path.Mem(ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen])
++requires s.Path != nil && s.Path.Mem(ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen])
+ decreases
+ pure func (s *SCION) MinSizeOfUbufWithOneHopOpenInv(ub []byte) int {
+-	return let pathSlice := ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen] in
++	return let pathSlice := ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen] in
+ 		let pathLen := s.Path.LenSpec(pathSlice) in
+ 		CmnHdrLen + s.AddrHdrLenSpecInternal() + pathLen
+ }
+@@ -848,7 +848,7 @@ requires s.DstAddrType.Has3Bits() && s.SrcAddrType.Has3Bits()
+ requires 0 <= CmnHdrLen+s.AddrHdrLenSpecInternal() &&
+ 	CmnHdrLen+s.AddrHdrLenSpecInternal() <= int(s.HdrLen)*LineLen &&
+ 	int(s.HdrLen)*LineLen <= len(ub)
+-requires s.Path != nil && s.Path.Mem(ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : s.HdrLen*LineLen])
++requires s.Path != nil && s.Path.Mem(ub[CmnHdrLen+s.AddrHdrLenSpecInternal() : int(s.HdrLen)*LineLen])
+ decreases
+ pure func (s *SCION) ValidSizeOhpUbOpenInv(ub []byte) (b bool) {
+ 	return s.MinSizeOfUbufWithOneHopOpenInv(ub) <= len(ub)
+diff --git a/pkg/slayers/scmp_typecode.go b/pkg/slayers/scmp_typecode.go
+index fb8475d..0c471b0 100644
+--- a/pkg/slayers/scmp_typecode.go
++++ b/pkg/slayers/scmp_typecode.go
+@@ -117,6 +117,9 @@ func (a SCMPTypeCode) String() string {
+ 	t, c := a.Type(), a.Code()
+ 	//@ unfold acc(SCMPTypeCodeMem(), R10)
+ 	//@ defer fold acc(SCMPTypeCodeMem(), R10)
++	// anchor: projects t to its integer image so the quantified permissions over
++	// SCMPType keys (lowered over mathematical integers) instantiate at t
++	//@ assert 0 <= t
+ 	info, ok := scmpTypeCodeInfo[t]
+ 	if !ok {
+ 		return fmt.Sprintf("%d(%d)", t, c)
+diff --git a/verification/dependencies/github.com/google/gopacket/writer.gobra b/verification/dependencies/github.com/google/gopacket/writer.gobra
+index 9c8f842..2886da6 100644
+--- a/verification/dependencies/github.com/google/gopacket/writer.gobra
++++ b/verification/dependencies/github.com/google/gopacket/writer.gobra
+@@ -61,7 +61,7 @@ type SerializeBuffer interface {
+ 	preserves Mem()
+ 	requires  num >= 0
+ 	preserves sl.Bytes(UBuf(), 0, len(UBuf()))
+-	ensures   err == nil ==> len(UBuf()) == len(old(UBuf())) + num
++	ensures   err == nil ==> integer(len(UBuf())) == integer(len(old(UBuf()))) + integer(num)
+ 	ensures   err == nil ==> len(res) == num
+ 	ensures   err == nil ==> res === UBuf()[:num]
+ 	ensures   err == nil ==> old(View()) == View()[num:]
+@@ -73,7 +73,7 @@ type SerializeBuffer interface {
+ 	preserves Mem()
+ 	requires  num >= 0
+ 	preserves sl.Bytes(UBuf(), 0, len(UBuf()))
+-	ensures   err == nil ==> len(UBuf()) == len(old(UBuf())) + num
++	ensures   err == nil ==> integer(len(UBuf())) == integer(len(old(UBuf()))) + integer(num)
+ 	ensures   err == nil ==> len(res) == num
+ 	ensures   err == nil ==> res === UBuf()[len(UBuf()) - num:]
+ 	ensures   err != nil ==> UBuf() === old(UBuf())
 diff --git a/verification/dependencies/hash/hash.gobra b/verification/dependencies/hash/hash.gobra
 index c2c678d..09dcb63 100644
 --- a/verification/dependencies/hash/hash.gobra
@@ -757,10 +1112,25 @@ index ba37606..29f9138 100644
  
  ghost
 diff --git a/verification/utils/bitwise/bitwise-eqs.gobra b/verification/utils/bitwise/bitwise-eqs.gobra
-index 9c2bc7a..1731a3f 100644
+index 9c2bc7a..dfa5c6c 100644
 --- a/verification/utils/bitwise/bitwise-eqs.gobra
 +++ b/verification/utils/bitwise/bitwise-eqs.gobra
-@@ -56,17 +56,17 @@ decreases
+@@ -38,10 +38,12 @@ decreases
+ pure func BitAnd3(b int) (res int)
+ 
+ ghost
+-ensures 0 <= b & 0x7 && b & 0x7 <= 7
++// byte-typed so the lemma's bitwise terms match the byte-kind operations that
++// real parsing code produces (bounded semantics gives each kind its own helpers)
++ensures 0 <= res && res <= 7
+ ensures res == b & 0x7
+ decreases
+-pure func BitAnd7(b int) (res int)
++pure func BitAnd7(b byte) (res byte)
+ 
+ ghost
+ ensures res == b >> 30
+@@ -56,17 +58,17 @@ decreases
  pure func And3fAtMost64(b uint8) (res uint8)
  
  ghost

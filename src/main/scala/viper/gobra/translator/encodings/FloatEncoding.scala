@@ -37,10 +37,11 @@ import scala.collection.mutable
   *   SMT equality, under which every value is equal to itself.
   * - Division is total in IEEE 754 (x/±0.0 is ±Inf or NaN), so no non-zero precondition is
   *   generated, unlike for integer division.
-  * - Conversions from integers go through `(_ int2bv 64)` and the signed-bitvector overload of
-  *   `to_fp`; they are exact for all bounded integer kinds. Conversions from floats to integers
-  *   are currently encoded as an uninterpreted function (sound, but nothing is known about the
-  *   result).
+  * - Conversions of constant integers to floats are evaluated exactly at encoding time (see the
+  *   desugarer); conversions of non-constant integers are encoded as uninterpreted functions with
+  *   sound monotonicity and anchor axioms, since the interpreted Int-to-bitvector-to-float chain
+  *   makes the SMT solver diverge. Conversions from floats to integers are currently encoded as
+  *   an uninterpreted function without axioms (sound, but nothing is known about the result).
   */
 class FloatEncoding extends LeafTypeEncoding {
 
@@ -131,9 +132,52 @@ class FloatEncoding extends LeafTypeEncoding {
   private lazy val float32FromBits = f32Func("float32FromBits", Seq(bv32Factory.typ), vprFloat32, "(_ to_fp 8 24)")
   private lazy val float64FromBits = f64Func("float64FromBits", Seq(bv64Factory.typ), vprFloat64, "(_ to_fp 11 53)")
 
-  /** Converts a signed 64-bit bitvector to a float (the signed-integer overload of to_fp). */
-  private lazy val intToFloat32 = f32Func("intToFloat32", Seq(bv64Factory.typ), vprFloat32, s"(_ to_fp 8 24) $roundingMode")
-  private lazy val intToFloat64 = f64Func("intToFloat64", Seq(bv64Factory.typ), vprFloat64, s"(_ to_fp 11 53) $roundingMode")
+  /** Conversions from non-constant integers to floats are encoded as uninterpreted functions with
+    * sound axioms rather than as the interpreted `(_ to_fp e m) RNE ((_ int2bv 64) i)` chain: the
+    * combination of the integer, bitvector, and floating-point theories on symbolic values makes
+    * Z3 diverge on even trivial queries. The axioms state monotonicity (from which reflexivity of
+    * fp.leq also yields that the result is never NaN) and anchor the exact values of 0, ±1, and
+    * the int64 endpoints; conversions of constants are folded to their exact value at encoding
+    * time and do not use these functions. */
+  private val convDomainName = "FloatIntConversions"
+  private val usedConvFuncs = mutable.LinkedHashSet.empty[vpr.DomainFunc]
+
+  private def convFunc(name: String, ret: vpr.Type): vpr.DomainFunc = {
+    val func = vpr.DomainFunc(name, Seq(vpr.LocalVarDecl("i", vpr.Int)()), ret, unique = false, interpretation = None)(domainName = convDomainName)
+    usedConvFuncs += func
+    func
+  }
+
+  private lazy val intToFloat32 = convFunc("intToFloat32", vprFloat32)
+  private lazy val intToFloat64 = convFunc("intToFloat64", vprFloat64)
+
+  /** The axioms of the conversion functions in [[convDomainName]]. Each is true of the IEEE 754
+    * round-to-nearest conversion from mathematical integers. */
+  private def convAxioms(): Seq[vpr.DomainAxiom] = {
+    def app(f: vpr.DomainFunc, arg: vpr.Exp): vpr.Exp = vpr.DomainFuncApp(f, Seq(arg), Map.empty[vpr.TypeVar, vpr.Type])()
+    def bapp(f: vpr.DomainFunc, args: vpr.Exp*): vpr.Exp = vpr.BackendFuncApp(f, args)()
+
+    def axiomsFor(conv: vpr.DomainFunc, leq: vpr.DomainFunc, const: BigDecimal => vpr.Exp): Seq[vpr.DomainAxiom] = {
+      val iDecl = vpr.LocalVarDecl("i", vpr.Int)()
+      val jDecl = vpr.LocalVarDecl("j", vpr.Int)()
+      val i = iDecl.localVar
+      val j = jDecl.localVar
+      // forall i, j :: {conv(i), conv(j)} i <= j ==> fp.leq(conv(i), conv(j))
+      val monotone = vpr.Forall(
+        Seq(iDecl, jDecl),
+        Seq(vpr.Trigger(Seq(app(conv, i), app(conv, j)))()),
+        vpr.Implies(vpr.LeCmp(i, j)(), bapp(leq, app(conv, i), app(conv, j)))()
+      )()
+      // exact values at a few anchors, connecting the conversion to literals
+      val anchors = Seq[BigInt](0, 1, -1, BigInt("9223372036854775807"), BigInt("-9223372036854775808")).map { v =>
+        vpr.EqCmp(app(conv, vpr.IntLit(v)()), const(BigDecimal(v)))()
+      }
+      (monotone +: anchors).map(exp => vpr.AnonymousDomainAxiom(exp)(domainName = convDomainName): vpr.DomainAxiom)
+    }
+
+    (if (usedConvFuncs.contains(intToFloat32)) axiomsFor(intToFloat32, leqFloat32, float32ConstAx) else Seq.empty) ++
+      (if (usedConvFuncs.contains(intToFloat64)) axiomsFor(intToFloat64, leqFloat64, float64ConstAx) else Seq.empty)
+  }
 
   /* float32 <-> float64 conversions */
   private lazy val float32ToFloat64 = f64Func("float32ToFloat64", Seq(vprFloat32), vprFloat64, s"(_ to_fp 11 53) $roundingMode")
@@ -153,18 +197,32 @@ class FloatEncoding extends LeafTypeEncoding {
     func
   }
 
-  /** Encodes a float constant as its exact IEEE 754 bit pattern. The decimal constant is rounded
-    * (to nearest, ties to even) to the target width here, at encoding time, mirroring how the Go
-    * compiler converts constants to values. */
+  /** The IEEE 754 bit pattern of a decimal constant, rounded (to nearest, ties to even) to the
+    * target width. The rounding happens here, at encoding time, mirroring how the Go compiler
+    * converts constants to values. */
+  private def float32Bits(v: BigDecimal): BigInt =
+    BigInt(java.lang.Integer.toUnsignedLong(java.lang.Float.floatToIntBits(v.toFloat)))
+
+  private def float64Bits(v: BigDecimal): BigInt =
+    BigInt(java.lang.Double.doubleToLongBits(v.toDouble)) & ((BigInt(1) << 64) - 1)
+
+  /** Encodes a float constant as its exact IEEE 754 bit pattern. */
   private def float32Const(v: BigDecimal, src: in.Node): vpr.Exp = {
-    val bits = BigInt(java.lang.Integer.toUnsignedLong(java.lang.Float.floatToIntBits(v.toFloat)))
+    val bits = float32Bits(v)
     withSrc(vpr.BackendFuncApp(float32FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV32, Seq(withSrc(vpr.IntLit(bits), src))), src))), src)
   }
 
   private def float64Const(v: BigDecimal, src: in.Node): vpr.Exp = {
-    val bits = BigInt(java.lang.Double.doubleToLongBits(v.toDouble)) & ((BigInt(1) << 64) - 1)
+    val bits = float64Bits(v)
     withSrc(vpr.BackendFuncApp(float64FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV64, Seq(withSrc(vpr.IntLit(bits), src))), src))), src)
   }
+
+  /** Position-less variants, used in the conversion axioms. */
+  private def float32ConstAx(v: BigDecimal): vpr.Exp =
+    vpr.BackendFuncApp(float32FromBits, Seq(vpr.BackendFuncApp(intToBV32, Seq(vpr.IntLit(float32Bits(v))()))()))()
+
+  private def float64ConstAx(v: BigDecimal): vpr.Exp =
+    vpr.BackendFuncApp(float64FromBits, Seq(vpr.BackendFuncApp(intToBV64, Seq(vpr.IntLit(float64Bits(v))()))()))()
 
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
@@ -174,7 +232,7 @@ class FloatEncoding extends LeafTypeEncoding {
     * [ (0.0: floatX) - (y: floatX) ] -> fp.neg([ y ])       (unary minus, see comment below)
     * [ (x: floatX) ⊕ (y: floatX) ] -> fp.⊕ RNE ([ x ], [ y ])   for ⊕ in + - * /
     * [ (x: floatX) ⊗ (y: floatX) ] -> fp.⊗ ([ x ], [ y ])       for ⊗ in < <= > >=
-    * [ floatX(e: int) ] -> to_fp RNE (int2bv64([ e ]))
+    * [ floatX(e: int) ] -> intToFloatX([ e ])       (uninterpreted, with monotonicity axioms)
     * [ float64(e: float32) ] -> to_fp RNE ([ e ])   (and vice versa)
     * [ int(e: floatX) ] -> floatXToInt([ e ])       (uninterpreted)
     */
@@ -233,9 +291,9 @@ class FloatEncoding extends LeafTypeEncoding {
       case n@in.AtLeastCmp(l :: ctx.Float64(), r) => binary(geqFloat64, l, r, n)
 
       case conv@in.Conversion(ctx.Float32(), expr :: ctx.Int()) =>
-        for { e <- goE(expr) } yield withSrc(vpr.BackendFuncApp(intToFloat32, Seq(withSrc(vpr.BackendFuncApp(intToBV64, Seq(e)), conv))), conv)
+        for { e <- goE(expr) } yield withSrc(vpr.DomainFuncApp(intToFloat32, Seq(e), Map.empty[vpr.TypeVar, vpr.Type]), conv)
       case conv@in.Conversion(ctx.Float64(), expr :: ctx.Int()) =>
-        for { e <- goE(expr) } yield withSrc(vpr.BackendFuncApp(intToFloat64, Seq(withSrc(vpr.BackendFuncApp(intToBV64, Seq(e)), conv))), conv)
+        for { e <- goE(expr) } yield withSrc(vpr.DomainFuncApp(intToFloat64, Seq(e), Map.empty[vpr.TypeVar, vpr.Type]), conv)
 
       case conv@in.Conversion(ctx.Float64(), expr :: ctx.Float32()) => unary(float32ToFloat64, expr, conv)
       case conv@in.Conversion(ctx.Float32(), expr :: ctx.Float64()) => unary(float64ToFloat32, expr, conv)
@@ -266,6 +324,12 @@ class FloatEncoding extends LeafTypeEncoding {
   }
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    // The conversion domain is built first: its axioms reference functions of the float and
+    // bitvector domains (fp.leq, the from-bits functions), which registers them for the domain
+    // constructions below.
+    if (usedConvFuncs.nonEmpty) {
+      addMemberFn(vpr.Domain(convDomainName, usedConvFuncs.toSeq, convAxioms(), Seq.empty, interpretations = None)())
+    }
     // A BackendType is only consistent if its interpreted domain is part of the program,
     // so the domains are emitted whenever the corresponding type occurs.
     if (isUsed32) addMemberFn(f32Factory.constructDomain(usedF32Funcs.toSeq))

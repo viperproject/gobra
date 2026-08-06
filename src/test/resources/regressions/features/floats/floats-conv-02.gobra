@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+// Conversions of non-constant integers to floats are axiomatized as monotone
+// functions with exact values at 0, ±1, and the int64 endpoints. In
+// particular, the following lemmas verify (and terminate; the previous
+// encoding through the SMT int2bv/to_fp chain made the solver diverge).
+
+ghost
+requires 0 <= h
+ensures 0.0 <= float64(h)
+decreases
+func CastPreservesOrder64(h int) {}
+
+ghost
+requires l <= h
+ensures float64(l) <= float64(h)
+decreases
+func CastMonotone64(l int, h int) {}
+
+ghost
+requires 0 <= h
+ensures 0.0 <= float32(h)
+decreases
+func CastPreservesOrder32(h int) {}
+
+ghost
+requires 1 <= h
+ensures 1.0 <= float64(h)
+decreases
+func CastAboveOne(h int) {}
+
+// conversions never produce NaN
+ghost
+ensures float64(h) == float64(h)
+decreases
+func CastNotNaN(h int) {}

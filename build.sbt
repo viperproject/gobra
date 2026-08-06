@@ -120,11 +120,8 @@ lazy val gobra = (project in file("."))
       "projectVersion" -> version.value,
       scalaVersion,
       sbtVersion,
-      BuildInfoKey.action("git") {
-        val revision = Try(Process("git rev-parse HEAD").!!.trim).getOrElse("<revision>")
-        val branch = Try(Process("git rev-parse --abbrev-ref HEAD").!!.trim).getOrElse("<branch>")
-        Map("revision" -> revision, "branch" -> branch)
-      }
+      BuildInfoKey.action("gitRevision")(Try(Process("git rev-parse HEAD").!!.trim).getOrElse("<revision>")),
+      BuildInfoKey.action("gitBranch")(Try(Process("git rev-parse --abbrev-ref HEAD").!!.trim).getOrElse("<branch>"))
     ),
     buildInfoPackage := "viper.gobra"
   )

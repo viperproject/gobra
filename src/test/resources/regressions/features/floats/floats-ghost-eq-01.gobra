@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+// The ghost equality === on floats is structural equality on the IEEE 754
+// value: unlike Go's ==, it is reflexive (also for NaN) and it distinguishes
+// the sign of zero. All NaNs are identified (the SMT theory has a single NaN).
+
+func reflexive32(x float32) {
+	assert x === x
+}
+
+func reflexive64(x float64) {
+	assert x === x // holds even if x is NaN
+}
+
+requires x != x // x is NaN
+func nanIdentity(x float64) {
+	assert x === x   // structural equality is reflexive for NaN
+	assert !(x == x) // whereas Go's == is not
+}
+
+func signedZero() {
+	assert 0.0 == -0.0     // IEEE equality identifies the two zeros
+	assert !(0.0 === -0.0) // structural equality distinguishes them
+	assert 0.0 !== -0.0
+}
+
+// On values known to be non-NaN, structural equality implies Go's equality.
+func structuralImpliesGoEquality(x float64, y float64) {
+	assert (x === y && x == x) ==> x == y
+}
+
+// The converse does not hold: +0.0 == -0.0, but the zeros are structurally
+// different values.
+func goEqualityDoesNotImplyStructural(x float64, y float64) {
+	//:: ExpectedOutput(assert_error)
+	assert x == y ==> x === y
+}
+
+// === is preserved by arithmetic: syntactically equal float expressions
+// denote the same value, even when that value is NaN.
+func deterministicOps(x float64, y float64) {
+	assert x + y === x + y
+	assert x / y === x / y
+}

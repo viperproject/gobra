@@ -21,25 +21,3 @@ func structEq() {
 	t := pair{a: 1.5, b: 2.5}
 	assert s == t
 }
-
-// Maps with float keys are supported; keys are compared structurally.
-func mapKey() {
-	m := map[float64]int{1.5: 1}
-	assert m[1.5] == 1
-}
-
-// KNOWN LIMITATION: arrays compare structurally, so a NaN element does not
-// make two arrays unequal, deviating from Go's semantics.
-requires x != x // x is NaN
-func arrayNaN(x float64) {
-	a := [2]float64{x, 1.0}
-	b := [2]float64{x, 1.0}
-	//:: ExpectedOutput(assert_error)
-	assert a != b // holds in Go, but not under the structural array comparison
-}
-
-func arrayEq() {
-	a := [2]float64{1.5, 2.5}
-	b := [2]float64{1.5, 2.5}
-	assert a == b
-}

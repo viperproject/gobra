@@ -12,3 +12,29 @@ func ifaceFloat(x float64) {
 	var i interface{} = x
 	_ = i
 }
+
+// Arrays containing floats cannot be compared: the encoding compares arrays
+// structurally, which deviates from Go's semantics for NaN and ±0.0 elements.
+func arrayCompare(x float64) {
+	a := [2]float64{x, 1.0}
+	b := [2]float64{x, 1.0}
+	//:: ExpectedOutput(type_error)
+	assert a != b
+}
+
+type vec struct {
+	elems [2]float64
+}
+
+// The same applies to structs that contain such arrays.
+func nestedArrayCompare(s vec, t vec) {
+	//:: ExpectedOutput(type_error)
+	assert s == t
+}
+
+// Map keys cannot contain floats: keys are compared structurally, whereas in
+// Go, NaN keys are unretrievable and +0.0/-0.0 are the same key.
+//:: ExpectedOutput(type_error)
+func mapFloatKey(m map[float64]int) {
+	_ = m
+}

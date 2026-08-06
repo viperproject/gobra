@@ -56,7 +56,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
       error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key))) ++
-      error(n, s"map key $key can neither be a ghost struct nor contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key)))
+      error(n, s"map key $key can neither be a ghost struct nor contain ghost fields", isStructTypeWithGhostFields(typeSymbType(key))) ++
+      // map keys are compared structurally by the encoding, which does not coincide with Go's
+      // comparison semantics for floats (NaN keys are unretrievable in Go, and +0.0 and -0.0 are
+      // the same key); floats are therefore not allowed in map keys to prevent unsoundness
+      error(n, s"map key $key must not contain floating-point types", containsFloatType(typeSymbType(key)))
 
     case t: PStructType => t match {
       case tree.parent(_: PExplicitGhostStructType) => noMessages // this case is handled in `wellDefGhostType`

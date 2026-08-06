@@ -48,8 +48,30 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
         }.forall(comparableType)
 
       case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT => false
+
+      // Arrays are compared structurally by the encoding, which does not coincide with Go's
+      // comparison semantics for floating-point elements (a NaN element makes two arrays unequal
+      // in Go, and arrays differing only in the sign of a zero element are equal in Go). To
+      // prevent unsoundness, arrays whose elements contain floats are not comparable.
+      case t: ArrayT => !containsFloatType(t.elem) && comparableType(t.elem)
+
       case _ => true
     }
     case _ => false
+  }
+
+  /** Returns whether values of type 't' contain a floating-point value (directly or nested inside
+    * structs and arrays, the composite types that are compared value-wise by Go's ==). */
+  def containsFloatType(t: Type, encounteredTypes: Set[Type] = Set.empty): Boolean = {
+    if (encounteredTypes contains t) false
+    else {
+      def go(subT: Type): Boolean = containsFloatType(subT, encounteredTypes + t)
+      underlyingType(t) match {
+        case _: FloatT => true
+        case ut: StructT => ut.clauses.exists { case (_, info) => go(info.typ) }
+        case ut: ArrayT => go(ut.elem)
+        case _ => false
+      }
+    }
   }
 }

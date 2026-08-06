@@ -2963,6 +2963,16 @@ object Desugar extends LazyLogging {
       }
     }
 
+    /** Evaluates the argument of a conversion to a float type if it is a constant expression,
+      * following the semantics of the argument's type (integer constants use integer arithmetic,
+      * float constants use decimal arithmetic). */
+    def floatConstantConversion(info: TypeInfo)(arg: PExpression): Option[BigDecimal] =
+      underlyingType(info.typ(arg)) match {
+        case _: Type.IntT => info.intConstantEvaluation(arg).map(BigDecimal(_))
+        case _: Type.FloatT => info.floatConstantEvaluation(arg)
+        case _ => None
+      }
+
     def invokeD(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke): Writer[in.Expr] = {
       val src: Meta = meta(expr, info)
       info.resolve(expr) match {
@@ -2983,6 +2993,15 @@ object Desugar extends LazyLogging {
                 exp <- exprD(ctx, info)(arg)
                 tD  =  typeD(t, exp.typ.addressability)(src)
               } yield in.ToInterface(exp, tD)(exp.info)
+            // conversions of constant expressions to floats are evaluated here, with the exact
+            // value and a single rounding to the target width. This is required for soundness:
+            // the encoding of the generic conversion truncates integers to 64 bits, whereas
+            // constants of arbitrary magnitude may be converted (e.g. float64(1 << 100)).
+            // Note that the evaluation follows the type of the argument: integer constants use
+            // integer semantics (float64(7/2) is 3.0), float constants use decimal semantics.
+            case floatT@(Float32T | Float64T) if floatConstantConversion(info)(arg).isDefined =>
+              val kind = if (floatT == Float32T) in.FloatKind.F32 else in.FloatKind.F64
+              unit(in.FloatLit(floatConstantConversion(info)(arg).get, kind)(src))
             case _ =>
               val desugaredTyp = typeD(typType, info.addressability(expr))(src)
               for { expr <- exprD(ctx, info)(arg) } yield in.Conversion(desugaredTyp, expr)(src)

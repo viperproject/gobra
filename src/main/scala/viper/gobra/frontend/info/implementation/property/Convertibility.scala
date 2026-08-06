@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.frontend.info.base.Type.{ActualPointerT, DeclaredT, Float32T, Float64T, FloatT, GhostPointerT, IntT, PermissionT, Single, SliceT, StringT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds
 
 trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
 
@@ -23,6 +24,11 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
         // as it is logically unnecessary
         failedProp(s"Type $right may not be converted to type $left in code that may run during the initialization " +
           s"of this current package.")
+      // non-constant unbounded (ghost) integer expressions cannot be converted to floats: their
+      // encoding truncates to 64 bits, which would be unsound for values outside that range
+      // (constant expressions of arbitrary magnitude are fine; they are evaluated exactly)
+      case (IntT(TypeBounds.UnboundedInteger), _: FloatT) =>
+        failedProp("unbounded integer expressions cannot be converted to floating-point types")
       case (IntT(_), Float32T) => successProp
       case (IntT(_), Float64T) => successProp
       case (_: FloatT, IntT(_)) => successProp

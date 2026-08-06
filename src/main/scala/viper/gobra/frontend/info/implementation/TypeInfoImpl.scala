@@ -141,7 +141,10 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   }
 
   override def struct(n: PNode): Option[Type.StructT] =
-    enclosingStruct(n).map(structDecl => symbType(structDecl).asInstanceOf[Type.StructT])
+    enclosingStruct(n).map(structDecl => symbType(structDecl) match {
+      case structT: Type.StructT => structT
+      case t => violation(s"expected struct type, but got $t")
+    })
 
   override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
 

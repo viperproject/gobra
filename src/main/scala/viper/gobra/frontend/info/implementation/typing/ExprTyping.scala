@@ -1237,6 +1237,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       error(expr, s"expected constant int expression, but got $expr instead", intConstantEval(expr).isEmpty)
     case StringT =>
       error(expr, s"expected constant string expression, but got $expr instead", stringConstantEval(expr).isEmpty)
+    case _: FloatT =>
+      error(expr, s"expected constant float expression, but got $expr instead", floatConstantEval(expr).isEmpty)
     case PermissionT =>
       val constExprOpt = permConstantEval(expr)
       error(expr, s"expected constant perm expression, but got $expr instead", constExprOpt.isEmpty) ++

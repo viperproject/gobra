@@ -492,7 +492,7 @@ object Parser extends LazyLogging {
           case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
           case t => t
         }
-        PFunctionSpec(spec.clauses, replacedMeasures, spec.backendAnnotations, spec.isPure, spec.isTrusted, spec.isOpaque, spec.mayBeUsedInInit)
+        spec.copy(terminationMeasures = replacedMeasures)
       }
 
       val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =

@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+import "math"
+
+func testNaN() {
+	assert math.IsNaN(math.NaN())
+	assert !math.IsNaN(1.5)
+	assert math.NaN() != math.NaN()
+}
+
+func testInf() {
+	assert math.IsInf(math.Inf(1), 1)
+	assert math.IsInf(math.Inf(-1), -1)
+	assert math.Inf(1) > math.MaxFloat64
+	// +Inf is the only value above MaxFloat64
+	assert 1.0 / 0.0 == math.Inf(1)
+}
+
+func testAbs() {
+	assert math.Abs(-2.5) == 2.5
+	assert math.Abs(2.5) == 2.5
+	assert math.IsNaN(math.Abs(math.NaN()))
+}
+
+func testMinMax() {
+	assert math.Max(1.0, 2.0) == 2.0
+	assert math.Min(1.0, 2.0) == 1.0
+}
+
+func testConsts() {
+	assert math.SmallestNonzeroFloat64 > 0.0
+	assert math.MaxFloat32 < math.MaxFloat64
+}

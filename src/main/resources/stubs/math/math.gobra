@@ -1,0 +1,95 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for a subset of the public declarations in the files
+// https://github.com/golang/go/blob/master/src/math/const.go,
+// https://github.com/golang/go/blob/master/src/math/bits.go,
+// https://github.com/golang/go/blob/master/src/math/abs.go, and
+// https://github.com/golang/go/blob/master/src/math/dim.go
+//
+// Gobra encodes float64 into the IEEE 754 SMT theory, so the NaN and
+// infinity predicates below are exactly expressible: `f != f` holds
+// exactly for NaN, and the infinities are the only values beyond
+// ±MaxFloat64. Functions whose exact result is only distinguishable at
+// the bit level (e.g. the sign of a zero result of Abs, Max, and Min)
+// are declared without a body and specified up to IEEE 754 equality.
+
+package math
+
+// Mathematical constants.
+const (
+	Pi = 3.14159265358979323846264338327950288419716939937510582097494459
+	E  = 2.71828182845904523536028747135266249775724709369995957496696763
+
+	Sqrt2 = 1.41421356237309504880168872420969807856967187537694807317667974
+)
+
+// Floating-point limit values.
+// Max is the largest finite value representable by the type.
+// SmallestNonzero is the smallest positive, non-zero value representable by the type.
+const (
+	MaxFloat32             = 3.40282346638528859811704183484516925440e+38
+	SmallestNonzeroFloat32 = 1.401298464324817070923729583289916131280e-45
+
+	MaxFloat64             = 1.79769313486231570814527423731704356798070e+308
+	SmallestNonzeroFloat64 = 4.9406564584124654417656879286822137236505980e-324
+)
+
+// IsNaN reports whether f is an IEEE 754 "not-a-number" value.
+ensures is == (f != f)
+decreases _
+pure func IsNaN(f float64) (is bool) {
+	return f != f
+}
+
+// IsInf reports whether f is an infinity, according to sign.
+// If sign > 0, IsInf reports whether f is positive infinity.
+// If sign < 0, IsInf reports whether f is negative infinity.
+// If sign == 0, IsInf reports whether f is either infinity.
+ensures is == (sign >= 0 && f > MaxFloat64 || sign <= 0 && f < -MaxFloat64)
+decreases _
+pure func IsInf(f float64, sign int) (is bool) {
+	return sign >= 0 && f > MaxFloat64 || sign <= 0 && f < -MaxFloat64
+}
+
+// NaN returns an IEEE 754 "not-a-number" value.
+ensures IsNaN(res)
+decreases _
+pure func NaN() (res float64) {
+	return 0.0 / 0.0
+}
+
+// Inf returns positive infinity if sign >= 0, negative infinity if sign < 0.
+ensures sign >= 0 ==> IsInf(res, 1)
+ensures sign < 0 ==> IsInf(res, -1)
+decreases _
+pure func Inf(sign int) (res float64)
+
+// Abs returns the absolute value of x.
+//
+// Special cases are:
+//	Abs(±Inf) = +Inf
+//	Abs(NaN) = NaN
+ensures IsNaN(x) ==> IsNaN(res)
+ensures !IsNaN(x) ==> res == (x < 0.0 ? -x : x)
+decreases _
+pure func Abs(x float64) (res float64)
+
+// Max returns the larger of x or y.
+//
+// Special cases are:
+//	Max(x, NaN) = Max(NaN, x) = NaN
+ensures (IsNaN(x) || IsNaN(y)) ==> IsNaN(res)
+ensures !(IsNaN(x) || IsNaN(y)) ==> (res == x || res == y) && res >= x && res >= y
+decreases _
+pure func Max(x float64, y float64) (res float64)
+
+// Min returns the smaller of x or y.
+//
+// Special cases are:
+//	Min(x, NaN) = Min(NaN, x) = NaN
+ensures (IsNaN(x) || IsNaN(y)) ==> IsNaN(res)
+ensures !(IsNaN(x) || IsNaN(y)) ==> (res == x || res == y) && res <= x && res <= y
+decreases _
+pure func Min(x float64, y float64) (res float64)

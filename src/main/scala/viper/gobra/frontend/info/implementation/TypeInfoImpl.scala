@@ -83,6 +83,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
 
   override def symbType(typ: PType): Type.Type = typeSymbType(typ)
 
+  override def declaredSymbType(decl: PTypeDecl): Type.DeclaredT = declaredSymbTypeAttr(decl)
+
+  private lazy val declaredSymbTypeAttr: PTypeDecl => Type.DeclaredT =
+    attr(decl => Type.DeclaredT(decl, this))
+
   override def typ(id: PIdnNode): Type.Type = idType(id)
 
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)

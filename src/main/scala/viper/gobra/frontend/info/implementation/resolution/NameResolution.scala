@@ -425,7 +425,7 @@ trait NameResolution {
           (res, scope) match {
             case (None, int : PInterfaceType) =>
               try {
-                memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
+                memberSet(interfaceSymbType(int)).lookup(n.name) // lookup in the embeddedFields
               }
               catch { // happens if we are in a cycle because of unknown interface members
                 case _ : IllegalStateException => None

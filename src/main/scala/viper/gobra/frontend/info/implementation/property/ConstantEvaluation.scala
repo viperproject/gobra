@@ -184,11 +184,11 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
     floatConstantEval(exp).getOrElse(violation(s"expected constant float expression, but got $exp"))
   }
 
-  /** Evaluates constant floating-point expressions. Go evaluates float constants with arbitrary
-    * precision (with implementation-defined minimums); here, exact arithmetic is used except for
-    * division, which is evaluated with the 34 decimal digits of MathContext.DECIMAL128. The result
-    * is rounded to the target float type when the constant is used (see the desugarer and the
-    * float32/float64 conversion cases below).
+  /** Evaluates constant floating-point expressions. Go requires constant arithmetic to be carried
+    * out with a mantissa of at least 256 bits; here, exact arithmetic is used except for division,
+    * which is evaluated with 100 decimal digits (roughly 332 bits, exceeding Go's requirement).
+    * The result is rounded to the target float type when the constant is used (see the desugarer
+    * and the float32/float64 conversion cases below).
     */
   lazy val floatConstantEval: PExpression => Option[BigDecimal] =
     attr[PExpression, Option[BigDecimal]] {
@@ -220,7 +220,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             case _: PAdd => aux(l, r)((a, b) => Some(a + b))
             case _: PSub => aux(l, r)((a, b) => Some(a - b))
             case _: PMul => aux(l, r)((a, b) => Some(a * b))
-            case _: PDiv => aux(l, r)((a, b) => if (b == 0) None else Some(a(MathContext.DECIMAL128) / b))
+            case _: PDiv => aux(l, r)((a, b) => if (b == 0) None else Some(a(new MathContext(100)) / b))
             case _ => None
           }
         } yield res

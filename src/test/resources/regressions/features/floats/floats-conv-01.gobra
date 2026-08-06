@@ -19,3 +19,8 @@ ensures res == 3.0
 func fromIntConst() (res float64) {
 	return float64(3)
 }
+
+ensures res == 18446744073709551616.0
+func fromBigConst() (res float64) {
+	return float64(18446744073709551616) // exceeds int64; constant conversions are encoded exactly
+}

@@ -153,17 +153,17 @@ class FloatEncoding extends LeafTypeEncoding {
     func
   }
 
-  /** Encodes a float literal as its exact IEEE 754 bit pattern. The decimal literal is rounded
+  /** Encodes a float constant as its exact IEEE 754 bit pattern. The decimal constant is rounded
     * (to nearest, ties to even) to the target width here, at encoding time, mirroring how the Go
     * compiler converts constants to values. */
-  private def float32Lit(lit: in.FloatLit): vpr.Exp = {
-    val bits = BigInt(java.lang.Integer.toUnsignedLong(java.lang.Float.floatToIntBits(lit.v.toFloat)))
-    withSrc(vpr.BackendFuncApp(float32FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV32, Seq(withSrc(vpr.IntLit(bits), lit))), lit))), lit)
+  private def float32Const(v: BigDecimal, src: in.Node): vpr.Exp = {
+    val bits = BigInt(java.lang.Integer.toUnsignedLong(java.lang.Float.floatToIntBits(v.toFloat)))
+    withSrc(vpr.BackendFuncApp(float32FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV32, Seq(withSrc(vpr.IntLit(bits), src))), src))), src)
   }
 
-  private def float64Lit(lit: in.FloatLit): vpr.Exp = {
-    val bits = BigInt(java.lang.Double.doubleToLongBits(lit.v.toDouble)) & ((BigInt(1) << 64) - 1)
-    withSrc(vpr.BackendFuncApp(float64FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV64, Seq(withSrc(vpr.IntLit(bits), lit))), lit))), lit)
+  private def float64Const(v: BigDecimal, src: in.Node): vpr.Exp = {
+    val bits = BigInt(java.lang.Double.doubleToLongBits(v.toDouble)) & ((BigInt(1) << 64) - 1)
+    withSrc(vpr.BackendFuncApp(float64FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV64, Seq(withSrc(vpr.IntLit(bits), src))), src))), src)
   }
 
   /**
@@ -189,8 +189,15 @@ class FloatEncoding extends LeafTypeEncoding {
       for { eE <- goE(e) } yield withSrc(vpr.BackendFuncApp(func, Seq(eE)), src)
 
     default(super.expression(ctx)) {
-      case (lit: in.FloatLit) :: ctx.Float32() / Exclusive => unit(float32Lit(lit))
-      case (lit: in.FloatLit) :: ctx.Float64() / Exclusive => unit(float64Lit(lit))
+      case (lit: in.FloatLit) :: ctx.Float32() / Exclusive => unit(float32Const(lit.v, lit))
+      case (lit: in.FloatLit) :: ctx.Float64() / Exclusive => unit(float64Const(lit.v, lit))
+
+      // conversions of integer literals are evaluated at encoding time. This is not only more
+      // precise but also necessary for soundness: the generic integer conversion below truncates
+      // through (_ int2bv 64), which wraps around for constants outside the int64 range (which are
+      // legal in Go conversions of untyped constants, e.g. float64(1 << 64)).
+      case conv@in.Conversion(ctx.Float32(), lit: in.IntLit) => unit(float32Const(BigDecimal(lit.v), conv))
+      case conv@in.Conversion(ctx.Float64(), lit: in.IntLit) => unit(float64Const(BigDecimal(lit.v), conv))
 
       case (e: in.DfltVal) :: ctx.Float32() / Exclusive =>
         unit(withSrc(vpr.BackendFuncApp(float32FromBits, Seq(withSrc(vpr.BackendFuncApp(intToBV32, Seq(withSrc(vpr.IntLit(BigInt(0)), e))), e))), e))

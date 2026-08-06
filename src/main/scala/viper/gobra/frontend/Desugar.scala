@@ -8,6 +8,7 @@ package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.ast.frontend.utility.Nodes
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
@@ -541,15 +542,10 @@ object Desugar extends LazyLogging {
       * the set at all, and loops whose bodies do not contain a critical region cannot modify it
       * (and thus, do not need a loop invariant preserving its value).
       */
-    def containsCriticalRegion(n: PNode): Boolean = {
-      def go(x: Any): Boolean = x match {
-        case _: PCritical => true
-        case _: PClosureDecl => false
-        case p: Product => p.productIterator.exists(go)
-        case xs: Iterable[_] => xs.exists(go)
-        case _ => false
-      }
-      go(n)
+    def containsCriticalRegion(n: PNode): Boolean = n match {
+      case _: PCritical => true
+      case _: PClosureDecl => false
+      case _ => Nodes.subnodes(n).exists(containsCriticalRegion)
     }
 
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)

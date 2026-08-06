@@ -3,11 +3,9 @@
 
 package issue783_1
 
-//:: ExpectedOutput(type_error)
+// Float literals in specifications used to be rejected with a type error.
 requires x > 0.0
-//:: ExpectedOutput(type_error)
 ensures  res > 0.0
-ensures  false
-func newton(x float32, y float32) (res float32) {
-	return x/2 + y / 2 / x
+func positive(x float32, y float32) (res float32) {
+	return x
 }

@@ -6,6 +6,8 @@
 
 package viper.gobra.frontend.info.implementation.property
 
+import java.math.MathContext
+
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
@@ -174,6 +176,63 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         } yield BigInt(iota)
         violation(res.nonEmpty, "iota expression could not be found in a constant declaration")
         res
+
+      case _ => None
+    }
+
+  def evalFloatOrFail(exp: PExpression): BigDecimal = {
+    floatConstantEval(exp).getOrElse(violation(s"expected constant float expression, but got $exp"))
+  }
+
+  /** Evaluates constant floating-point expressions. Go evaluates float constants with arbitrary
+    * precision (with implementation-defined minimums); here, exact arithmetic is used except for
+    * division, which is evaluated with the 34 decimal digits of MathContext.DECIMAL128. The result
+    * is rounded to the target float type when the constant is used (see the desugarer and the
+    * float32/float64 conversion cases below).
+    */
+  lazy val floatConstantEval: PExpression => Option[BigDecimal] =
+    attr[PExpression, Option[BigDecimal]] {
+      case PFloatLit(lit) => Some(lit)
+      case PIntLit(lit, _) => Some(BigDecimal(lit))
+      case inv: PInvoke => resolve(inv) match {
+        case Some(conv: ap.Conversion) => underlyingTypeP(conv.typ) match {
+          // conversions of constants round to the precision of the target type (Go spec)
+          case Some(_: PFloat32) => floatConstantEval(conv.arg)
+            .map(_.toFloat).filter(f => !f.isInfinite).map(f => BigDecimal(f.toDouble))
+          case Some(_: PFloat64) => floatConstantEval(conv.arg)
+            .map(_.toDouble).filter(d => !d.isInfinite).map(BigDecimal(_))
+          case _ => None
+        }
+        case _ => None
+      }
+      case e: PBinaryExp[_,_] =>
+        def aux(l: PExpression, r: PExpression)(f: (BigDecimal, BigDecimal) => Option[BigDecimal]): Option[BigDecimal] =
+          for {
+            a <- floatConstantEval(l)
+            b <- floatConstantEval(r)
+            res <- f(a, b)
+          } yield res
+
+        for {
+          l <- asExpr(e.left)
+          r <- asExpr(e.right)
+          res <- e match {
+            case _: PAdd => aux(l, r)((a, b) => Some(a + b))
+            case _: PSub => aux(l, r)((a, b) => Some(a - b))
+            case _: PMul => aux(l, r)((a, b) => Some(a * b))
+            case _: PDiv => aux(l, r)((a, b) => if (b == 0) None else Some(a(MathContext.DECIMAL128) / b))
+            case _ => None
+          }
+        } yield res
+
+      case PNamedOperand(id) => entity(id) match {
+        case SingleConstant(_, _, exp, _, _, context) => context.floatConstantEvaluation(exp)
+        case _ => None
+      }
+      case PDot(_, id) => entity(id) match {
+        case SingleConstant(_, _, exp, _, _, context) => context.floatConstantEvaluation(exp)
+        case _ => None
+      }
 
       case _ => None
     }

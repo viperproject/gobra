@@ -3,12 +3,15 @@
 
 package floats
 
-ensures res == x + y
+// Note that the structural (ghost) equality === is used here: the Go equality == on floats is
+// IEEE 754 equality, under which `res == x + y` would not hold when x + y is NaN.
+
+ensures res === x + y
 func f(x float32, y float32) (res float32) {
 	return x + y
 }
 
-ensures res == x * y
+ensures res === x * y
 func g(x float64, y float64) (res float64) {
 	return x * y
 }

@@ -449,6 +449,17 @@ Gobra supports many of Go's native types, namely integers (`int`, `int8`, `int16
 
 In addition, Gobra introduces additional ghost types for specification purposes. These are sequences (`seq[T]`), sets (`set[T]`), multisets (`mset[T]`), and permission amounts (`perm`). Gobra supports their common operations: sequence concatenation (`seq1 ++ seq2`), set union (`set1 union set2`), membership (`x in set1`), multiplicity (`x # set1`), sequence length (`len(seq1)`), and set cardinality (`len(set1)`). 
 
+### Floating-Point Numbers
+
+Gobra encodes `float32` and `float64` into the SMT theory of IEEE 754 floating-point numbers (binary32 and binary64, with round-to-nearest-ties-to-even, as in Go). Literals, arithmetic (`+`, `-`, `*`, `/`), comparisons, and the conversions `int` → float, `float32` ↔ `float64` are supported and modeled faithfully: rounding, overflow to `±Inf`, and `NaN` behave as they do at runtime. Some consequences to be aware of:
+
+- `==` on floats is IEEE equality: `NaN == NaN` is false (so `x == x` is not provable in general) and `0.0 == -0.0` is true. To state that two floats are the same value regardless of NaN, use the ghost structural equality `x === y`, which is reflexive.
+- Float division is total: `x / 0.0` is `±Inf` (or `NaN` for `0.0 / 0.0`), and no non-zero divisor proof obligation is generated.
+- Float arithmetic is not associative and rounds; algebraic identities like `x + y - y == x` do not hold and cannot be verified.
+- Conversions from floats to integers are currently uninterpreted: nothing is known about their result.
+
+Reasoning in the IEEE 754 theory can be expensive for the SMT solver. With the flag `--uninterpretedFloats`, Gobra falls back to encoding float operations as uninterpreted functions: much faster, but then nothing is known about float arithmetic (no literal values, no `NaN`, no rounding), and `==` on floats is structural.
+
 
 ## Interfaces
 

@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+func literals() {
+	assert 0.5 + 0.25 == 0.75 // exactly representable, so the equality holds
+	assert 0.1 + 0.2 != 0.3   // float64 rounding: 0.1 + 0.2 is 0.30000000000000004
+	assert -0.0 == 0.0        // IEEE 754: negative and positive zero are equal
+	assert 1.0 / 0.0 > 0.0    // division is total: 1.0 / 0.0 is +Inf
+	assert -1.0 / 0.0 < 0.0   // ... and -1.0 / 0.0 is -Inf
+}
+
+func defaults() {
+	var x float32
+	assert x == 0.0
+}
+
+requires x == x // excludes NaN
+ensures res == -x
+func negate(x float64) (res float64) {
+	return -x
+}
+
+// structural (ghost) equality === holds unconditionally, even when x + y is NaN
+ensures res === x + y
+func add32(x float32, y float32) (res float32) {
+	return x + y
+}

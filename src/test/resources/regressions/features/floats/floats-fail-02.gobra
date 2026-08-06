@@ -9,8 +9,9 @@ func f(x float32, y float32) (res float32) {
 	return x + y
 }
 
+// fails: for non-NaN inputs, res is equal to x + y
 //:: ExpectedOutput(postcondition_error)
-ensures res != x + y || res != x - y || res != x * y || res != x / y
+ensures res != x + y
 func g(x float32, y float32) (res float32) {
 	return x + y
 }
@@ -21,6 +22,7 @@ func h(x float32, y float32) (res float32) {
 	return x + y - y
 }
 
+// fails: due to rounding, x + y - y is not always equal to x
 //:: ExpectedOutput(postcondition_error)
 ensures res == x
 func i(x float32, y float32) (res float32) {

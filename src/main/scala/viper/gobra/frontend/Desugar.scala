@@ -552,6 +552,12 @@ object Desugar extends LazyLogging {
           case in.PermissionT(Addressability.Exclusive) =>
             val constValue = sc.context.permConstantEvaluation(sc.exp)
             in.PermLit(constValue.get._1, constValue.get._2)(src)
+          case in.Float32T(Addressability.Exclusive) =>
+            val constValue = sc.context.floatConstantEvaluation(sc.exp)
+            in.FloatLit(constValue.get, in.FloatKind.F32)(src)
+          case in.Float64T(Addressability.Exclusive) =>
+            val constValue = sc.context.floatConstantEvaluation(sc.exp)
+            in.FloatLit(constValue.get, in.FloatKind.F64)(src)
           case _ => ???
         }
         Vector(in.GlobalConstDecl(gVar, lit)(src))
@@ -3044,8 +3050,29 @@ object Desugar extends LazyLogging {
       val src: Meta = meta(lit, info)
       def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
+      // The type checker resolves the type of untyped numeric constants from the (parent-based)
+      // context only; for constants that are operands of binary expressions (e.g. `x + 1.5`),
+      // the type is resolved here from the sibling operand via `floatTypeContext`.
+      def resolvedFloatType(n: PExpression): Option[Type.Type] = {
+        val resolved = info.typ(n) match {
+          case t if t != Type.UnboundedFloatT && underlyingType(t).isInstanceOf[Type.FloatT] => Some(t)
+          case Type.UnboundedFloatT => Some(info.floatTypeContext(n).getOrElse(Type.Float64T)) // Go's default type for float constants
+          case _ => info.floatTypeContext(n) // e.g. an untyped integer constant with a float sibling operand
+        }
+        resolved.map(underlyingType).collect { case f: Type.FloatT => f }
+      }
+
       lit match {
-        case PIntLit(v, base)  => single(in.IntLit(v, base = base))
+        case n@PIntLit(v, base) => resolvedFloatType(n) match {
+          // an untyped integer constant takes a floating-point type when the context implies one
+          case Some(Type.Float32T) => single(in.FloatLit(BigDecimal(v), in.FloatKind.F32))
+          case Some(_) => single(in.FloatLit(BigDecimal(v), in.FloatKind.F64))
+          case None => single(in.IntLit(v, base = base))
+        }
+        case n@PFloatLit(v) => resolvedFloatType(n) match {
+          case Some(Type.Float32T) => single(in.FloatLit(v, in.FloatKind.F32))
+          case _ => single(in.FloatLit(v, in.FloatKind.F64)) // float64 is the default type of float constants
+        }
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.ActualPointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
@@ -3905,6 +3932,8 @@ object Desugar extends LazyLogging {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.Float32T => in.Float32T(addrMod)
       case Type.Float64T => in.Float64T(addrMod)
+      // untyped float constant expressions default to float64 (Go spec)
+      case Type.UnboundedFloatT => in.Float64T(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(keys, values) =>

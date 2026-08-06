@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+ensures res == 2.5
+func widen() (res float64) {
+	var x float32 = 2.5
+	return float64(x)
+}
+
+ensures res == 1.5
+func narrow() (res float32) {
+	var x float64 = 1.5
+	return float32(x)
+}
+
+ensures res == 3.0
+func fromIntConst() (res float64) {
+	return float64(3)
+}

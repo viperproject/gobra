@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+func reflexivity(x float64) {
+	//:: ExpectedOutput(assert_error)
+	assert x == x // fails: x may be NaN
+}
+
+func associativity(x float32, y float32, z float32) {
+	//:: ExpectedOutput(assert_error)
+	assert (x+y)+z == x+(y+z) // fails: float addition is not associative
+}

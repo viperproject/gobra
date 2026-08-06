@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+// NaN propagates through arithmetic. `x != x` holds exactly for NaN under IEEE 754.
+requires x != x
+ensures res != res
+func propagate(x float64) (res float64) {
+	return x + 1.0
+}
+
+// Go's == on floats is not reflexive (NaN != NaN), but the structural equality === is.
+func structuralReflexivity(x float64) {
+	assert x === x
+}

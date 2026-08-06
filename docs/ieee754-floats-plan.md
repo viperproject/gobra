@@ -1,6 +1,9 @@
 # Plan: IEEE 754 floating-point support in Gobra
 
-Status: proposal / implementation plan
+Status: implemented — phases 1–4 plus the flag, tests, and docs of phase 7 (see
+`translator/encodings/FloatEncoding.scala` and the floats section of `docs/tutorial.md`).
+Phase 5 is implemented for int → float; float → int remains uninterpreted for now.
+Phase 6 (math.IsNaN etc. spec vocabulary) is future work.
 Scope: replace the current uninterpreted encoding of `float32`/`float64` with a
 faithful encoding into the SMT theory of IEEE 754 floating points
 (SMT-LIB `FloatingPoint`), following the approach used by Prusti.

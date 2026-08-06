@@ -26,6 +26,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
   // default type of unbounded integer constant expressions when they must have a type
   val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
+  // default type of untyped float constant expressions when the context does not imply a width (Go spec)
+  val DEFAULT_FLOAT_TYPE: Type = Float64T
   // Maximum value allowed by the Go compiler for the right operand of `<<` when both operands
   // are constant (obtained empirically)
   val MAX_SHIFT: Int = 512
@@ -227,7 +229,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PIota =>
       error(n, s"cannot use iota outside of constant declaration", enclosingPConstDecl(n).isEmpty)
 
-    case n: PFloatLit => error(n, s"floating point literals are not yet supported.")
+    case n: PFloatLit =>
+      // the constant must be representable in the float type implied by the context
+      // (rounding to the nearest representable value is fine, overflowing to infinity is not).
+      // Only the parent-based context is consulted: like for integer constants, the type of the
+      // expression itself must not be computed here since typing evaluates well-definedness first.
+      getNonInterfaceTypeFromCtxt(n).map(underlyingType) match {
+        case Some(Float32T) => error(n, s"constant ${n.lit} overflows float32", n.lit.toFloat.isInfinite)
+        case Some(Float64T) => error(n, s"constant ${n.lit} overflows float64", n.lit.toDouble.isInfinite)
+        case _ => noMessages // includes non-float contexts, which are reported by assignability checks
+      }
 
     case n@PCompositeLit(t, lit) =>
       val mayInit = isEnclosingMayInit(n)
@@ -736,6 +747,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
         case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
+        // an untyped integer constant in a floating-point context is converted to the float type
+        // (rounding to the nearest representable value), so no integer bounds apply
+        case Some(_: FloatT) => noMessages
         case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }
@@ -851,7 +865,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case exprNum: PNumExpression =>
       val typ = numExprType(exprNum)
-      if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
+      if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ)
+      else if (typ == UnboundedFloatT) {
+        // note that only the (parent-based) context is consulted here; sibling operands of binary
+        // expressions must not be resolved at this point since the type of constant declarations
+        // is computed while the symbol table is being constructed, and resolving siblings there
+        // creates attribute cycles. The width of constants in binary expressions is resolved
+        // sibling-aware at desugaring time via [[floatTypeContext]].
+        getNonInterfaceTypeFromCtxt(exprNum) match {
+          case Some(t) if underlyingType(t).isInstanceOf[FloatT] => t // the context implies a float type
+          case Some(_) => DEFAULT_FLOAT_TYPE // e.g. declaration contexts, which default numeric constants
+          case None => typ // no context, e.g. an operand of a binary expression: stays unbounded
+        }
+      } else typ
 
     case n: PUnfolding => exprType(n.op)
     case n: PAsserting => exprType(n.op)
@@ -933,6 +959,55 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => violation(s"unexpected case reached $t")
       }
       case None => None
+    }
+  }
+
+  /** Resolves the floating-point type implied by the context of an untyped numeric constant, e.g.
+    * the type of the literals in `x + 1.5` or `-0.5` for x of a float type. Unlike untyped integer
+    * constants, the width of a float constant must be known at desugaring time (float32 and
+    * float64 are encoded to different Viper types). Hence, a constant occurring as an operand of a
+    * binary expression resolves its type from the sibling operand or, if the sibling is also
+    * untyped, from the context of the enclosing expression. Returns None whenever the context does
+    * not imply a floating-point type, so integer expressions are never affected.
+    *
+    * This resolution must only be used AFTER type checking (i.e., from the desugarer): it types
+    * sibling expressions, which creates attribute cycles when performed while the symbol table is
+    * still being constructed (the types of constant declarations are computed at that point).
+    */
+  override def floatTypeContext(expr: PExpression): Option[Type] = floatTypeFromCtxt(expr)
+
+  private def floatTypeFromCtxt(expr: PExpression): Option[Type] = {
+    def isTypedFloat(t: Type): Boolean = t != UnboundedFloatT && underlyingType(t).isInstanceOf[FloatT]
+    expr match {
+      case tree.parent(b: PBinaryExp[_, _]) =>
+        val sibling = (asExpr(b.left), asExpr(b.right)) match {
+          case (Some(l), Some(r)) if l eq expr => Some(r)
+          case (Some(l), Some(r)) if r eq expr => Some(l)
+          case _ => None
+        }
+        // `numExprType` is used for numeric siblings instead of `exprType` to avoid a cyclic
+        // context lookup between two untyped operands (e.g. in `1.5 + 2.5`)
+        val exprIsIntConst = expr match {
+          case n: PNumExpression => numExprType(n) == UNTYPED_INT_CONST
+          case _ => false
+        }
+        val siblingType = sibling.map {
+          case n: PNumExpression => numExprType(n) match {
+            // an untyped integer constant adopts the type of an untyped float constant sibling
+            // (e.g. the `0` in `-0.5`, which the parser translates to `0 - 0.5`), resolved the
+            // same way the desugarer resolves the sibling itself: from the (parent-based) typing
+            // context, else from the sibling's own context chain, else the float64 default. This
+            // cannot cycle because the sibling inspects this operand through numExprType only.
+            case UnboundedFloatT if exprIsIntConst => exprType(n) match {
+              case UnboundedFloatT => floatTypeFromCtxt(n).getOrElse(DEFAULT_FLOAT_TYPE)
+              case t => t
+            }
+            case t => t
+          }
+          case e => exprType(e)
+        }
+        siblingType.filter(isTypedFloat) orElse floatTypeFromCtxt(b)
+      case _ => getNonInterfaceTypeFromCtxt(expr).filter(isTypedFloat)
     }
   }
 

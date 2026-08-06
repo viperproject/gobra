@@ -82,6 +82,14 @@ trait ExternalTypeInfo {
 
   def intConstantEvaluation(expr: PExpression): Option[BigInt]
 
+  def floatConstantEvaluation(expr: PExpression): Option[BigDecimal]
+
+  /** Resolves the floating-point type implied by the context of an untyped numeric constant
+    * (e.g. the literals in `x + 1.5` take x's type), or None if the context does not imply a
+    * floating-point type. Must only be used after type checking has completed (it resolves
+    * sibling expressions, which would otherwise create attribute evaluation cycles). */
+  def floatTypeContext(expr: PExpression): Option[Type]
+
   def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)]
 
   def stringConstantEvaluation(expr: PExpression): Option[GoString]

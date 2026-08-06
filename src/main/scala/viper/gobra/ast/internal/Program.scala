@@ -1103,6 +1103,12 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // translation to the internal language.
     case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
     case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+
+    // A defined type with a floating-point underlying type may be combined with a float literal,
+    // whose internal type is the underlying float type (analogous to the unbounded-integer case above).
+    case (x, _: Float32T | _: Float64T) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
+    case (_: Float32T | _: Float64T, y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+
     case (x, y) if x.equalsWithoutMod(y) => x.withAddressability(Addressability.Exclusive)
     case (l, r) => violation(s"cannot merge types $l and $r")
 
@@ -1167,6 +1173,22 @@ case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase = Decimal)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT(Addressability.literal, kind)
+}
+
+/** The width of a floating-point literal. Unlike integers, the width cannot stay
+  * unbounded until the encoding because float32 and float64 are encoded to
+  * different Viper types, so the desugarer resolves the width from the context. */
+sealed trait FloatKind
+object FloatKind {
+  case object F32 extends FloatKind
+  case object F64 extends FloatKind
+}
+
+case class FloatLit(v: BigDecimal, kind: FloatKind)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = kind match {
+    case FloatKind.F32 => Float32T(Addressability.literal)
+    case FloatKind.F64 => Float64T(Addressability.literal)
+  }
 }
 
 case class PermLit(dividend: BigInt, divisor: BigInt)(val info: Source.Parser.Info) extends Lit with Permission {

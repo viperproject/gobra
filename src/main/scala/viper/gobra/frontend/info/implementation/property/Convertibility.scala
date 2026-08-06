@@ -26,6 +26,7 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
       case (IntT(_), Float32T) => successProp
       case (IntT(_), Float64T) => successProp
       case (_: FloatT, IntT(_)) => successProp
+      case (_: FloatT, _: FloatT) => successProp
       case (IntT(_), IntT(_)) => successProp
       case (SliceT(IntT(config.typeBounds.Byte)), StringT) => successProp
       case (StringT, SliceT(IntT(config.typeBounds.Byte))) => successProp

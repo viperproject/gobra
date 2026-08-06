@@ -15,16 +15,25 @@ import viper.silver.{ast => vpr}
 
 class MemoryEncoding extends Encoding {
 
+  import viper.gobra.translator.util.TypePatterns._
+
+  // ordered comparisons on floating-point operands are encoded by the float encoding
+  // (IEEE semantics differ from Viper's built-in comparisons)
+  private def isFloat(e: in.Expr)(ctx: Context): Boolean = e match {
+    case _ :: ctx.Float32() | _ :: ctx.Float64() => true
+    case _ => false
+  }
+
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case r: in.Ref => ctx.reference(r.ref.op)
     case x@ in.EqCmp(l, r) => ctx.goEqual(l, r)(x)
     case x@ in.UneqCmp(l, r) => ctx.goEqual(l, r)(x).map(v => withSrc(vpr.Not(v), x))
     case x@ in.GhostEqCmp(l, r) => ctx.equal(l, r)(x)
     case x@ in.GhostUneqCmp(l, r) => ctx.equal(l, r)(x).map(v => withSrc(vpr.Not(v), x))
-    case n@ in.LessCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}    yield withSrc(vpr.LtCmp(vl, vr), n)
-    case n@ in.AtMostCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}  yield withSrc(vpr.LeCmp(vl, vr), n)
-    case n@ in.GreaterCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GtCmp(vl, vr), n)
-    case n@ in.AtLeastCmp(l, r) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GeCmp(vl, vr), n)
+    case n@ in.LessCmp(l, r) if !isFloat(l)(ctx) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}    yield withSrc(vpr.LtCmp(vl, vr), n)
+    case n@ in.AtMostCmp(l, r) if !isFloat(l)(ctx) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)}  yield withSrc(vpr.LeCmp(vl, vr), n)
+    case n@ in.GreaterCmp(l, r) if !isFloat(l)(ctx) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GtCmp(vl, vr), n)
+    case n@ in.AtLeastCmp(l, r) if !isFloat(l)(ctx) => for {vl <- ctx.expression(l); vr <- ctx.expression(r)} yield withSrc(vpr.GeCmp(vl, vr), n)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {

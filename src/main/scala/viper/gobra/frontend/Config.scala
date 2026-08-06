@@ -68,6 +68,7 @@ object ConfigDefaults {
   val DefaultConditionalizePermissions: Boolean = false
   val DefaultZ3APIMode: Boolean = false
   val DefaultDisableNL: Boolean = false
+  val DefaultUninterpretedFloats: Boolean = false
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
   val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
   val DefaultEnableExperimentalHyperFeatures: Boolean = false
@@ -228,6 +229,8 @@ case class Config(
                    conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                    z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                    disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
+                   // if enabled, floats are encoded as uninterpreted functions instead of the IEEE 754 SMT theory
+                   uninterpretedFloats: Boolean = ConfigDefaults.DefaultUninterpretedFloats,
                    mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
@@ -280,6 +283,7 @@ case class Config(
       conditionalizePermissions = conditionalizePermissions || input.conditionalizePermissions.value.contains(true),
       z3APIMode = z3APIMode || input.z3APIMode.value.contains(true),
       disableNL = disableNL || input.disableNL.value.contains(true),
+      uninterpretedFloats = uninterpretedFloats || input.uninterpretedFloats.value.contains(true),
       hyperMode = (hyperMode, input.hyperMode.value) match {
         case (l, None) => l
         case (None, r) => r
@@ -332,6 +336,7 @@ case class Config(
       "conditionalizePermissions" -> conditionalizePermissions,
       "z3APIMode" -> z3APIMode,
       "disableNL" -> disableNL,
+      "uninterpretedFloats" -> uninterpretedFloats,
       "mceMode" -> mceMode.value,
       "hyperMode" -> hyperModeOrDefault,
       "enableExperimentalHyperFeatures" -> enableExperimentalHyperFeatures,
@@ -409,6 +414,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       conditionalizePermissions: Boolean = ConfigDefaults.DefaultConditionalizePermissions,
                       z3APIMode: Boolean = ConfigDefaults.DefaultZ3APIMode,
                       disableNL: Boolean = ConfigDefaults.DefaultDisableNL,
+                      uninterpretedFloats: Boolean = ConfigDefaults.DefaultUninterpretedFloats,
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       hyperMode: Option[Hyper.Mode] = None,
                       enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
@@ -492,6 +498,7 @@ case class InputConfig(
   conditionalizePermissions: InputConfigOption[Boolean] = InputConfigOption("conditionalizePermissions", None),
   z3APIMode: InputConfigOption[Boolean] = InputConfigOption("z3APIMode", None),
   disableNL: InputConfigOption[Boolean] = InputConfigOption("disableNL", None),
+  uninterpretedFloats: InputConfigOption[Boolean] = InputConfigOption("uninterpretedFloats", None),
   unsafeWildcardOptimization: InputConfigOption[Boolean] = InputConfigOption("unsafeWildcardOptimization", None),
   moreJoins: InputConfigOption[MoreJoins.Mode] = InputConfigOption("moreJoins", None),
   mceMode: InputConfigOption[MCE.Mode] = InputConfigOption("mceMode", None),
@@ -553,6 +560,7 @@ case class InputConfig(
     conditionalizePermissions = conditionalizePermissions orElse other.conditionalizePermissions,
     z3APIMode = z3APIMode orElse other.z3APIMode,
     disableNL = disableNL orElse other.disableNL,
+    uninterpretedFloats = uninterpretedFloats orElse other.uninterpretedFloats,
     unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
     moreJoins = moreJoins orElse other.moreJoins,
     mceMode = mceMode orElse other.mceMode,
@@ -651,6 +659,7 @@ case class InputConfig(
       conditionalizePermissions = conditionalizePermissions orElse other.conditionalizePermissions,
       z3APIMode = z3APIMode orElse other.z3APIMode,
       disableNL = disableNL orElse other.disableNL,
+      uninterpretedFloats = uninterpretedFloats orElse other.uninterpretedFloats,
       unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
       moreJoins = InputConfigOption(moreJoins.name, (moreJoins.value, other.moreJoins.value) match {
         case (Some(l), Some(r)) => Some(MoreJoins.merge(l, r))
@@ -952,6 +961,7 @@ case class InputConfig(
     conditionalizePermissions = conditionalizePermissions.value.getOrElse(ConfigDefaults.DefaultConditionalizePermissions),
     z3APIMode = z3APIMode.value.getOrElse(ConfigDefaults.DefaultZ3APIMode),
     disableNL = disableNL.value.getOrElse(ConfigDefaults.DefaultDisableNL),
+    uninterpretedFloats = uninterpretedFloats.value.getOrElse(ConfigDefaults.DefaultUninterpretedFloats),
     mceMode = mceMode.value.getOrElse(ConfigDefaults.DefaultMCEMode),
     hyperMode = hyperMode.value,
     enableExperimentalHyperFeatures = enableExperimentalHyperFeatures.value.getOrElse(false),
@@ -1077,6 +1087,7 @@ trait RawConfig {
     conditionalizePermissions = baseConfig.conditionalizePermissions,
     z3APIMode = baseConfig.z3APIMode,
     disableNL = baseConfig.disableNL,
+    uninterpretedFloats = baseConfig.uninterpretedFloats,
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
     enableExperimentalHyperFeatures = baseConfig.enableExperimentalHyperFeatures,
@@ -1620,6 +1631,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val uninterpretedFloats: ScallopOption[Boolean] = opt[Boolean](
+    name = "uninterpretedFloats",
+    descr = "Encode floating-point operations as uninterpreted functions instead of the IEEE 754 SMT theory. " +
+      "Much cheaper for the solver, but nothing is known about float arithmetic (no literal values, no NaN, no rounding).",
+    default = Some(ConfigDefaults.DefaultUninterpretedFloats),
+    noshort = true,
+  )
+
   val unsafeWildcardOptimization: ScallopOption[Boolean] = opt[Boolean]("unsafeWildcardOptimization",
     descr = "Simplify wildcard terms in a way that might be unsafe. Only use this if you know what you are doing! See Silicon PR #756 for details.",
     default = Some(false),
@@ -1770,6 +1789,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     conditionalizePermissions = toInputConfigOption(conditionalizePermissions),
     z3APIMode = toInputConfigOption(z3APIMode),
     disableNL = toInputConfigOption(disableNL),
+    uninterpretedFloats = toInputConfigOption(uninterpretedFloats),
     unsafeWildcardOptimization = toInputConfigOption(unsafeWildcardOptimization),
     moreJoins = toInputConfigOption(moreJoins),
     mceMode = toInputConfigOption(mceMode),

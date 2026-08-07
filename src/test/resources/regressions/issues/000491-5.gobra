@@ -30,12 +30,25 @@ pred (r *Raw) Mem() {
 	r.Base.BaseMem() && acc(&r.raw)
 }
 
-// Pure function bodies are specification code as well: taking &r.Base inside
-// the unfolding must not generate a nil-ness proof obligation.
+// Bodies of pure functions are checked, as a pure function that is not ghost is
+// executable. Here, unfolding the predicate provides the permission that entails
+// that r is non-nil, so taking &r.Base is safe.
 ghost
 requires r.Mem()
 pure func (r *Raw) numINFs() int {
 	return unfolding r.Mem() in unfolding r.Base.BaseMem() in r.Base.numINF
+}
+
+// Without such a permission, the obligation of a pure function that is not ghost
+// is reported.
+pure func addrOfBase(r *Raw) (res *Base) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	return &r.Base
+}
+
+requires r != nil
+pure func addrOfBaseNonNil(r *Raw) (res *Base) {
+	return &r.Base
 }
 
 func test1() {

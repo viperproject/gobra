@@ -505,27 +505,23 @@ object TypeEncoding {
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
 
   /**
-    * Checks whether a usage of an L-value may cause a runtime panic due to dereferencing nil.
+    * Checks that using `loc` does not dereference nil.
     *
-    * Using an L-value panics if any pointer dereferenced along its chain is nil, but it suffices to
-    * check the outermost dereference, i.e. the last one performed when evaluating the L-value. The
-    * pointers dereferenced before it are read out of memory to form the chain, and reading them
-    * requires permission to the corresponding fields, which already entails that they are non-nil.
-    * The outermost dereference is the only one without such a witness, as the memory it refers to
-    * is not necessarily read. Panics that are not caused by dereferencing nil (e.g. an out-of-bounds
-    * index) are covered by separate checks. Thus, an obligation is generated only if `loc` contains
-    * a dereference, in which case we check the pointer of the outermost one:
+    * assert [p != nil]; res    where *p is the dereference applied last in loc
     *
-    * assert [p != nil]; res    where *p is the outermost dereference in loc
+    * Only that dereference has to be checked. The pointers dereferenced before it are read from
+    * memory, which requires permission to the fields holding them, and permission to a field
+    * entails that its receiver is non-nil. The last dereference has no such witness, as the memory
+    * it refers to is not necessarily read.
     *
-    * Checking that pointer instead of the address of `loc` keeps the proof obligation independent of
-    * the address arithmetic performed by the encodings of composite types (see PR #531).
+    * Checking `p` instead of the address of `loc` keeps the obligation independent of the address
+    * arithmetic of composite types (see PR #531).
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
-    nilCheckSource(loc) match {
+    lastDeref(loc) match {
       case Some(d) if ctx.emitNilChecks =>
         for {
-          cond <- rootPointerNotNil(d)(ctx)
+          cond <- dereferencedPointerNotNil(d)(ctx)
           checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
         } yield checked
       case _ => cl.unit(res)
@@ -533,15 +529,12 @@ object TypeEncoding {
   }
 
   /**
-    * Encodes the condition that the pointer of a dereference is not nil.
+    * Encodes that the pointer dereferenced by `d` is not nil: [ d.exp != nil ].
     *
-    * [p != nil]    where d = *p
-    *
-    * The annotation is attached to the information of `p` and not of `d`, such that the error
-    * message names the pointer that might be nil. The position of `d` spans the entire selector
-    * when the dereference is implicit, as in `p.f`.
+    * The annotation is attached to `d.exp` and not to `d`, so that the error names the pointer:
+    * the position of an implicit dereference, as in `p.f`, spans the entire selector.
     */
-  private def rootPointerNotNil(d: in.Deref)(ctx: Context): CodeWriter[vpr.Exp] = {
+  private def dereferencedPointerNotNil(d: in.Deref)(ctx: Context): CodeWriter[vpr.Exp] = {
     val annotatedInfo = d.exp.info match {
       case s: Source.Parser.Single => s.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
       case i => i
@@ -553,18 +546,19 @@ object TypeEncoding {
   }
 
   /**
-    * Returns the outermost dereference of an L-value chain, if any, i.e. the last dereference that
-    * is performed when the L-value is evaluated.
-    * L-values without a dereference cannot cause a nil dereference: they are rooted in a variable,
-    * or in an exclusive value (e.g. a slice value as the base of an index expression), for which an
-    * in-bounds index implies that the accessed element exists.
+    * Returns the dereference that is applied last when `l` is evaluated, if `l` has one.
+    * For `l.next.val`, this is the dereference of `l.next` and not the one of `l`.
     */
   @tailrec
-  private def nilCheckSource(l: in.Expr): Option[in.Deref] = l match {
+  private def lastDeref(l: in.Location): Option[in.Deref] = l match {
     case d: in.Deref => Some(d)
-    case l: in.FieldRef => nilCheckSource(l.recv)
-    case l: in.IndexedExp => nilCheckSource(l.base)
-    case _ => None
+    case in.FieldRef(recv: in.Location, _) => lastDeref(recv)
+    case in.IndexedExp(base: in.Location, _, _) => lastDeref(base)
+    // The receiver of a field access and the base of an index expression are exclusive values,
+    // which are not dereferenced. An in-bounds index implies that an element exists.
+    case _: in.FieldRef | _: in.IndexedExp => None
+    // Variables are not dereferenced.
+    case _: in.Var => None
   }
 
   /**

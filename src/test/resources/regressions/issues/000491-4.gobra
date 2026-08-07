@@ -7,7 +7,7 @@ package issue491_4
 // do not generate nil-ness proof obligations. Earlier versions of the nil
 // checks asserted non-nilness of the address of the entire L-value, which
 // the verifier often cannot prove for compound locations such as elements
-// of a resliced slice (see the discussion in PR #531).
+// of a resliced slice (see the comments in PR #531).
 
 requires 8 <= len(raw)
 preserves forall i int :: { &raw[i] } 0 <= i && i < len(raw) ==> acc(&raw[i])
@@ -27,7 +27,7 @@ type Pair struct {
 	y int
 }
 
-// Taking the address of a field only requires the root pointer to be non-nil.
+// Taking the address of a field only requires the dereferenced pointer to be non-nil.
 requires p != nil
 func addrOfField(p *Pair) (r *int) {
 	r = &p.x
@@ -36,6 +36,13 @@ func addrOfField(p *Pair) (r *int) {
 
 requires acc(p)
 func addrOfFieldWithPermission(p *Pair) (r *int) {
+	r = &p.x
+	return
+}
+
+// Without any of the two preconditions, the obligation is reported.
+func addrOfFieldOfNil(p *Pair) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
 	r = &p.x
 	return
 }

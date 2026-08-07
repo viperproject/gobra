@@ -53,7 +53,7 @@ class DefaultPureMethodEncoding extends Encoding {
       body <- option(meth.body map { b =>
         pure(
           for {
-            results <- ctx.withoutNilChecks.expression(b)
+            results <- ctx.expression(b)
           } yield results
         )(ctx)
       })
@@ -99,7 +99,7 @@ class DefaultPureMethodEncoding extends Encoding {
       body <- option(func.body map { b =>
         pure(
           for {
-            results <- ctx.withoutNilChecks.expression(b)
+            results <- ctx.expression(b)
           } yield results
         )(ctx)
       })

@@ -1,0 +1,116 @@
+diff --git a/pkg/slayers/scmp_msg_spec.gobra b/pkg/slayers/scmp_msg_spec.gobra
+index f4cd61b..31b42cd 100644
+--- a/pkg/slayers/scmp_msg_spec.gobra
++++ b/pkg/slayers/scmp_msg_spec.gobra
+@@ -190,6 +190,7 @@ pred (s *SCMPDestinationUnreachable) NonInitMem() {
+ }
+ 
+ pred (s *SCMPDestinationUnreachable) Mem(ub []byte) {
++	s != nil &&
+ 	s.BaseLayer.Mem(ub, 4)
+ }
+ 
+diff --git a/router/dataplane.go b/router/dataplane.go
+index 7803ba3..d7537b0 100644
+--- a/router/dataplane.go
++++ b/router/dataplane.go
+@@ -270,6 +270,7 @@ func (e scmpError) Error() string {
+ }
+ 
+ // SetIA sets the local IA for the dataplane.
++// @ requires d != nil
+ // @ requires  acc(d.Mem(), OutMutexPerm)
+ // @ requires  !d.IsRunning()
+ // @ requires  d.LocalIA().IsZero()
+@@ -307,6 +308,7 @@ func (d *DataPlane) SetIA(ia addr.IA) (e error) {
+ 
+ // SetKey sets the key used for MAC verification. The key provided here should
+ // already be derived as in scrypto.HFMacFactory.
++// @ requires d != nil
+ // @ requires  acc(d.Mem(), OutMutexPerm)
+ // @ requires  !d.IsRunning()
+ // @ requires  !d.KeyIsSet()
+@@ -371,6 +373,7 @@ func (d *DataPlane) SetKey(key []byte) (res error) {
+ // send/receive traffic in the local AS. This can only be called once; future
+ // calls will return an error. This can only be called on a not yet running
+ // dataplane.
++// @ requires d != nil
+ // @ requires  acc(d.Mem(), OutMutexPerm)
+ // @ requires  !d.IsRunning()
+ // @ requires  !d.InternalConnIsSet()
+@@ -416,6 +419,7 @@ func (d *DataPlane) AddInternalInterface(conn BatchConn, ip net.IP) error {
+ // AddExternalInterface adds the inter AS connection for the given interface ID.
+ // If a connection for the given ID is already set this method will return an
+ // error. This can only be called on a not yet running dataplane.
++// @ requires d != nil
+ // @ requires  conn != nil && conn.Mem()
+ // @ preserves acc(d.Mem(), OutMutexPerm)
+ // @ preserves !d.IsRunning()
+@@ -464,6 +468,7 @@ func (d *DataPlane) AddExternalInterface(ifID uint16, conn BatchConn) error {
+ // AddNeighborIA adds the neighboring IA for a given interface ID. If an IA for
+ // the given ID is already set, this method will return an error. This can only
+ // be called on a yet running dataplane.
++// @ requires d != nil
+ // @ requires  !remote.IsZero()
+ // @ preserves acc(d.Mem(), OutMutexPerm)
+ // @ preserves !d.IsRunning()
+@@ -630,6 +635,7 @@ func (d *DataPlane) addBFDController(ifID uint16, s *bfdSend, cfg control.BFD,
+ // AddSvc adds the address for the given service. This can be called multiple
+ // times for the same service, with the address added to the list of addresses
+ // that provide the service.
++// @ requires d != nil
+ // @ requires  a != nil && acc(a.Mem(), R10)
+ // @ preserves acc(d.Mem(), OutMutexPerm)
+ // @ preserves !d.IsRunning()
+@@ -691,6 +697,7 @@ func (d *DataPlane) AddSvc(svc addr.HostSVC, a *net.UDPAddr) error {
+ // absence of race conditions. To specify that the router is not running,
+ // we need to pass perms to d.Mem(), but if we do this, then we don't need
+ // the lock invariant to perform the operations in this function.
++// @ requires d != nil
+ // @ requires  a != nil && acc(a.Mem(), R10)
+ // @ preserves acc(d.Mem(), OutMutexPerm/2)
+ // @ preserves d.mtx.LockP()
+@@ -724,6 +731,7 @@ func (d *DataPlane) DelSvc(svc addr.HostSVC, a *net.UDPAddr) error {
+ // AddNextHop sets the next hop address for the given interface ID. If the
+ // interface ID already has an address associated this operation fails. This can
+ // only be called on a not yet running dataplane.
++// @ requires d != nil
+ // @ requires  a != nil && a.Mem()
+ // @ preserves acc(d.Mem(), OutMutexPerm)
+ // @ preserves !d.IsRunning()
+@@ -816,6 +824,7 @@ func (d *DataPlane) AddNextHopBFD(ifID uint16, src, dst *net.UDPAddr, cfg contro
+ // @ requires  d.mtx.LockInv() == MutexInvariant{d}
+ // @ requires  ctx != nil && ctx.Mem()
+ // contracts for IO-spec
++// @ requires d != nil
+ // @ requires dp.Valid()
+ // @ requires d.DpAgreesWithSpec(dp)
+ // @ requires io.token(place) && dp.dp3s_iospec_ordered(state, place)
+diff --git a/router/svc.go b/router/svc.go
+index 0f4ea92..77ef31f 100644
+--- a/router/svc.go
++++ b/router/svc.go
+@@ -40,6 +40,7 @@ func newServices() (s *services) {
+ 	return tmp
+ }
+ 
++// @ requires s != nil
+ // @ preserves acc(s.Mem(), R50)
+ // @ requires  acc(a.Mem(), R10)
+ // @ decreases 0 if sync.IgnoreBlockingForTermination()
+@@ -68,6 +69,7 @@ func (s *services) AddSvc(svc addr.HostSVC, a *net.UDPAddr) {
+ 	//@ fold acc(s.Mem(), R50)
+ }
+ 
++// @ requires s != nil
+ // @ preserves acc(s.Mem(), R50)
+ // @ preserves acc(a.Mem(), R10)
+ // @ decreases 0 if sync.IgnoreBlockingForTermination()
+@@ -101,6 +103,7 @@ func (s *services) DelSvc(svc addr.HostSVC, a *net.UDPAddr) {
+ 	//@ fold acc(s.Mem(), R50)
+ }
+ 
++// @ requires s != nil
+ // @ requires acc(s.Mem(), _)
+ // @ ensures  !b ==> r == nil
+ // @ ensures  b  ==> acc(r.Mem(), _)

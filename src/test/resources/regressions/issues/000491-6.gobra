@@ -4,9 +4,17 @@
 package issue491_6
 
 // Tests that usages of long L-value chains are rejected when they may dereference nil.
-// Every dereference along a chain must be safe. All but the outermost one are witnessed
-// by the permissions required to read the pointers out of memory (permission to a field
-// entails that its receiver is non-nil), and the outermost one is checked explicitly.
+//
+// Every dereference along a chain must be safe, but only the outermost one gives rise to a
+// nil-ness proof obligation. The pointers dereferenced before it are read out of memory to
+// form the chain, and reading them requires permission to the corresponding fields, which
+// entails that they are non-nil; the outermost dereference is the only one without such a
+// witness, as the memory it refers to is not necessarily read.
+//
+// Consequently, the two mechanisms reject with different errors, as documented per test
+// below: an unsafe outermost dereference fails the nil check, whereas an unsafe dereference
+// earlier in the chain fails to obtain the permission needed to read the pointer following
+// it. Both reject the program, but only the former mentions nil.
 
 type LList struct {
 	Val  int
@@ -15,9 +23,11 @@ type LList struct {
 
 pred P(l *LList) { acc(&l.Val) }
 
-// The pointer of the outermost dereference is unconstrained, so taking the address of a
-// field behind it must be rejected. The permission to the field is wrapped in a predicate,
-// so it does not entail that the pointer is non-nil.
+// In the three tests below, every pointer up to the outermost dereference is owned, so the
+// chain is read safely, and only the pointer of the outermost dereference is unconstrained:
+// the permission to the field behind it is wrapped in a predicate, which does not entail
+// that the pointer is non-nil. These are the cases that the nil check rejects, and they
+// fail with a nil error at increasing depths.
 requires acc(&l.Next) && P(l.Next)
 func chain1(l *LList) (r *int) {
 	//:: ExpectedOutput(load_error:receiver_is_nil_error)
@@ -40,8 +50,10 @@ func chain3(l *LList) (r *int) {
 	return
 }
 
-// A dereference in the middle of a chain is rejected as well: reading the pointer that
-// follows it requires permission to a field of it, which is not available here.
+// Nothing constrains l.Next.Next here, so the dereference in the middle of the chain may
+// be unsafe. It is rejected, but by the permission required to read l.Next.Next.Next out
+// of memory, and thus with a permission error instead of a nil error: holding that
+// permission is what would have entailed that l.Next.Next is non-nil.
 requires acc(&l.Next) && acc(&l.Next.Next)
 func middleOfChain(l *LList) (r *int) {
 	//:: ExpectedOutput(assignment_error:permission_error)
@@ -49,7 +61,8 @@ func middleOfChain(l *LList) (r *int) {
 	return
 }
 
-// Reading through a chain is rejected for the same reasons.
+// Reading through a chain is rejected for the same reason. Here the permission that is
+// missing is the one for the field that is read, l.Next.Next.Next.Val.
 requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
 func readChain(l *LList) (v int) {
 	//:: ExpectedOutput(assignment_error:permission_error)
@@ -58,6 +71,8 @@ func readChain(l *LList) (v int) {
 }
 
 // With permissions to every link, all dereferences are witnessed and the chain verifies.
+// These cases guard against the checks becoming vacuous: they must keep verifying, so that
+// a change that rejects them shows up here rather than as an incompleteness in a client.
 requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
 requires acc(&l.Next.Next.Next.Val)
 func chainOk(l *LList) (r *int) {

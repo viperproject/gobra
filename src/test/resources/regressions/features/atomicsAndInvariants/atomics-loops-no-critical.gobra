@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred Own(x *int) { acc(x) }
+
+decreases
+func getRandomBool() bool
+
+// Members without critical regions do not carry the set of open invariants around
+// (neither the variable itself nor loop invariants about it). Their encoding
+// (including loops) must still verify without it.
+ensures res >= 10
+func plainLoop() (res int) {
+	res = 0
+	invariant 0 <= i && i <= 10
+	invariant res >= i
+	for i := 0; i < 10; i++ {
+		res += 1
+	}
+	return res
+}
+
+// A loop that does not contain a critical region cannot modify the set of open
+// invariants, so no loop invariant about the set is generated for it. Opening an
+// invariant after such a loop must still be possible.
+requires Invariant(Own{x})
+func loopThenCritical(x *int) {
+	invariant true
+	for getRandomBool() {
+	}
+	critical Own{x} (
+		unfold Own{x}()
+		assert acc(x)
+		fold Own{x}()
+	)
+}

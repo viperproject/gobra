@@ -7,6 +7,6 @@ package assignsuchthatsetelem
 
 requires len(s) > 0
 func f(ghost s set[int]) {
-	var e int |= e elem s
+	var e int :| e elem s
 	assert e elem s
 }

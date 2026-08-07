@@ -3372,7 +3372,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = true),
+        PFunctionSpec(Vector(), Vector(), Vector(), isPure = true),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )

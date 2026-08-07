@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./includes/)
+package pkg
+
+import "shadowed_mpred"
+
+// `shadowed_mpred` exports both a struct `T` and a method predicate `T` (on `Holder`).
+// `shadowed_mpred.T{42}` is reachable as a *type name* (qualifiedIdent) and so must remain a
+// composite literal of the imported struct. The colliding mpredicate is not reachable as
+// `shadowed_mpred.T` -- it would be `shadowed_mpred.Holder.T`, which has three components and
+// doesn't fit the `qualifiedIdent` shape -- so the predicate-constructor rewrite must ignore
+// imported mpredicate names when disambiguating.
+ensures res.x == 42
+func makeT() (res shadowed_mpred.T) {
+	return shadowed_mpred.T{42}
+}

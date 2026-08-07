@@ -8,10 +8,10 @@ pred vIsOne(v int) {
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == vIsOne!<_!>
-requires c.SendGotPerm() == PredTrue!<!>
+requires c.SendGivenPerm() == vIsOne{_}
+requires c.SendGotPerm() == PredTrue{}
 func send1(c chan<- int) {
     v := 1
-    fold vIsOne!<_!>(v)
+    fold vIsOne{_}(v)
     c <- v
 }

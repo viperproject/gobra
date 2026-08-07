@@ -67,6 +67,17 @@ class AssertionEncoding extends Encoding {
         r <- ctx.expression(let.right)
       } yield withSrc(vpr.Let(l, r, exp), let)
 
+    case as: in.Asserting =>
+      for {
+        a <- ctx.assertion(as.assertion)
+        // `pure` folds any auxiliary (pure) code emitted while encoding the body
+        // into the body expression itself, keeping it inside the `vpr.Asserting`
+        // node so that `e2` is sequenced *after* `e1`. In practice, this is
+        // a defensive strategy (mirroring `unfolding`'s encoding) that is
+        // not strictly necessary at the moment.
+        e <- pure(ctx.expression(as.in))(ctx)
+      } yield withSrc(vpr.Asserting(a, e), as)
+
     case n@ in.Low(e) => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
     case n: in.LowContext => unit(withSrc(SIFLowEventExp(), n))
     case n@ in.Rel(e, i) => for {
@@ -108,13 +119,13 @@ class AssertionEncoding extends Encoding {
     case n@ in.Exhale(ass) => for {v <- ctx.assertion(ass)} yield withSrc(vpr.Exhale(v), n)
 
     case n@ in.AssignSuchThat(v, cond) =>
-      // `var x T |= P` is encoded as
+      // `var x T :| P` is encoded as
       //   assert exists x' : T :: P[x -> x']
       //   inhale P
       // The local variable `x` is already registered as a block-level Viper decl by the
       // desugarer (via `declare`), so it is in scope after the statement.
       // The existential carries `cond`'s source info so error messages show
-      // just `P` rather than the whole `var x T |= P` statement.
+      // just `P` rather than the whole `var x T :| P` statement.
       val (condPos, condInfo, condErrT) = cond.vprMeta
       val boundVar = in.BoundVar(v.id + "_B", v.typ.withAddressability(Addressability.boundVariable))(v.info)
       val renaming: Map[in.LocalVar, in.Node] = Map(v -> boundVar)

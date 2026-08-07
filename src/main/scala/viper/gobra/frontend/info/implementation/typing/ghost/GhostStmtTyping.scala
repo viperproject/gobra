@@ -43,7 +43,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
       }) ++ isPureExpr(exp)
     case PAssignSuchThat(_, _, cond) =>
-      // `var x T |= P` requires that `P` is a pure, boolean expression.
+      // `var x T :| P` requires that `P` is a pure, boolean expression.
       isExpr(cond).out ++
         comparableTypes.errors(exprType(cond), BooleanT)(cond) ++
         isPureExpr(cond)

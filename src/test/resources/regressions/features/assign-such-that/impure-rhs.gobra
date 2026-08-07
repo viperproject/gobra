@@ -14,5 +14,5 @@ func impure(p *int) bool {
 func f() {
 	p := new(int)
 	//:: ExpectedOutput(type_error)
-	var x int |= x > 0 && impure(p)
+	var x int :| x > 0 && impure(p)
 }

@@ -1971,7 +1971,7 @@ object Desugar extends LazyLogging {
             case c => violation(s"This case should be unreachable, but got $c")
           }
           name = idName(bId, info)
-        } yield in.LocalVar(name, typ)(Source.Parser.Internal)
+        } yield in.LocalVar(name, typ)(meta(left.head, info))
 
         context = (bind, assign) match {
           case (Some(id), Some(v)) =>

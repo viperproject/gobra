@@ -1,0 +1,73 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue491_6
+
+// Tests that usages of long L-value chains are rejected when they may dereference nil.
+// Every dereference along a chain must be safe. All but the outermost one are witnessed
+// by the permissions required to read the pointers out of memory (permission to a field
+// entails that its receiver is non-nil), and the outermost one is checked explicitly.
+
+type LList struct {
+	Val  int
+	Next *LList
+}
+
+pred P(l *LList) { acc(&l.Val) }
+
+// The pointer of the outermost dereference is unconstrained, so taking the address of a
+// field behind it must be rejected. The permission to the field is wrapped in a predicate,
+// so it does not entail that the pointer is non-nil.
+requires acc(&l.Next) && P(l.Next)
+func chain1(l *LList) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &l.Next.Val
+	return
+}
+
+requires acc(&l.Next) && acc(&l.Next.Next) && P(l.Next.Next)
+func chain2(l *LList) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &l.Next.Next.Val
+	return
+}
+
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+requires P(l.Next.Next.Next)
+func chain3(l *LList) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &l.Next.Next.Next.Val
+	return
+}
+
+// A dereference in the middle of a chain is rejected as well: reading the pointer that
+// follows it requires permission to a field of it, which is not available here.
+requires acc(&l.Next) && acc(&l.Next.Next)
+func middleOfChain(l *LList) (r *int) {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	r = &l.Next.Next.Next.Val
+	return
+}
+
+// Reading through a chain is rejected for the same reasons.
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+func readChain(l *LList) (v int) {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	v = l.Next.Next.Next.Val
+	return
+}
+
+// With permissions to every link, all dereferences are witnessed and the chain verifies.
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+requires acc(&l.Next.Next.Next.Val)
+func chainOk(l *LList) (r *int) {
+	r = &l.Next.Next.Next.Val
+	return
+}
+
+// Assigning through a long chain is safe once every link is owned.
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+requires acc(&l.Next.Next.Next.Val)
+func assignChainOk(l *LList) {
+	l.Next.Next.Next.Val = 42
+}

@@ -505,16 +505,21 @@ object TypeEncoding {
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
-    * In Go, using an L-value panics if and only if the pointer at the root of the L-value chain is nil.
-    * All other panics that usages of L-values can cause (e.g. an out-of-bounds index) are covered by
-    * separate checks. Thus, a proof obligation is generated only if the root of `loc` is a dereference,
-    * in which case we check that the dereferenced pointer is not nil:
+    * Checks whether a usage of an L-value may cause a runtime panic due to dereferencing nil.
     *
-    * assert [p != nil]; res    where *p is the root of loc
+    * Using an L-value panics if any pointer dereferenced along its chain is nil, but it suffices to
+    * check the outermost dereference, i.e. the last one performed when evaluating the L-value. The
+    * pointers dereferenced before it are read out of memory to form the chain, and reading them
+    * requires permission to the corresponding fields, which already entails that they are non-nil.
+    * The outermost dereference is the only one without such a witness, as the memory it refers to
+    * is not necessarily read. Panics that are not caused by dereferencing nil (e.g. an out-of-bounds
+    * index) are covered by separate checks. Thus, an obligation is generated only if `loc` contains
+    * a dereference, in which case we check the pointer of the outermost one:
     *
-    * Checking the root pointer instead of the address of `loc` keeps the proof obligation independent
-    * of the address arithmetic performed by the encodings of composite types (see PR #531).
+    * assert [p != nil]; res    where *p is the outermost dereference in loc
+    *
+    * Checking that pointer instead of the address of `loc` keeps the proof obligation independent of
+    * the address arithmetic performed by the encodings of composite types (see PR #531).
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
     nilCheckSource(loc) match {
@@ -528,12 +533,16 @@ object TypeEncoding {
   }
 
   /**
-    * Encodes the condition that the pointer dereferenced at the root of an L-value chain is not nil.
+    * Encodes the condition that the pointer of a dereference is not nil.
     *
     * [p != nil]    where d = *p
+    *
+    * The annotation is attached to the information of `p` and not of `d`, such that the error
+    * message names the pointer that might be nil. The position of `d` spans the entire selector
+    * when the dereference is implicit, as in `p.f`.
     */
   private def rootPointerNotNil(d: in.Deref)(ctx: Context): CodeWriter[vpr.Exp] = {
-    val annotatedInfo = d.info match {
+    val annotatedInfo = d.exp.info match {
       case s: Source.Parser.Single => s.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
       case i => i
     }
@@ -544,10 +553,11 @@ object TypeEncoding {
   }
 
   /**
-    * Returns the dereference at the root of an L-value chain, if any.
-    * L-values rooted in a variable cannot cause a nil dereference. The same holds for bases that are
-    * exclusive values (e.g. a slice value as the base of an index expression), where an in-bounds
-    * index implies that the accessed element exists.
+    * Returns the outermost dereference of an L-value chain, if any, i.e. the last dereference that
+    * is performed when the L-value is evaluated.
+    * L-values without a dereference cannot cause a nil dereference: they are rooted in a variable,
+    * or in an exclusive value (e.g. a slice value as the base of an index expression), for which an
+    * in-bounds index implies that the accessed element exists.
     */
   @tailrec
   private def nilCheckSource(l: in.Expr): Option[in.Deref] = l match {

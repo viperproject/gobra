@@ -382,7 +382,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         PIdnDef("foo"),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+        PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )

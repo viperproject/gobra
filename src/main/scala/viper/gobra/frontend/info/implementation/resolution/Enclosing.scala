@@ -75,6 +75,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingFunctionOrMethod: PNode => Option[PFunctionOrMethodDecl] =
     down[Option[PFunctionOrMethodDecl]](None) { case f: PFunctionOrMethodDecl => Some(f) }
 
+  lazy val isEnclosingCritical: PNode => Boolean =
+    down(false){ case _: PCritical => true }
+
   lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
@@ -196,6 +199,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
+          case p: PAsserting => aux(p)
             // no array type
             // no range
             // no function spec, no invariants, no predicate body

@@ -3485,7 +3485,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = true),
+        PFunctionSpec(Vector(), Vector(), Vector(), isPure = true),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -3532,7 +3532,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PIdnDef(funcName),
         Vector(),
         PResult(Vector(PUnnamedParameter(retType))),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = false),
+        PFunctionSpec(Vector(), Vector(), Vector(), isPure = false),
         None
       )
       val stmt = PShortVarDecl(Vector(expr), Vector(PIdnUnk("n")), Vector(false))
@@ -3541,7 +3541,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), Vector(), isPure = true),
+        PFunctionSpec(Vector(), Vector(), Vector(), isPure = true),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(stmt)))
       )
       val program = PProgram(PPackageClause(PPkgDef("pkg")), Vector(), Vector(), Vector(), Vector(funcDecl, methodDecl))

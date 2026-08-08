@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue1063_2
+
+// Tests that Implementation.F has the same signature as VariadicInt.F,
+// but not the same signature as SliceInt.F or VariadicBool.F, despite
+// the Go spec stating that `...int` is equivalent to `[]int` (within a
+// function but not for deciding type identity).
+
+type VariadicInt interface {
+	F(xs ...int)
+}
+
+type SliceInt interface {
+	F(xs []int)
+}
+
+type VariadicBool interface {
+	F(xs ...bool)
+}
+
+type Implementation struct{}
+
+func (x *Implementation) F(xs ...int)
+
+*Implementation implements VariadicInt
+
+//:: ExpectedOutput(type_error)
+*Implementation implements SliceInt
+
+//:: ExpectedOutput(type_error)
+*Implementation implements VariadicBool

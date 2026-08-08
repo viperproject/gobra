@@ -1,0 +1,155 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// A loop whose body opens a critical region assigns to the openInvariants set,
+// and thus, the loop havocs the set's value. An implicit loop invariant states
+// that the set is unchanged, so that invariants can still be opened in later
+// iterations and after the loop. These tests exercise that invariant for all
+// four range-loop encodings (short and assignment range over arrays/slices and
+// over maps).
+
+package pkg
+
+pred Own(x *int) { acc(x) }
+
+preserves acc(x)
+decreases
+atomic func Get(x *int) int
+
+requires Invariant(Own{x})
+func rangeArrShort(x *int) {
+	arr := [3]int{1, 2, 3}
+	var v int
+
+	invariant Invariant(Own{x})
+	for i := range arr with i0 {
+		critical Own{x} (
+		unfold Own{x}()
+		v = Get(x)
+		fold Own{x}()
+		)
+	}
+
+	critical Own{x} (
+	unfold Own{x}()
+	v = Get(x)
+	fold Own{x}()
+	)
+}
+
+requires Invariant(Own{x})
+func rangeArrAssign(x *int) {
+	arr := [3]int{1, 2, 3}
+	var v int
+	i := 0
+
+	invariant Invariant(Own{x})
+	for i = range arr with i0 {
+		critical Own{x} (
+		unfold Own{x}()
+		v = Get(x)
+		fold Own{x}()
+		)
+	}
+	_ = i
+
+	critical Own{x} (
+	unfold Own{x}()
+	v = Get(x)
+	fold Own{x}()
+	)
+}
+
+requires acc(s)
+requires Invariant(Own{x})
+func rangeSliceShort(x *int, s []int) {
+	var v int
+
+	invariant acc(s)
+	invariant Invariant(Own{x})
+	for i, j := range s with i0 {
+		_, _ = i, j
+		critical Own{x} (
+		unfold Own{x}()
+		v = Get(x)
+		fold Own{x}()
+		)
+	}
+
+	critical Own{x} (
+	unfold Own{x}()
+	v = Get(x)
+	fold Own{x}()
+	)
+}
+
+requires acc(s)
+requires Invariant(Own{x})
+func rangeSliceAssign(x *int, s []int) {
+	var v int
+	i := 0
+
+	invariant acc(s)
+	invariant Invariant(Own{x})
+	for i = range s with i0 {
+		critical Own{x} (
+		unfold Own{x}()
+		v = Get(x)
+		fold Own{x}()
+		)
+	}
+	_ = i
+
+	critical Own{x} (
+	unfold Own{x}()
+	v = Get(x)
+	fold Own{x}()
+	)
+}
+
+requires acc(m)
+requires Invariant(Own{x})
+func rangeMapShort(x *int, m map[int]int) {
+	var v int
+
+	invariant acc(m)
+	invariant Invariant(Own{x})
+	for k := range m with visited {
+		_ = k
+		critical Own{x} (
+		unfold Own{x}()
+		v = Get(x)
+		fold Own{x}()
+		)
+	}
+
+	critical Own{x} (
+	unfold Own{x}()
+	v = Get(x)
+	fold Own{x}()
+	)
+}
+
+requires acc(m)
+requires Invariant(Own{x})
+func rangeMapAssign(x *int, m map[int]int) {
+	var v int
+	k := 0
+
+	invariant acc(m)
+	invariant Invariant(Own{x})
+	for k = range m with visited {
+		_ = k
+		critical Own{x} (
+		unfold Own{x}()
+		v = Get(x)
+		fold Own{x}()
+		)
+	}
+
+	critical Own{x} (
+	unfold Own{x}()
+	v = Get(x)
+	fold Own{x}()
+	)
+}

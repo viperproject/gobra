@@ -18,7 +18,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{BackendAnnotation, Decimal, NumBase, TypeBounds, Violation}
+import viper.gobra.util.{BackendAnnotation, Decimal, GoString, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -478,6 +478,21 @@ case class Outline(
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
 
+/**
+  * Critical region `critical inv (body)` that temporarily opens the invariant `inv` around `body`.
+  * The expansion into the entailed proof obligations is performed by
+  * [[viper.gobra.translator.encodings.typeless.CriticalEncoding]].
+  *
+  * @param inv the invariant (an expression of type pred()) opened by this region
+  * @param invIsInv the boolean expression `Invariant(inv)`. It is constructed during desugaring
+  *                 (rather than by the encoding) because the built-in `Invariant` function must
+  *                 be registered with the desugarer.
+  * @param openInvs the per-member variable holding the set of currently open invariants. It is
+  *                 declared and initialized (to the empty set) by the desugarer, which also
+  *                 preserves its value across loops via an implicit loop invariant.
+  */
+case class Critical(inv: Expr, invIsInv: Expr, openInvs: LocalVar, body: Stmt)(val info: Source.Parser.Info) extends Stmt
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**
@@ -584,6 +599,11 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
   override def typ: Type = in.typ
   require(typ.addressability == Addressability.unfolding(in.typ.addressability))
+}
+
+case class Asserting(assertion: Assertion, in: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = in.typ
+  require(typ.addressability == Addressability.asserting(in.typ.addressability))
 }
 
 case class PureLet(left: LocalVar, right: Expr, in: Expr)(val info: Source.Parser.Info) extends Expr {
@@ -1160,7 +1180,7 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }
 
-case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+case class StringLit(s: GoString)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = StringT(Addressability.literal)
 }
 

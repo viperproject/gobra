@@ -288,7 +288,7 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
     def formatPredConstructorArgs(args: Vector[Option[PExpression]]): String =
       ("(" + args.filter(e => e.isDefined).map(e => e.get.formattedShort).mkString(", ") + ")").replaceAll("\\s+", " ")
 
-    def hasFormalSpec(spec : PFunctionSpec) = spec.pres.nonEmpty || spec.posts.nonEmpty || spec.preserves.nonEmpty || spec.terminationMeasures.nonEmpty
+    def hasFormalSpec(spec : PFunctionSpec) = spec.clauses.nonEmpty || spec.terminationMeasures.nonEmpty
 
     // Check whether the program containing this node has the builtin tag
     // Check if a node comes from a import, used to declare it non abstract, since imports are per default always

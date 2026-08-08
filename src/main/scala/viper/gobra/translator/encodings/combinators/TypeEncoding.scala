@@ -507,18 +507,18 @@ object TypeEncoding {
   /**
     * Checks that using `loc` does not dereference nil.
     *
-    * assert [p != nil]; res    where *p is the dereference applied last in loc
+    * assert [p != nil]; res    where *p is the outermost dereference of loc
     *
-    * Only that dereference has to be checked. The pointers dereferenced before it are read from
-    * memory, which requires permission to the fields holding them, and permission to a field
-    * entails that its receiver is non-nil. The last dereference has no such witness, as the memory
-    * it refers to is not necessarily read.
+    * Only the outermost dereference has to be checked. The dereferences nested inside it read
+    * their pointers from memory, which requires permission to the fields holding them, and
+    * permission to a field entails that its receiver is non-nil. The outermost dereference has no
+    * such witness, as the memory it refers to is not necessarily read.
     *
     * Checking `p` instead of the address of `loc` keeps the obligation independent of the address
     * arithmetic of composite types (see PR #531).
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
-    lastDeref(loc) match {
+    outermostDeref(loc) match {
       case Some(d) if ctx.emitNilChecks =>
         for {
           cond <- dereferencedPointerNotNil(d)(ctx)
@@ -546,14 +546,14 @@ object TypeEncoding {
   }
 
   /**
-    * Returns the dereference that is applied last when `l` is evaluated, if `l` has one.
-    * For `l.next.val`, this is the dereference of `l.next` and not the one of `l`.
+    * Returns the outermost dereference of `l`, i.e. the one that is not nested inside another
+    * dereference of `l`, if `l` has one. For `l.next.val`, this is the dereference of `l.next`.
     */
   @tailrec
-  private def lastDeref(l: in.Location): Option[in.Deref] = l match {
+  private def outermostDeref(l: in.Location): Option[in.Deref] = l match {
     case d: in.Deref => Some(d)
-    case in.FieldRef(recv: in.Location, _) => lastDeref(recv)
-    case in.IndexedExp(base: in.Location, _, _) => lastDeref(base)
+    case in.FieldRef(recv: in.Location, _) => outermostDeref(recv)
+    case in.IndexedExp(base: in.Location, _, _) => outermostDeref(base)
     // The receiver of a field access and the base of an index expression are exclusive values,
     // which are not dereferenced. An in-bounds index implies that an element exists.
     case _: in.FieldRef | _: in.IndexedExp => None

@@ -70,6 +70,31 @@ func readChain(l *LList) (v int) {
 	return
 }
 
+// The base of an index expression is not always a location: a slice expression is not one.
+// An L-value whose base is a slice expression has no outermost dereference of its own, but
+// slicing an array pointer does dereference it, and that dereference is checked when the
+// slice expression itself is encoded.
+func sliceOfArrayPointer(p *[10]int) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &p[0:5][0]
+	return
+}
+
+preserves p != nil ==> acc(p)
+func readSliceOfArrayPointer(p *[10]int) (v int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	v = p[0:5][0]
+	return
+}
+
+// A slice value carries its own backing array, so slicing and indexing it dereferences
+// nothing and no obligation is generated.
+requires len(s) > 3 && acc(&s[2])
+func sliceOfSliceValue(s []int) (r *int) {
+	r = &s[2:4][0]
+	return
+}
+
 // With permissions to every link, all dereferences are witnessed and the chain verifies.
 // These cases guard against the checks becoming vacuous: they must keep verifying, so that
 // a change that rejects them shows up here rather than as an incompleteness in a client.

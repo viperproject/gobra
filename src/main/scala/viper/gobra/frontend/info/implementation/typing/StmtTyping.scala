@@ -354,7 +354,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     def validExpression(expr: PExpression): PropertyResult = expr match {
       case invoke: PInvoke => failedProp(s"The call must be $expectedCall", !isExpectedCall(invoke))
       case f: PUnfolding => validExpression(f.op)
-      case _ => failedProp(s"only unfolding expressions and the call $expectedCall is allowed")
+      case f: PAsserting => validExpression(f.op)
+      case _ => failedProp(s"only unfolding/asserting expressions and the call $expectedCall are allowed")
     }
 
     validExpression(retExpr)

@@ -11,15 +11,15 @@ pred sendInvariant(v *int) {
 
 requires acc(c.SendChannel(), perm(1, 2))
 requires acc(c.RecvChannel(), perm(1, 2))
-requires c.SendGivenPerm() == sendInvariant!<_!>
-requires c.SendGotPerm() == PredTrue!<!>
-requires c.RecvGivenPerm() == PredTrue!<!>
-requires c.RecvGotPerm() == sendInvariant!<_!>
+requires c.SendGivenPerm() == sendInvariant{_}
+requires c.SendGotPerm() == PredTrue{}
+requires c.RecvGivenPerm() == PredTrue{}
+requires c.RecvGotPerm() == sendInvariant{_}
 func incChannel(c chan *int) {
-	fold PredTrue!<!>()
+	fold PredTrue{}()
 	res, ok := <- c
 	if (ok) {
-		unfold sendInvariant!<_!>(res)
+		unfold sendInvariant{_}(res)
 		// we now have write access after unfolding the invariant. Guard the
 		// increment: under the sound bounded-integer semantics `*res + 1` would
 		// overflow to a non-positive value at MaxInt64, breaking the `*v > 0`
@@ -28,7 +28,7 @@ func incChannel(c chan *int) {
 			*res = *res + 1
 		}
 		// fold the invariant and send pointer and permission back:
-		fold sendInvariant!<_!>(res)
+		fold sendInvariant{_}(res)
 		c <- res
 	}
 }
@@ -38,16 +38,16 @@ func clientChannel() {
 
 	var x@ int = 42
 	var p *int = &x
-	c.Init(sendInvariant!<_!>, PredTrue!<!>)
+	c.Init(sendInvariant{_}, PredTrue{})
 	go incChannel(c)
 	assert *p == 42
-	fold sendInvariant!<_!>(p)
+	fold sendInvariant{_}(p)
 	c <- p
 
-	fold PredTrue!<!>()
+	fold PredTrue{}()
 	res, ok := <- c
 	if (ok) {
-		unfold sendInvariant!<_!>(res)
+		unfold sendInvariant{_}(res)
 		assert *res > 0
 		// we have regained write access:
 		*res = 1

@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Mutex struct {
+	state int
+}
+
+pred (m Mutex) isZero() {
+	m.state == 0
+}
+
+func test2() {
+	// `q` is a local variable here, not the import alias from main1.gobra. `q.isZero{}` is a
+	// (receiver-value) predicate constructor. With package-wide qualifier collection, `q` was
+	// wrongly seen as an import qualifier and the constructor was left as a composite literal,
+	// causing a spurious type error.
+	q := Mutex{0}
+	fold q.isZero{}()
+}

@@ -234,6 +234,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT, mayInit)(n)
 
+    // A `PCompositeLitOrPredConstructor` is resolved into a `PCompositeLit` or a `PPredConstructor`
+    // before type-checking (see `PredicateConstructorRewriter`), so reaching this point means the
+    // resolution was skipped or incomplete -- a Gobra bug. Fail loudly rather than mis-interpret it.
+    case n: PCompositeLitOrPredConstructor =>
+      error(n, s"internal error: unresolved composite-literal/predicate-constructor ambiguity at $n")
+
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
@@ -434,10 +440,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       cap.fold(noMessages)(isExpr(_).out) ++
       ((underlyingType(exprType(base)), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
-          val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          error(low, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            error(high, s"index $high is out of bounds", !highOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            error(cap, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+          arraySliceBounds(n, low, high, cap, length = Some(l)) ++
             error(base, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
@@ -447,35 +450,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         case (ActualPointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>  // without ghost slices, slicing a ghost pointer is not allowed.
-          val (lowOpt, highOpt, capOpt) = (low flatMap  intConstantEval, high flatMap intConstantEval, cap flatMap intConstantEval)
-          error(low, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
-            error(high, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
-            error(cap, s"index $cap is out of bounds", !capOpt.forall(i => i >= 0 && i <= l))
+          arraySliceBounds(n, low, high, cap, length = Some(l))
 
         case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
-          val lowOpt = low.flatMap(intConstantEval)
-          val highOpt = high.flatMap(intConstantEval)
-          val lowHighOpt = lowOpt.zip(highOpt)
-          error(low, s"index $low is negative", lowOpt.exists(i => 0 > i)) ++
-            error(high, s"index $high is negative", highOpt.exists(i => 0 > i)) ++
-            error(high, s"invalid slice indices: $high > $low", lowHighOpt.exists { case (l, h) => l > h })
+          arraySliceBounds(n, low, high, cap, length = None)
 
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
           // slice expressions of string type cannot have a third argument
-          val (lenOpt, lowOpt, highOpt) = (
-            stringConstantEval(base) map (_.length),
-            low flatMap intConstantEval,
-            high flatMap intConstantEval
-          )
-          val lowError = error(low, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
-          val highError = error(high, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
-          val lowLessHighError = (lowOpt, highOpt) match {
-            case (Some(l), Some(h)) =>
-              // this error message is the same shown by the go compiler
-              error(n, s"invalid slice index: $l > $h", l > h)
-            case _ => noMessages
-          }
-          return lowError ++ highError ++ lowLessHighError
+          arraySliceBounds(n, low, high, cap, length = stringConstantEval(base) map (_.length))
 
         case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
@@ -621,6 +603,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         s"unfolding predicate expression instance ${n.pred} not supported",
         resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
 
+    case n: PAsserting => assignableToSpec(n.ass) ++ isExpr(n.op).out ++ isPureExpr(n.op)
+
     case PLength(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
@@ -741,6 +725,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
+  private def arraySliceBounds(
+                                slice: PSliceExp,
+                                low: Option[PExpression],
+                                high: Option[PExpression],
+                                cap: Option[PExpression],
+                                length: Option[BigInt] // length (if known) of array or slice that is sliced
+                              ): Messages = {
+    // fill in omitted low and high values by their defaults and try to
+    // evaluate them to constants:
+    val lowConstant = low.fold(Option(BigInt(0)))(intConstantEval)
+    val highConstant = high.fold(length)(intConstantEval)
+    val capConstant = cap.flatMap(intConstantEval)
+    def withinBounds(i: BigInt): Boolean = 0 <= i && length.forall(i <= _)
+
+    error(low, s"index $low is out of bounds", lowConstant.exists(i => !withinBounds(i))) ++
+      error(high, s"index $high is out of bounds", highConstant.exists(i => !withinBounds(i))) ++
+      error(cap, s"index $cap is out of bounds", capConstant.exists(i => !withinBounds(i))) ++
+      // in the following, we report an error only if the components are within bounds to avoid
+      // reporting a lot of errors (like the Go compiler)
+      error(slice, "invalid slice indices: low > high",
+        lowConstant.zip(highConstant).exists { case (l, h) => withinBounds(l) && withinBounds(h) && l > h }) ++
+      error(slice, "invalid slice indices: high > cap",
+        highConstant.zip(capConstant).exists { case (h, c) => withinBounds(h) && withinBounds(c) && h > c })
+  }
+
   private def numExprWithinTypeBounds(num: PNumExpression): Messages =
     intExprWithinTypeBounds(num, numExprType(num))
 
@@ -776,6 +785,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PFloatLit => UnboundedFloatT
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
+
+    // Unresolved ambiguity node (see `wellDefActualExpr`); ill-typed, so report `UnknownType`.
+    case _: PCompositeLitOrPredConstructor => UnknownType
 
     case PFunctionLit(_, PClosureDecl(args, result, _, _)) =>
       FunctionT(args map miscType, miscType(result))
@@ -865,6 +877,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
+    case n: PAsserting => exprType(n.op)
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
@@ -1018,6 +1031,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case UnknownType => None
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
@@ -1038,6 +1052,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case UnknownType => None
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 

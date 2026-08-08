@@ -481,6 +481,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
+    case Asserting(ass, exp) => "asserting" <+> showAss(ass) <+> "in" <+> showExpr(exp)
+
     case PureLet(left, right, exp) =>
       "let" <+> showVar(left) <+> "==" <+> parens(showExpr(right)) <+> "in" <+> showExpr(exp)
 
@@ -623,7 +625,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case Hexadecimal => "0x"
       }
       prefix + lit.toString(base.base)
-    case StringLit(s) => "\"" <> s <> "\""
+    case StringLit(s) => s.quoted
     case PermLit(a, b) => "perm" <> parens(a.toString() <> "/" <> b.toString())
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))

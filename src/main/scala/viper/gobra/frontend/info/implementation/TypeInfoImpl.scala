@@ -19,6 +19,7 @@ import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
+import viper.gobra.util.GoString
 
 class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
@@ -147,7 +148,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
 
   override def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)] = permConstantEval(expr)
 
-  override def stringConstantEvaluation(expr: PExpression): Option[String] = stringConstantEval(expr)
+  override def stringConstantEvaluation(expr: PExpression): Option[GoString] = stringConstantEval(expr)
 
   override def getTypeInfo: TypeInfo = this
 

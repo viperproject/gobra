@@ -190,10 +190,11 @@ protected class ClosureSpecsEncoder {
     * function closureImplements$[spec]$[idx of params](closure: Closure, [params name and type]): Bool
     * */
   private def implementsFunction(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): vpr.DomainFunc = {
+    val (nodePos, nodeInfo, nodeErrT) = spec.vprMeta
     val closurePar = in.Parameter.In(Names.closureArg, genericFuncType)(info)
     val params = spec.params.map(p => in.Parameter.In(Names.closureImplementsParam(p._1), p._2.typ.withAddressability(Addressability.inParameter))(p._2.info))
     val args = (Vector(closurePar) ++ params) map ctx.variable
-    vpr.DomainFunc(implementsFunctionName(spec), args, vpr.Bool)(domainName = Names.closureDomain)
+    vpr.DomainFunc(implementsFunctionName(spec), args, vpr.Bool)(pos = nodePos, info = nodeInfo, errT = nodeErrT, domainName = Names.closureDomain)
   }
 
   /**

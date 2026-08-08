@@ -126,9 +126,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
       val hasEmptySpec = !n.spec.isPure &&
         !n.spec.isTrusted &&
-        n.spec.pres.isEmpty &&
-        n.spec.preserves.isEmpty &&
-        n.spec.posts.isEmpty &&
+        n.spec.clauses.isEmpty &&
         n.spec.terminationMeasures.isEmpty
       error(n, errorMsgEmptySpec, !hasEmptySpec) ++
         error(n, errorMsgNoInOut, !noInputsAndOutputs) ++

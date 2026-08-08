@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package strings
+
+func TestGoEncoding() {
+    // tests that we use Go's (utf8) instead of Scala's (utf16)
+    // encoding for strings:
+    assert len("👍") == 4 // as opposed to 2
+    //:: ExpectedOutput(assert_error)
+    assert false
+}

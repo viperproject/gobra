@@ -26,6 +26,14 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
 
           case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[IntT] => Some(a)
           case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
+          // The mathematical `integer` ghost type is the common type of itself and any
+          // bounded integer kind: comparing e.g. `len(s: seq[int])` (integer) with bounded
+          // `int` arithmetic compares the mathematical values (the encoding projects the
+          // bounded side via its total `from` bridge function). Note that the merged type
+          // is `integer`, never the bounded kind — assigning an `integer` to a bounded
+          // variable still requires an explicit conversion.
+          case (a@IntT(viper.gobra.util.TypeBounds.UnboundedInteger), b) if underlyingType(b).isInstanceOf[IntT] => Some(a)
+          case (a, b@IntT(viper.gobra.util.TypeBounds.UnboundedInteger)) if underlyingType(a).isInstanceOf[IntT] => Some(b)
           case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[FloatT] => Some(a)
           case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[FloatT] => Some(b)
           case (a, UnboundedFloatT) if underlyingType(a).isInstanceOf[FloatT] => Some(a)

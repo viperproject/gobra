@@ -110,6 +110,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => successProp
       // not part of Go spec, but necessary for the definition of comparability
       case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => successProp
+      // Every integer kind is assignable to the ghost `integer` type: the promotion to
+      // mathematical integers is total and lossless (the encoding routes it through the
+      // precondition-free `from` bridge function). The converse — `integer` to a bounded
+      // kind — requires an explicit conversion, since it may not fit.
+      case (l, IntT(viper.gobra.util.TypeBounds.UnboundedInteger)) if underlyingType(l).isInstanceOf[IntT] => successProp
       case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[FloatT] => successProp
       case (UnboundedFloatT, r) if underlyingType(r).isInstanceOf[FloatT] => successProp
       case (l, r) if identicalTypes(l, r) => successProp

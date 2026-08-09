@@ -9,6 +9,7 @@ pure func f(x int) int {
 }
 
 ghost
+requires -1000000 < x && x < 1000000 // bound x so the additions in f provably do not overflow
 ensures res == 3 * x + 3
 func g(x int) (res int) {
 	return f(x)

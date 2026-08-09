@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+import "math"
+
+// The architecture-dependent limits MaxInt, MinInt, and MaxUint are
+// deliberately omitted from the math stub so that proofs cannot depend on the
+// (unfixed) platform word size. Referencing them is a type error.
+func useOmittedMaxInt() {
+	//:: ExpectedOutput(type_error)
+	var x int = math.MaxInt
+	_ = x
+}

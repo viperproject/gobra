@@ -3,6 +3,7 @@
 
 package pkg
 
+// `len` on ghost collections has the mathematical `integer` type
 func example1(ghost s set[int]) (ghost n integer) {
   n = len(s);
 }
@@ -19,6 +20,7 @@ func example3() {
 }
 
 ensures n == len(s union set[int] { 42 });
+// `len` on ghost collections has the mathematical `integer` type
 func example4(ghost s set[int]) (ghost n integer) {
   n = len(s union set[int] { 42 });
 }

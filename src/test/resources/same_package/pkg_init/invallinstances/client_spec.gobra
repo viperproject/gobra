@@ -3,6 +3,18 @@
 
 package invallinstances
 
+import "math"
+
+// The id counter must have headroom left before another instance can be
+// allocated; otherwise incrementing it would overflow.
+ghost
+requires acc(PkgInv(), _)
+decreases
+pure func HasIdHeadroom() bool {
+	return unfolding acc(PkgInv(), _) in
+		ids < math.MaxInt64
+}
+
 pred PkgInv() {
 	acc(&ids) &&
 	acc(&allocs) &&

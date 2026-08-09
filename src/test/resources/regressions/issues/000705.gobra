@@ -3,6 +3,8 @@
 
 package issue000705
 
+import "math"
+
 // adapted from Viper tutorial on magic wands
 
 type ListEntry struct {
@@ -23,6 +25,7 @@ pure func (l *ListEntry) Elems() (res seq[int]) {
 }
 
 requires l1.List() && l2.List() && l2 != nil
+requires len(l1.Elems()) <= math.MaxInt64
 ensures  l1.List() && l1.Elems() == old(l1.Elems() ++ l2.Elems())
 func (l1 *ListEntry) append(l2 *ListEntry) {
     unfold l1.List()
@@ -46,6 +49,7 @@ func (l1 *ListEntry) append(l2 *ListEntry) {
     }
 }
 
+requires len(elems) <= math.MaxInt64
 requires tmp.List() && /*acc(l1) && l1.next == tmp &&*/ tmp.Elems() == elems[1:]
 requires tmp.List() --* (l1.List() && l1.Elems() == elems[:1] ++ old[#lhs](tmp.Elems()))
 ensures 0 <= newIndex

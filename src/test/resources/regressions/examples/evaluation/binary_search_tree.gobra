@@ -60,7 +60,7 @@ func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBoun
 
 ghost
 requires acc(t.tree(), _)
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
+ensures forall i integer :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered; index quantified over exact `integer` so `i + 1` cannot overflow
 pure func (t *Tree) sortedValues() (res seq[int]) {
     return unfolding acc(t.tree(), _) in (t.root == nil) ? seq[int] { } : t.root.sortedValues(none[int], none[int])
 }
@@ -68,8 +68,8 @@ pure func (t *Tree) sortedValues() (res seq[int]) {
 ghost
 requires acc(n.tree(), _) && n.sorted(lowerBound, upperBound)
 ensures n.sorted(lowerBound, upperBound)
-ensures forall i int :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound))))
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered
+ensures forall i integer :: (0 <= i && i < len(res) ==> ((lowerBound != none[int] ==> res[i] > get(lowerBound)) && (upperBound != none[int] ==> res[i] < get(upperBound)))) // index quantified over exact `integer` to match sequence-length arithmetic
+ensures forall i integer :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // ordered; index quantified over exact `integer` so `i + 1` cannot overflow
 pure func (n *node) sortedValues(lowerBound, upperBound option[int]) (res seq[int]) {
     return unfolding acc(n.tree(), _) in (n.left == nil ? seq[int]{ } : n.left.sortedValues(lowerBound, some(n.value))) ++ seq[int]{ n.value } ++ (n.right == nil ? seq[int]{ } : n.right.sortedValues(some(n.value), upperBound))
 }

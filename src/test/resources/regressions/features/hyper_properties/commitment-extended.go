@@ -34,11 +34,11 @@ func computeHash(input int) (res int)
 
 /* @
 ghost type HashFunction domain {
-    func hashFn(int) int
-    func invFn(int) int
+    func hashFn(integer) integer
+    func invFn(integer) integer
 
     axiom { // hashFn is injective
-        forall v int :: { hashFn(v) } invFn(hashFn(v)) == v
+        forall v integer :: { hashFn(v) } invFn(hashFn(v)) == v
     }
 }
 @ */

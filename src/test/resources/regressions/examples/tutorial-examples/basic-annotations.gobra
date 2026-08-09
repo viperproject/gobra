@@ -4,6 +4,8 @@
 package tutorial
 
 requires 0 <= n // precondition
+// bound n so the sum n*(n+1)/2 (and i++ up to n+1) cannot overflow
+requires n <= 1000000
 ensures  sum == n * (n+1)/2 // postcondition
 func sum(n int) (sum int) {
 	sum = 0

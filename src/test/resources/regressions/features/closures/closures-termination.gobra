@@ -3,6 +3,8 @@
 
 package closuresTermination
 
+import "math"
+
 func test1() {
     var c@ func(int)int
     c = requires n >= 0
@@ -26,7 +28,10 @@ func test2() {
         decreases m, n
         func ack(m int, n int) (result int) {
             if m == 0 {
-                return n + 1
+                if n < math.MaxInt64 { // guard: n + 1 must fit int
+                    return n + 1
+                }
+                return n
             } else {
                 if n == 0 {
                     c(m-1, 1) as ack
@@ -60,7 +65,10 @@ func test4() {
                 if n%2 == 0 {
                     return c(n/2) as collatz
                 } else {
-                    return c(3*n + 1) as collatz
+                    if n <= (math.MaxInt64 - 1) / 3 { // guard: 3*n + 1 must fit int
+                        return c(3*n + 1) as collatz
+                    }
+                    return n
                 }
             }
         }

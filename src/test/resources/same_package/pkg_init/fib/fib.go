@@ -13,7 +13,7 @@ func init() {
 	// @ fold StaticInv()
 }
 
-// @ requires  0 <= n
+// @ requires  0 <= n && FibFits(n)
 // @ preserves StaticInv()
 // @ ensures   res == FibSpec(n)
 // @ decreases n
@@ -24,6 +24,7 @@ func Fib(n int) (res int) {
 		return v
 	}
 	// @ fold StaticInv()
+	// @ assert FibSpec(n) == FibSpec(n-1) + FibSpec(n-2)
 	v := Fib(n-1) + Fib(n-2)
 	// @ unfold StaticInv()
 	cache[n] = v

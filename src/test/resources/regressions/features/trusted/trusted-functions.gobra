@@ -1,6 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+// `positiveSumWithoutTrusted` relies on `x > 0 && y > 0 ==> x + y > 0`, which no longer holds under
+// the sound bounded-integer encoding because `x + y` may overflow. Restore the previous unbounded-
+// integer encoding, under which this test verifies as intended.
+// ##(--unboundedIntegers)
 package pkg;
 
 requires x > 0 && y > 0

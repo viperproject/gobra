@@ -46,6 +46,17 @@ type metadata struct {
 }
 
 func init() {
+	// Materialize the DoesNotContain instances for the concrete keys 1 and 2 at
+	// the mathematical-integer kind: Alloc's postcondition quantifies over
+	// mathematical integers, so the friend-package obligations below need ground
+	// witness terms of that shape.
+	// @ ghost var one integer = 1
+	// @ ghost var two integer = 2
+	// @ ghost var w1 uint16 = uint16(one)
+	// @ ghost var w2 uint16 = uint16(two)
+	// @ assert w1 == 1 && w2 == 2
+	// @ assert acc(RegisteredTypes().DoesNotContain(w1), _)
+	// @ assert acc(RegisteredTypes().DoesNotContain(w2), _)
 	// @ fold PkgInv()
 }
 

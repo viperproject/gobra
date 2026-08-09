@@ -4,14 +4,20 @@
 package pkg
 
 func count_even(n int) (res int) {
+	// the `0 <= x` invariants bound the loop variables so the termination measures
+	// `10 - x` are provably free of overflow
+	invariant 0 <= i
 	decreases 10 - i
 	for i := 0; i < 10; i++ {
 	label1:
+		invariant 0 <= j
 		decreases 10 - j
 		for j := 0; j < 10; j++ {
+			invariant 0 <= k
 			decreases 10 - k
 			for k := 0; k < 10; k++ {
 			label2:
+				invariant 0 <= l
 				decreases 10 - l
 				for l := 0; l < 10; l++ {
 					if k > 5 {

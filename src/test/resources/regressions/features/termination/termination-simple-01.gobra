@@ -3,6 +3,8 @@
 
 package termination
 
+import "math"
+
 ghost
 requires n >= 0
 decreases n
@@ -19,7 +21,7 @@ requires m >= 0
 requires n >= 0
 ensures result >= 0
 decreases m, n
-func ack(m int, n int) (result int) {
+func ack(m integer, n integer) (result integer) {
 	if m == 0 {
 		return n+1
 	} else {
@@ -49,8 +51,10 @@ func collatz(n int) int {
 	} else {
 		if n%2 == 0 {
 			return collatz(n/2)
-		} else {
+		} else if n <= (math.MaxInt64-1)/3 {
 			return collatz(3*n + 1)
+		} else {
+			return n
 		}
 	}
 }
@@ -89,12 +93,12 @@ func sign(x int) int {
 	}
 }
 
-requires 0 <= n
+requires 0 <= n && n <= 1000000
 ensures res == n * (n+1)/2
 decreases
 func sum(n int) (res int) {
 	res := 0
-	invariant i <= n+1
+	invariant 0 <= i && i <= n+1
 	invariant res == (i-1) * i/2
 	decreases n-i
 	for i := 0; i <= n; i++ {
@@ -104,6 +108,7 @@ func sum(n int) (res int) {
 }
 
 ghost
+requires len(s) <= math.MaxInt64
 decreases s
 func sum2(ghost s seq[int]) int {
 	ghost res := 0
@@ -173,11 +178,12 @@ requires m >= 0
 requires n >= 0
 ensures result >= 0
 decreases m, n
-pure func ackPure(m int, n int) (result int) {
+pure func ackPure(m integer, n integer) (result integer) {
 	return m == 0? n + 1: n == 0 ? ackPure(m-1, 1) : ackPure(m-1, ackPure(m, n-1))
 }
 
 ghost
+requires len(s) <= math.MaxInt64
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
 decreases len(s)
 pure func SumPure(ghost s ghost []int) int {

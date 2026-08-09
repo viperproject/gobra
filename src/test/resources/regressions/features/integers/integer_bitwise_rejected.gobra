@@ -3,6 +3,11 @@
 
 package integerBitwiseRejected
 
+// Bitwise operations are only defined on bounded integer kinds. Applying them to
+// values of the ghost `integer` type (mathematical, unbounded precision) is rejected
+// by the type-checker, mirroring Go's rule that bitwise operators require integer
+// types with a fixed bit width.
+
 ghost
 decreases
 pure func bitAndIntegerRejected(a, b integer) integer {

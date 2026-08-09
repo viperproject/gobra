@@ -2,6 +2,8 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 package list
 
+import "math"
+
 type List struct {
 	val int
 	next *List
@@ -19,6 +21,9 @@ pure func elems(start *List) (res seq[int]) {
 }
 
 requires l1.Mem() && l2.Mem() && l2 != nil
+// bound the traversal counter: index + 1 must stay exact so each packaged wand
+// instance matches the one applied at index - 1
+requires len(elems(l1)) < math.MaxInt64
 ensures  l1.Mem() && elems(l1) == old(elems(l1) ++ elems(l2))
 func (l1 *List) Append(l2 *List) {
 	unfold l1.Mem()
@@ -35,7 +40,7 @@ func (l1 *List) Append(l2 *List) {
 		}
 
 		invariant tmp.Mem() --* (l1.Mem() && elems(l1) == old((elems(l1))[:index] ++ old[#lhs](elems(tmp))))
-		invariant index >= 0
+		invariant index >= 0 && index <= len(old(elems(l1)))
 		invariant tmp.Mem() && elems(tmp) == old(elems(l1))[index:]
 		for (unfolding tmp.Mem() in tmp.next != nil) {
 			unfold tmp.Mem()

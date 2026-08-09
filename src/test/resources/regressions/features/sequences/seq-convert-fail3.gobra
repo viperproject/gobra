@@ -8,9 +8,12 @@ func foo() {
   test1(xs)
   test2(xs)
   test3(xs)
+  // passing the `integer`-typed `len(xs)` where a `seq[int]` is expected is a type error
   //:: ExpectedOutput(type_error)
   test4(len(xs))
 }
+
+// `len` on ghost collections (sequences, sets, ...) has the mathematical `integer` type.
 
 func test1(ghost s seq[int]) (ghost res integer) {
     return len(s)

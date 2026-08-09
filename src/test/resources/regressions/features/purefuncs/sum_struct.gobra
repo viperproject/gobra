@@ -13,7 +13,20 @@ pure func test(t tripleInt) (res int) {
     return t.a + t.b + t.c
 }
 
-ensures forall i int, a int, b int, c int :: test(tripleInt{a,b,c})==test(tripleInt{a-i,b+i,c})
+// The quantified variables are mathematical integers, so the quantifier guard must
+// bound them (keeping the sums small) for the additions in test, a-i, and b+i to be
+// provably exact; the same bounds are required of the function's own parameters for
+// the asserts in the body.
+requires -1000000 < a && a < 1000000
+requires -1000000 < b && b < 1000000
+requires -1000000 < c && c < 1000000
+requires -1000000 < i && i < 1000000
+ensures forall i int, a int, b int, c int ::
+    (-1000000 < a && a < 1000000 &&
+     -1000000 < b && b < 1000000 &&
+     -1000000 < c && c < 1000000 &&
+     -1000000 < i && i < 1000000) ==>
+    test(tripleInt{a,b,c})==test(tripleInt{a-i,b+i,c})
 func client(a,b,c,i int){
     assert test(tripleInt{a:a,b:b,c:c}) == a+b+c
     assert test(tripleInt{a,b,c}) == test(tripleInt{a,b+i,c-i})

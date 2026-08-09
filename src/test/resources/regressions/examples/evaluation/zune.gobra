@@ -33,6 +33,10 @@ func convertDaysFixed(totalDays int) (days, year int) {
 }
 
 
+// Bound the input so the products (year - originYear) * 365/366 provably stay
+// within the range where bounded multiplication is exact: with at most 10^9
+// days, at most ~2.8 * 10^6 years elapse, keeping every operand small.
+requires 0 <= totalDays && totalDays <= 1000000000
 ensures days + (year - originYear) * 365 <= totalDays
 ensures totalDays <= days + (year - originYear) * 366
 ensures days <= 366
@@ -41,6 +45,8 @@ func convertDaysFixedWithSomeInvariants(totalDays int) (days, year int) {
   days = totalDays
   year = originYear
 
+  invariant 0 <= days && days <= totalDays
+  invariant originYear <= year && year <= originYear + 3000000
   invariant days + (year - originYear) * 365 <= totalDays
   invariant totalDays <= days + (year - originYear) * 366
   for (isLeapYear(year) && 366 < days) || (!isLeapYear(year) && 365 < days) {

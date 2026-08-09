@@ -4,6 +4,11 @@
 package tutorial
 
 requires 0 <= n // precondition
+// Under the sound bounded-integer semantics the sum n*(n+1)/2 must be shown not
+// to overflow. Bounding n keeps every product (the running i*(i-1), the n*(n+1)
+// of the postcondition) comfortably within int64 range, and i++ up to n+1 stays
+// in range too.
+requires n <= 1000000
 ensures  sum == n * (n+1)/2 // postcondition
 decreases
 func sum(n int) (sum int) {

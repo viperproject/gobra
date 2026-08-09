@@ -1,0 +1,111 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package boundedInts
+
+// Tests for bounded integer semantics without overflow checking.
+// The BoundedIntEncoding automatically adds range postconditions for bounded int results
+// and allows equality comparison between bounded integers and untyped integer literals.
+
+// Identity function: verifier knows result is in [-128, 127].
+ensures ret == u
+decreases
+func identity8(u int8) (ret int8) {
+    ret = u
+    return
+}
+
+// Test equality comparison between bounded int and integer literal (the mixed equal case).
+// This was previously broken: comparing `u == 0` where `u: int8` and `0: integer` failed
+// with "did not match with any implemented case of equal".
+ensures (u == 0) == (ret == 0)
+decreases
+func testEqWithLiteral(u int8) (ret int8) {
+    if u == 0 {
+        ret = 0
+    } else {
+        ret = u
+    }
+    return
+}
+
+// Unsigned ints are always >= 0 (the type's varPostcondition ensures this).
+ensures ret >= 0
+decreases
+func nonNegU8(u uint8) (ret uint8) {
+    ret = u
+    return
+}
+
+// Arithmetic: result is guaranteed to be in int8 range.
+ensures -128 <= ret && ret <= 127
+decreases
+func addResult(u int8, v int8) (ret int8) {
+    ret = u + v
+    return
+}
+
+// When the sum provably doesn't overflow, equality can be asserted (without --overflow).
+requires 0 <= u && u <= 100
+ensures ret > 0
+decreases
+func addOneSmall(u int8) (ret int8) {
+    ret = u + 1
+    return
+}
+
+// Pure function: the result variable postcondition must be applied via fixResultvar.
+// Previously, varPostcondition wasn't transformed, causing "local var not found" errors.
+ensures ret >= 0
+decreases
+pure func pureNonNeg(u uint8) (ret uint8) {
+    return u
+}
+
+// Pure function: bounded int equality with literal in postcondition.
+ensures ret == 0
+decreases
+pure func pureZero() (ret uint8) {
+    return 0
+}
+
+// Default value of bounded int type is 0.
+ensures ret == 0
+decreases
+func defaultUint8() (ret uint8) {
+    return
+}
+
+// Shared int (accessed via pointer) compared with integer literal.
+// This covers the `int@` == `0` case (shared bounded int vs. integer literal).
+requires acc(p)
+decreases
+func readAndCompare(p *int8) (eq bool) {
+    eq = *p == 0
+    return
+}
+
+// Test that comparison operators work with mixed bounded/unbounded.
+requires u > 0
+ensures ret >= 0
+decreases
+func testRelational(u int8) (ret int8) {
+    ret = u
+    return
+}
+
+// Test subtraction: result stays in range.
+ensures -128 <= ret && ret <= 127
+decreases
+func subResult(u int8, v int8) (ret int8) {
+    ret = u - v
+    return
+}
+
+// Test multiplication: result stays in range.
+ensures -128 <= ret && ret <= 127
+decreases
+func mulResult(u int8, v int8) (ret int8) {
+    ret = u * v
+    return
+}

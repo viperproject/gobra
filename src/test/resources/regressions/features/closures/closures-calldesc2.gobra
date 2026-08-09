@@ -32,10 +32,12 @@ func hof(ghost cs Calls, f func(ghost seq[int], int)int)(res int) {
 }
 
 ghost
-ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+// unrolling lemma stated via len(s) (exact ghost-integer arithmetic, no bounded index terms)
+ensures len(s) > 0 ==> res == seqSum(s[:(len(s)-1)]) + s[len(s)-1]
 decreases len(s)
 pure func seqSum(s seq[int]) (res int) {
-    return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
+    // recursive sum first: matches the accumulator's `accum += x` operand order
+    return len(s) == 0 ? 0 : (seqSum(s[:(len(s)-1)]) + s[len(s)-1])
 }
 
 type Acc struct { accum *int }

@@ -155,8 +155,11 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             _ <- local(vprSlice)
 
             capArg = optCapArg.getOrElse(lenArg)
-            vprLength <- ctx.expression(lenArg)
-            vprCapacity <- ctx.expression(capArg)
+            // Project the (possibly bounded-int) size arguments to mathematical integers before
+            // building raw Viper comparisons / quantifier bounds: `make([]T, 6)` types `6` as Go
+            // `int`, whose direct encoding is a `Bounded_int` domain value — not a Viper Int.
+            vprLength <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(lenArg, underlyingType(lenArg.typ)(ctx)))
+            vprCapacity <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(capArg, underlyingType(capArg.typ)(ctx)))
 
             // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
             // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
@@ -179,12 +182,17 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             lenExpr = in.Length(slice)(makeStmt.info)
             capExpr = in.Capacity(slice)(makeStmt.info)
 
+            // capArg/lenArg can have a bounded integer kind (Go specifies `make`'s size
+            // parameter as `int`); align with the unbounded kind of in.Capacity/in.Length.
+            (alignedCapL, alignedCapR) = viper.gobra.ast.internal.utility.IntKindAlignment.alignIntKinds(capExpr, capArg)
+            (alignedLenL, alignedLenR) = viper.gobra.ast.internal.utility.IntKindAlignment.alignIntKinds(lenExpr, lenArg)
+
             // inhale cap(a) == [cap]
-            eqCap <- ctx.equal(capExpr, capArg)(makeStmt)
+            eqCap <- ctx.equal(alignedCapL, alignedCapR)(makeStmt)
             _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
 
             // inhale len(a) == [len]
-            eqLen <- ctx.equal(lenExpr, lenArg)(makeStmt)
+            eqLen <- ctx.equal(alignedLenL, alignedLenR)(makeStmt)
             _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
@@ -295,7 +303,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   override def reference(ctx : Context) : in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)) {
     case (exp @ in.IndexedExp(base :: ctx.Slice(_), idx, _)) :: _ / Shared => for {
       baseT <- ctx.expression(base)
-      idxT <- ctx.expression(idx)
+      // slice indices are Viper Ints; project bounded-int indices via `from`
+      idxT <- ctx.expression(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(idx, underlyingType(idx.typ)(ctx)))
     } yield withSrc(ctx.slice.loc(baseT, idxT), exp)
   }
 

@@ -6,6 +6,10 @@ package pkg
 type node interface {
     pred mem()
 
+    // u is a ghost recursion-depth used to scale fractional permissions:
+    // as `integer` it satisfies perm()'s denominator typing and u+1 is exact
+    // at any depth under the sound bounded-integer semantics
+
     requires 1 <= u && acc(mem(), perm(1, u)) && acc(v.mem2(), perm(1, u))
     requires v != nil
     pure accept(v visitor, ghost u integer) int

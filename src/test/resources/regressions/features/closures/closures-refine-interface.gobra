@@ -4,21 +4,24 @@
 package closureRefineInterface
 
 type I1 interface {
+    requires -1000000 <= n && n <= 1000000 // bounded argument keeps 2*n exact
     ensures r % 2 == 0
     pure f(n int) (r int)
 }
 
-type S1 struct{ x int }
+type S1 struct{ x int16 } // small field type keeps 2*self.x exact for every receiver
 
 pure func (self S1) f(n int) int {
-    return 2*n + 2*self.x
+    return 2*n + 2*int(self.x)
 }
 
 ghost
-ensures r >= 2*n && r % 2 == 0
+requires -1000000 <= n && n <= 1000000 // bounded argument keeps 2*n exact
+ensures r >= 2*n && r <= 4000000 && r % 2 == 0 // upper bound keeps r + 2 exact for callers
 pure func more(n int) (r int)
 
 requires i != nil && i.f implements more
+requires -1000000 <= a && a <= 1000000 // needed for more's precondition
 ensures r == i.f(a) as more + 2
 func hof(i I1, a int) (r int) {
     r = i.f(a) as more

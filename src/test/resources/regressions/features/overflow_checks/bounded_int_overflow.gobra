@@ -1,0 +1,124 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--overflow)
+package boundedIntOverflow
+
+// Tests for overflow detection using the domain-based BoundedIntEncoding.
+// With --overflow, arithmetic functions require preconditions proving the result
+// stays in the bounded type's range. Violating these preconditions is an
+// integer_overflow_error.
+
+// Safe increment: precondition prevents overflow.
+requires u < 127
+ensures ret == u + 1
+decreases
+func safeInc(u int8) (ret int8) {
+    ret = u + 1
+    return
+}
+
+// Unsafe increment: no bounds on u, result may overflow.
+decreases
+func unsafeInc(u int8) (ret int8) {
+    //:: ExpectedOutput(integer_overflow_error)
+    ret = u + 1
+    return
+}
+
+// Safe unsigned increment: precondition prevents overflow.
+requires u < 255
+ensures ret == u + 1
+decreases
+func safeIncU8(u uint8) (ret uint8) {
+    ret = u + 1
+    return
+}
+
+// Unsafe unsigned increment: no bounds on u.
+decreases
+func unsafeIncU8(u uint8) (ret uint8) {
+    //:: ExpectedOutput(integer_overflow_error)
+    ret = u + 1
+    return
+}
+
+// Safe multiplication: known small values (0 <= u <= 11, max product 121 <= 127).
+requires 0 <= u && u <= 11
+ensures ret == u * u
+decreases
+func safeMul(u int8) (ret int8) {
+    ret = u * u
+    return
+}
+
+// Unsafe multiplication: u * u may overflow int8.
+decreases
+func unsafeMul(u int8) (ret int8) {
+    //:: ExpectedOutput(integer_overflow_error)
+    ret = u * u
+    return
+}
+
+// Pure functions can also trigger overflow errors.
+requires u <= 126
+ensures ret == u + 1
+decreases
+pure func safePureInc(u int8) (ret int8) {
+    return u + 1
+}
+
+// Unsafe pure function.
+decreases
+pure func unsafePureInc(u int8) (ret int8) {
+    //:: ExpectedOutput(integer_overflow_error)
+    return u + 1
+}
+
+// Conversion: int8 to uint8 — safe when value is non-negative.
+requires 0 <= x
+ensures ret == uint8(x)
+decreases
+func safeConv(x int8) (ret uint8) {
+    ret = uint8(x)
+    return
+}
+
+// Conversion: int8 to uint8 — potentially unsafe.
+decreases
+func unsafeConv(x int8) (ret uint8) {
+    //:: ExpectedOutput(integer_overflow_error)
+    ret = uint8(x)
+    return
+}
+
+// int32 arithmetic: overflow for default 32-bit int.
+requires i <= 2147483646
+ensures res == i + 1
+decreases
+func safeInt32Inc(i int32) (res int32) {
+    res = i + 1
+    return
+}
+
+decreases
+func unsafeInt32Inc(i int32) (res int32) {
+    //:: ExpectedOutput(integer_overflow_error)
+    res = i + 1
+    return
+}
+
+// Subtraction overflow.
+requires x > -128
+decreases
+func safeSub(x int8) (ret int8) {
+    ret = x - 1
+    return
+}
+
+decreases
+func unsafeSub(x int8) (ret int8) {
+    //:: ExpectedOutput(integer_overflow_error)
+    ret = x - 1
+    return
+}

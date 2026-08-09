@@ -19,7 +19,7 @@ import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.{BackendAnnotation, Decimal, GoString, NumBase, TypeBounds, Violation}
-import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger, UntypedConstInteger}
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
 import scala.collection.SortedSet
@@ -996,8 +996,8 @@ case class MapKeys(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser
 
 case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
   override val typ : Type = expUnderlyingType match {
-    case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
-    case t: MapT => SetT(t.keys, Addressability.rValue)
+    case t: MathMapT => SetT(t.values, Addressability.mathDataStructureElement)
+    case t: MapT => SetT(t.values, Addressability.rValue)
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
@@ -1105,14 +1105,15 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // "kinds IntegerKind(integer) and IntegerKind(int) cannot be merged".
     case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.mergeLenient(kind1, kind2))
 
-    // A binary expression may have one operand of a defined type T and another operand that is an unbounded
-    // integer or an untyped integer constant.
+    // A binary expression may have one operand of a defined type T and another operand that is an integer
+    // (of any kind: a conversion like `AS(v)` yields the underlying bounded kind, an untyped constant may
+    // have been assigned a concrete kind by the type-checker, and internally synthesized nodes are unbounded).
     // If T's underlying type is an integer type, then the result of the expression should be of type T.
     // Here, the underlying type of a defined type is not checked, as the information is not available at this point.
     // However, this should not pose a problem assuming that the original program has been type-checked before the
     // translation to the internal language.
-    case (x, IntT(_, UnboundedInteger | UntypedConstInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
-    case (IntT(_, UnboundedInteger | UntypedConstInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+    case (x: DefinedT, _: IntT) => x.withAddressability(Addressability.Exclusive)
+    case (_: IntT, y: DefinedT) => y.withAddressability(Addressability.Exclusive)
     case (x, y) if x.equalsWithoutMod(y) => x.withAddressability(Addressability.Exclusive)
     case (l, r) => violation(s"cannot merge types $l and $r")
 
@@ -1153,7 +1154,13 @@ case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) exte
 case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
   override val typ: Type = left.typ
 }
-case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation {
+  // ^x has its operand's type. The inherited unbounded-Int typ would misreport the
+  // complement of a bounded operand: the encoding produces a domain-typed value for it,
+  // and enclosing operations decide based on this typ whether the value still needs the
+  // domain-to-Int projection.
+  override def typ: Type = op.typ.withAddressability(Addressability.rValue)
+}
 
 /*
  * Convert 'expr' to non-interface type 'newType'. If 'newType' is

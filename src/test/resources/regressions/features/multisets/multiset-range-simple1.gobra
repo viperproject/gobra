@@ -16,7 +16,9 @@ func example2() {
   assert mset[1..2] == mset[int] { 1 }
 
   // could we do without the first assertion?
-  assert seq[1..10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+  // the range sequence has mathematical `integer` elements, so the helper
+  // equality must be stated against a seq[integer] literal to be usable below
+  assert seq[1..10] == seq[integer] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
   assert 3 elem mset[1..10]
   assert 2 + 3 elem mset[1..10]
   assert !(42 elem mset[1..10])

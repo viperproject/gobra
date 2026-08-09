@@ -3,6 +3,11 @@
 
 package pkg
 
+import "math"
+
+// bound so that the assignment of the mathematical length to the
+// bounded-int variable n is provably exact
+requires len(s) <= math.MaxInt64
 func test1(s []int) {
   n := len(s)
   assert 0 <= n

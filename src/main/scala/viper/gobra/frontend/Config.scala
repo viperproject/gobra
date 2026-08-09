@@ -52,6 +52,10 @@ object ConfigDefaults {
   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
   // 64 bit otherwise.
   val DefaultInt32bit: Boolean = false
+  // When enabled, all integer types (including bounded types like int, int8, uint16, ...) are encoded
+  // as Viper's mathematical (unbounded) Int. This restores Gobra's integer encoding prior to the
+  // introduction of the sound bounded-integer semantics. It is mutually exclusive with checkOverflows.
+  val DefaultUnboundedIntegers: Boolean = false
   // the following option is currently not controllable via CLI as it is meaningless without a constantly
   // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
   val DefaultCacheParserAndTypeChecker: Boolean = false
@@ -212,6 +216,9 @@ case class Config(
                    // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                    // 64 bit otherwise.
                    int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
+                   // When enabled, all integer types (including bounded types) are encoded as Viper's
+                   // unbounded Int, restoring Gobra's integer encoding prior to the sound bounded-int semantics.
+                   unboundedIntegers: Boolean = ConfigDefaults.DefaultUnboundedIntegers,
                    // the following option is currently not controllable via CLI as it is meaningless without a constantly
                    // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                    cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
@@ -272,6 +279,7 @@ case class Config(
       cacheFile = cacheFile orElse input.cacheFile.value,
       checkOverflows = checkOverflows || input.checkOverflows.value.contains(true),
       int32bit = int32bit || input.int32bit.value.contains(true),
+      unboundedIntegers = unboundedIntegers || input.unboundedIntegers.value.contains(true),
       checkConsistency = checkConsistency || input.checkConsistency.value.contains(true),
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       onlyFilesWithHeader = onlyFilesWithHeader || input.onlyFilesWithHeader.value.contains(true),
@@ -325,6 +333,7 @@ case class Config(
       "checkOverflows" -> checkOverflows,
       "checkConsistency" -> checkConsistency,
       "int32bit" -> int32bit,
+      "unboundedIntegers" -> unboundedIntegers,
       "onlyFilesWithHeader" -> onlyFilesWithHeader,
       "gobraDirectory" -> gobraDirectory.map(_.toString).getOrElse("(none)"),
       "assumeInjectivityOnInhale" -> assumeInjectivityOnInhale,
@@ -402,6 +411,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       checkOverflows: Boolean = ConfigDefaults.DefaultCheckOverflows,
                       checkConsistency: Boolean = ConfigDefaults.DefaultCheckConsistency,
                       int32bit: Boolean = ConfigDefaults.DefaultInt32bit,
+                      unboundedIntegers: Boolean = ConfigDefaults.DefaultUnboundedIntegers,
                       cacheParserAndTypeChecker: Boolean = ConfigDefaults.DefaultCacheParserAndTypeChecker,
                       onlyFilesWithHeader: Boolean = ConfigDefaults.DefaultOnlyFilesWithHeader,
                       assumeInjectivityOnInhale: Boolean = ConfigDefaults.DefaultAssumeInjectivityOnInhale,
@@ -485,6 +495,7 @@ case class InputConfig(
   checkOverflows: InputConfigOption[Boolean] = InputConfigOption("checkOverflows", None),
   cacheFile: InputConfigOption[Path] = InputConfigOption("cacheFile", None),
   int32bit: InputConfigOption[Boolean] = InputConfigOption("int32bit", None),
+  unboundedIntegers: InputConfigOption[Boolean] = InputConfigOption("unboundedIntegers", None),
   onlyFilesWithHeader: InputConfigOption[Boolean] = InputConfigOption("onlyFilesWithHeader", None),
   checkConsistency: InputConfigOption[Boolean] = InputConfigOption("checkConsistency", None),
   assumeInjectivityOnInhale: InputConfigOption[Boolean] = InputConfigOption("assumeInjectivityOnInhale", None),
@@ -546,6 +557,7 @@ case class InputConfig(
     checkOverflows = checkOverflows orElse other.checkOverflows,
     cacheFile = cacheFile orElse other.cacheFile,
     int32bit = int32bit orElse other.int32bit,
+    unboundedIntegers = unboundedIntegers orElse other.unboundedIntegers,
     onlyFilesWithHeader = onlyFilesWithHeader orElse other.onlyFilesWithHeader,
     checkConsistency = checkConsistency orElse other.checkConsistency,
     assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse other.assumeInjectivityOnInhale,
@@ -644,6 +656,7 @@ case class InputConfig(
       checkOverflows = checkOverflows orElse other.checkOverflows,
       cacheFile = cacheFile orElse other.cacheFile,
       int32bit = int32bit orElse other.int32bit,
+      unboundedIntegers = unboundedIntegers orElse other.unboundedIntegers,
       onlyFilesWithHeader = onlyFilesWithHeader orElse other.onlyFilesWithHeader,
       checkConsistency = checkConsistency orElse other.checkConsistency,
       assumeInjectivityOnInhale = assumeInjectivityOnInhale orElse other.assumeInjectivityOnInhale,
@@ -752,6 +765,13 @@ case class InputConfig(
       },
       if (printConfig.value.contains(true) && configFile.value.isEmpty) {
         Left(Vector(ConfigError("--printConfig requires --config.")))
+      } else {
+        Right(())
+      },
+      // `--unboundedIntegers` encodes every integer as Viper's unbounded Int, so there are no bounds to
+      // overflow. Checking overflows in that mode is meaningless, hence the two flags are mutually exclusive.
+      if (unboundedIntegers.value.contains(true) && checkOverflows.value.contains(true)) {
+        Left(Vector(ConfigError("--unboundedIntegers cannot be combined with --overflow.")))
       } else {
         Right(())
       },
@@ -945,6 +965,7 @@ case class InputConfig(
     checkOverflows = checkOverflows.value.getOrElse(ConfigDefaults.DefaultCheckOverflows),
     checkConsistency = checkConsistency.value.getOrElse(ConfigDefaults.DefaultCheckConsistency),
     int32bit = int32bit.value.getOrElse(ConfigDefaults.DefaultInt32bit),
+    unboundedIntegers = unboundedIntegers.value.getOrElse(ConfigDefaults.DefaultUnboundedIntegers),
     cacheParserAndTypeChecker = false, // caching does not make sense when using the CLI. Thus, we simply set it to `false`
     onlyFilesWithHeader = onlyFilesWithHeader.value.getOrElse(ConfigDefaults.DefaultOnlyFilesWithHeader),
     assumeInjectivityOnInhale = assumeInjectivityOnInhale.value.getOrElse(ConfigDefaults.DefaultAssumeInjectivityOnInhale),
@@ -1070,6 +1091,7 @@ trait RawConfig {
     shouldVerify = baseConfig.shouldVerify,
     shouldChop = baseConfig.shouldChop,
     int32bit = baseConfig.int32bit,
+    unboundedIntegers = baseConfig.unboundedIntegers,
     cacheParserAndTypeChecker = baseConfig.cacheParserAndTypeChecker,
     onlyFilesWithHeader = baseConfig.onlyFilesWithHeader,
     assumeInjectivityOnInhale = baseConfig.assumeInjectivityOnInhale,
@@ -1568,6 +1590,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
+  val unboundedIntegers: ScallopOption[Boolean] = opt[Boolean](
+    name = "unboundedIntegers",
+    descr = "Encode all integer types (including bounded types like int, int8, uint16, ...) as Viper's " +
+      "unbounded Int. This restores Gobra's integer encoding prior to the sound bounded-integer semantics. " +
+      "Mutually exclusive with --overflow.",
+    default = Some(ConfigDefaults.DefaultUnboundedIntegers),
+    noshort = true
+  )
+
   val onlyFilesWithHeader: ScallopOption[Boolean] = opt[Boolean](
     name = "onlyFilesWithHeader",
     descr = s"When enabled, Gobra only looks at files that contain the header comment '${Config.prettyPrintedHeader}'",
@@ -1763,6 +1794,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     checkOverflows = toInputConfigOption(checkOverflows),
     cacheFile = InputConfigOption(cacheFile.name, cacheFile.toOption.map(_.toPath)),
     int32bit = toInputConfigOption(int32Bit),
+    unboundedIntegers = toInputConfigOption(unboundedIntegers),
     onlyFilesWithHeader = toInputConfigOption(onlyFilesWithHeader),
     checkConsistency = toInputConfigOption(checkConsistency),
     assumeInjectivityOnInhale = toInputConfigOption(assumeInjectivityOnInhale),

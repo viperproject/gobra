@@ -48,7 +48,11 @@ requires list(ptr) && isComparable(value)
 ensures list(ptr)
 ensures idx >= 0
 ensures contains(ptr, value)
-func insert(ptr *node, value interface{}) (ghost idx int) {
+// idx is a ghost value counting recursion depth: give it the mathematical
+// `integer` type so `insert(...) + 1` is exact regardless of the list length
+// (as a bounded int, the increment could overflow and idx >= 0 would be
+// unprovable under the sound bounded-integer semantics).
+func insert(ptr *node, value interface{}) (ghost idx integer) {
   unfold list(ptr)
   if (ptr.next == nil) {
     newNode := &node{value: value}

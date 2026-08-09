@@ -13,7 +13,7 @@ import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
-import viper.gobra.util.{Decimal, NumBase}
+import viper.gobra.util.{Decimal, GoString, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -325,6 +325,8 @@ case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScop
   }
 }
 
+case class PCritical(expr: PExpression, stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement
+
 case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement {
   def nonEmptyStmts: Vector[PStatement] = stmts.filterNot {
     case _: PEmptyStmt => true
@@ -425,9 +427,20 @@ case class PFloatLit(lit: BigDecimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
-case class PStringLit(lit: String) extends PBasicLiteral
+case class PStringLit(lit: GoString) extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
+
+/**
+  * Transient node for the surface syntax `name{...}` / `qual.name{...}`, which is ambiguous
+  * between a composite literal ([[PCompositeLit]]) and a predicate constructor
+  * ([[PPredConstructor]]): both share the same `name{ args }` shape. The parser emits this node
+  * for the ambiguous (name-typed) shapes, and it is resolved into one of the two concrete nodes
+  * before type-checking (see [[viper.gobra.frontend.Parser.PredicateConstructorRewriter]]). It
+  * therefore never reaches a well-formed type-checking run; the type checker rejects it outright
+  * so that a missed resolution fails loudly instead of being silently mis-interpreted.
+  */
+case class PCompositeLitOrPredConstructor(typ: PLiteralType, lit: PLiteralValue) extends PActualExpression
 
 sealed trait PShortCircuitMisc extends PMisc
 
@@ -581,6 +594,10 @@ case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[
 case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExpression with PProofAnnotation {
+  override def nonGhostChildren: Vector[PNode] = Vector(op)
+}
+
+case class PAsserting(ass: PExpression, op: PExpression) extends PActualExpression with PProofAnnotation {
   override def nonGhostChildren: Vector[PNode] = Vector(op)
 }
 
@@ -887,17 +904,35 @@ case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PEx
 
 sealed trait PSpecification extends PGhostNode
 
+sealed trait PFunctionSpecClause extends PNode {
+  def exp: PExpression
+}
+case class PRequires(exp: PExpression) extends PFunctionSpecClause
+case class PPreserves(exp: PExpression) extends PFunctionSpecClause
+case class PEnsures(exp: PExpression) extends PFunctionSpecClause
+
 case class PFunctionSpec(
-                          pres: Vector[PExpression],
-                          preserves: Vector[PExpression],
-                          posts: Vector[PExpression],
+                          clauses: Vector[PFunctionSpecClause],
                           terminationMeasures: Vector[PTerminationMeasure],
                           backendAnnotations: Vector[PBackendAnnotation],
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
+                          isAtomic: Boolean = false,
+                          opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
-                      ) extends PSpecification
+                      ) extends PSpecification {
+  /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
+  def pres: Vector[PExpression] = clauses.collect {
+    case PRequires(exp) => exp
+    case PPreserves(exp) => exp
+  }
+  /** returns all expressions that constitute the postcondition, i.e., includes preserved clauses */
+  def posts: Vector[PExpression] = clauses.collect {
+    case PPreserves(exp) => exp
+    case PEnsures(exp) => exp
+  }
+}
 
 case class PBackendAnnotation(key: String, values: Vector[String]) extends PGhostMisc
 

@@ -25,7 +25,6 @@ import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
-import viper.silicon.BuildInfo
 import viper.silver.{ast => vpr}
 
 import java.time.format.DateTimeFormatter
@@ -34,7 +33,7 @@ import scala.concurrent.{Await, Future, TimeoutException}
 
 object GoVerifier {
 
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2024"
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2026"
 
   val name = "Gobra"
 

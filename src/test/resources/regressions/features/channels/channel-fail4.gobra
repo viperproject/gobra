@@ -14,13 +14,13 @@ pred testPredicate(p int)
 func closeWrongArgTypes(c chan int) {
     // last argument has to be of type `pred()`
     //:: ExpectedOutput(type_error)
-    close(c, 1, 2, testPredicate!<_!>)
+    close(c, 1, 2, testPredicate{_})
 }
 
 func closeGhostChannel(ghost c chan int) {
     // channel has to be of actual type
     //:: ExpectedOutput(type_error)
-    close(c, 1, 2, testPredicate!<0!>)
+    close(c, 1, 2, testPredicate{0})
 }
 
 func initWithWrongArgType() {
@@ -29,7 +29,7 @@ func initWithWrongArgType() {
   // and reported (i.e. without crashing Gobra)
   c := make(chan int, 1) // make a buffered channel
   //:: ExpectedOutput(type_error)
-  c.Init(1, testPredicate!<_!>, PredTrue!<!>, PredTrue!<!>, testPredicate!<_!>)
+  c.Init(1, testPredicate{_}, PredTrue{}, PredTrue{}, testPredicate{_})
   //:: ExpectedOutput(type_error)
-  c.Init(1, testPredicate!<_!>)
+  c.Init(1, testPredicate{_})
 }

@@ -15,6 +15,7 @@ import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
+import viper.gobra.util.GoString
 
 trait ExternalTypeInfo {
 
@@ -83,7 +84,7 @@ trait ExternalTypeInfo {
 
   def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)]
 
-  def stringConstantEvaluation(expr: PExpression): Option[String]
+  def stringConstantEvaluation(expr: PExpression): Option[GoString]
 
   def isPureExpression(expr: PExpression): Boolean
 

@@ -15,8 +15,8 @@ func testIsChannelPredicateIsIndependantOfAddressability() {
   // testCall can be called with both channels:
   testCall1(c1)
   testCall1(c2)
-  c1.Init(sendInvariant!<_!>, sendInvariant!<42!>)
-  c2.Init(sendInvariant!<_!>, sendInvariant!<42!>)
+  c1.Init(sendInvariant{_}, sendInvariant{42})
+  c2.Init(sendInvariant{_}, sendInvariant{42})
   testCall2(c1)
   testCall2(c2)
 }

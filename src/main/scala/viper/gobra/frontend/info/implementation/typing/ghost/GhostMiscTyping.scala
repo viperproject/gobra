@@ -151,29 +151,33 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _, isPure, _, isOpaque, _) =>
-      pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
-      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
-      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _) =>
+      // Collect the named output parameters of the spec's owner so that we only
+      // reject references to those (and not to outputs of an enclosing function,
+      // method, or closure - which is relevant for outline statements and nested
+      // closure literals).
+      val ownOutParams: Vector[PNamedParameter] = tree.parent(n).head match {
+        case p: PCodeRootWithResult => p.result.outs.collect {
+          case np: PNamedParameter => np
+          case PExplicitGhostParameter(np: PNamedParameter) => np
+        }
+        case _ => Vector.empty
+      }
+      clauses.map(_.exp).flatMap(assignableToSpec) ++
+      n.pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
-      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure) ++
+      error(n, "Annotation 'opensInvariants' can only be used in ghost members.", opensInvs && !isEnclosingGhost(enclosingCodeRoot(n))) ++
+      error(n, "Annotation 'opensInvariants' can only be used in non-pure members.", opensInvs && isPure)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
-  }
-
-  private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
-    case PTupleTerminationMeasure(tuple, cond) =>
-      tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
-        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
-    case PWildcardMeasure(cond) =>
-      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
   }
 
   private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[(PParameter, Type)]): Messages = c match {
@@ -205,37 +209,21 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
   }
 
-  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
-    case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
-    case PWildcardMeasure(cond) => cond.nonEmpty
-  }
-
-  private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
-    measures.flatMap { m =>
-      error(m,
-        "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
-        isConditional(m))
-    }
-
-  private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
-    val tupleMeasureTypes =
-      measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
-              .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
-    tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
-  }
-
   def assignableToSpec(e: PExpression): Messages = {
     val mayInit = isEnclosingMayInit(e)
     isExpr(e).out ++ assignableTo.errors(exprType(e), AssertionT, mayInit)(e) ++ isWeaklyPureExpr(e)
   }
 
-  private def illegalPreconditionNode(n: PNode): Messages = {
+  private def illegalPreconditionNode(n: PNode, ownOutParams: Vector[PNamedParameter]): Messages = {
     n match {
       case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
       case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
       case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
-      case id: PIdnUse if entity(id).isInstanceOf[SymbolTable.OutParameter] =>
-        message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
+      case id: PIdnUse => entity(id) match {
+        case op: SymbolTable.OutParameter if ownOutParams.exists(_ eq op.decl) =>
+          message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
+        case _ => noMessages
+      }
       case _ => noMessages
     }
   }

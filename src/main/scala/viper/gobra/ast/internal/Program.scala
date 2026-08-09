@@ -1096,10 +1096,13 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
     // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
     // As an exception to the addressability requirement, x may also be a (possibly parenthesized) composite literal.
-    // `mergeLenient`, rather than the strict frontend `merge`: the desugarer synthesizes
-    // arithmetic that combines user expressions with internally-created nodes of kind
-    // `integer` (e.g. range-loop index increments, `len`/`cap` results). Such mixes must be
-    // tolerated here even though the frontend rejects them in user code.
+    // `mergeLenient`, rather than the strict `merge`: the type-checker deliberately accepts
+    // arithmetic mixing the mathematical `integer` kind with a bounded one (TypeMerging makes
+    // `integer` the common type of itself and any bounded kind), so that e.g. the `integer`-typed
+    // `len` of a ghost collection can be combined with a bounded `int`. The desugarer carries both
+    // operand kinds through unchanged, so such a mix reaches this point and must be merged, not
+    // rejected. With the strict `merge`, `len(s) - i` for `s seq[int]` and `i int` fails here with
+    // "kinds IntegerKind(integer) and IntegerKind(int) cannot be merged".
     case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.mergeLenient(kind1, kind2))
 
     // A binary expression may have one operand of a defined type T and another operand that is an unbounded

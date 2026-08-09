@@ -3,7 +3,7 @@
 
 package pkg
 
-func example1(ghost m mset[int]) (ghost n int) {
+func example1(ghost m mset[int]) (ghost n integer) {
 	n = len(m)
 }
 

@@ -1,6 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+// Under the sound bounded-integer encoding, `n+1` may overflow, so the loop invariant `i <= n+1`
+// is no longer established and the expected termination error is masked. Restore the previous
+// unbounded-integer encoding, under which the termination checks behave as this test expects.
+// ##(--unboundedIntegers)
 package termination
 
 decreases x

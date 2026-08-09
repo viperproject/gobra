@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Minimal reproduction of a crash found on VerifiedSCION's pkg/addr:
+// a binary integer expression mixing a defined type (underlying bounded kind)
+// with an operand of the underlying kind itself (e.g. from a conversion)
+// crashed the internal-AST type merge ("cannot merge types AS_T and uint64").
+
+package definedTypeBinopMixedKind
+
+type AS uint64
+
+const asPartBits = 16
+const MaxAS AS = (1 << 48) - 1
+
+// conversion result (uint64-kinded) mixed with defined-type operand
+requires v < (1 << 16)
+requires parsed <= (1 << 32)
+decreases
+func orPart(parsed AS, v uint64) AS {
+	res := parsed
+	res |= AS(v)
+	return res & MaxAS
+}
+
+// shift-assign on a defined type with an untyped-constant shift amount
+requires parsed < (1 << 32)
+decreases
+func shiftPart(parsed AS) AS {
+	res := parsed
+	res <<= asPartBits
+	return res
+}
+
+type HostSVC uint16
+
+const SVCMcast HostSVC = 0x8000
+
+// bit-negation of a defined-type constant used inside a binary operation
+// (crashed with a Viper consistency error: BitNeg's internal type claimed
+// an unbounded integer while its encoding produced a domain value)
+decreases
+func base(h HostSVC) HostSVC {
+	return h & ^SVCMcast
+}
+
+decreases
+func multicast(h HostSVC) HostSVC {
+	return h | SVCMcast
+}

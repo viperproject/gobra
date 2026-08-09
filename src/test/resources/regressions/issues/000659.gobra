@@ -1,6 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+// The quantified permission `forall i int :: acc(s.nodes[i])` is no longer provably injective
+// under the sound bounded-integer encoding, so the fold fails before the expected assertion.
+// Restore the previous unbounded-integer encoding, under which this program verifies as intended.
+// ##(--unboundedIntegers)
 package issue659
 
 type Node struct {

@@ -64,6 +64,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     rangeAxiom:  vpr.DomainAxiom,   // forall x: domType :: lower <= from(x) && from(x) <= upper
     invAxiom:    vpr.DomainAxiom,   // forall x: domType :: { from(x) } inv(from(x)) == x
     toFromAxiom: vpr.DomainAxiom,   // forall n: Int    :: { to(n) }   inRange(n) ==> from(to(n)) == n
+    invFromAxiom: vpr.DomainAxiom,  // forall n: Int    :: { inv(n) }  inRange(n) ==> from(inv(n)) == n
     add:    vpr.Function,  // (x y: Int): Int
     sub:    vpr.Function,  // (x y: Int): Int
     mul:    vpr.Function,  // (x y: Int): Int
@@ -201,8 +202,8 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bxor)(l, r, e)
       case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bclear)(l, r, e)
 
-      // Bitwise unary NOT — BitNeg.typ is always UnboundedInteger; the operand is bounded by the
-      // pattern. Encode as to(bneg(from(op))).
+      // Bitwise unary NOT — encode as to(bneg(from(op))). BitNeg.typ equals the operand's type,
+      // so enclosing operations correctly treat the result as a domain value.
       case e @ in.BitNeg(op :: ctx.BoundedInt(k)) =>
         val (pos, info, errT) = e.vprMeta
         for { ve <- goE(op) } yield
@@ -288,6 +289,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     //   1. range:        forall x :: { from(x) }          lower <= from(x) <= upper
     //   2. injectivity:  forall x :: { from(x) } inv(from(x)) == x  (Skolem-inverse form)
     //   3. right-inverse: forall n :: { to(n) }           inRange(n) ==> from(to(n)) == n
+    //   4. surjectivity:  forall n :: { inv(n) }          inRange(n) ==> from(inv(n)) == n
     // We deliberately do NOT emit the left-inverse direction `to(from(x)) == x` triggered
     // on `{from(x)}`: together with (3) it sets up a matching loop in Z3 — each
     // instantiation of `to(from(x))` matches the to-trigger and introduces
@@ -300,7 +302,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       addMemberFn(vpr.Domain(
         name = Names.boundedIntDomain(k),
         functions = Seq(fns.from, fns.inv, fns.to),
-        axioms = Seq(fns.rangeAxiom, fns.invAxiom, fns.toFromAxiom)
+        axioms = Seq(fns.rangeAxiom, fns.invAxiom, fns.toFromAxiom, fns.invFromAxiom)
       )())
     }
     for ((_, fns) <- kindCache)       fns.topLevelFns.foreach(addMemberFn)
@@ -489,9 +491,10 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     // `forall x, y :: { from(x), from(y) } from(x) == from(y) ==> x == y`: it needs only ONE
     // instantiation per ground `from`-term (the pair trigger needs one per PAIR of them),
     // yet gives the same power via congruence: from(a) == from(b) implies
-    // inv(from(a)) == inv(from(b)), i.e. a == b. It cannot feed a matching loop either:
-    // `inv` occurs in no other axiom and in no encoded program term, so the freshly created
-    // `inv(from(x))` terms trigger nothing.
+    // inv(from(a)) == inv(from(b)), i.e. a == b. `inv` also serves as the range-restricted
+    // inverse of `from` in lowered quantifiers (see AssertionEncoding and `invFromAxiom`):
+    // the `inv(from(x))` terms this axiom creates are exactly the anchors that let lowered
+    // triggers like `{ m[inv(v)] }` e-match ground `m[i]` terms via congruence.
     val invFn = vpr.DomainFunc(
       name       = Names.boundedIntInv(k),
       formalArgs = Seq(vpr.LocalVarDecl("n", vpr.Int)()),
@@ -533,6 +536,26 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       vpr.NamedDomainAxiom(
         name = s"${k.name}$$from_to_inverse",
         exp  = vpr.Forall(Seq(nDecl), Seq(vpr.Trigger(Seq(tn))()), body)()
+      )(domainName = domName)
+    }
+
+    // Axiom: forall n: Int :: { inv(n) } inRange(n) ==> from(inv(n)) == n.
+    // Makes `inv` a two-sided inverse on the kind's range (surjectivity of `from` onto it).
+    // Quantifiers over bounded variables are lowered to Int variables whose domain-sorted
+    // occurrences are rewritten to `inv(v)` (see AssertionEncoding): proving facts *about*
+    // `inv(v)` for an arbitrary in-range `v` (e.g. a call precondition `b.Start <= inv(v)`
+    // inside a quantified postcondition) needs the projection of `inv(v)` to be `v` itself.
+    // Triggering on `inv(n)` keeps the axiom inert except where such terms already exist;
+    // it creates only `from(inv(n))` terms, whose own axioms add nothing beyond congruent
+    // terms — no matching loop.
+    val invFromAxiom = {
+      val nDecl = vpr.LocalVarDecl("n", vpr.Int)()
+      val n     = nDecl.localVar
+      val invN  = vpr.DomainFuncApp(invFn, Seq(n), Map.empty)()
+      val body  = vpr.Implies(inRange(k, n), vpr.EqCmp(fromE(invN), n)())()
+      vpr.NamedDomainAxiom(
+        name = s"${k.name}$$inv_from_inverse",
+        exp  = vpr.Forall(Seq(nDecl), Seq(vpr.Trigger(Seq(invN))()), body)()
       )(domainName = domName)
     }
 
@@ -684,7 +707,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     val shlFn = shiftFn(Names.boundedIntShl(k))
     val shrFn = shiftFn(Names.boundedIntShr(k))
 
-    KindFunctions(fromFn, invFn, toFn, rangeAxiom, invAxiom, toFromAxiom, addFn, subFn, mulFn, divFn, modFn,
+    KindFunctions(fromFn, invFn, toFn, rangeAxiom, invAxiom, toFromAxiom, invFromAxiom, addFn, subFn, mulFn, divFn, modFn,
       bandFn, borFn, bxorFn, bclearFn, bnegFn, shlFn, shrFn)
   }
 

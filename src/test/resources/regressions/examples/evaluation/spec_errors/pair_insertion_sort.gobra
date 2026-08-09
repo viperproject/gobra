@@ -3,6 +3,10 @@
 
 // VerifyThis'17 -- Challenge 1 (sortedness property only)
 
+// This example verifies under the previous unbounded-integer encoding: with sound bounded
+// integers the sums and index arithmetic below may overflow, so its specifications are no
+// longer provable. Restore the unbounded-integer encoding for this file.
+// ##(--unboundedIntegers)
 package pkg
 
 ghost

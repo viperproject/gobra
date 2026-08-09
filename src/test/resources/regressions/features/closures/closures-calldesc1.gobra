@@ -30,6 +30,7 @@ type Calls interface {
 
 ghost
 // the argument is bounded so that accumulated values and sums of results stay exact
+decreases
 requires x >= 0 && x <= math.MaxInt32 && cs != nil && cs.inv()
 ensures cs.inv() && cs.called(x) && cs.res(x, res)
 ensures 0 <= res && res <= math.MaxInt32 // result bound keeps sums of results exact
@@ -61,17 +62,20 @@ type Acc struct { accum *int }
 // the accumulator is capped at math.MaxInt32 (saturating add) so bounds stay provable
 pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 && *self.accum <= math.MaxInt32 }
 ghost
+decreases
 requires self.inv()
 pure func (self Acc) mark() int {
     return unfolding self.inv() in *self.accum
 }
 ghost
+decreases
 requires self.inv()
 ensures r == (x <= self.mark())
 pure func (self Acc) called(x int) (r bool) {
     return unfolding self.inv() in (*self.accum >= x)
 }
 ghost
+decreases
 pure func (self Acc) res(x int, y int)bool {
     return y >= x && y <= math.MaxInt32 // upper bound keeps sums of results exact
 }
@@ -82,6 +86,7 @@ func main() {
             preserves acc(&accum) && accum >= 0 && accum <= math.MaxInt32
             // saturating accumulation: only monotonicity and dominance over x are promised
             ensures accum >= old(accum) && accum >= x && y == accum
+            decreases
             func accumulate(x int)(y int) {
                 if accum <= math.MaxInt32 - x { // guard: add only when the sum stays within the cap
                     accum += x

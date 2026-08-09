@@ -206,6 +206,21 @@ object Names {
   // unbounded → bounded conversion (also reused for bounded → bounded via from-composition)
   def integerToBounded(to: BoundedIntegerKind): String = s"integer$$to_${to.name}"
 
+  private val boundedIntHelperSuffixes =
+    Set("add", "sub", "mul", "div", "mod", "band", "bor", "bxor", "bclear", "bneg", "shl", "shr")
+
+  /**
+    * True iff `name` is one of the bounded-integer arithmetic/bitwise/shift helper functions
+    * (`<kind>$add`, ...) or an `integer$to_<kind>` conversion. These are Viper functions, but
+    * semantically they are arithmetic — in particular, they must not appear in quantifier
+    * triggers, just like `+` or `*`.
+    */
+  def isBoundedIntArithHelper(name: String): Boolean = {
+    val i = name.lastIndexOf('$')
+    (i >= 0 && boundedIntHelperSuffixes.contains(name.substring(i + 1))) ||
+      name.startsWith("integer$to_")
+  }
+
   // kept for legacy uses (bitwise ops on unbounded integers are now a type error; only kept for
   // shift / bitwise functions on bounded integer types which use the bounded naming above)
   def bitwiseAnd: String = "intBitwiseAnd"

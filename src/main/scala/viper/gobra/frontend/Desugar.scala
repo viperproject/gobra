@@ -4619,9 +4619,15 @@ object Desugar extends LazyLogging {
           val dOp = pureExprD(ctx, info)(op)
           unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
             val right = pureExprD(ctx, info)(lr._2)
+            // The binder is typed with the variable's frontend type, not right.typ: the two can
+            // differ in integer kind (e.g. `let x := len(b)` — the variable is a bounded `int`
+            // while the internal length expression is unbounded), and the body's references to
+            // the variable are resolved at the frontend type. The encoding aligns the bound
+            // right-hand side with the binder's sort (see AssertionEncoding.alignLetBinding).
+            val leftTyp = typeD(info.typ(lr._1), Addressability.exclusiveVariable)(src)
             val left = in.LocalVar(
               nm.variable(lr._1.name, info.scope(lr._1), info),
-              right.typ.withAddressability(Addressability.exclusiveVariable)
+              leftTyp
             )(src)
             in.PureLet(left, right, letop)(src)
           }))
@@ -4867,24 +4873,13 @@ object Desugar extends LazyLogging {
       } yield (newVars, newTriggers, newBody)
     }
 
-    // A quantifier variable of a *bounded* integer kind is bound at the mathematical `integer`
-    // type rather than the opaque `Bounded_k` domain sort. Quantified integers are treated
-    // mathematically (as in most verifiers): the variable ranges over all integers, and a proof
-    // that needs it constrained to a type's range states that bound explicitly in the quantifier
-    // (e.g. `forall k int :: 0 <= k && k < len(s) ==> ...`) — the encoder does not infer it.
-    // Besides matching the usual mathematical reading, this keeps `forall k int :: acc(&s[k])`
-    // using `k` directly as the array index (a linear injective inverse for Silicon, instead of
-    // the divergent `sadd(offset, from(k))` form) and unifies with internal/stub quantifiers,
-    // which already range over `Int`.
-    def boundVariableD(x: PBoundVariable) : in.BoundVar = {
-      val src = meta(x, info)
-      val declaredT = info.symbType(x.typ) match {
-        case Type.IntT(_: viper.gobra.util.TypeBounds.BoundedIntegerKind) =>
-          in.IntT(Addressability.boundVariable, viper.gobra.util.TypeBounds.UnboundedInteger)
-        case t => typeD(t, Addressability.boundVariable)(src)
-      }
-      in.BoundVar(idName(x.id, info), declaredT)(src)
-    }
+    // A quantifier variable is bound at its declared type. For a bounded integer kind this means
+    // the variable ranges over exactly the values of that type (`forall x uint8 :: x >= 0` holds);
+    // the encoding lowers such variables to `Int`-sorted Viper variables with an explicit range
+    // guard so that quantified permissions keep linear, injective receivers (see the bounded
+    // bound-variable lowering in AssertionEncoding).
+    def boundVariableD(x: PBoundVariable) : in.BoundVar =
+      in.BoundVar(idName(x.id, info), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x, info)))(meta(x, info))
 
     def pureExprD(ctx: FunctionContext, info: TypeInfo)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx, info)(expr)
@@ -4974,9 +4969,11 @@ object Desugar extends LazyLogging {
             dOp <- assertionD(ctx, info)(op)
             lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
               val right = pureExprD(ctx, info)(lr._2)
+              // binder typed at the frontend type — see the PureLet case for the rationale
+              val leftTyp = typeD(info.typ(lr._1), Addressability.exclusiveVariable)(src)
               val left = in.LocalVar(
                 nm.variable(lr._1.name, info.scope(lr._1), info),
-                right.typ.withAddressability(Addressability.exclusiveVariable)
+                leftTyp
               )(src)
               in.Let(left, right, letop)(src)
             })

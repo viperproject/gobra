@@ -51,4 +51,8 @@ trait TranslatorConfig {
   def typeEncoding: TypeEncoding
 
   def defaultEncoding: DefaultEncoding
+
+  // options
+  /** When enabled, all integer types are encoded as Viper's unbounded Int (see Config.unboundedIntegers). */
+  def unboundedIntegers: Boolean
 }

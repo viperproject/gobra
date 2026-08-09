@@ -914,7 +914,9 @@ case class InputConfig(
   )
 
   private def configFileModeConfig(configFile: File): RawConfig =
-    ConfigFileModeConfig(configFile)
+    // if `--printConfig` is set, the resolved configuration is printed to stdout by the caller.
+    // Logging it in addition would just duplicate the output.
+    ConfigFileModeConfig(configFile, logResolvedConfig = !printConfig.value.contains(true))
 
   private def noInputModeConfig(): NoInputModeConfig = NoInputModeConfig(
     // we currently do not offer a way via CLI to pass isolate information to Gobra in the no-input mode
@@ -1178,7 +1180,14 @@ case class RecursiveModeConfig(projectRoot: Path = ConfigDefaults.DefaultProject
   }
 }
 
-case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictLogging {
+/**
+  * @param configFile the JSON config file (or the directory containing it) that this configuration is based on
+  * @param logResolvedConfig if true, the resolved configuration is logged at the INFO level. This is enabled by
+  *                          default such that it is always apparent which configuration Gobra derived from the
+  *                          JSON config files. Callers that print the resolved configuration themselves (e.g., when
+  *                          `--printConfig` is used) should disable it to avoid duplicated output.
+  */
+case class ConfigFileModeConfig(configFile: File, logResolvedConfig: Boolean = true) extends RawConfig with StrictLogging {
   // configFile is in the directory of the package we want to verify.
   // In the same or some parent directory, there's an additional configuration
   // file listing settings that are common to the entire module.
@@ -1300,6 +1309,10 @@ case class ConfigFileModeConfig(configFile: File) extends RawConfig with StrictL
 
       // Validate and convert to Config
       result <- finalInputConfig.config(isInputOptional = false, skipIncludeDirChecks = false)
+      // Make the configuration that Gobra derived from the JSON config files visible to the user.
+      // Note that the resolved log level is not in effect yet at this point, so we check it explicitly
+      // to not spam users that asked for a less verbose output.
+      _ = if (logResolvedConfig && Level.INFO.isGreaterOrEqual(result.logLevel)) logger.info(result.formatted)
     } yield result
   }
 }

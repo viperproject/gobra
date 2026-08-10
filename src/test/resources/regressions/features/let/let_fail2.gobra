@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost
+pure func f1(x interface{}) bool {
+	// the "comma-ok" form is only supported for map lookups
+	//:: ExpectedOutput(type_error)
+	return let v, ok := x.(int) in ok
+}
+
+ghost
+requires acc(m, _)
+pure func f2(m map[int]int) int {
+	// the "comma-ok" form of a map lookup binds exactly two variables
+	//:: ExpectedOutput(type_error)
+	return let x, y, z := m[0] in x
+}

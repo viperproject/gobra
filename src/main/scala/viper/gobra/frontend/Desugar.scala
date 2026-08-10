@@ -4483,6 +4483,48 @@ object Desugar extends LazyLogging {
     }
 
     // Ghost Expression
+
+    /**
+      * Desugars the assignment of a let expression `let ass in ...` to the pairs of variables and the expressions
+      * that they are bound to, in the order in which they are introduced by `ass`.
+      * Besides the case where every variable on the left is bound to the expression at the same position on the
+      * right, the "comma-ok" form of map lookups is supported: `let v, ok := m[k] in ...` binds `v` to `m[k]` and
+      * `ok` to `k in m`. The type checker rejects all other assignments of a let expression.
+      */
+    def letBindingsD(ctx: FunctionContext, info: TypeInfo)(ass: PShortVarDecl)(src: Meta): Vector[(in.LocalVar, in.Expr)] = {
+      def binder(id: PUnkLikeId, right: in.Expr): in.LocalVar = in.LocalVar(
+        nm.variable(id.name, info.scope(id), info),
+        right.typ.withAddressability(Addressability.exclusiveVariable)
+      )(src)
+
+      if (ass.left.length == ass.right.length) {
+        (ass.left zip ass.right).map { case (id, exp) =>
+          val right = pureExprD(ctx, info)(exp)
+          (binder(id, right), right)
+        }
+      } else {
+        // the type checker guarantees that all remaining cases are of the form `v, ok := m[k]`
+        val lookup = ass.right match {
+          case Vector(idx: PIndexedExp) =>
+            val dIdx = indexedExprD(idx)(ctx, info)
+            Violation.violation(dIdx.stmts.isEmpty && dIdx.decls.isEmpty, s"expected pure expression, but got $idx")
+            dIdx.res
+          case rights => violation(s"expected the comma-ok form of a map lookup, but got $rights")
+        }
+        // `ok` holds iff the key is contained in the map, which is exactly the condition under which the lookup
+        // returns the value stored in the map instead of the zero value of the map's value type
+        val contains = lookup.baseUnderlyingType match {
+          case _: in.MapT => in.Contains(lookup.index, lookup.base)(src)
+          case t: in.MathMapT => in.Contains(lookup.index, in.MapKeys(lookup.base, t)(src))(src)
+          case t => violation(s"expected a map type, but got $t")
+        }
+        Vector(
+          (binder(ass.left(0), lookup), lookup),
+          (binder(ass.left(1), contains), contains)
+        )
+      }
+    }
+
     def ghostExprD(ctx: FunctionContext, info: TypeInfo)(expr: PGhostExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
@@ -4503,14 +4545,9 @@ object Desugar extends LazyLogging {
 
         case PLet(ass, op) =>
           val dOp = pureExprD(ctx, info)(op)
-          unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-            val right = pureExprD(ctx, info)(lr._2)
-            val left = in.LocalVar(
-              nm.variable(lr._1.name, info.scope(lr._1), info),
-              right.typ.withAddressability(Addressability.exclusiveVariable)
-            )(src)
+          unit(letBindingsD(ctx, info)(ass)(src).foldRight(dOp) { case ((left, right), letop) =>
             in.PureLet(left, right, letop)(src)
-          }))
+          })
 
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
@@ -4796,14 +4833,9 @@ object Desugar extends LazyLogging {
         case PLet(ass, op) =>
           for {
             dOp <- assertionD(ctx, info)(op)
-            lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-              val right = pureExprD(ctx, info)(lr._2)
-              val left = in.LocalVar(
-                nm.variable(lr._1.name, info.scope(lr._1), info),
-                right.typ.withAddressability(Addressability.exclusiveVariable)
-              )(src)
+            lets = letBindingsD(ctx, info)(ass)(src).foldRight(dOp) { case ((left, right), letop) =>
               in.Let(left, right, letop)(src)
-            })
+            }
           } yield lets
 
         case m: PMatchExp =>

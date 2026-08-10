@@ -204,9 +204,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
-          case _: ArrayT => isExpr(op).out ++ error(op, s"exclusive array expected, but shared array $op found", addressable(op))
+          case _: ArrayT => isExpr(op).out
+          case _: SliceT | _: GhostSliceT | _: VariadicT => isExpr(op).out
           case _: OptionT => isExpr(op).out
-          case t => error(op, s"expected an array or sequence type, but got $t")
+          case t => error(op, s"expected an array, slice, sequence, or option type, but got $t")
         }
       }
 
@@ -326,8 +327,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSequenceConversion(op) => exprType(op) match {
           case t: SequenceT => t
           case t: ArrayT => SequenceT(t.elem)
+          case t: SliceT => SequenceT(t.elem)
+          case t: GhostSliceT => SequenceT(t.elem)
+          case t: VariadicT => SequenceT(t.elem)
           case t: OptionT => SequenceT(t.elem)
-          case t => violation(s"expected an array, sequence or option type, but got $t")
+          case t => violation(s"expected an array, slice, sequence or option type, but got $t")
         }
       }
       case expr : PUnorderedGhostCollectionExp => expr match {

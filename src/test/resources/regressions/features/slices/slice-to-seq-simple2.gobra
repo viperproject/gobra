@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// slices of composite element types can be converted to sequences as well
+
+type cell struct {
+  f int
+  g bool
+}
+
+requires acc(s)
+requires len(s) > 0
+func test1(s []cell) {
+  ghost xs := seq(s)
+  assert len(xs) == len(s)
+  assert xs[0] == s[0]
+}
+
+requires acc(s)
+func test2(s [][3]int) {
+  assert len(seq(s)) == len(s)
+}
+
+requires acc(s)
+func test3(s [][]int) {
+  assert len(seq(s)) == len(s)
+}
+
+requires acc(s)
+requires len(s) > 0
+func test4(s []*int) {
+  ghost xs := seq(s)
+  assert xs[0] == s[0]
+}
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+func test5(ghost s ghost []seq[int]) {
+  assert len(seq(s)) == len(s)
+}

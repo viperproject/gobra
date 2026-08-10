@@ -875,14 +875,19 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
 /**
   * Represents the conversion of a collection of type 't',
   * represented by `expr`, to a (mathematical) sequence of type 't'.
-  * Here `expr` is assumed to be either a sequence or an exclusive array.
+  * Here `expr` is assumed to be a sequence, an array, a slice, or an option.
+  * Notice that converting a slice or a shared array requires (read) access
+  * to the elements of the converted collection.
   */
 case class SequenceConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ : Type = expr.typ match {
     case t: SequenceT => t
-    case t: ArrayT => t.sequence
+    // the elements of a shared array are shared as well, whereas the elements of the resulting
+    // sequence are always exclusive; `withAddressability` performs that adjustment.
+    case t: ArrayT => t.sequence.withAddressability(Addressability.conversionResult)
+    case t: SliceT => t.sequence
     case OptionT(t, addr) => SequenceT(t, addr)
-    case t => Violation.violation(s"expected a sequence or exclusive array type. but got $t")
+    case t => Violation.violation(s"expected a sequence, array, slice, or option type, but got $t")
   }
 }
 
@@ -1451,6 +1456,14 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
   * The (composite) type of slices of type `elems`.
   */
 case class SliceT(elems : Type, addressability: Addressability) extends PrettyType(s"[]$elems") {
+  /**
+    * Converts the current type to the `SequenceT` of the values stored in the slice.
+    * Notice that the elements of a slice are always shared, whereas the elements of
+    * a mathematical sequence are always exclusive.
+    */
+  lazy val sequence : SequenceT =
+    SequenceT(elems.withAddressability(Addressability.mathDataStructureElement), Addressability.conversionResult)
+
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case SliceT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false

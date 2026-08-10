@@ -2103,13 +2103,30 @@ object Desugar extends LazyLogging {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(_, _, _: in.MapT) if lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable), astCtx, info)(src)
           in.Block(
             Vector(resTarget, successTarget),
             Vector(
               in.SafeMapLookup(resTarget, successTarget, l)(l.info),
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
+
+        case l@ in.IndexedExp(base, idx, t: in.MathMapT) if lefts.size == 2 =>
+          // in contrast to a lookup in a map, a lookup in a mathematical map is only well-defined if the key is
+          // contained in the map. Thus, the zero value of the value type is assigned for keys that are not contained.
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable), astCtx, info)(src)
+          val contains = in.Contains(idx, in.MapKeys(base, t)(src))(src)
+          val lookup = in.Conditional(contains, l, in.DfltVal(l.typ)(src), l.typ)(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector( // the results are computed before they are assigned because a target may occur in `l`
+              singleAss(in.Assignee.Var(resTarget), lookup)(src),
+              singleAss(in.Assignee.Var(successTarget), contains)(src),
               singleAss(lefts(0), resTarget)(src),
               singleAss(lefts(1), successTarget)(src)
             )

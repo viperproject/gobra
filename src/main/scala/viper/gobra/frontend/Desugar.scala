@@ -4511,15 +4511,21 @@ object Desugar extends LazyLogging {
             dIdx.res
           case rights => violation(s"expected the comma-ok form of a map lookup, but got $rights")
         }
-        // `ok` holds iff the key is contained in the map, which is exactly the condition under which the lookup
-        // returns the value stored in the map instead of the zero value of the map's value type
-        val contains = lookup.baseUnderlyingType match {
-          case _: in.MapT => in.Contains(lookup.index, lookup.base)(src)
-          case t: in.MathMapT => in.Contains(lookup.index, in.MapKeys(lookup.base, t)(src))(src)
+        // `ok` holds iff the key is contained in the map. If it is not, then the zero value of the map's value type
+        // is bound instead of the value stored in the map.
+        val (value, contains) = lookup.baseUnderlyingType match {
+          case _: in.MapT =>
+            // a lookup in a map already yields the zero value if the key is not contained in the map
+            (lookup, in.Contains(lookup.index, lookup.base)(src))
+          case t: in.MathMapT =>
+            // in contrast, a lookup in a mathematical map is only well-defined if the key is contained in the map
+            val contains = in.Contains(lookup.index, in.MapKeys(lookup.base, t)(src))(src)
+            val dflt = in.DfltVal(lookup.typ)(src)
+            (in.Conditional(contains, lookup, dflt, lookup.typ)(src), contains)
           case t => violation(s"expected a map type, but got $t")
         }
         Vector(
-          (binder(ass.left(0), lookup), lookup),
+          (binder(ass.left(0), value), value),
           (binder(ass.left(1), contains), contains)
         )
       }

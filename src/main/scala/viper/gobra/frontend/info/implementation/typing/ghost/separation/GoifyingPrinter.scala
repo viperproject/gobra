@@ -256,12 +256,12 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
         opt(n.spec)(s => emptyDoc <+> inlinedSpecComment("as" <+> showMisc(s))) <>
           (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
 
-    case e: PProofAnnotation => e match {
-      case e: PUnfolding =>
-        parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
-      case e: PAsserting =>
-        parens(inlinedSpecComment(asserting_keyword <+> super.showExpr(e.ass)) <+> showExpr(e.op))
-    }
+    // note that `PLet`, the remaining expression that is a `PProofAnnotation`, is a ghost expression
+    // and thus only occurs in a goified scope, which is handled by the first case above
+    case e: PUnfolding =>
+      parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
+    case e: PAsserting =>
+      parens(inlinedSpecComment(asserting_keyword <+> super.showExpr(e.ass)) <+> showExpr(e.op))
 
     case e => super.showExpr(e)
   }

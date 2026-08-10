@@ -624,7 +624,9 @@ object Parser extends LazyLogging {
                 else Some(at(PCompositeLit(typ, lit), n))
               case n => Some(n)
             })
-          val updatedDecls = rewrite(topdown(attempt(resolveAmbiguousLiterals)))(prog.declarations)
+          // `this.rewrite` refers to the inherited kiama rewriter, disambiguating it from the
+          // enclosing object's `rewrite` method.
+          val updatedDecls = this.rewrite(topdown(attempt(resolveAmbiguousLiterals)))(prog.declarations)
           at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
         }
         at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)

@@ -488,6 +488,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         case (PExplicitGhostMember(a), PExplicitGhostMember(e)) => equal(a, e)
         case (a: PFPredicateDecl, e: PFPredicateDecl) => assert(a == e)
         case (a: PMPredicateDecl, e: PMPredicateDecl) => assert(a == e)
+        case (a, e) => fail(s"unexpected pair of members: $a and $e")
       }
     }
 

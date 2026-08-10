@@ -81,9 +81,13 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     * Filters and shows assignment, variable declaration, and short variable declaration statements by filtering their lhs and rhs
     */
   private def showAssign[N <: PNode](right: Vector[PExpression], left: Vector[N], copy: (Vector[PExpression], Vector[N], Vector[Boolean]) => PStatement): Doc = {
+    // `N` is instantiated with `PDefLikeId` and `PUnkLikeId`, whose instances are all identifiers or
+    // expressions. The default case is only there to keep the exhaustivity checker from having to
+    // enumerate all of `PNode`, which it cannot do within its search budget.
     def isGhost(l: N): Boolean = l match {
       case l: PIdnNode => classifier.isIdGhost(l)
       case l: PExpression => classifier.isExprGhost(l)
+      case l => Violation.violation(s"expected an identifier or an expression, but got $l")
     }
 
     def handleMultiOrEmptyRhs = {
@@ -175,10 +179,11 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
     ))
 
-    case e: PProofAnnotation => e match {
-      case PUnfolding(_, op) => showExpr(op)
-      case PAsserting(_, op) => showExpr(op)
-    }
+    // note that `PLet`, the remaining expression that is a `PProofAnnotation`, is a ghost expression
+    // and is thus erased by the case below
+    case PUnfolding(_, op) => showExpr(op)
+    case PAsserting(_, op) => showExpr(op)
+
     case e if classifier.isExprGhost(e) => ghostToken
 
     case e => super.showExpr(e)

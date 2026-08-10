@@ -41,7 +41,7 @@ class GobraPackageTests extends GobraTests {
       samePkgFiles = currentDir.listFiles
         .filter(_.isFile)
         .map(f => (f, getPackageClause(f)))
-        .filter { case (_, Some(clause)) if clause == pkgName => true }
+        .filter { case (_, clause) => clause.contains(pkgName) }
         .map { case (f, _) => f.toPath }
         .sortBy(_.toString)
         .toSeq

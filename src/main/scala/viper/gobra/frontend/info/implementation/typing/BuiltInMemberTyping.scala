@@ -210,6 +210,9 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case CopyFunctionTag => GhostType.notGhost
 
+    // `Invariant` is a ghost function returning a single (ghost) boolean
+    case InvariantFunctionTag => ghostArgs(1)
+
     case t: GhostBuiltInMember => t match {
       case _ =>
         /**

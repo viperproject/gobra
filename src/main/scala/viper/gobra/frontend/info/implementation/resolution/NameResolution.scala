@@ -241,11 +241,13 @@ trait NameResolution {
       case n: PPackage => n.declarations flatMap packageLevelDefinitions
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
-      case n: PProgram => explicitQualifiedImportDefinitions(n.imports)
+      case n: PProgram => n.imports flatMap {
+        case PExplicitQualifiedImport(id: PIdnDef, _, _) => Vector(id)
+        case _ => Vector.empty
+      }
 
-      // a preamble is only parsed to resolve the imports of a file and is thus never part of a
-      // type-checked tree. We nonetheless treat it like a program, for the sake of exhaustiveness.
-      case n: PPreamble => explicitQualifiedImportDefinitions(n.imports)
+      // a preamble is only parsed to resolve the imports of a file and is thus never part of a type-checked tree
+      case n: PPreamble => Violation.violation(s"unexpected preamble $n")
 
       case n: PInterfaceType =>
         n.methSpecs.map(_.id) ++ n.predSpecs.map(_.id)
@@ -256,13 +258,6 @@ trait NameResolution {
       // They have visible definitions, but currently we do not have constructs that reference them
       // from within the unordered scope. Therefore, we do not include them.
       case _: PStructType | _: PAdtType | _: PAdtClause => Vector.empty
-    }
-
-  /** returns the identifiers introduced by the explicitly qualified imports in `imports` */
-  private def explicitQualifiedImportDefinitions(imports: Vector[PImport]): Vector[PIdnDef] =
-    imports flatMap {
-      case PExplicitQualifiedImport(id: PIdnDef, _, _) => Vector(id)
-      case _ => Vector.empty
     }
 
   /**

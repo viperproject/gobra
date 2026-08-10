@@ -81,12 +81,12 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     * Filters and shows assignment, variable declaration, and short variable declaration statements by filtering their lhs and rhs
     */
   private def showAssign[N <: PNode](right: Vector[PExpression], left: Vector[N], copy: (Vector[PExpression], Vector[N], Vector[Boolean]) => PStatement): Doc = {
-    // `N` is instantiated with `PDefLikeId` and `PUnkLikeId`, whose instances are all identifiers or
-    // expressions. The default case is only there to keep the exhaustivity checker from having to
-    // enumerate all of `PNode`, which it cannot do within its search budget.
     def isGhost(l: N): Boolean = l match {
       case l: PIdnNode => classifier.isIdGhost(l)
       case l: PExpression => classifier.isExprGhost(l)
+      // `N` is instantiated with `PDefLikeId` and `PUnkLikeId`, whose instances are all identifiers
+      // or expressions. This case is only there to keep the exhaustivity checker from having to
+      // enumerate all of `PNode`, which it cannot do within its search budget.
       case l => Violation.violation(s"expected an identifier or an expression, but got $l")
     }
 

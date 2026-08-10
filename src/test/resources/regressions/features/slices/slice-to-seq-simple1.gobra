@@ -57,7 +57,7 @@ func test9(xs ...int) {
 }
 
 ghost
-requires acc(s, _)
+requires acc(s)
 ensures len(res) == len(s)
 decreases
 pure func toSeq(s []int) (res seq[int]) {

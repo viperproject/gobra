@@ -197,13 +197,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val newLenExpr = in.Capacity(derefExp)(expInfo)
       expression(ctx)(newLenExpr)
 
-    case n@ in.SequenceConversion(e :: ctx.Array(len, t) / m) =>
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
       // for a shared array, `ctx.expression` already yields the corresponding exclusive array
       // (which requires read access to all of its elements), whose elements are exclusive as well.
-      val elemT = m match {
-        case Exclusive => t
-        case Shared => t.withAddressability(Addressability.arrayElement(Exclusive))
-      }
+      val elemT = t.withAddressability(Addressability.arrayElement(Exclusive))
       ctx.expression(e).map(vE => ex.toSeq(vE, cptParam(len, elemT)(ctx))(n)(ctx))
 
     case n@ in.SetConversion(e :: ctx.Array(len, t)) =>

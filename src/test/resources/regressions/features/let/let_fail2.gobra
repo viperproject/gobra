@@ -5,7 +5,7 @@ package pkg
 
 ghost
 pure func f1(x interface{}) bool {
-	// the "comma-ok" form is only supported for map lookups
+	// the "comma-ok" form is only supported for map lookups for now
 	//:: ExpectedOutput(type_error)
 	return let v, ok := x.(int) in ok
 }

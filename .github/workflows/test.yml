@@ -11,9 +11,48 @@ on:
   pull_request: # run this workflow on every pull_request
 
 jobs:
+  # A push to a branch with an open pull request triggers this workflow twice: once for
+  # the `push` event and once for the `pull_request` event. Since the tests are expensive,
+  # this job detects that situation and disables the test job for the `push` event. Note
+  # that the `pull_request` event is preferred over the `push` event because the former
+  # tests the result of merging the pull request into its base branch.
+  check-duplicate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should-run: ${{ steps.check.outputs.should-run }}
+    steps:
+      - name: Check whether this event is already covered by a pull request
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" != "push" || "${{ github.ref_type }}" != "branch" ]]
+          then
+            # `pull_request` events and pushes of tags are never duplicates
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # count the open pull requests that are associated with the pushed commit and
+          # whose head is the pushed commit (i.e. the pull requests for which the
+          # `pull_request` event has been or will be triggered by this very push)
+          PR_COUNT=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '[.[] | select(.state == "open" and .head.sha == "${{ github.sha }}")] | length')
+          if [[ "$PR_COUNT" -gt 0 ]]
+          then
+            echo "Skipping this push because it is covered by $PR_COUNT open pull request(s)"
+            echo "should-run=false" >> $GITHUB_OUTPUT
+          else
+            echo "should-run=true" >> $GITHUB_OUTPUT
+          fi
+
   # there is a single job to avoid copying the built docker image from one job to the other
   build-test-deploy-container:
     runs-on: ubuntu-latest
+    needs: check-duplicate
+    if: needs.check-duplicate.outputs.should-run == 'true'
     env:
       IMAGE_ID: ghcr.io/${{ github.repository_owner }}/gobra
       # image labels are new-line separated key value pairs (according to https://specs.opencontainers.org/image-spec/annotations/):

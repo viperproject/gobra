@@ -27,19 +27,19 @@ type Metadata struct {
 
 // lookups with a key of a concrete type
 
-requires acc(m, _)
+requires acc(m)
 func lookup1(m map[Node]*Metadata, b *BlockStmt) (md *Metadata, ok bool) {
 	md, ok = m[b]
 	return md, ok
 }
 
-requires acc(m, _)
+requires acc(m)
 func lookup2(m map[Node]*Metadata, b *BlockStmt) *Metadata {
 	return m[b]
 }
 
 ghost
-requires acc(m, _)
+requires acc(m)
 decreases
 pure func lookup3(m map[Node]*Metadata, b *BlockStmt) bool {
 	return b elem m
@@ -47,7 +47,7 @@ pure func lookup3(m map[Node]*Metadata, b *BlockStmt) bool {
 
 // a key of a concrete type denotes the same key as the corresponding interface value
 
-requires acc(m, _)
+requires acc(m)
 func lookup4(m map[Node]*Metadata, b *BlockStmt) {
 	var n Node = b
 	assert (b elem m) == (n elem m)

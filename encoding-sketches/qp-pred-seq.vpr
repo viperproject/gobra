@@ -1,0 +1,50 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+// Viper counterpart of the following Gobra program, with the structs replaced
+// by fields on `Ref` and the slice replaced by a mathematical sequence:
+//
+//   type Y struct { y bool }        ~>   field Y_y: Bool
+//   type X struct { y *Y }          ~>   field X_y: Ref
+//   x []*X                          ~>   xs: Seq[Ref]
+//
+// Since a `Seq[Ref]` is a value rather than a heap location, the slot
+// permission `acc(&x[i])` of the original `XsInv` has no counterpart here and
+// the element `x[i]` is the pure expression `xs[i]`.
+
+field Y_y: Bool
+field X_y: Ref
+
+// pred (x *X) Inv() { acc(x) && (x.y != nil ==> acc(x.y)) }
+// Removing `x.X_y != null ==>` makes the last assertion provable.
+predicate Inv(x: Ref) {
+  acc(x.X_y) && (x.X_y != null ==> acc(x.X_y.Y_y))
+}
+
+// pred XsInv(x []*X) {
+//   forall i int :: {x[i]} 0 <= i && i < len(x) ==> acc(&x[i]) && acc(x[i].Inv())
+// }
+predicate XsInv(xs: Seq[Ref]) {
+  forall i: Int :: {xs[i]}
+    0 <= i && i < |xs| ==> acc(Inv(xs[i]))
+}
+
+method f(xs: Seq[Ref])
+  requires acc(XsInv(xs), write)
+  // Adding the injectivity of the receiver makes the last assertion provable:
+  // requires forall i: Int, j: Int :: {xs[i], xs[j]}
+  //   0 <= i && i < |xs| && 0 <= j && j < |xs| && xs[i] == xs[j] ==> i == j
+{
+  unfold acc(XsInv(xs), write)
+
+  assert forall i: Int, j: Int :: {xs[i], xs[j]}
+    0 <= i && i < j && j < |xs| ==> i != j
+
+  // Below assertion fails
+  assert forall i: Int, j: Int :: {xs[i], xs[j]}
+    0 <= i && i < j && j < |xs| ==>
+      (unfolding acc(Inv(xs[i]), write) in i != j)
+}

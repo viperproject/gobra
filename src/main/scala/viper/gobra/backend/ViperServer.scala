@@ -12,8 +12,9 @@ import viper.silver.verifier.{Success, VerificationResult}
 import akka.actor.{Actor, Props, Status}
 
 import scala.concurrent.{Await, Future, Promise}
-import viper.gobra.util.GobraExecutionContext
+import viper.gobra.util.{AbortSignal, AbortedException, GobraExecutionContext}
 import viper.server.core.{CarbonConfig, SiliconConfig, VerificationExecutionContext, ViperBackendConfig, ViperCoreServer, ViperServerBackendNotFoundException}
+import viper.server.frontends.lsp.ViperServerService
 
 import scala.concurrent.duration.Duration
 
@@ -62,7 +63,7 @@ object ViperServerConfig {
   case class ConfigWithCarbon(partialCommandLine: List[String]) extends ViperServerWithCarbon
 }
 
-class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig)(implicit executor: VerificationExecutionContext) extends ViperVerifier {
+class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, abortSignal: AbortSignal = new AbortSignal())(implicit executor: VerificationExecutionContext) extends ViperVerifier {
   import ViperServer._
 
   override def verify(programID: String, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): Future[VerificationResult] = {
@@ -77,7 +78,19 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig)(i
       case _: ViperServerWithCarbon => CarbonConfig(backendConfig.partialCommandLine)
       case c => throw ViperServerBackendNotFoundException(s"unknown backend config $c")
     }
+    if (abortSignal.isAborted) {
+      // the verification has been aborted before this backend verification was submitted:
+      return Future.failed(new AbortedException())
+    }
     val handle = server.verify(programID, serverConfig, program)
+    // interrupt this backend verification as soon as the verification is aborted. Note that the
+    // listener is invoked immediately in case the verification was aborted since the check above:
+    abortSignal.onAbort(() => server match {
+      case service: ViperServerService => service.stopVerification(handle)
+      case _ =>
+        // the underlying server does not expose an API to interrupt single jobs -- the job keeps
+        // running but its result is suppressed by the caller
+    })
     // we have to create our own GlueActor and replicate parts of `ViperCoreServerUtils.getResultsFuture(...)` because
     // we do not only need to return a future but also forward all messages to the reporter
     val promise: Promise[VerificationResult] = Promise()

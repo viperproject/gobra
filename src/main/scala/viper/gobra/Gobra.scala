@@ -24,7 +24,7 @@ import viper.gobra.frontend.{Config, Desugar, InputConfig, PackageInfo, Parser, 
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.util.{AbortedException, DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
 import java.time.format.DateTimeFormatter
@@ -101,6 +101,8 @@ trait GoVerifier extends StrictLogging {
 
           val suffix = if (isVerifyingMultiplePackages) s" in package $pkgId" else ""
           result match {
+            case VerifierResult.Aborted =>
+              logger.info(s"the verification$suffix has been aborted.")
             case VerifierResult.Success =>
               logger.info(s"$name found 0 errors$suffix.")
             case VerifierResult.Failure(errors) =>
@@ -159,6 +161,26 @@ trait GoVerifier extends StrictLogging {
   }
 
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult]
+
+  /**
+    * Starts the verification of the given package and returns a handle with which the caller can
+    * cancel the verification. Cancelling aborts Gobra's compilation stages at the next stage
+    * boundary and interrupts running backend verifications (if supported by the backend). The
+    * result future completes with [[VerifierResult.Aborted]] in that case.
+    */
+  final def verifyCancellable(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): VerificationHandle = {
+    val resultFuture = verify(pkgInfo, config)
+    new VerificationHandle {
+      override val result: Future[VerifierResult] = resultFuture
+      override def cancel(): Unit = config.abortSignal.abort()
+    }
+  }
+}
+
+/** handle to a running verification, see [[GoVerifier.verifyCancellable]] */
+trait VerificationHandle {
+  def result: Future[VerifierResult]
+  def cancel(): Unit
 }
 
 trait GoIdeVerifier {
@@ -172,10 +194,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       finalConfig <- EitherT.fromEither(Future.successful(getAndMergeInFileConfig(config, pkgInfo)))
       _ = setLogLevel(finalConfig)
       parseResults <- performParsing(finalConfig, pkgInfo)
+      _ <- abortCheckpoint(finalConfig)
       typeInfo <- performTypeChecking(finalConfig, pkgInfo, parseResults)
+      _ <- abortCheckpoint(finalConfig)
       program <- performDesugaring(finalConfig, typeInfo)
+      _ <- abortCheckpoint(finalConfig)
       program <- performInternalTransformations(finalConfig, pkgInfo, program)
+      _ <- abortCheckpoint(finalConfig)
       viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
+      _ <- abortCheckpoint(finalConfig)
     } yield (viperTask, finalConfig)
 
     task.foldM({
@@ -183,7 +210,21 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       case errors => Future(VerifierResult.Failure(errors))
     }, {
       case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
-    })
+    }).recover {
+      // an aborted verification is reported as such, no matter at which point it was aborted (in
+      // particular, backend failures caused by interrupting the backend's job are mapped, too):
+      case _ if config.abortSignal.isAborted => VerifierResult.Aborted
+      case _: AbortedException => VerifierResult.Aborted
+    }
+  }
+
+  /** fails the verification with an [[AbortedException]] if the verification has been aborted */
+  private def abortCheckpoint(config: Config)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Unit] = {
+    if (config.abortSignal.isAborted) {
+      EitherT.fromEither(Future.failed[Either[Vector[VerifierError], Unit]](new AbortedException()))
+    } else {
+      EitherT.fromEither(Future.successful[Either[Vector[VerifierError], Unit]](Right(())))
+    }
   }
 
   override def verifyAst(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
@@ -196,6 +237,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         case e: ExecutionException if isKnownZ3Bug(e) =>
           // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
           Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
+      }
+      .recover {
+        // an aborted verification is reported as such, no matter at which point it was aborted:
+        case _ if config.abortSignal.isAborted => VerifierResult.Aborted
+        case _: AbortedException => VerifierResult.Aborted
       }
   }
 
@@ -371,6 +417,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
           } else {
             verifier.verifyAllPackages(config)(executor) match {
               case VerifierResult.Failure(_) => 1
+              case VerifierResult.Aborted => 1
               case _ => 0
             }
           }

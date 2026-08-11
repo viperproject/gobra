@@ -14,4 +14,6 @@ object VerifierResult {
 
   case object Success extends VerifierResult
   case class Failure(errors: Vector[VerifierError]) extends VerifierResult
+  /** the verification has been aborted, e.g., via [[viper.gobra.util.AbortSignal]] */
+  case object Aborted extends VerifierResult
 }

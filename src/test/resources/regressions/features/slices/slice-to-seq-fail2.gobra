@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires acc(s)
+requires len(s) == 2
+func test1(s []int) {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert seq(s) == seq[int] { 0, 0 }
+}
+
+// the elements beyond the length of a slice are not part of its sequence
+requires acc(s)
+requires len(s) == 1
+func test2(s []int) {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert len(seq(s)) == cap(s)
+}
+
+// the sequence of a slice is not preserved by an update of the slice
+requires acc(s)
+requires len(s) > 0
+func test3(s []int) {
+  ghost prev := seq(s)
+  s[0] = 42
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert seq(s) == prev
+}

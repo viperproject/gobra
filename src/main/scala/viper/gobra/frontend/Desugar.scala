@@ -4639,8 +4639,9 @@ object Desugar extends LazyLogging {
         } yield dop.typ match {
           case _: in.SequenceT => dop
           case _: in.ArrayT => in.SequenceConversion(dop)(src)
+          case _: in.SliceT => in.SequenceConversion(dop)(src)
           case _: in.OptionT => in.SequenceConversion(dop)(src)
-          case t => violation(s"expected a sequence, array or option type, but got $t")
+          case t => violation(s"expected a sequence, array, slice or option type, but got $t")
         }
 
         case PSetConversion(op) => for {

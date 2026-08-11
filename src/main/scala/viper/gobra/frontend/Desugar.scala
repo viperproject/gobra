@@ -2482,23 +2482,37 @@ object Desugar extends LazyLogging {
     }
 
     /**
-      * Returns the type of the elements that `typ` is indexed with, i.e., the key type of a (mathematical) map.
-      * Returns None for all other types (in particular for types that are indexed with integers).
+      * Returns the type that an index of `typ` has, if `typ` can be indexed. The index type of a (mathematical) map
+      * is its key type; all other indexable types are indexed with integers.
       */
     def indexType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
       case t: in.MapT => Some(t.keys)
       case t: in.MathMapT => Some(t.keys)
+      case _: in.ArrayT | _: in.SliceT | _: in.SequenceT | _: in.StringT => Some(in.IntT(Addressability.rValue))
+      case in.PointerT(base, _) if underlyingType(base).isInstanceOf[in.ArrayT] => Some(in.IntT(Addressability.rValue))
       case _ => None
     }
 
     /** Returns the type of the elements contained in `typ`, if `typ` is a collection type. */
     def elementType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.ArrayT => Some(t.elems)
+      case t: in.SliceT => Some(t.elems)
       case t: in.SequenceT => Some(t.t)
       case t: in.SetT => Some(t.t)
       case t: in.MultisetT => Some(t.t)
-      case t: in.MapT => Some(t.keys)
-      case t: in.MathMapT => Some(t.keys)
+      case t: in.MapT => Some(t.values)
+      case t: in.MathMapT => Some(t.values)
       case _ => None
+    }
+
+    /**
+      * Returns the type that the left-hand side of a membership expression `x elem c` must have, where `c` has type
+      * `typ`. Membership in a (mathematical) map ranges over its keys, whereas membership in any other collection
+      * ranges over its elements.
+      */
+    def membershipType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case _: in.MapT | _: in.MathMapT => indexType(typ)
+      case t => elementType(t)
     }
 
     def singleAss(left: in.Assignee, right: in.Expr)(info: Source.Parser.Info): in.SingleAss = {
@@ -4571,7 +4585,7 @@ object Desugar extends LazyLogging {
           dright <- go(right)
           // the left-hand side may require an implicit conversion, e.g., when the elements of the collection have
           // an interface type and `left` has a concrete type
-          delem = elementType(dright.typ).fold(dleft)(implicitConversion(dleft.typ, _, dleft))
+          delem = membershipType(dright.typ).fold(dleft)(implicitConversion(dleft.typ, _, dleft))
         } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(delem, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(delem, dright)(src))(src)

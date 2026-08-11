@@ -23,9 +23,15 @@ func test2(s [][3]int) {
   assert len(seq(s)) == len(s)
 }
 
+// the conversion is shallow: the elements of a slice of slices remain slices,
+// they are not converted to sequences themselves
 requires acc(s)
+requires len(s) > 0
 func test3(s [][]int) {
-  assert len(seq(s)) == len(s)
+  ghost xs := seq(s)
+  assert len(xs) == len(s)
+  assert len(xs[0]) == len(s[0])
+  assert cap(xs[0]) == cap(s[0])
 }
 
 requires acc(s)

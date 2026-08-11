@@ -1434,9 +1434,11 @@ case object SortT extends PrettyType("sort") {
   */
 case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends PrettyType(s"[$length]$elems") {
   /**
-    * (Deeply) converts the current type to a `SequenceT`.
-    * Notice that the elements of a shared array are shared as well, whereas the elements
-    * of a mathematical sequence are always exclusive.
+    * (Deeply) converts the current type to a `SequenceT`, i.e. nested arrays are turned into
+    * nested sequences.
+    * The trailing `withAddressability` is what makes the result exclusive: the elements of a
+    * shared array are shared as well, whereas the elements of a mathematical sequence are
+    * always exclusive.
     */
   lazy val sequence : SequenceT = SequenceT(elems match {
     case t: ArrayT => t.sequence
@@ -1458,8 +1460,11 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
 case class SliceT(elems : Type, addressability: Addressability) extends PrettyType(s"[]$elems") {
   /**
     * Converts the current type to the `SequenceT` of the values stored in the slice.
-    * Notice that the elements of a slice are always shared, whereas the elements
-    * of a mathematical sequence are always exclusive.
+    * Unlike `ArrayT.sequence`, this conversion is shallow: an element that is itself a slice or an
+    * array is not converted recursively, e.g. `[][]T` is converted to `seq[[]T]`. This is intended,
+    * as converting the nested collections would require access to their cells as well.
+    * The trailing `withAddressability` is what makes the result exclusive: the elements of a slice
+    * are always shared, whereas the elements of a mathematical sequence are always exclusive.
     */
   lazy val sequence : SequenceT =
     SequenceT(elems, addressability).withAddressability(Addressability.conversionResult)

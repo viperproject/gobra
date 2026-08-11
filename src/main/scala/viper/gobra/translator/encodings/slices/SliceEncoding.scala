@@ -648,7 +648,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * function ssliceToSeq(s : Slice[T]) : Seq[T]
     *   requires forall i : Int :: { sloc(s, i) } 0 <= i && i < slen(s) ==> Footprint[ s[i], wildcard ]
     *   ensures |result| == slen(s)
-    *   ensures forall i : Int :: { result[i] } { sloc(s, i) } 0 <= i && i < slen(s) ==> [ result[i] == s[i] ]
+    *   ensures forall i : Int :: { result[i] } { sloc(s, i) } 0 <= i && i < slen(s) ==> [ result[i] === s[i] ]
     *   decreases _
     * }}}
     */
@@ -678,6 +678,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val idx = in.BoundVar("i", in.IntT(Exclusive))(src)
       val vIdxDecl = ctx.variable(idx)
       val vIdx = vIdxDecl.localVar
+      // `ctx.equal` is the encoding of ghost equality (`===`), not of Go equality (`==`), which is
+      // encoded by `ctx.goEqual`. Ghost equality is the right choice here because the elements of the
+      // resulting sequence are the values stored in the slice; using Go equality would, e.g., relate
+      // no sequence at all to a slice of floats that stores a NaN.
       val elemEq = withResult(
         pure(ctx.equal(in.IndexedExp(res, idx, seqT)(src), in.IndexedExp(s, idx, sliceT)(src))(s))(ctx).res
       )

@@ -109,14 +109,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     *
     * [lhs: [n]T == rhs: [n]T] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
     *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
-    *
-    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [x: *[0]T° == x: *[0]T] -> true
-    * [lhs: *[0]T° == rhs: *[0]T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
-    *
-    * [lhs: *[n]T° == rhs: *[n]T] -> [lhs] == [rhs]
     */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)){
     case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
@@ -126,27 +120,6 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         body = (idx: in.BoundVar) => ctx.equal(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info))(src)
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
-
-    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
-      if (len == 0) {
-        val (pos, info, errT) = src.vprMeta
-        if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
-        else {
-          for {
-            vLhs <- ctx.expression(lhs)
-            vRhs <- ctx.expression(rhs)
-            vNil <- ctx.expression(in.NilLit(rhs.typ)(src.info))
-            eq1 = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
-            eq2 = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
-            vUnk = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info ,errT)
-          } yield vpr.CondExp(eq1, eq2, vUnk)(pos, info, errT)
-        }
-      } else {
-        for {
-          vLhs <- ctx.expression(lhs)
-          vRhs <- ctx.expression(rhs)
-        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
-      }
   }
 
   /**
@@ -167,7 +140,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ cap(e: [n]T@°) ] -> ex_array_length([e])
     * R[ cap(e: [n]T@) ] -> sh_array_length(Ref[e])
     * R[ cap(e: *[n]T) ] -> sh_array_length(Ref[*e])
-    * R[ seq(e: [n]T) ] -> ex_array_toSeq([e])
+    * R[ seq(e: [n]T°) ] -> ex_array_toSeq([e])
+    * R[ seq(e: [n]T@) ] -> ex_array_toSeq(arrayConversion(Ref[e]))
     * R[ set(e: [n]T) ] -> seqToSet(ex_array_toSeq([e]))
     * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
     * R[ x in (e: [n]T) ] -> [x] in ex_array_toSeq([e])
@@ -223,8 +197,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val newLenExpr = in.Capacity(derefExp)(expInfo)
       expression(ctx)(newLenExpr)
 
-    case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
-      ctx.expression(e).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+      // for a shared array, `ctx.expression` already yields the corresponding exclusive array
+      // (which requires read access to all of its elements), whose elements are exclusive as well.
+      val elemT = t.withAddressability(Addressability.arrayElement(Exclusive))
+      ctx.expression(e).map(vE => ex.toSeq(vE, cptParam(len, elemT)(ctx))(n)(ctx))
 
     case n@ in.SetConversion(e :: ctx.Array(len, t)) =>
       val (pos, info, errT) = n.vprMeta

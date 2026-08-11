@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+// ##(-I ../)
+
+var A@ int = Double(21)
+
+ensures res == 2 * x
+decreases
+mayInit
+func Double(x int) (res int) {
+	return 2 * x
+}

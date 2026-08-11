@@ -15,6 +15,7 @@ import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
 
@@ -85,7 +86,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PClosureImplements => isPureExpr(n.closure) ++ wellDefIfClosureMatchesSpec(n.closure, n.spec)
 
     case n: PLet => isExpr(n.op).out ++ isWeaklyPureExpr(n.op) ++
-      n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b))
+      n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b)) ++
+      supportedLetAssignment(n.ass)
 
     case n: PAccess =>
       val mayInit = isEnclosingMayInit(n)
@@ -204,9 +206,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
-          case _: ArrayT => isExpr(op).out ++ error(op, s"exclusive array expected, but shared array $op found", addressable(op))
+          case _: ArrayT => isExpr(op).out
+          case _: SliceT | _: GhostSliceT | _: VariadicT => isExpr(op).out
           case _: OptionT => isExpr(op).out
-          case t => error(op, s"expected an array or sequence type, but got $t")
+          case t => error(op, s"expected an array, slice, sequence, or option type, but got $t")
         }
       }
 
@@ -248,6 +251,26 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PWildcardPerm() => noMessages
       case PNoPerm() => noMessages
     }
+  }
+
+  /**
+    * Checks that the assignment of a let expression is supported. Besides binding every variable on the left to the
+    * expression at the same position on the right, only the "comma-ok" form of map lookups, e.g. `let v, ok := m[k]`,
+    * is supported. In particular, binding the results of a call to a function with multiple results is not supported.
+    */
+  private def supportedLetAssignment(ass: PShortVarDecl): Messages = {
+    lazy val isCommaOkMapLookup = ass.left.length == 2 && (ass.right match {
+      case Vector(idx: PIndexedExp) => underlyingType(exprType(idx.base)) match {
+        case _: MapT | _: MathMapT => true
+        case _ => false
+      }
+      case _ => false
+    })
+    error(
+      ass,
+      s"expected either as many expressions as variables or a map lookup of the form 'v, ok := m[k]', but got $ass",
+      StrictAssignMode(ass.left.length, ass.right.length) != AssignMode.Single && !isCommaOkMapLookup
+    )
   }
 
   private[typing] def wellDefMapUpdClause(keys: Type, values : Type, clause : PGhostCollectionUpdateClause, mayInit: Boolean) : Messages = {
@@ -326,8 +349,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSequenceConversion(op) => exprType(op) match {
           case t: SequenceT => t
           case t: ArrayT => SequenceT(t.elem)
+          case t: SliceT => SequenceT(t.elem)
+          case t: GhostSliceT => SequenceT(t.elem)
+          case t: VariadicT => SequenceT(t.elem)
           case t: OptionT => SequenceT(t.elem)
-          case t => violation(s"expected an array, sequence or option type, but got $t")
+          case t => violation(s"expected an array, slice, sequence or option type, but got $t")
         }
       }
       case expr : PUnorderedGhostCollectionExp => expr match {
@@ -404,6 +430,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBlankIdentifier() => true
 
+      // resolved into PCompositeLit/PPredConstructor before type-checking; unreachable here
+      case n: PCompositeLitOrPredConstructor => violation(s"unresolved literal/predicate-constructor ambiguity: $n")
+
       case _: PMagicWand => !strong
 
       case _: PClosureImplements => true
@@ -465,6 +494,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
+      case _: PAsserting => true // the well-definedness check makes sure that the body sub-expression is pure.
       case _: PLet => true // the well-definedness check makes sure that both sub-expressions are pure.
       case _: POld | _: PLabeledOld | _: PBefore => true
       case f: PForall => go(f.body)
@@ -515,6 +545,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _: PAdtType | _: PDomainType | _: PMathematicalMapType |
               _: PMultisetType | _: POptionType | _: PSequenceType | _: PSetType => true
             case _: PExplicitGhostStructType => true
+            case t@(_: PGhostPointerType | _: PPredType) =>
+              // there are no composite literals of these types
+              violation(s"Unexpected literal type $t")
           }
           case _: PArrayType | _: PStructType => true
           case _: PMapType | _: PSliceType => false
@@ -586,6 +619,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   /**
     * Helper operation for composing two results of `validTriggerPattern` into one.
     */
+  // only used by `validTriggerPattern` and `validTrigger`, which are currently dead code (see `validTriggers`)
+  @unused
   private def combineTriggerResults(p1 : (Vector[String], Messages), p2 : (Vector[String], Messages)) : (Vector[String], Messages) =
     (p1._1 ++ p2._1, p1._2 ++ p2._2)
 
@@ -593,6 +628,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * Helper operator for composing a sequence of results
     * of of `validTriggerPattern` into one.
     */
+  // only used by `validTriggerPattern` and `validTrigger`, which are currently dead code (see `validTriggers`)
+  @unused
   private def combineTriggerResults(xs : Vector[(Vector[String], Messages)]) : (Vector[String], Messages) =
     xs.fold(Vector(), noMessages)(combineTriggerResults)
 
@@ -604,6 +641,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     *         of error messages. The latter sequence is empty if
     *         (but currently not only if) `expr` is a valid trigger pattern.
     */
+  // only used by `validTrigger`, which is currently dead code (see `validTriggers`)
+  @unused
   private def validTriggerPattern(expr : PExpression) : (Vector[String], Messages) = {
     // shorthand definition
     def goEorT(node : PExpressionOrType) : (Vector[String], Messages) = node match {

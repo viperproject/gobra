@@ -19,7 +19,7 @@ import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.TypeBounds
+import viper.gobra.util.{GoString, TypeBounds}
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.termination
 
@@ -30,9 +30,9 @@ class StringEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
 
   private val domainName: String = Names.stringsDomain
-  private var encodedStrings: Map[String, vpr.DomainFunc] = Map.empty
+  private var encodedStrings: Map[GoString, vpr.DomainFunc] = Map.empty
   private val stringBeginning: String = "stringLit"
-  private def genLitFuncName(lit: String): String = stringBeginning + Hex.encodeHexString(lit.getBytes("UTF-8"))
+  private def genLitFuncName(lit: GoString): String = stringBeginning + Hex.encodeHexString(lit.bytes.toArray)
 
   /**
     * Translates a type into a Viper type.
@@ -62,7 +62,7 @@ class StringEncoding extends LeafTypeEncoding {
 
     default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
-        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(""), Seq(), Map.empty), e)) // "" is the default string value
+        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(GoString.empty), Seq(), Map.empty), e)) // `GoString.empty` is the default string value
       case (lit: in.StringLit) :: _ / Exclusive =>
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
       case len @ in.Length(exp :: ctx.String()) =>
@@ -178,17 +178,19 @@ class StringEncoding extends LeafTypeEncoding {
   /** Every string literal in the program is encoded as a unique domain function in the String domain,
     * whose value corresponds to the string id.
     *     unique function stringLitX(): Int
-    * Here, X is an unique suffix depending on the literal value.
+    * Here, X is a unique suffix depending on the literal value.
     */
-  private def makeFunc(name: String): vpr.DomainFunc = {
-    val func = vpr.DomainFunc(
-      name = genLitFuncName(name),
-      formalArgs = Seq(),
-      typ = stringType,
-      unique = true
-    )(domainName = domainName)
-    encodedStrings += name -> func
-    func
+  private def makeFunc(name: GoString): vpr.DomainFunc = {
+    encodedStrings.getOrElse(name, {
+      val func = vpr.DomainFunc(
+        name = genLitFuncName(name),
+        formalArgs = Seq(),
+        typ = stringType,
+        unique = true
+      )(domainName = domainName)
+      encodedStrings += name -> func
+      func
+    })
   }
 
   /**
@@ -263,7 +265,7 @@ class StringEncoding extends LeafTypeEncoding {
       vpr.AnonymousDomainAxiom {
         val encodedStr: vpr.Exp = vpr.DomainFuncApp(encodedStrings(str), Seq.empty, Map.empty)()
         val lenCall = vpr.DomainFuncApp(func = lenFunc, Seq(encodedStr), Map.empty)()
-        vpr.EqCmp(lenCall, vpr.IntLit(BigInt(str.length))())()
+        vpr.EqCmp(lenCall, vpr.IntLit(str.length)())()
       }(domainName = domainName)
     }
 

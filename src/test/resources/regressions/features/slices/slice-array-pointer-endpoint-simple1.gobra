@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// tests bound checks during type checking
+
+func zeroLengthArray() {
+	underlyingArray := new([0]int)
+	x := underlyingArray[0:0]
+	assert x != nil
+	_ = underlyingArray[0:0:0]
+}

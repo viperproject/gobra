@@ -19,6 +19,7 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Desugar, Parser}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
+import viper.gobra.util.Violation
 
 import scala.concurrent.Future
 
@@ -171,6 +172,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       case Some(Left(Vector())) => VerifierResult.Success
       case Some(Left(errors))   => VerifierResult.Failure(errors)
       case Some(Right(result))  => result
+      case None                 => Violation.violation("the result is only available after the last step has been executed")
     }
   }
 }

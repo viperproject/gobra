@@ -84,9 +84,19 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => noMessages
           }
         }
+        val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
+          if (sig.isGhost || sig.spec.isPure)
+            noConditionalMeasureErrors(sig.spec.terminationMeasures)
+          else noMessages
+        }
+        val interfaceMethodsNotAtomic = t.methSpecs.flatMap { sig =>
+          error(sig, s"Interface methods cannot be marked as atomic.", sig.spec.isAtomic)
+        }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
+          interfaceMethodsNotAtomic ++
           sigsWithWildcardMeasuresErrors ++
+          sigsWithConditionalMeasuresErrors ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

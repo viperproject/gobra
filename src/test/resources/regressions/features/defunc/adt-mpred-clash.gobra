@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Clause `Leaf` deliberately collides with the mpredicate `Leaf` on `T` (legal: different
+// namespaces). The rewrite must keep `Tree.Leaf{}` an ADT literal, not a predicate constructor.
+ghost type Tree adt {
+	Leaf { }
+	Branch { value int }
+}
+
+type T struct{ }
+
+pred (t T) Leaf() {
+	true
+}
+
+ghost
+decreases
+func adtLiteralIsNotRewritten() {
+	x := Tree.Leaf{}
+	y := Tree.Branch{42}
+	assert x == Tree.Leaf{}
+	assert y == Tree.Branch{42}
+}
+
+decreases
+func mpredConstructorStillWorks() (ghost res pred()) {
+	t := T{}
+	// `T.Leaf{}` is still a predicate constructor.
+	return T.Leaf{t}
+}

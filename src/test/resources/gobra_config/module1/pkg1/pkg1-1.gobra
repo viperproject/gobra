@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// this test checks that the `--overflow` flag in the list
+// of `other` flags is considered.
+
+package pkg1
+
+func AddLargeNumber(i int) int {
+    //:: ExpectedOutput(integer_overflow_error)
+    return i + GetLargeNumber()
+}

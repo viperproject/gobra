@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.base
 
-import viper.gobra.ast.frontend.{PBoolType, PByte, PFloat32, PFloat64, PInt16Type, PInt32Type, PInt64Type, PInt8Type, PIntType, PPermissionType, PRune, PStringType, PType, PUInt16Type, PUInt32Type, PUInt64Type, PUInt8Type, PUIntPtr, PUIntType}
+import viper.gobra.ast.frontend.{PBoolType, PByte, PFloat32, PFloat64, PInt16Type, PInt32Type, PInt64Type, PInt8Type, PIntType, PIntegerGhostType, PPermissionType, PRune, PStringType, PType, PUInt16Type, PUInt32Type, PUInt64Type, PUInt8Type, PUIntPtr, PUIntType}
 import viper.gobra.frontend.info.base.Type.{BooleanT, Float32T, Float64T, IntT, PermissionT, StringT, Type}
 import viper.gobra.util.TypeBounds
 
@@ -79,6 +79,13 @@ object BuiltInMemberTag {
     override def ghost: Boolean = false
     override def typ: Type = PermissionT
     override def node: PType = PPermissionType()
+  }
+  case object IntegerType extends BuiltInTypeTag {
+    override def identifier: String = "integer"
+    override def name: String = "IntegerType"
+    override def ghost: Boolean = true
+    override def typ: Type = IntT(TypeBounds.UnboundedInteger)
+    override def node: PType = PIntegerGhostType()
   }
   // signed integer types
   case object Rune extends BuiltInTypeTag {
@@ -214,6 +221,13 @@ object BuiltInMemberTag {
     override def isPure: Boolean = false
   }
 
+  case object InvariantFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "Invariant"
+    override def name: String = "InvariantTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
   /** Built-in FPredicate Tags */
 
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
@@ -221,7 +235,6 @@ object BuiltInMemberTag {
     override def name: String = "PredTrueFPredTag"
     override def isAbstract: Boolean = false
   }
-
 
   /** Built-in Method Tags */
   case object BufferSizeMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
@@ -323,6 +336,7 @@ object BuiltInMemberTag {
     BoolType,
     StringType,
     PermissionType,
+    IntegerType,
     // signed integer types
     Rune,
     IntType,
@@ -347,6 +361,7 @@ object BuiltInMemberTag {
     CopyFunctionTag,
     // fpredicates
     PredTrueFPredTag,
+    InvariantFunctionTag,
     // methods
     BufferSizeMethodTag,
     SendGivenPermMethodTag,

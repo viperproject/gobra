@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001053
+
+// ##(-I ./)
+import interfaces "001053"
+
+type MyItf interfaces.Derived
+
+// Computing the method set of `S` promotes the members of `MyItf` and, thus,
+// of `interfaces.Derived`. Resolving the interface embedded in `Derived` must
+// happen within the imported package's tree, not in this package's tree.
+type S struct {
+	MyItf
+}
+
+requires s.MyItf != nil && s.MyItf.Mem()
+func use(s S) {
+	s.M()
+}

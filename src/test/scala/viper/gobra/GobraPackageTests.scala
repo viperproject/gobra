@@ -41,7 +41,7 @@ class GobraPackageTests extends GobraTests {
       samePkgFiles = currentDir.listFiles
         .filter(_.isFile)
         .map(f => (f, getPackageClause(f)))
-        .filter { case (_, Some(clause)) if clause == pkgName => true }
+        .filter { case (_, clause) => clause.contains(pkgName) }
         .map { case (f, _) => f.toPath }
         .sortBy(_.toString)
         .toSeq
@@ -103,7 +103,7 @@ class GobraPackageTests extends GobraTests {
       .collectFirst { case m if m.group(1) != null => m.group(1) }
   }
 
-  private def createConfig(args: Array[String]): Option[Config] = {
+  protected def createConfig(args: Array[String]): Option[Config] = {
     try {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)

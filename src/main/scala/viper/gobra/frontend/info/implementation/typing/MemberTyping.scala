@@ -26,12 +26,16 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         wellDefIfPureFunction(n) ++
         wellDefIfInitBlock(n) ++
         wellDefIfMain(n) ++
-        wellFoundedIfNeeded(n)
+        wellFoundedIfNeeded(n) ++
+        atomicMemberIsWellFormed(n) ++
+        noConditionalMeasureIfGhostOrPure(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++
         wellDefIfPureMethod(m) ++
-        wellFoundedIfNeeded(m)
+        wellFoundedIfNeeded(m) ++
+        atomicMemberIsWellFormed(m) ++
+        noConditionalMeasureIfGhostOrPure(m)
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PVarDecl if isGlobalVarDeclaration(g) =>
@@ -124,9 +128,7 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       val noInputsAndOutputs = n.args.isEmpty && n.result.outs.isEmpty
       val hasEmptySpec = !n.spec.isPure &&
         !n.spec.isTrusted &&
-        n.spec.pres.isEmpty &&
-        n.spec.preserves.isEmpty &&
-        n.spec.posts.isEmpty &&
+        n.spec.clauses.isEmpty &&
         n.spec.terminationMeasures.isEmpty
       error(n, errorMsgEmptySpec, !hasEmptySpec) ++
         error(n, errorMsgNoInOut, !noInputsAndOutputs) ++

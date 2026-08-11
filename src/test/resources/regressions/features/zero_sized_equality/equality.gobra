@@ -1,0 +1,42 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package equality
+
+func structPointersMayDiffer(x, y *struct{}) {
+    assert x == x && y == y // syntactical equality works
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y || x != y
+}
+
+func emptyArrayPointersMayDiffer(x, y *[0]int) {
+    assert x == x && y == y // syntactical equality works
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y || x != y
+}
+
+func zeroSizedArrayPointersMayDiffer(x, y *[1]struct{}) {
+    assert x == x && y == y // syntactical equality works
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y || x != y
+}
+
+func namedZeroSizedPointersMayDiffer(x, y *Z) {
+    assert x == x && y == y // syntactical equality works
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y || x != y
+}
+
+func namedZeroSizedPointersMayDiffer2(x, y *Z2) {
+    assert x == x && y == y // syntactical equality works
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == y || x != y
+}
+
+type Z struct {
+	a [1]struct{}
+}
+
+type Z2 struct {
+	a [0]int
+}

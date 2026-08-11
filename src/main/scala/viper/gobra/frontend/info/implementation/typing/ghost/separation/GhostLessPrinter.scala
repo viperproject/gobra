@@ -21,7 +21,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
           rec,
           filterParamList(args),
           filterResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )
@@ -32,7 +32,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
           id,
           filterParamList(args),
           filterResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )
@@ -84,6 +84,10 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     def isGhost(l: N): Boolean = l match {
       case l: PIdnNode => classifier.isIdGhost(l)
       case l: PExpression => classifier.isExprGhost(l)
+      // `N` is instantiated with `PDefLikeId` and `PUnkLikeId`, whose instances are all identifiers
+      // or expressions. This case is only there to keep the exhaustivity checker from having to
+      // enumerate all of `PNode`, which it cannot do within its search budget.
+      case l => Violation.violation(s"expected an identifier or an expression, but got $l")
     }
 
     def handleMultiOrEmptyRhs = {
@@ -171,13 +175,15 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PFunctionLit(_, PClosureDecl(args, result, _, body)) => super.showMisc(PClosureDecl(
       filterParamList(args),
       filterResult(result),
-      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+      PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
       body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
     ))
 
-    case e: PProofAnnotation => e match {
-      case PUnfolding(_, op) => showExpr(op)
-    }
+    // note that `PLet`, the remaining expression that is a `PProofAnnotation`, is a ghost expression
+    // and is thus erased by the case below
+    case PUnfolding(_, op) => showExpr(op)
+    case PAsserting(_, op) => showExpr(op)
+
     case e if classifier.isExprGhost(e) => ghostToken
 
     case e => super.showExpr(e)

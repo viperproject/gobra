@@ -42,7 +42,7 @@ object Comparability {
 
     case _: TypeHead.StructHD => Kind.Recursive
     case _: TypeHead.FunctionHD => Kind.NonComparable
-    case TypeHead.ArrayHD => Kind.Recursive
+    case _: TypeHead.ArrayHD => Kind.Recursive
     case TypeHead.SliceHD => Kind.NonComparable
     case TypeHead.MapHD => Kind.NonComparable
     case _: TypeHead.InterfaceHD => Kind.Dynamic

@@ -41,16 +41,19 @@ class FixpointImpl extends Fixpoint {
     _generatedDomains ::= domain
   }
 
-  override def get(gc: in.GlobalConst)(ctx: Context): vpr.DomainFuncApp =
-    vpr.DomainFuncApp(constantGetDomainFunc(gc)(ctx), Seq[Exp](), Map[TypeVar, Type]())()
+  override def get(gc: in.GlobalConst)(ctx: Context): vpr.DomainFuncApp = {
+    val (pos, info, errT) = gc.vprMeta
+    vpr.DomainFuncApp(constantGetDomainFunc(gc)(ctx), Seq[Exp](), Map[TypeVar, Type]())(pos, info, errT)
+  }
 
   private def constantGetDomainFunc(gc: in.GlobalConst)(ctx: Context): vpr.DomainFunc = gc match {
     case v: in.GlobalConst.Val =>
+      val (pos, info, errT) = gc.vprMeta
       vpr.DomainFunc(
         name = s"constant_${v.id}",
         formalArgs = Seq(),
         typ = ctx.typ(v.typ)
-      )(domainName = constantDomainName(v))
+      )(pos = pos, info = info, errT = errT, domainName = constantDomainName(v))
     case _ => ???
   }
 

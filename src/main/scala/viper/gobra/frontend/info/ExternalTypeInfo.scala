@@ -15,6 +15,7 @@ import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
+import viper.gobra.util.GoString
 
 trait ExternalTypeInfo {
 
@@ -83,7 +84,7 @@ trait ExternalTypeInfo {
 
   def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)]
 
-  def stringConstantEvaluation(expr: PExpression): Option[String]
+  def stringConstantEvaluation(expr: PExpression): Option[GoString]
 
   def isPureExpression(expr: PExpression): Boolean
 
@@ -93,6 +94,9 @@ trait ExternalTypeInfo {
 
   /* memberset within a specific context */
   def localMemberSet(t: Type): AdvancedMemberSet[TypeMember]
+
+  /** method set of interface `t`, whose declaration must belong to this context */
+  def localInterfaceMethodSet(t: InterfaceT): AdvancedMemberSet[TypeMember]
 
   /** returns all subtype relation found in the current package */
   def localRequiredImplements: Set[(Type, InterfaceT)]

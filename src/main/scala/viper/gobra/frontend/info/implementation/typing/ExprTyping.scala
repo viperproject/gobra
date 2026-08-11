@@ -30,6 +30,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   // are constant (obtained empirically)
   val MAX_SHIFT: Int = 512
 
+  private def isUntypedIntConst(expr: PExpression): Boolean =
+    exprType(expr) == UNTYPED_INT_CONST && intConstantEval(expr).nonEmpty
+
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
     case n: PNamedOperand =>
       resolve(n) match {
@@ -234,6 +237,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       literalAssignableTo.errors(lit, simplifiedT, mayInit)(n)
 
+    // A `PCompositeLitOrPredConstructor` is resolved into a `PCompositeLit` or a `PPredConstructor`
+    // before type-checking (see `PredicateConstructorRewriter`), so reaching this point means the
+    // resolution was skipped or incomplete -- a Gobra bug. Fail loudly rather than mis-interpret it.
+    case n: PCompositeLitOrPredConstructor =>
+      error(n, s"internal error: unresolved composite-literal/predicate-constructor ambiguity at $n")
+
     case f: PFunctionLit =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
@@ -242,6 +251,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
+      val inCriticalRegion = isEnclosingCritical(n)
+      val inEnclosingGhostFunc = enclosingFunctionOrMethod(n).exists(isEnclosingGhost)
+      val enclosingFuncOpensInvs = enclosingFunctionOrMethod(n).exists {
+        case f: PFunctionDecl => f.spec.opensInvs
+        case m: PMethodDecl => m.spec.opensInvs
+      }
+
       val (l, r) = (exprOrType(n.base), resolve(n))
       (l,r) match {
         case (Right(_), Some(p: ap.Conversion)) =>
@@ -256,14 +272,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val (isOpaque, isMayInit, isImported, isPure) = c.callee match {
+          val (isOpaque, isMayInit, isImported, isPure, isGhost, opensInvs) = c.callee match {
             case base: ap.Symbolic => base.symb match {
-              case f: st.Function => (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure)
+              case f: st.Function =>
+                (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure, f.ghost, f.decl.spec.opensInvs)
               case m: st.MethodImpl =>
-                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure)
-              case _ => (false, true, false, false)
+                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure, m.ghost, m.decl.spec.opensInvs)
+              case _ => (false, true, false, false, false, true)
             }
           }
+          // Ghost methods from a critical region must not be annotated with `opensInvariants` to avoid re-entrance.
+          val callToGhostInCriticalRegionIsValid =
+            error(n, "Call to ghost method annotated with 'opensInvariants' in critical region is not allowed",
+              isGhost && inCriticalRegion && opensInvs)
+          val ghostCallsOpensInvOutsideOpen =
+            error(n, "Ghost function not annotated with `opensInvariants` calls ghost function annotated with `opensInvariants`.",
+              inEnclosingGhostFunc && !enclosingFuncOpensInvs && isGhost && !inCriticalRegion && opensInvs)
           // We disallow calling interface methods whose receiver type is an interface declared in the current package
           // in initialization code, as it may be dispatched to a method that assumes the current package's invariant.
           val cannotCallItfIfInit = c.callee match {
@@ -295,7 +319,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
+          ghostCallsOpensInvOutsideOpen ++ callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++
@@ -337,7 +361,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PBitNegation(op) =>
       val mayInit = isEnclosingMayInit(n)
-      isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST, mayInit)(op)
+      val opType = typ(op)
+      val notUnbounded = error(n, "bitwise operations are not defined for the `integer` type",
+        !isUntypedIntConst(op) && opType == IntT(UnboundedInteger))
+      isExpr(op).out ++ assignableTo.errors(opType, UNTYPED_INT_CONST, mayInit)(op) ++ notUnbounded
 
     case n@PIndexedExp(base, index) =>
       val mayInit = isEnclosingMayInit(n)
@@ -408,10 +435,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       cap.fold(noMessages)(isExpr(_).out) ++
       ((underlyingType(exprType(base)), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
-          val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          error(low, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            error(high, s"index $high is out of bounds", !highOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            error(cap, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+          arraySliceBounds(n, low, high, cap, length = Some(l)) ++
             error(base, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
@@ -421,35 +445,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         case (ActualPointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>  // without ghost slices, slicing a ghost pointer is not allowed.
-          val (lowOpt, highOpt, capOpt) = (low flatMap  intConstantEval, high flatMap intConstantEval, cap flatMap intConstantEval)
-          error(low, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
-            error(high, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
-            error(cap, s"index $cap is out of bounds", !capOpt.forall(i => i >= 0 && i <= l))
+          arraySliceBounds(n, low, high, cap, length = Some(l))
 
         case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
-          val lowOpt = low.flatMap(intConstantEval)
-          val highOpt = high.flatMap(intConstantEval)
-          val lowHighOpt = lowOpt.zip(highOpt)
-          error(low, s"index $low is negative", lowOpt.exists(i => 0 > i)) ++
-            error(high, s"index $high is negative", highOpt.exists(i => 0 > i)) ++
-            error(high, s"invalid slice indices: $high > $low", lowHighOpt.exists { case (l, h) => l > h })
+          arraySliceBounds(n, low, high, cap, length = None)
 
         case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
           // slice expressions of string type cannot have a third argument
-          val (lenOpt, lowOpt, highOpt) = (
-            stringConstantEval(base) map (_.length),
-            low flatMap intConstantEval,
-            high flatMap intConstantEval
-          )
-          val lowError = error(low, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
-          val highError = error(high, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
-          val lowLessHighError = (lowOpt, highOpt) match {
-            case (Some(l), Some(h)) =>
-              // this error message is the same shown by the go compiler
-              error(n, s"invalid slice index: $l > $h", l > h)
-            case _ => noMessages
-          }
-          return lowError ++ highError ++ lowLessHighError
+          arraySliceBounds(n, low, high, cap, length = stringConstantEval(base) map (_.length))
 
         case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
@@ -507,7 +510,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
+          case (op @ (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear), l, r) =>
             val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
             val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val typesAreMergeable = mergeableTypes.errors(l, r)(n)
@@ -527,13 +530,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   intExprWithinTypeBounds(n, mergedType)
               } else noMessages
             }
-            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
+            val bitwiseOnUnbounded = op match {
+              case _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear =>
+                error(n, "bitwise operations are not defined for the `integer` type",
+                  !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger)) ++
+                  error(n, "bitwise operations are not defined for the `integer` type",
+                    !asExpr(n.right).exists(isUntypedIntConst) && r == IntT(UnboundedInteger))
+              case _ => noMessages
+            }
+            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds ++ bitwiseOnUnbounded
           case (_: PShiftLeft, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
+            val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
+              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              intConstantEval(n.right.asInstanceOf[PExpression]) match {
-                case Some(v) =>
+              shiftOnUnbounded ++ intConstantEval(n.right.asInstanceOf[PExpression]).map { v =>
                   // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
                   // of the type of the left operand (or 512 if there is an untyped const on the left)
                   val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
@@ -544,21 +556,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)
                   lowerBound ++ upperBound
-
-                case None => noMessages
-              }
-            } else integerOperands
+              }.getOrElse(noMessages)
+            } else integerOperands ++ shiftOnUnbounded
           case (_: PShiftRight, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
+            val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
+              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              (intConstantEval(n.right.asInstanceOf[PExpression]) match {
+              shiftOnUnbounded ++ (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) =>
                   // The Go compiler only checks that the RHS of (>>) is non-negative
                   error(n, s"constant $r overflows uint", v < 0)
                 case None => noMessages
               })
-            } else integerOperands
+            } else integerOperands ++ shiftOnUnbounded
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
@@ -568,6 +580,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         n.pred,
         s"unfolding predicate expression instance ${n.pred} not supported",
         resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
+
+    case n: PAsserting => assignableToSpec(n.ass) ++ isExpr(n.op).out ++ isPureExpr(n.op)
 
     case PLength(op) => isExpr(op).out ++ {
       underlyingType(exprType(op)) match {
@@ -689,6 +703,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
+  private def arraySliceBounds(
+                                slice: PSliceExp,
+                                low: Option[PExpression],
+                                high: Option[PExpression],
+                                cap: Option[PExpression],
+                                length: Option[BigInt] // length (if known) of array or slice that is sliced
+                              ): Messages = {
+    // fill in omitted low and high values by their defaults and try to
+    // evaluate them to constants:
+    val lowConstant = low.fold(Option(BigInt(0)))(intConstantEval)
+    val highConstant = high.fold(length)(intConstantEval)
+    val capConstant = cap.flatMap(intConstantEval)
+    def withinBounds(i: BigInt): Boolean = 0 <= i && length.forall(i <= _)
+
+    error(low, s"index $low is out of bounds", lowConstant.exists(i => !withinBounds(i))) ++
+      error(high, s"index $high is out of bounds", highConstant.exists(i => !withinBounds(i))) ++
+      error(cap, s"index $cap is out of bounds", capConstant.exists(i => !withinBounds(i))) ++
+      // in the following, we report an error only if the components are within bounds to avoid
+      // reporting a lot of errors (like the Go compiler)
+      error(slice, "invalid slice indices: low > high",
+        lowConstant.zip(highConstant).exists { case (l, h) => withinBounds(l) && withinBounds(h) && l > h }) ++
+      error(slice, "invalid slice indices: high > cap",
+        highConstant.zip(capConstant).exists { case (h, c) => withinBounds(h) && withinBounds(c) && h > c })
+  }
+
   private def numExprWithinTypeBounds(num: PNumExpression): Messages =
     intExprWithinTypeBounds(num, numExprType(num))
 
@@ -724,6 +763,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PFloatLit => UnboundedFloatT
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
+
+    // Unresolved ambiguity node (see `wellDefActualExpr`); ill-typed, so report `UnknownType`.
+    case _: PCompositeLitOrPredConstructor => UnknownType
 
     case PFunctionLit(_, PClosureDecl(args, result, _, _)) =>
       FunctionT(args map miscType, miscType(result))
@@ -812,6 +854,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
+    case n: PAsserting => exprType(n.op)
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
@@ -965,6 +1008,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case UnknownType => None
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
@@ -985,6 +1029,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case UnknownType => None
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 

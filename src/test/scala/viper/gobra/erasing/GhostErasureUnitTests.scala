@@ -382,7 +382,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         PIdnDef("foo"),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, Vector.empty),
+        PFunctionSpec(Vector.empty, Vector.empty, Vector.empty),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -488,6 +488,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         case (PExplicitGhostMember(a), PExplicitGhostMember(e)) => equal(a, e)
         case (a: PFPredicateDecl, e: PFPredicateDecl) => assert(a == e)
         case (a: PMPredicateDecl, e: PMPredicateDecl) => assert(a == e)
+        case (a, e) => fail(s"unexpected pair of members: $a and $e")
       }
     }
 

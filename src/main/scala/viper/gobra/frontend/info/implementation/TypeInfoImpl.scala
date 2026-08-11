@@ -19,6 +19,7 @@ import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
+import viper.gobra.util.GoString
 
 class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentTypeInfo: Map[AbstractImport, ExternalTypeInfo], val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
@@ -37,6 +38,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   with TypeTyping
   with IdTyping
   with MiscTyping
+  with TerminationTyping
 
   with GhostMemberTyping
   with GhostStmtTyping
@@ -139,7 +141,10 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   }
 
   override def struct(n: PNode): Option[Type.StructT] =
-    enclosingStruct(n).map(structDecl => symbType(structDecl).asInstanceOf[Type.StructT])
+    enclosingStruct(n).map(structDecl => symbType(structDecl) match {
+      case structT: Type.StructT => structT
+      case t => violation(s"expected struct type, but got $t")
+    })
 
   override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
 
@@ -147,7 +152,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
 
   override def permConstantEvaluation(expr: PExpression): Option[(BigInt, BigInt)] = permConstantEval(expr)
 
-  override def stringConstantEvaluation(expr: PExpression): Option[String] = stringConstantEval(expr)
+  override def stringConstantEvaluation(expr: PExpression): Option[GoString] = stringConstantEval(expr)
 
   override def getTypeInfo: TypeInfo = this
 

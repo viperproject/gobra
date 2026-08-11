@@ -9,7 +9,7 @@ package viper.gobra.ast.internal.transform
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.OverflowCheckAnnotation
-import viper.gobra.reporting.Source.Parser.Single
+import viper.gobra.reporting.Source.Parser.{Internal, Single}
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
@@ -134,8 +134,11 @@ object OverflowChecksTransform extends InternalTransform {
     case m@SafeMapLookup(_, _, IndexedExp(base, idx, _)) =>
       Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
 
+    case c@Critical(inv, invIsInv, openInvs, body) =>
+      Critical(inv, invIsInv, openInvs, stmtTransform(body))(c.info)
+
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
-    case x@(_: Inhale | _: Exhale | _: Assert | _: Refute | _: Assume
+    case x@(_: Inhale | _: Exhale | _: Assert | _: Refute | _: Assume | _: AssignSuchThat
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold | _: Outline
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization | _: PatternMatchStmt) => x
 
@@ -192,6 +195,8 @@ object OverflowChecksTransform extends InternalTransform {
   private def createAnnotatedInfo(info: Source.Parser.Info): Source.Parser.Info =
     info match {
       case s: Single => s.createAnnotatedInfo(OverflowCheckAnnotation)
+      // the following is temporary hack that will be discarded when we merge the new support for overflow checking
+      case i@ Internal => i
       case i => violation(s"l.op.info ($i) is expected to be a Single")
     }
 }

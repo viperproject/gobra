@@ -33,7 +33,7 @@ class TypeComponentImpl extends TypeComponent {
     case Float64HD => "float64"
     case StringHD => "string"
     case PointerHD => "pointer"
-    case ArrayHD => "array"
+    case ArrayHD(n) => s"array$n"
     case SliceHD => "slice"
     case MapHD => "map"
     case ChannelHD => "channel"
@@ -336,15 +336,7 @@ class TypeComponentImpl extends TypeComponent {
 
   /** Translates Gobra types into Viper type expressions. */
   override def typeToExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
-    def go(typ: in.Type): vpr.Exp = typeToExpr(typ)(pos, info, errT)(ctx)
-
-    typ match {
-      case t: in.ArrayT =>
-        typeApp(typeHead(t), Vector(vpr.IntLit(t.length)(pos, info, errT), go(t.elems)))(pos, info, errT)(ctx)
-
-      case t =>
-        typeApp(typeHead(t), children(t) map go)(pos, info, errT)(ctx)
-    }
+    typeApp(typeHead(typ), children(typ) map (typeToExpr(_)(pos, info, errT)(ctx)))(pos, info, errT)(ctx)
   }
 
   /** Generates precise equality axioms for 'typ'. */
@@ -352,11 +344,7 @@ class TypeComponentImpl extends TypeComponent {
 
     typeTree(typ).toVector foreach { hd => arity(hd) match {
       case 0 => // already precise
-      case 1 if hd == ArrayHD =>
-        genPreciseEqualityAxioms(hd, Vector(vpr.Int, domainType))(ctx)
-
-      case n =>
-        genPreciseEqualityAxioms(hd, (0 until n).toVector map (_ => domainType))(ctx)
+      case n => genPreciseEqualityAxioms(hd, (0 until n).toVector map (_ => domainType))(ctx)
     }}
   }
 

@@ -185,7 +185,6 @@ trait GhostAssignability {
       case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       // first argument is the receiver which inherits its ghostness from the method's ghostness
       case p: ap.MethodExpr => GhostType.ghostTuple(p.symb.ghost +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
-      case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => argGhostTyping(symb.tag, call.args.map(typ))
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => argGhostTyping(symb.tag, Vector(typ(recv)))
@@ -213,7 +212,6 @@ trait GhostAssignability {
       case p: ap.Function => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
-      case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => returnGhostTyping(symb.tag, call.args.map(typ))
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => returnGhostTyping(symb.tag, Vector(typ(recv)))

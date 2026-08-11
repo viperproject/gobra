@@ -519,6 +519,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _: PAdtType | _: PDomainType | _: PMathematicalMapType |
               _: PMultisetType | _: POptionType | _: PSequenceType | _: PSetType => true
             case _: PExplicitGhostStructType => true
+            case t@(_: PGhostPointerType | _: PPredType) =>
+              // there are no composite literals of these types
+              violation(s"Unexpected literal type $t")
           }
           case _: PArrayType | _: PStructType => true
           case _: PMapType | _: PSliceType => false
@@ -590,6 +593,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   /**
     * Helper operation for composing two results of `validTriggerPattern` into one.
     */
+  // only used by `validTriggerPattern` and `validTrigger`, which are currently dead code (see `validTriggers`)
+  @unused
   private def combineTriggerResults(p1 : (Vector[String], Messages), p2 : (Vector[String], Messages)) : (Vector[String], Messages) =
     (p1._1 ++ p2._1, p1._2 ++ p2._2)
 
@@ -597,6 +602,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * Helper operator for composing a sequence of results
     * of of `validTriggerPattern` into one.
     */
+  // only used by `validTriggerPattern` and `validTrigger`, which are currently dead code (see `validTriggers`)
+  @unused
   private def combineTriggerResults(xs : Vector[(Vector[String], Messages)]) : (Vector[String], Messages) =
     xs.fold(Vector(), noMessages)(combineTriggerResults)
 
@@ -608,6 +615,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     *         of error messages. The latter sequence is empty if
     *         (but currently not only if) `expr` is a valid trigger pattern.
     */
+  // only used by `validTrigger`, which is currently dead code (see `validTriggers`)
+  @unused
   private def validTriggerPattern(expr : PExpression) : (Vector[String], Messages) = {
     // shorthand definition
     def goEorT(node : PExpressionOrType) : (Vector[String], Messages) = node match {

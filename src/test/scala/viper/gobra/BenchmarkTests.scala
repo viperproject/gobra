@@ -134,9 +134,9 @@ trait BenchmarkTests extends StatisticalTestSuite {
       var res: Option[Either[E, O]] = None
       override val phase: Phase = Phase(name, () => {
         assert(prevStep.res.isDefined)
-        res = prevStep.res match {
-          case Some(Right(output)) => Some(fn(output))
-          case Some(Left(errs)) => Some(Left(errs)) // propagate errors
+        res = prevStep.res map {
+          case Right(output) => fn(output)
+          case Left(errs) => Left(errs) // propagate errors
         }
       })
       override def phases: Seq[Phase] = prevStep.phases :+ phase
@@ -149,9 +149,9 @@ trait BenchmarkTests extends StatisticalTestSuite {
       var res: Option[Either[E, O]] = None
       override val phase: Phase = Phase(name, () => {
         assert(prevStep.res.isDefined)
-        res = prevStep.res match {
-          case Some(Right(output)) => Some(Await.result(fn(output).toEither, Duration(timeoutSec, TimeUnit.SECONDS)))
-          case Some(Left(errs)) => Some(Left(errs)) // propagate errors
+        res = prevStep.res map {
+          case Right(output) => Await.result(fn(output).toEither, Duration(timeoutSec, TimeUnit.SECONDS))
+          case Left(errs) => Left(errs) // propagate errors
         }
       })
       override def phases: Seq[Phase] = prevStep.phases :+ phase

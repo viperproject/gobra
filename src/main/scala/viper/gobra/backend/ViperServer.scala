@@ -63,7 +63,7 @@ object ViperServerConfig {
   case class ConfigWithCarbon(partialCommandLine: List[String]) extends ViperServerWithCarbon
 }
 
-class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, abortSignal: AbortSignal = new AbortSignal())(implicit executor: VerificationExecutionContext) extends ViperVerifier {
+class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, abortSignal: AbortSignal)(implicit executor: VerificationExecutionContext) extends ViperVerifier {
   import ViperServer._
 
   override def verify(programID: String, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): Future[VerificationResult] = {

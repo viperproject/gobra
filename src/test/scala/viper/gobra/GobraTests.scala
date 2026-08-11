@@ -16,7 +16,7 @@ import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
-import viper.gobra.reporting.VerifierResult.{Failure, Success}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Success}
 import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
@@ -104,6 +104,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
+          case Aborted => fail("the verification has unexpectedly been aborted")
         }
       }
     }

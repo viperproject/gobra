@@ -92,6 +92,7 @@ trait BenchmarkTests extends StatisticalTestSuite {
       gobraResult match {
         case VerifierResult.Success => vpr.Success
         case VerifierResult.Failure(errors) => vpr.Failure(errors.map(GobraTestError))
+        case VerifierResult.Aborted => fail("the verification has unexpectedly been aborted")
       }
     }
 

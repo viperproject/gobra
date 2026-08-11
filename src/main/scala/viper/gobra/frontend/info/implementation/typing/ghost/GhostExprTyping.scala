@@ -15,6 +15,7 @@ import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
 
@@ -85,7 +86,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PClosureImplements => isPureExpr(n.closure) ++ wellDefIfClosureMatchesSpec(n.closure, n.spec)
 
     case n: PLet => isExpr(n.op).out ++ isWeaklyPureExpr(n.op) ++
-      n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b))
+      n.ass.right.foldLeft(noMessages)((a, b) => a ++ isPureExpr(b)) ++
+      supportedLetAssignment(n.ass)
 
     case n: PAccess =>
       val mayInit = isEnclosingMayInit(n)
@@ -248,6 +250,26 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PWildcardPerm() => noMessages
       case PNoPerm() => noMessages
     }
+  }
+
+  /**
+    * Checks that the assignment of a let expression is supported. Besides binding every variable on the left to the
+    * expression at the same position on the right, only the "comma-ok" form of map lookups, e.g. `let v, ok := m[k]`,
+    * is supported. In particular, binding the results of a call to a function with multiple results is not supported.
+    */
+  private def supportedLetAssignment(ass: PShortVarDecl): Messages = {
+    lazy val isCommaOkMapLookup = ass.left.length == 2 && (ass.right match {
+      case Vector(idx: PIndexedExp) => underlyingType(exprType(idx.base)) match {
+        case _: MapT | _: MathMapT => true
+        case _ => false
+      }
+      case _ => false
+    })
+    error(
+      ass,
+      s"expected either as many expressions as variables or a map lookup of the form 'v, ok := m[k]', but got $ass",
+      StrictAssignMode(ass.left.length, ass.right.length) != AssignMode.Single && !isCommaOkMapLookup
+    )
   }
 
   private[typing] def wellDefMapUpdClause(keys: Type, values : Type, clause : PGhostCollectionUpdateClause, mayInit: Boolean) : Messages = {

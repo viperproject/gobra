@@ -391,8 +391,6 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moduleName: String = ConfigDefaults.DefaultModuleName,
                       includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                       reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                   // signal with which a running verification can be cooperatively aborted:
-                   abortSignal: AbortSignal = new AbortSignal(),
                       backend: Option[ViperBackend] = None,
                       // list of pairs of file and line numbers. Indicates which lines of files should be isolated.
                       isolate: List[(Path, List[Int])] = ConfigDefaults.DefaultIsolate,

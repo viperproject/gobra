@@ -95,6 +95,9 @@ trait ExternalTypeInfo {
   /* memberset within a specific context */
   def localMemberSet(t: Type): AdvancedMemberSet[TypeMember]
 
+  /** method set of interface `t`, whose declaration must belong to this context */
+  def localInterfaceMethodSet(t: InterfaceT): AdvancedMemberSet[TypeMember]
+
   /** returns all subtype relation found in the current package */
   def localRequiredImplements: Set[(Type, InterfaceT)]
 

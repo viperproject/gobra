@@ -42,9 +42,10 @@ closed pred Mem2() {
 
 ```
 
-- In general, we do not know the fields of imported types (other than the public ones). A consequence of this is that we can never know whether a type is comparable (as it may have incomparable fields, e.g., a slice). Imported types are not comparable.
+- In general, we do not know the fields of imported types (other than the public ones). A consequence of this is that we can never know whether an imported type is comparable (as it may have private incomparable fields, e.g., a slice). By default, imported types are treated as incomparable: clients may not compare their values with `==`, nor use them as map keys. To recover comparability, we introduce a `comparable` annotation for type declarations. In the package declaring the type, the annotation is *checked* rather than assumed: it is a type error to mark a type as `comparable` if it is not comparable according to the Go spec. Importing packages may then rely on the annotation without inspecting private fields, and know that comparing values of that type does not crash. E.g., `time.Time` would be annotated as `comparable` in its stub.
+- For the same reason, conversions whose legality depends on the private structure of an imported type (e.g., struct conversions `T(v)`, whose legality requires identical underlying types) are rejected. Only conversions that do not require knowledge of private fields (e.g., identity conversions or conversions justified by assignability) remain allowed for imported types.
 - A package's invariants (a.k.a., initialization invariants) cannot mention private members for the same reason -- it is part of the package's public interface.
-- Note that private types are allowed to occur in the signature of a public function or public predicate, but the importing package cannot name them. Gobra should not know which interface types private imported types implement, other than `interface{}`.
+- Note that private types are allowed to occur in the signature of a public function or public predicate, but the importing package cannot name them. Gobra should not know which interface types private imported types implement, other than `interface{}`. For now, clients cannot access any members of private imported types, not even public ones (e.g., in the constructor pattern `func New() *client`, where `*client` has public methods, clients cannot call those methods). We may extend this in the future by exposing the public method set and the public fields of private types that occur in public signatures.
 
 ### Desugar
 - Imported private functions, methods, and predicates may be fully skipped.
@@ -66,7 +67,7 @@ type TImpl1 struct {}
 
 // @ pure
 // @ requires t != nil
-func (t TImpl1) M(t T) {
+func (i TImpl1) M(t T) int {
 	return t.M(t)
 }
 
@@ -77,7 +78,7 @@ package pkg2
 import "pkg1"
 
 func main() {
-	t1 := pkg1.TImpl1()
+	t1 := pkg1.TImpl1{}
 	t1.M(t1)
 }
 ```
@@ -93,5 +94,5 @@ For now, I think the first option is preferable until some user requests the lat
 ### Encoding
 - Uninterpreted private types are translated into an empty domain type.
 - TODO: check that this is compatible with the go language spec:
-	- imported types may have multiple fields that are private. As such, just because two values `v1` and `v2` of an imported type `T` have equal public fields, it does not mean that `v1 == v2` (or that equality is defined in the first place -- they may have incomparable types). As such, when encoding (public) imported struct types, we should make sure that equality in public fields does not imply equality. To that end, we can introduce a new field of a domain type `PrivateFields` which contains a single function: `default` that returns the zero value. This acts as a stub for all private fields the function may have and is not comparable (using `==`). Notice that we may still be able to prove `===` equalities: In particular, `T{} === T{}`, given that all public params get the 0 value, and the private ones too. Thus, all fields are `===` equal, even if they are not `==` equal. 
+	- imported types may have multiple fields that are private. As such, just because two values `v1` and `v2` of an imported type `T` have equal public fields, it does not mean that `v1 == v2` (or that equality is defined in the first place -- they may have incomparable types). Note that the type checker already rejects `==` on imported types that are not annotated as `comparable`, so the construction below matters for `comparable` imported types and for `===`. As such, when encoding (public) imported struct types, we should make sure that equality in public fields does not imply equality. To that end, we can introduce a new field of a domain type `PrivateFields` which contains a single function: `default` that returns the zero value. This acts as a stub for all private fields the function may have and is not comparable (using `==`). Notice that we may still be able to prove `===` equalities: In particular, `T{} === T{}`, given that all public params get the 0 value, and the private ones too. Thus, all fields are `===` equal, even if they are not `==` equal. 
 

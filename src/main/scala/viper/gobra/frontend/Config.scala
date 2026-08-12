@@ -1754,7 +1754,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val assertTimeout: ScallopOption[Int] = opt[Int](
     name = "assertTimeout",
-    descr = "Sets a timeout (in milliseconds) for assert operations performed by Silicon. Does not have any effect on other backends.",
+    descr = "Sets a timeout (in milliseconds) for assert operations performed by Silicon. Does not have any effect on non-Silicon-based backends.",
     default = ConfigDefaults.DefaultAssertTimeout,
     noshort = true,
   )

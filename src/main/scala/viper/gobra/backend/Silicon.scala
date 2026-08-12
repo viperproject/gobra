@@ -6,19 +6,23 @@
 
 package viper.gobra.backend
 
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
+import viper.gobra.reporting.IntermediateVerifierResult.{IntermediateVerifierResult, LeftIntermediateVerifierResult}
 import viper.gobra.util.GobraExecutionContext
 import viper.silicon
 import viper.silver.ast.Program
 import viper.silver.reporter._
 import viper.silver.verifier.{Failure, Success, VerificationResult}
+
 import scala.concurrent.Future
 
 class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
-  override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
+  override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): IntermediateVerifierResult[VerificationResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
-    Future {
+    EitherT.fromEither(Future[Either[LeftIntermediateVerifierResult, VerificationResult]] {
       val siliconApi: silicon.SiliconFrontendAPI = new silicon.SiliconFrontendAPI(reporter)
       
       val startTime = System.currentTimeMillis()
@@ -34,13 +38,13 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
             reporter report OverallFailureMessage(siliconApi.verifier.name, System.currentTimeMillis() - startTime, f)
         }
 
-        result
+        Right(result)
       } catch {
         case _: java.lang.UnsatisfiedLinkError => System.err.println("Couldn't find Z3 java API. No libz3java in java.library.path")
-          new Failure(Seq.empty)
+          Right(new Failure(Seq.empty))
         case e: Throwable =>
           throw e
       }
-    }
+    })
   }
 }

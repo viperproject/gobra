@@ -6,10 +6,10 @@
 
 package viper.gobra.backend
 
+import scalaz.EitherT
 import viper.gobra.util.GobraExecutionContext
-
 import scala.concurrent.Future
 
-trait Backend[I, R, P, O] {
-  def verify(id: I, reporter: R, program: P)(executor: GobraExecutionContext): Future[O]
+trait Backend[I, R, P, OL, OR] {
+  def verify(id: I, reporter: R, program: P)(executor: GobraExecutionContext): EitherT[OL, Future, OR]
 }

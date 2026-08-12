@@ -10,9 +10,13 @@ import viper.silver.ast.Program
 import viper.silver.reporter.{ExceptionReport, Message, OverallFailureMessage, OverallSuccessMessage, Reporter}
 import viper.silver.verifier.{Success, VerificationResult}
 import akka.actor.{Actor, Props, Status}
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
+import viper.gobra.reporting.IntermediateVerifierResult
+import viper.gobra.reporting.IntermediateVerifierResult.{Aborted, IntermediateVerifierResult}
 
-import scala.concurrent.{Await, Future, Promise}
-import viper.gobra.util.{AbortSignal, AbortedException, GobraExecutionContext}
+import scala.concurrent.{Await, Promise}
+import viper.gobra.util.{AbortSignal, GobraExecutionContext}
 import viper.server.core.{CarbonConfig, SiliconConfig, VerificationExecutionContext, ViperBackendConfig, ViperCoreServer, ViperServerBackendNotFoundException}
 import viper.server.frontends.lsp.ViperServerService
 
@@ -66,7 +70,7 @@ object ViperServerConfig {
 class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, abortSignal: AbortSignal)(implicit executor: VerificationExecutionContext) extends ViperVerifier {
   import ViperServer._
 
-  override def verify(programID: String, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): Future[VerificationResult] = {
+  override def verify(programID: String, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): IntermediateVerifierResult[VerificationResult] = {
     // convert ViperVerifierConfig to ViperBackendConfig:
 
     if(!server.isRunning) {
@@ -80,7 +84,7 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, a
     }
     if (abortSignal.isAborted) {
       // the verification has been aborted before this backend verification was submitted:
-      return Future.failed(new AbortedException())
+      return IntermediateVerifierResult(Aborted)
     }
     val handle = server.verify(programID, serverConfig, program)
     // interrupt this backend verification as soon as the verification is aborted. Note that the
@@ -97,6 +101,6 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, a
     val clientActor = executor.actorSystem.actorOf(Props(new GlueActor(reporter, promise)))
     // We do not perform an AST job before verification. Thus, we pass "false" as the value of include_ast.
     server.streamMessages(handle, clientActor, include_ast = false)
-    promise.future
+    EitherT.rightT(promise.future)
   }
 }

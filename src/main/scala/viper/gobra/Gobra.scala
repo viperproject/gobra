@@ -191,7 +191,7 @@ trait GoIdeVerifier {
 class Gobra extends GoVerifier with GoIdeVerifier {
 
   override def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
-    val task = for {
+    val result = for {
       finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
       _ = setLogLevel(finalConfig)
       parseResults <- performParsing(finalConfig, pkgInfo)
@@ -204,13 +204,12 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       _ <- abortCheckpoint(finalConfig)
       viperTask <- performViperEncoding(finalConfig, pkgInfo, program)
       _ <- abortCheckpoint(finalConfig)
-    } yield (viperTask, finalConfig)
+      result <- performVerification(finalConfig, pkgInfo, viperTask)
+    } yield result
 
-    task.foldM({
-      stepResult => Future(stepResult.toVerifierResult)
-    }, {
-      case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
-    })
+    result
+      .leftMap(_.toVerifierResult)
+      .merge
   }
 
   /** fails an aborted result (left) if the verification has been aborted */
@@ -227,12 +226,8 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     implicit val _executor: GobraExecutionContext = executor
     val viperTask = BackendVerifier.Task(ast, backtrack)
     performVerification(config, pkgInfo, viperTask)
-      .map(BackTranslator.backTranslate(_)(config))
-      .recoverWith {
-        case e: ExecutionException if isKnownZ3Bug(e) =>
-          // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
-          Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
-      }
+      .leftMap(_.toVerifierResult)
+      .merge
   }
 
   @scala.annotation.tailrec
@@ -364,19 +359,19 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performVerification(config: Config, pkgInfo: PackageInfo, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
-    if (config.noVerify) {
-      Future(VerifierResult.Success)(executor)
-    } else {
-      verifyAst(config, pkgInfo, ast, backtrack)(executor)
-    }
-  }
-
-  private def performVerification(config: Config, pkgInfo: PackageInfo, viperTask: BackendVerifier.Task)(implicit executor: GobraExecutionContext): Future[BackendVerifier.Result] = {
+  private def performVerification(config: Config, pkgInfo: PackageInfo, viperTask: BackendVerifier.Task)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[VerifierResult] = {
     if (config.shouldVerify) {
-      BackendVerifier.verify(viperTask, pkgInfo)(config)
+      val fut = BackendVerifier.verify(viperTask, pkgInfo)(config)
+        .map(BackTranslator.backTranslate(_)(config))
+        .toEither
+        .recoverWith {
+          case e: ExecutionException if isKnownZ3Bug(e) =>
+            // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
+            Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
+        }
+      EitherT.fromEither(fut)
     } else {
-      Future(BackendVerifier.Success)
+      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
     }
   }
 }

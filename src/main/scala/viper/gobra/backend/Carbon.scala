@@ -6,8 +6,11 @@
 
 package viper.gobra.backend
 
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
 import viper.carbon
 import viper.carbon.CarbonFrontendAPI
+import viper.gobra.reporting.IntermediateVerifierResult.{IntermediateVerifierResult, LeftIntermediateVerifierResult}
 import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.Program
 import viper.silver.reporter._
@@ -17,10 +20,10 @@ import scala.concurrent.Future
 
 class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
-  override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
+  override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): IntermediateVerifierResult[VerificationResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
-    Future {
+    EitherT.fromEither(Future[Either[LeftIntermediateVerifierResult, VerificationResult]] {
       val carbonApi: carbon.CarbonFrontendAPI = new CarbonFrontendAPI(reporter)
 
       val startTime = System.currentTimeMillis()
@@ -35,7 +38,7 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
           reporter report OverallFailureMessage(carbonApi.verifier.name, System.currentTimeMillis() - startTime, f)
       }
 
-      result
-    }
+      Right(result)
+    })
   }
 }

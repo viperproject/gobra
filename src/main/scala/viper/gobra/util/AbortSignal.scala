@@ -31,18 +31,20 @@ class AbortSignal {
 
   def abort(): Unit = {
     aborted.set(true)
-    drainListeners()
+    notifyAndDeregisterListeners()
   }
 
   /** invokes `listener` as soon as this signal is aborted (immediately if it already is) */
   def onAbort(listener: () => Unit): Unit = {
     listeners.add(listener)
     if (isAborted) {
-      drainListeners()
+      notifyAndDeregisterListeners()
     }
   }
 
-  private def drainListeners(): Unit = {
+  // processes the queue of listeners in a thread-safe way guaranteeing
+  // that each listener is notified only once
+  private def notifyAndDeregisterListeners(): Unit = {
     var listener = listeners.poll()
     while (listener != null) {
       try {

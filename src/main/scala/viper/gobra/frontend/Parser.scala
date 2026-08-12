@@ -20,6 +20,7 @@ import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, MemberContext, PreambleContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
+import viper.gobra.reporting.IntermediateVerifierResult.{IntermediateVerifierResult, LeftIntermediateVerifierResult}
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -179,14 +180,14 @@ object Parser extends LazyLogging {
     *
     */
 
-  def parse(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
+  def parse(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Map[AbstractPackage, ParseResult]] = {
     val parseManager = new ParseManager(config)
     parseManager.parse(pkgInfo)
-    val res: Future[Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]]] = for {
+    val res: Future[Either[LeftIntermediateVerifierResult, Map[AbstractPackage, ParseResult]]] = for {
       results <- parseManager.getResults
       res = results.get(RegularPackage(pkgInfo.id)) match {
         case Some(Right(_)) => Right(results)
-        case Some(Left(errs)) => Left(errs)
+        case Some(Left(errs)) => Left(IntermediateVerifierResult.Errored(errs))
         case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
       }
     } yield res

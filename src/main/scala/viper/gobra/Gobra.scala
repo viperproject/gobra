@@ -21,10 +21,11 @@ import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, InputConfig, PackageInfo, Parser, ScallopGobraConfig}
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
-import viper.gobra.util.{AbortedException, DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
 import java.time.format.DateTimeFormatter
@@ -191,7 +192,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   override def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult] = {
     val task = for {
-      finalConfig <- EitherT.fromEither(Future.successful(getAndMergeInFileConfig(config, pkgInfo)))
+      finalConfig <- getAndMergeInFileConfig(config, pkgInfo)
       _ = setLogLevel(finalConfig)
       parseResults <- performParsing(finalConfig, pkgInfo)
       _ <- abortCheckpoint(finalConfig)
@@ -206,24 +207,18 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     } yield (viperTask, finalConfig)
 
     task.foldM({
-      case Vector() => Future(VerifierResult.Success)
-      case errors => Future(VerifierResult.Failure(errors))
+      stepResult => Future(stepResult.toVerifierResult)
     }, {
       case (job, finalConfig) => performVerification(finalConfig, pkgInfo, job.program,  job.backtrack)
-    }).recover {
-      // an aborted verification is reported as such, no matter at which point it was aborted (in
-      // particular, backend failures caused by interrupting the backend's job are mapped, too):
-      case _ if config.abortSignal.isAborted => VerifierResult.Aborted
-      case _: AbortedException => VerifierResult.Aborted
-    }
+    })
   }
 
-  /** fails the verification with an [[AbortedException]] if the verification has been aborted */
-  private def abortCheckpoint(config: Config)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Unit] = {
+  /** fails an aborted result (left) if the verification has been aborted */
+  private def abortCheckpoint(config: Config)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Unit] = {
     if (config.abortSignal.isAborted) {
-      EitherT.fromEither(Future.failed[Either[Vector[VerifierError], Unit]](new AbortedException()))
+      IntermediateVerifierResult(IntermediateVerifierResult.Aborted)
     } else {
-      EitherT.fromEither(Future.successful[Either[Vector[VerifierError], Unit]](Right(())))
+      IntermediateVerifierResult(())
     }
   }
 
@@ -237,11 +232,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         case e: ExecutionException if isKnownZ3Bug(e) =>
           // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
           Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
-      }
-      .recover {
-        // an aborted verification is reported as such, no matter at which point it was aborted:
-        case _ if config.abortSignal.isAborted => VerifierResult.Aborted
-        case _: AbortedException => VerifierResult.Aborted
       }
   }
 
@@ -266,7 +256,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * These in-file command options get combined for all files and merged into an InputConfig.
     * The current config is then updated with the merged InputConfig and returned.
     */
-  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo): Either[Vector[VerifierError], Config] = {
+  def getAndMergeInFileConfig(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Config] = {
     val inFileEitherInputConfigs = config.packageInfoInputMap(pkgInfo).map(input => {
       val content = input.content
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
@@ -280,13 +270,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
     })
     val (errors, inFileInputConfigs) = inFileEitherInputConfigs.partitionMap(identity)
-    if (errors.nonEmpty) Left(errors.flatten)
+    if (errors.nonEmpty) IntermediateVerifierResult(IntermediateVerifierResult.Errored(errors.flatten))
     else {
       // merge all in-file InputConfigs together, then apply to the original config:
       val mergedInputConfig = inFileInputConfigs.flatten.foldLeft(InputConfig()) {
         case (acc, inputConfig) => acc merge inputConfig
       }
-      Right(config.applyInputConfig(mergedInputConfig))
+      IntermediateVerifierResult(config.applyInputConfig(mergedInputConfig))
     }
   }
 
@@ -298,7 +288,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   // returns `Left(...)` if parsing of the package identified by `pkgInfo` failed. Note that `Right(...)` does not imply
   // that all imported packages have been parsed successfully (this is only checked during type-checking)
-  private def performParsing(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
+  private def performParsing(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Map[AbstractPackage, ParseResult]] = {
     if (config.shouldParse) {
       val startMs = System.currentTimeMillis()
       val res = Parser.parse(config, pkgInfo)
@@ -308,29 +298,30 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
       res
     } else {
-      EitherT.left(Vector.empty)
+      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
     }
   }
 
-  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, TypeInfo] = {
+  private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): IntermediateVerifierResult[TypeInfo] = {
     if (config.shouldTypeCheck) {
       Info.check(config, RegularPackage(pkgInfo.id), parseResults)
+        .leftMap(errs => IntermediateVerifierResult.Errored(errs))
     } else {
-      EitherT.left(Vector.empty)
+      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
     }
   }
 
-  private def performDesugaring(config: Config, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
+  private def performDesugaring(config: Config, typeInfo: TypeInfo)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Program] = {
     if (config.shouldDesugar) {
       val startMs = System.currentTimeMillis()
-      val res = EitherT.right[Vector[VerifierError], Future, Program](Desugar.desugar(config, typeInfo)(executor))
+      val res = IntermediateVerifierResult(Desugar.desugar(config, typeInfo)(executor))
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"desugaring done, took ${durationS}s"
       }
       res
     } else {
-      EitherT.left(Vector.empty)
+      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
     }
   }
 
@@ -338,7 +329,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
     * be easily extended to perform more transformations
     */
-  private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Program] = {
+  private def performInternalTransformations(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Program] = {
     // constant propagation does not cause duplication of verification errors caused
     // by overflow checks (if enabled) because all overflows in constant declarations 
     // can be found by the well-formedness checks.
@@ -353,20 +344,23 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       s"internal transformations done, took ${durationS}s"
     }
     config.reporter.report(AppliedInternalTransformsMessage(config.packageInfoInputMap(pkgInfo).map(_.name), () => result))
-    EitherT.right(result)
+    IntermediateVerifierResult(result)
   }
 
-  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, BackendVerifier.Task] = {
+  private def performViperEncoding(config: Config, pkgInfo: PackageInfo, program: Program)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
       val startMs = System.currentTimeMillis()
-      val res = EitherT.fromEither[Future, Vector[VerifierError], BackendVerifier.Task](Future.successful(Translator.translate(program, pkgInfo)(config)))
+      val res = Translator.translate(program, pkgInfo)(config)
       logger.debug {
         val durationS = f"${(System.currentTimeMillis() - startMs) / 1000f}%.1f"
         s"Viper encoding done, took ${durationS}s"
       }
-      res
+      res.fold(
+        errs => IntermediateVerifierResult(IntermediateVerifierResult.Errored(errs)),
+        task => IntermediateVerifierResult(task)
+      )
     } else {
-      EitherT.left(Vector.empty)
+      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
     }
   }
 

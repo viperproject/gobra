@@ -2498,6 +2498,40 @@ object Desugar extends LazyLogging {
       }
     }
 
+    /**
+      * Returns the type that an index of `typ` has, if `typ` can be indexed. The index type of a (mathematical) map
+      * is its key type; all other indexable types are indexed with integers.
+      */
+    def indexType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.MapT => Some(t.keys)
+      case t: in.MathMapT => Some(t.keys)
+      case _: in.ArrayT | _: in.SliceT | _: in.SequenceT | _: in.StringT => Some(in.IntT(Addressability.rValue))
+      case in.PointerT(base, _) if underlyingType(base).isInstanceOf[in.ArrayT] => Some(in.IntT(Addressability.rValue))
+      case _ => None
+    }
+
+    /** Returns the type of the elements contained in `typ`, if `typ` is a collection type. */
+    def elementType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.ArrayT => Some(t.elems)
+      case t: in.SliceT => Some(t.elems)
+      case t: in.SequenceT => Some(t.t)
+      case t: in.SetT => Some(t.t)
+      case t: in.MultisetT => Some(t.t)
+      case t: in.MapT => Some(t.values)
+      case t: in.MathMapT => Some(t.values)
+      case _ => None
+    }
+
+    /**
+      * Returns the type that the left-hand side of a membership expression `x elem c` must have, where `c` has type
+      * `typ`. Membership in a (mathematical) map ranges over its keys, whereas membership in any other collection
+      * ranges over its elements.
+      */
+    def membershipType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case _: in.MapT | _: in.MathMapT => indexType(typ)
+      case t => elementType(t)
+    }
+
     def singleAss(left: in.Assignee, right: in.Expr)(info: Source.Parser.Info): in.SingleAss = {
       in.SingleAss(left, implicitConversion(right.typ, left.op.typ, right))(info)
     }
@@ -2578,7 +2612,10 @@ object Desugar extends LazyLogging {
         dbase <- exprD(ctx, info)(base)
         dindex <- exprD(ctx, info)(index)
         baseUnderlyingType = underlyingType(dbase.typ)
-      } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
+        // the index of a map may require an implicit conversion, e.g., when the key type of the map is an
+        // interface type and `index` has a concrete type
+        dkey = indexType(baseUnderlyingType).fold(dindex)(implicitConversion(dindex.typ, _, dindex))
+      } yield in.IndexedExp(dbase, dkey, baseUnderlyingType)(src)
     }
 
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
@@ -3299,7 +3336,7 @@ object Desugar extends LazyLogging {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
-            entryKey <- key match {
+            dKey <- key match {
               case v: PCompositeVal => compositeValD(ctx, info)(v, keys)
               case k: PIdentifierKey => info.regular(k.id) match {
                 case _: st.Variable => unit(varD(ctx, info)(k.id))
@@ -3307,6 +3344,9 @@ object Desugar extends LazyLogging {
                 case _ => violation(s"unexpected key $key")
               }
             }
+            // keys that are not composite values do not go through `compositeValD` and, thus, may still require
+            // an implicit conversion, e.g., when the key type is an interface type
+            entryKey = implicitConversion(dKey.typ, keys, dKey)
             entryVal <- compositeValD(ctx, info)(value, values)
           } yield (entryKey, entryVal)
 
@@ -4603,10 +4643,13 @@ object Desugar extends LazyLogging {
         case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
+          // the left-hand side may require an implicit conversion, e.g., when the elements of the collection have
+          // an interface type and `left` has a concrete type
+          delem = membershipType(dright.typ).fold(dleft)(implicitConversion(dleft.typ, _, dleft))
         } yield underlyingType(dright.typ) match {
-          case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
-          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
-          case _: in.MapT => in.Contains(dleft, dright)(src)
+          case _: in.SequenceT | _: in.SetT => in.Contains(delem, dright)(src)
+          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(delem, dright)(src))(src)
+          case _: in.MapT => in.Contains(delem, dright)(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 

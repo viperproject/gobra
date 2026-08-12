@@ -1029,6 +1029,7 @@ object InputConfig {
       moreJoins = InputConfigOption("moreJoins", resolvedCfg.more_joins),
       mceMode = InputConfigOption("mceMode", resolvedCfg.mce_mode),
       requireTriggers = InputConfigOption("requireTriggers", resolvedCfg.require_triggers),
+      assertTimeout = InputConfigOption("assertTimeout", resolvedCfg.assert_timeout),
     )
   }
 

@@ -1634,7 +1634,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val uninterpretedFloats: ScallopOption[Boolean] = opt[Boolean](
     name = "uninterpretedFloats",
     descr = "Encode floating-point operations as uninterpreted functions instead of the IEEE 754 SMT theory. " +
-      "Much cheaper for the solver, but nothing is known about float arithmetic (no literal values, no NaN, no rounding).",
+      "Much cheaper for the solver, but nothing is known about float arithmetic (no literal values, no NaN, " +
+      "no rounding), and == on floats becomes an uninterpreted symmetric predicate.",
     default = Some(ConfigDefaults.DefaultUninterpretedFloats),
     noshort = true,
   )

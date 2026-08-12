@@ -24,8 +24,10 @@ import scala.collection.mutable
   * but it is much cheaper for the SMT solver than the IEEE 754 theory used by [[FloatEncoding]].
   * It is enabled with the `--uninterpretedFloats` flag.
   *
-  * Note that, under this encoding, == on floats is structural (in particular, it is reflexive):
-  * NaN and the sign of zero are not modeled.
+  * NaN and the sign of zero are not modeled. To remain sound nonetheless, Go's == on floats is
+  * encoded as an uninterpreted symmetric predicate: in particular, `x == x` is NOT provable
+  * (x may be NaN), and neither is its negation. The structural ghost equality === remains
+  * available for specifications.
   */
 class UninterpretedFloatEncoding extends LeafTypeEncoding {
 
@@ -72,6 +74,52 @@ class UninterpretedFloatEncoding extends LeafTypeEncoding {
     * syntactically equal literals are known to be equal, and nothing else is known. */
   private lazy val litFloat32 = uninterpreted("litFloat32", Seq(vpr.Int), floatType32)
   private lazy val litFloat64 = uninterpreted("litFloat64", Seq(vpr.Int), floatType64)
+
+  /** Go's == on floats is encoded as an uninterpreted predicate: this encoding does not model
+    * which values are NaN, so neither `x == x` (which is false in Go when x is NaN) nor its
+    * negation may be provable. Symmetry, which holds for IEEE 754 equality, is its only axiom. */
+  private val eqDomainName = "UninterpretedFloatEquality"
+  private val usedEqFuncs = mutable.LinkedHashSet.empty[vpr.DomainFunc]
+
+  private def eqFunc(name: String, typ: vpr.Type): vpr.DomainFunc = {
+    val func = vpr.DomainFunc(name, Seq(vpr.LocalVarDecl("x", typ)(), vpr.LocalVarDecl("y", typ)()), vpr.Bool, unique = false, interpretation = None)(domainName = eqDomainName)
+    usedEqFuncs += func
+    func
+  }
+
+  private lazy val eqFloat32 = eqFunc("eqFloat32", floatType32)
+  private lazy val eqFloat64 = eqFunc("eqFloat64", floatType64)
+
+  private def eqSymmetryAxioms(): Seq[vpr.DomainAxiom] = usedEqFuncs.toSeq.map { f =>
+    val xDecl = vpr.LocalVarDecl("x", f.formalArgs.head.typ)()
+    val yDecl = vpr.LocalVarDecl("y", f.formalArgs.head.typ)()
+    def app(a: vpr.Exp, b: vpr.Exp): vpr.Exp = vpr.DomainFuncApp(f, Seq(a, b), Map.empty[vpr.TypeVar, vpr.Type])()
+    val x = xDecl.localVar
+    val y = yDecl.localVar
+    val body = vpr.Forall(
+      Seq(xDecl, yDecl),
+      Seq(vpr.Trigger(Seq(app(x, y)))()),
+      vpr.EqCmp(app(x, y), app(y, x))()
+    )()
+    vpr.AnonymousDomainAxiom(body)(domainName = eqDomainName): vpr.DomainAxiom
+  }
+
+  /**
+    * Encodes Go's == on floats as the uninterpreted predicate above. The structural (ghost)
+    * equality === and Viper-internal equality remain unaffected.
+    */
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.Float32(), rhs :: ctx.Float32(), src) =>
+      for {
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
+      } yield withSrc(vpr.DomainFuncApp(eqFloat32, Seq(vLhs, vRhs), Map.empty[vpr.TypeVar, vpr.Type]), src)
+    case (lhs :: ctx.Float64(), rhs :: ctx.Float64(), src) =>
+      for {
+        vLhs <- ctx.expression(lhs)
+        vRhs <- ctx.expression(rhs)
+      } yield withSrc(vpr.DomainFuncApp(eqFloat64, Seq(vLhs, vRhs), Map.empty[vpr.TypeVar, vpr.Type]), src)
+  }
 
   private lazy val fromIntTo32 = uninterpreted("fromIntTo32", Seq(vpr.Int), floatType32)
   private lazy val fromIntTo64 = uninterpreted("fromIntTo64", Seq(vpr.Int), floatType64)
@@ -151,6 +199,9 @@ class UninterpretedFloatEncoding extends LeafTypeEncoding {
   }
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = {
+    if (usedEqFuncs.nonEmpty) {
+      addMemberFn(vpr.Domain(eqDomainName, usedEqFuncs.toSeq, eqSymmetryAxioms(), Seq.empty, interpretations = None)())
+    }
     usedFunctions.foreach(addMemberFn)
   }
 }

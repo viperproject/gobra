@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+// ##(--uninterpretedFloats)
+
+// Under --uninterpretedFloats, nothing is known about float arithmetic, and
+// Go's == on floats is an uninterpreted symmetric predicate. In particular,
+// x == x is not provable (x may be NaN) — the fallback mode stays sound.
+
+func reflexivity(x float64) {
+	//:: ExpectedOutput(assert_error)
+	assert x == x // not provable: x may be NaN
+}
+
+requires x == y
+ensures  y == x
+func symmetry(x float64, y float64) {}
+
+// the structural ghost equality === remains reflexive and usable in specs
+ensures res === x + y
+func add(x float64, y float64) (res float64) {
+	return x + y
+}
+
+func literals() {
+	//:: ExpectedOutput(assert_error)
+	assert 0.1 != 0.2 // not provable: literal values are not modeled in this mode
+}

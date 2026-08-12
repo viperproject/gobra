@@ -193,7 +193,7 @@ case class Config(
                    includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                    projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
                    reporter: GobraReporter = ConfigDefaults.DefaultReporter,
-                   // signal with which a running verification can be cooperatively aborted:
+                   // signal to cooperatively abort a verification, which is used by Gobra-IDE
                    abortSignal: AbortSignal = new AbortSignal(),
                    // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
                    backend: Option[ViperBackend] = None,

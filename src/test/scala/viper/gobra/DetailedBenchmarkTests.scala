@@ -19,6 +19,7 @@ import viper.gobra.frontend.{Desugar, Parser}
 import viper.gobra.reporting.IntermediateVerifierResult.LeftIntermediateVerifierResult
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, IntermediateVerifierResult, VerifierResult}
 import viper.gobra.translator.Translator
+import viper.gobra.util.Violation
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
@@ -173,6 +174,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     override def gobraResult: VerifierResult = lastStep.res match {
       case Some(Left(stepResult)) => stepResult.toVerifierResult
       case Some(Right(result))    => result
+      case None                   => Violation.violation("the result is only available after the last step has been executed")
     }
   }
 }

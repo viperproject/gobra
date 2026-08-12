@@ -427,6 +427,13 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         logger.error("An unknown Exception was thrown.")
         logger.error(e.getLocalizedMessage, e)
         exitCode = 1
+      // this case must be kept: `Error`s (e.g. `NoClassDefFoundError` or `ExceptionInInitializerError`) are not
+      // `Exception`s. Without it, such a throwable propagates out of the `try` while `sys.exit(exitCode)` in the
+      // `finally` block terminates the JVM with the still unmodified exit code 0 and without reporting anything.
+      case e: Throwable =>
+        logger.error(s"${verifier.name} terminated abnormally.")
+        logger.error(e.getLocalizedMessage, e)
+        exitCode = 1
     } finally {
       executor.terminate()
       sys.exit(exitCode)

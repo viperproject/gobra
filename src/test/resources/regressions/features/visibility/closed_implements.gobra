@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type I interface {
+	decreases
+	pure Foo() int
+}
+
+type T struct{}
+
+closed
+decreases
+pure func (t T) Foo() int {
+	return 1
+}
+
+// closed pure methods cannot implement interface methods
+//:: ExpectedOutput(type_error)
+T implements I

@@ -7,27 +7,27 @@ package closuresCallDesc3
 // that a certain specification is required to hold only once
 
 type Once interface {
-    pred invBefore()
-    pred invAfter(n int)
+    pred InvBefore()
+    pred InvAfter(n int)
 
     ghost pure res(n int)int
 }
 
-requires o != nil && o.invBefore()
-ensures o.invAfter(n) && res == o.res(n)
+requires o != nil && o.InvBefore()
+ensures o.InvAfter(n) && res == o.res(n)
 ensures res >= n
 func onceGT(ghost o Once, n int) (res int)
 
 requires f implements onceGT{o}
-requires o != nil && o.invBefore()
-ensures o.invAfter(42) && res == o.res(42) && res >= 42
+requires o != nil && o.InvBefore()
+ensures o.InvAfter(42) && res == o.res(42) && res >= 42
 func hof(ghost o Once, f func(int)int)(res int) {
     return f(42) as onceGT{o}
 }
 
-type OnceID struct { accum *int }
-pred (self OnceID) invBefore() { acc(self.accum) && *self.accum == 0 }
-pred (self OnceID) invAfter(n int) { acc(self.accum) && *self.accum == n }
+type OnceID struct { Accum *int }
+pred (self OnceID) InvBefore() { acc(self.Accum) && *self.Accum == 0 }
+pred (self OnceID) InvAfter(n int) { acc(self.Accum) && *self.Accum == n }
 ghost pure func (self OnceID) res(n int)int {
     return n
 }
@@ -42,15 +42,15 @@ func main() {
                 return accum
             }
     proof cl implements onceGT{OnceID{&accum}} {
-        unfold OnceID{&accum}.invBefore()
+        unfold OnceID{&accum}.InvBefore()
         res = cl(n) as accumulate
-        fold OnceID{&accum}.invAfter(n)
+        fold OnceID{&accum}.InvAfter(n)
     }
 
-    fold OnceID{&accum}.invBefore()
+    fold OnceID{&accum}.InvBefore()
     r := hof(OnceID{&accum}, cl)
     assert r == 42
 
-    unfold OnceID{&accum}.invAfter(42)
+    unfold OnceID{&accum}.InvAfter(42)
     assert accum == 42
 }

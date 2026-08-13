@@ -8,7 +8,7 @@ import pkg "importedImplementationPkg"
 import "importedImplementationPkg/shape"
 
 func main () {
-  r@ := pkg.Rect{width: 2, height: 3}
+  r@ := pkg.Rect{Width: 2, Height: 3}
   fold r.mem()
   r.Area()
   Area(&r)

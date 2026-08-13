@@ -7,27 +7,27 @@ package closuresCallDesc1
 // that some calls happened (in any order, and there might be more calls)
 
 type Calls interface {
-    pred inv()
+    pred Inv()
 
     // This describes properties that must be true if a call happened
     ghost
-    requires inv()
-    pure called(x int)bool
+    requires Inv()
+    pure Called(x int)bool
     
     // This describes the properties of the result
     ghost pure res(x int, res int)bool
 }
 
 ghost
-requires x >= 0 && cs != nil && cs.inv()
-ensures cs.inv() && cs.called(x) && cs.res(x, res)
-ensures forall x int :: old(cs.called(x)) ==> cs.called(x)
+requires x >= 0 && cs != nil && cs.Inv()
+ensures cs.Inv() && cs.Called(x) && cs.res(x, res)
+ensures forall x int :: old(cs.Called(x)) ==> cs.Called(x)
 func spec(ghost cs Calls, x int) (res int)
 
 requires f implements spec{cs}
-requires cs != nil && cs.inv()
-ensures cs.inv() && exists a int, b int :: cs.res(2, a) && cs.res(3, b) && res == a + b
-ensures cs.called(2) && cs.called(3)
+requires cs != nil && cs.Inv()
+ensures cs.Inv() && exists a int, b int :: cs.res(2, a) && cs.res(3, b) && res == a + b
+ensures cs.Called(2) && cs.Called(3)
 func hof(ghost cs Calls, f func(int)int, choice bool)(res int) {
     if choice {
         res = (f(2) as spec{cs}) + (f(3) as spec{cs})
@@ -37,12 +37,12 @@ func hof(ghost cs Calls, f func(int)int, choice bool)(res int) {
     f(5) as spec{cs}
 }
 
-type Acc struct { accum *int }
-pred (self Acc) inv() { acc(self.accum) && *self.accum >= 0 }
+type Acc struct { Accum *int }
+pred (self Acc) Inv() { acc(self.Accum) && *self.Accum >= 0 }
 ghost
-requires self.inv()
-pure func (self Acc) called(x int)bool {
-    return unfolding self.inv() in (*self.accum >= x)
+requires self.Inv()
+pure func (self Acc) Called(x int)bool {
+    return unfolding self.Inv() in (*self.Accum >= x)
 }
 ghost
 pure func (self Acc) res(x int, y int)bool {
@@ -60,15 +60,15 @@ func main() {
             }
 
     proof cl implements spec{Acc{&accum}} {
-        unfold Acc{&accum}.inv()
+        unfold Acc{&accum}.Inv()
         res = cl(x) as accumulate
-        fold Acc{&accum}.inv()
+        fold Acc{&accum}.Inv()
     }
 
-    fold Acc{&accum}.inv()
+    fold Acc{&accum}.Inv()
     r := hof(Acc{&accum}, cl, true)
     assert r >= 5
 
-    unfold Acc{&accum}.inv()
+    unfold Acc{&accum}.Inv()
     assert accum >= 3
 }

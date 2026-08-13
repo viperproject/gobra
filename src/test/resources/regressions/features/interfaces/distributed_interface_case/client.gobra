@@ -17,7 +17,7 @@ const dummy = p.USE_IMPLEMENTATION_PROOF
 func client() {
     c := &c.cell{5}
     var i g.GetterSetter = c
-    fold i.mem()
+    fold i.Mem()
     v := i.GetVal()
     assert v == 5
     i.SetVal(42)

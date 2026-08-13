@@ -10,7 +10,7 @@ type Rect struct {
   height int
 }
 
-pred (r *Rect) mem() {
+pred (r *Rect) Mem() {
   acc(r, 1/2)
 }
 
@@ -27,12 +27,12 @@ func (r *Rect) Area() (ret int) {
 
 (*Rect) implements pkg1.Shape {
   pure (r *Rect) Size() bool {
-    return unfolding acc(r.mem(), 1/2) in r.Size()
+    return unfolding acc(r.Mem(), 1/2) in r.Size()
   }
   (r *Rect) Area() (ret int) {
-    unfold r.mem()
+    unfold r.Mem()
     ret = r.Area()
-    fold r.mem()
+    fold r.Mem()
   }
 }
 
@@ -40,7 +40,7 @@ type Circle struct {
   radius int
 }
 
-pred (c *Circle) mem() {
+pred (c *Circle) Mem() {
   acc(c, 1/2)
 }
 
@@ -57,12 +57,12 @@ func (c *Circle) Area() (ret int) {
 
 (*Circle) implements pkg1.Shape {
   pure (c *Circle) Size() bool {
-    return unfolding acc(c.mem(), 1/2) in c.Size()
+    return unfolding acc(c.Mem(), 1/2) in c.Size()
   }
 
   (c *Circle) Area() (ret int) {
-    unfold c.mem()
+    unfold c.Mem()
     ret = c.Area()
-    fold c.mem()
+    fold c.Mem()
   }
 }

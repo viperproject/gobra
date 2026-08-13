@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+decreases
+func zeroEq() {
+	// all fields of the zero value, including private ones, hold the zero value
+	assert lib.Key{} == lib.Key{}
+	assert lib.Key{} === lib.Key{}
+}
+
+decreases
+func pubEqNotSufficient(a lib.Key, b lib.Key) {
+	if a.X == b.X {
+		// equality of the public fields does not imply equality:
+		// the private fields may differ
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert a == b
+	}
+}
+
+decreases
+func ghostEqReflexive(c lib.NoCmp) {
+	// ghost equality is available even without the comparable annotation
+	assert c === c
+}

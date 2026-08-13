@@ -11,11 +11,11 @@ func test1() {
             return 2
          }
 
-    proof c implements foo.p2{0} {
+    proof c implements foo.P2{0} {
         r = c() as f
     }
 
-    r := c() as foo.p2{0}
+    r := c() as foo.P2{0}
     assert r == 2
 }
 
@@ -25,40 +25,40 @@ func test2() {
            return x + 2
          }
 
-    proof c implements foo.p2 {
+    proof c implements foo.P2 {
         r = c(x) as f
     }
 
-    r := c(5) as foo.p2
+    r := c(5) as foo.P2
     assert r == 7
 }
 
 func test3() {
-    c := foo.S1{2}.getx 
+    c := foo.S1{2}.Getx 
 
-    proof foo.S1{2}.getx implements foo.ret2 {
-        return foo.S1{2}.getx()
+    proof foo.S1{2}.Getx implements foo.Ret2 {
+        return foo.S1{2}.Getx()
     }
 
-    assert c() as foo.ret2 == 2
+    assert c() as foo.Ret2 == 2
 }
 
 func test4() {
     var i foo.I1
 
     //:: ExpectedOutput(method_object_nil_error)
-    c := i.getx
+    c := i.Getx
 }
 
 func test5() {
     var i foo.I1
     i = foo.S1{2}
 
-    c := i.getx
+    c := i.Getx
 
-    proof i.getx implements foo.ret2 {
-        return i.getx()
+    proof i.Getx implements foo.Ret2 {
+        return i.Getx()
     }
 
-    assert c() as foo.ret2 == 2
+    assert c() as foo.Ret2 == 2
 }

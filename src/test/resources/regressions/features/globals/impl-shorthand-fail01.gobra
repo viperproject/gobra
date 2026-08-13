@@ -4,7 +4,7 @@
 package pkg
 
 type Ifc interface {
-	f()
+	F()
 }
 
 type Impl *struct{}

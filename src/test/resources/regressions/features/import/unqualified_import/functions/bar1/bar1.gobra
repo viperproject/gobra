@@ -3,6 +3,6 @@
 
 package bar1
 
-func bar() { }
+func Bar() { }
 
 func unusedFunc() { }

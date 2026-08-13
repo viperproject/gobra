@@ -18,7 +18,7 @@ pred Foo(i int) {
 // package has a local predicate named `Foo`, `shadowed.Foo` lives entirely in the imported
 // package's namespace and is *not* a predicate, so the literal must remain a composite
 // literal.
-ensures res.x == 42
+ensures res.X == 42
 func makeFoo() (res shadowed.Foo) {
 	return shadowed.Foo{42}
 }

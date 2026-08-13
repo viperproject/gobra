@@ -7,9 +7,9 @@ type query struct {
 	loc *int
 }
 
-pred answer(x int,y * int,r int) { acc(y) && *y == x + 1 && r == x * x }
+pred Answer(x int,y * int,r int) { acc(y) && *y == x + 1 && r == x * x }
 
-pred isQuery(q query) {
+pred IsQuery(q query) {
 	acc(q.loc) &&
 	acc(q.ret.SendChannel(),_) &&
 	q.ret.SendGotPerm() == PredTrue{} &&

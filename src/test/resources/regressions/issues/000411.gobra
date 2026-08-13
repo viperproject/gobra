@@ -6,12 +6,12 @@ package pkg1
 // ##(--chop 3)
 
 type Shape interface {
-   pred mem()
+   pred Mem()
 
-   requires acc(mem(), 1/2)
+   requires acc(Mem(), 1/2)
    pure Size() bool
 
-   requires mem() && Size()
+   requires Mem() && Size()
    ensures ret > 0
    Area() (ret int)
 }

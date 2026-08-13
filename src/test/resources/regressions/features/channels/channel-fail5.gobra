@@ -3,7 +3,7 @@
 
 package pkg
 
-pred vIsOne(v int) {
+pred VIsOne(v int) {
     v == 1
 }
 

@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+decreases
+func accessMembers() {
+	a := lib.Pub
+	_ = a
+	//:: ExpectedOutput(type_error)
+	b := lib.priv
+	_ = b
+	//:: ExpectedOutput(type_error)
+	c := lib.privFn(1)
+	_ = c
+	// closed members remain callable
+	d := lib.ClosedFn(1)
+	_ = d
+}
+
+requires acc(p)
+decreases
+func accessFieldsAndMethods(p *lib.Pair) {
+	x := p.X
+	_ = x
+	//:: ExpectedOutput(type_error)
+	y := p.y
+	_ = y
+	//:: ExpectedOutput(type_error)
+	m := p.privMethod()
+	_ = m
+}
+
+pred clientPred(x int) {
+	//:: ExpectedOutput(type_error)
+	lib.privPred(x)
+}
+
+decreases
+func typeUse() {
+	//:: ExpectedOutput(type_error)
+	var h lib.hidden
+	_ = h
+}

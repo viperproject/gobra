@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// non-exported members cannot be marked as closed
+//:: ExpectedOutput(type_error)
+closed
+pred mem() {
+	true
+}
+
+// non-exported members cannot be marked as closed
+//:: ExpectedOutput(type_error)
+closed
+decreases
+pure func priv(x int) int {
+	return x
+}
+
+// closed requires pure
+//:: ExpectedOutput(type_error)
+closed
+decreases
+func NotPure()
+
+type I interface {
+	// interface method signatures cannot be closed
+	//:: ExpectedOutput(type_error)
+	closed
+	decreases
+	pure Bad() int
+}
+
+type J interface {
+	// private interface members are not supported
+	//:: ExpectedOutput(type_error)
+	privMethod()
+}

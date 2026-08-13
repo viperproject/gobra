@@ -11,22 +11,22 @@ type Func interface {
 	pure
 	decreases n
 	requires a != nil
-	fun(n int, a Func) int
+	Fun(n int, a Func) int
 }
 
 type FuncImpl struct {}
 
 (FuncImpl) implements Func {
-	pure (f FuncImpl) fun (n int, a Func) int {
+	pure (f FuncImpl) Fun (n int, a Func) int {
 		// Unlike previous versions of Gobra, the termination error is no longer (also) reported here.
-		return f.fun(n, a)
+		return f.Fun(n, a)
 	}
 }
 
 pure
 decreases n
 requires a != nil
-func (f FuncImpl) fun (n int, a Func) int {
+func (f FuncImpl) Fun (n int, a Func) int {
 	//:: ExpectedOutput(pure_function_termination_error)
-	return n * a.fun(n, f)
+	return n * a.Fun(n, f)
 }

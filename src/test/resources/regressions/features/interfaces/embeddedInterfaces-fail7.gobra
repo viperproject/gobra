@@ -6,17 +6,17 @@ package pkg
 
 type foo interface {
 	bar
-	f()
+	F()
 	//:: ExpectedOutput(type_error)
-	g()
+	G()
 	//:: ExpectedOutput(type_error)
 	pure
-	h() int
+	H() int
 }
 
 type bar interface {
-	g()
+	G()
 
 	pure
-	h() int
+	H() int
 }

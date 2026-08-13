@@ -22,17 +22,17 @@ type stream interface {
 
 // implementation proof
 
-pred counterMem(x *counterImpl.counter) { acc(x) }
+pred counterMem(x *counterImpl.Counter) { acc(x) }
 
-(*counterImpl.counter) implements stream {
+(*counterImpl.Counter) implements stream {
 
   pred Mem := counterMem
 
-  pure (x *counterImpl.counter) HasNext() bool {
+  pure (x *counterImpl.Counter) HasNext() bool {
     return unfolding acc(counterMem(x), 1/2) in x.HasNext()
   }
 
-  (x *counterImpl.counter) Next() (res interface{}) {
+  (x *counterImpl.Counter) Next() (res interface{}) {
     unfold counterMem(x)
     res = x.Next()
     fold counterMem(x)
@@ -43,7 +43,7 @@ pred counterMem(x *counterImpl.counter) { acc(x) }
 // client code
 
 func client() {
-  x := &counterImpl.counter{0, 50}
+  x := &counterImpl.Counter{0, 50}
   var y stream = x
   fold y.Mem()
   var z interface{} = y.Next()

@@ -10,17 +10,17 @@ type Once interface {
     pred InvBefore()
     pred InvAfter(n int)
 
-    ghost pure res(n int)int
+    ghost pure Res(n int)int
 }
 
 requires o != nil && o.InvBefore()
-ensures o.InvAfter(n) && res == o.res(n)
+ensures o.InvAfter(n) && res == o.Res(n)
 ensures res >= n
 func onceGT(ghost o Once, n int) (res int)
 
 requires f implements onceGT{o}
 requires o != nil && o.InvBefore()
-ensures o.InvAfter(42) && res == o.res(42) && res >= 42
+ensures o.InvAfter(42) && res == o.Res(42) && res >= 42
 func hof(ghost o Once, f func(int)int)(res int) {
     return f(42) as onceGT{o}
 }
@@ -28,7 +28,7 @@ func hof(ghost o Once, f func(int)int)(res int) {
 type OnceID struct { Accum *int }
 pred (self OnceID) InvBefore() { acc(self.Accum) && *self.Accum == 0 }
 pred (self OnceID) InvAfter(n int) { acc(self.Accum) && *self.Accum == n }
-ghost pure func (self OnceID) res(n int)int {
+ghost pure func (self OnceID) Res(n int)int {
     return n
 }
 

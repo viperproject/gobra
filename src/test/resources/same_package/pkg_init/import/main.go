@@ -12,7 +12,7 @@ import (
 	"fib"
 )
 
-// @ pred DupPkgInv() { acc(&x) && x == 10 }
+// @ closed pred DupPkgInv() { acc(&x) && x == 10 }
 
 var x /*@@@*/ int = valX()
 

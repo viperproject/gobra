@@ -6,8 +6,8 @@ package pkg2
 import "pkg1"
 
 type Rect struct {
-  width int
-  height int
+  Width int
+  Height int
 }
 
 pred (r *Rect) Mem() {
@@ -16,13 +16,13 @@ pred (r *Rect) Mem() {
 
 requires acc(r, 1/2)
 pure func (r *Rect) Size() bool {
-  return r.width > 0 && r.height > 0
+  return r.Width > 0 && r.Height > 0
 }
 
 requires acc(r, 1/2) && r.Size()
 ensures  acc(r, 1/2) && ret > 0
 func (r *Rect) Area() (ret int) {
-  return r.width * r.height
+  return r.Width * r.Height
 }
 
 (*Rect) implements pkg1.Shape {
@@ -37,7 +37,7 @@ func (r *Rect) Area() (ret int) {
 }
 
 type Circle struct {
-  radius int
+  Radius int
 }
 
 pred (c *Circle) Mem() {
@@ -46,13 +46,13 @@ pred (c *Circle) Mem() {
 
 requires acc(c, 1/2)
 pure func (c *Circle) Size() bool {
-  return c.radius > 0
+  return c.Radius > 0
 }
 
 requires acc(c, 1/2) && c.Size()
 ensures acc(c, 1/2) && ret > 0
 func (c *Circle) Area() (ret int) {
-  return c.radius * c.radius * 3
+  return c.Radius * c.Radius * 3
 }
 
 (*Circle) implements pkg1.Shape {

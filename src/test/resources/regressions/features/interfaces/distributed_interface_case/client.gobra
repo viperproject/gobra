@@ -15,7 +15,7 @@ const dummy = p.USE_IMPLEMENTATION_PROOF
 
 // client code
 func client() {
-    c := &c.cell{5}
+    c := &c.Cell{5}
     var i g.GetterSetter = c
     fold i.Mem()
     v := i.GetVal()

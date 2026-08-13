@@ -9,13 +9,13 @@ import "importedImplementationPkg/shape"
 
 func main () {
   r@ := pkg.Rect{Width: 2, Height: 3}
-  fold r.mem()
+  fold r.Mem()
   r.Area()
   Area(&r)
 }
 
-requires s != nil && s.mem()
-ensures  s != nil && s.mem()
+requires s != nil && s.Mem()
+ensures  s != nil && s.Mem()
 func Area(s shape.Shape) (ret int) {
   return s.Area()
 }

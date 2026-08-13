@@ -58,6 +58,13 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         false
     }
 
+    // closed predicates may only be folded and unfolded in their declaring package
+    def isForeignClosed(p: st.Predicate): Boolean = p match {
+      case fp: st.FPredicate => fp.isClosed && isImportedMember(fp)
+      case mp: st.MPredicateImpl => mp.isClosed && isImportedMember(mp)
+      case _ => false
+    }
+
     resolve(acc.pred) match {
       case Some(_: ap.PredExprInstance) =>
         error(
@@ -65,7 +72,9 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
           s"expected a predicate constructor, but got ${acc.pred.base}",
           !acc.pred.base.isInstanceOf[PPredConstructor])
       case Some(ap.PredicateCall(pred, _)) => pred match {
-        case p: ap.SymbolicPredicateKind => error(acc, s"abstract predicates are not foldable", isAbstract(p.symb))
+        case p: ap.SymbolicPredicateKind =>
+          error(acc, s"abstract predicates are not foldable", isAbstract(p.symb)) ++
+          error(acc, s"closed predicates cannot be folded or unfolded outside their declaring package", isForeignClosed(p.symb))
         case p: ap.BuiltInPredicateKind => error(acc, s"abstract predicates are not foldable", p.symb.tag.isAbstract)
         case _: ap.PredExprInstance => error(acc, s"predicate expression calls are not foldable")
       }

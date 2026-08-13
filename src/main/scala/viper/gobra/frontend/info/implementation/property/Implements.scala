@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PInterfaceType, PTypeDef, AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
+import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method, MethodImpl}
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, NilType, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -39,7 +39,7 @@ trait Implements { this: TypeInfoImpl =>
   }
   def addDemandedEmbeddedInterfaceImplements(itf: Type.InterfaceT): Unit = {
     itf.decl.embedded.foreach{ x => resolve(x.typ) match { // interface implements its embedded types
-      case Some(ap.NamedType(_, st.NamedType(PTypeDef(int: PInterfaceType, _), _, context))) =>
+      case Some(ap.NamedType(_, st.NamedType(PTypeDef(int: PInterfaceType, _, _), _, context))) =>
         context.symbType(int) match {
           case embeddedItfT: Type.InterfaceT => _guaranteedImplements ++= Set((itf, embeddedItfT))
           case _ =>
@@ -88,6 +88,16 @@ trait Implements { this: TypeInfoImpl =>
                     }
                   }){
                     Vector(s"The implementation of atomic method $name is not marked as atomic")
+                  } else if ({
+                    (implMember, itfMember) match {
+                      // Closed pure methods cannot implement interface methods: their bodies (and
+                      // thus their call-graph edges) are invisible to importing packages, which
+                      // would render Gobra's termination checks for dynamic dispatch unsound.
+                      case (implMember: MethodImpl, _: Method) => implMember.isClosed
+                      case _ => false
+                    }
+                  }) {
+                    Vector(s"The closed method $name cannot implement an interface method")
                   } else {
                     Vector.empty
                   }

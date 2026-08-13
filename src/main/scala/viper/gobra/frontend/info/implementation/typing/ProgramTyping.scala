@@ -34,7 +34,12 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
         val noOldExprs =
           hasOldExpression(pkgInvs.map(_.inv)) ++
             hasOldExpression(friends.map(_.assertion))
-        globalDeclsInRightOrder ++ noOldExprs
+        // package invariants and friend-package assertions are part of the package's interface
+        // and must be interpretable by importing packages
+        val onlyExportedReferences =
+          pkgInvs.flatMap(inv => privateMemberReferences(inv.inv, "a package invariant")) ++
+            friends.flatMap(f => privateMemberReferences(f.assertion, "a friend-package assertion"))
+        globalDeclsInRightOrder ++ noOldExprs ++ onlyExportedReferences
       } else {
         idsOkMsgs
       }

@@ -226,7 +226,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         AdvancedMemberSet.union {
           topLevel +: es.map(e => interfaceMethodSet(
             entity(e.typ.id) match {
-              case NamedType(PTypeDef(t: PInterfaceType, _), _, ownerCtxt) =>
+              case NamedType(PTypeDef(t: PInterfaceType, _, _), _, ownerCtxt) =>
                 ownerCtxt.symbType(t) match {
                   case itf: InterfaceT => itf
                   case other => Violation.violation(s"expected interface type, but got $other")
@@ -344,6 +344,12 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   /** resolve `b`.`id` */
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
+    // enforce Go's visibility rules: members of other packages may only be accessed
+    // under exported names (the `builtin` package being the exception).
+    tryDotLookupWithoutVisibilityCheck(b, id).map { case (e, path) => (filterForeignPrivate(e, id), path) }
+  }
+
+  private def tryDotLookupWithoutVisibilityCheck(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     exprOrType(b) match {
       case Left(expr) => // base is an expression
         val (addr, nonAddr) = tryMethodLikeLookup(expr, id)
@@ -376,10 +382,10 @@ trait MemberResolution { this: TypeInfoImpl =>
           case pkg: ImportT =>
             tryPackageLookup(RegularImport(pkg.decl.importPath), id)
 
-          case DeclaredT(PTypeDef(adt: PAdtType, _), ctx) =>
+          case DeclaredT(PTypeDef(adt: PAdtType, _, _), ctx) =>
             adtConstructorSet(ctx.symbType(adt)).lookupWithPath(id.name)
 
-          case DeclaredT(PTypeDef(domain: PDomainType, _), ctx) =>
+          case DeclaredT(PTypeDef(domain: PDomainType, _, _), ctx) =>
             domainFunctionSet(ctx.symbType(domain)).lookupWithPath(id.name)
 
           case t => tryMethodLikeLookup(t, id)
@@ -453,6 +459,12 @@ trait MemberResolution { this: TypeInfoImpl =>
     Violation.violation(dependentTypeInfo.contains(importTarget), s"Expected that package ${tree.root.info.id} has access to the type information of package $importTarget")
     val foreignTypeChecker = dependentTypeInfo(importTarget)
     val foreignPkgResult = foreignTypeChecker.externalRegular(id)
-    foreignPkgResult.flatMap(m => Some((m, Vector())))
+    foreignPkgResult.map { m =>
+      // enforce Go's visibility rules: only exported members of imported packages may be
+      // accessed (the `builtin` package being the exception).
+      if (importTarget != BuiltInImport && !isBuiltinContext(foreignTypeChecker) && !isExportedName(id.name)) {
+        (ErrorMsgEntity(error(id, s"${id.name} is not exported by package ${foreignTypeChecker.pkgName.name}")), Vector())
+      } else (m, Vector())
+    }
   }
 }

@@ -106,5 +106,7 @@ BACKEND     : '#backend';
 CRITICAL    : 'critical';
 OPENSINV    : 'opensInvariants' -> mode(NLSEMI);
 FRIENDPKG   : 'friendPkg';
+CLOSED      : 'closed' -> mode(NLSEMI);
+COMPARABLE  : 'comparable';
 REL         : 'rel';
 // NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

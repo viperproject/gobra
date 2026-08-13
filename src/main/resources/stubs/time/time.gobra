@@ -244,7 +244,7 @@ func (t Time) In(loc *Location) Time
 
 // Location returns the time zone information associated with t.
 // ensures t.loc == nil ==> res == UTC // UTC is currently commented because it is a global var
-ensures t.loc != nil ==> res == t.loc
+// ensures t.loc != nil ==> res == t.loc // commented because contracts of exported members cannot reference the non-exported field loc
 decreases
 func (t Time) Location() (res *Location)
 

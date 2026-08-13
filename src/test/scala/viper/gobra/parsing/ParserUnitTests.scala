@@ -121,13 +121,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: spec only function") {
     frontend.parseMemberOrFail("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: spec only function with nested blocks") {
     frontend.parseMemberOrFail("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
@@ -160,7 +160,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
       frontend.parseMemberOrFail("func bar()", specOnly) should matchPattern {
-        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
+        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), None)) =>
       }
     })
   }
@@ -2692,19 +2692,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse normal termination measure") {
     frontend.parseMemberOrFail("decreases n; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: should be able to parse underscore termination measure") {
     frontend.parseMemberOrFail("decreases _; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PWildcardMeasure(None)), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PWildcardMeasure(None)), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
     frontend.parseMemberOrFail("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), Vector(), false, false, false, false, false, false), None)) if one == 1 && two == 2 =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), Vector(), false, false, false, false, false, false, false), None)) if one == 1 && two == 2 =>
     }
   }
 
@@ -2746,28 +2746,70 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a closed pure function") {
+    frontend.parseMemberOrFail("closed\npure func Foo() int { return 1 }") should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("Foo"), Vector(), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), true, false, false, false, false, false, true), Some(_))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a closed fpredicate with the modifier on the same line") {
+    frontend.parseMemberOrFail("closed pred Mem() { true }") should matchPattern {
+      case Vector(PFPredicateDecl(PIdnDef("Mem"), Vector(), Some(PBoolLit(true)), true)) =>
+    }
+  }
+
+  test("Parser: should be able to parse a closed fpredicate with the modifier on its own line") {
+    frontend.parseMemberOrFail("closed\npred Mem() { true }") should matchPattern {
+      case Vector(PFPredicateDecl(PIdnDef("Mem"), Vector(), Some(PBoolLit(true)), true)) =>
+    }
+  }
+
+  test("Parser: should be able to parse a closed mpredicate") {
+    frontend.parseMemberOrFail("closed pred (x *T) Mem() { true }") should matchPattern {
+      case Vector(PMPredicateDecl(PIdnDef("Mem"), _, Vector(), Some(PBoolLit(true)), true)) =>
+    }
+  }
+
+  test("Parser: should be able to parse a comparable type declaration") {
+    frontend.parseMemberOrFail("comparable type Key struct { X int }") should matchPattern {
+      case Vector(PTypeDef(_: PStructType, PIdnDef("Key"), true)) =>
+    }
+  }
+
+  test("Parser: a non-annotated type declaration is not comparable") {
+    frontend.parseMemberOrFail("type Key struct { X int }") should matchPattern {
+      case Vector(PTypeDef(_: PStructType, PIdnDef("Key"), false)) =>
+    }
+  }
+
+  test("Parser: should reject a comparable type alias") {
+    frontend.parseMember("comparable type Key = int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
   test("Parser: should be able to parse an int ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyInt int") should matchPattern {
-      case Vector(PExplicitGhostMember(PTypeDef(PIntType(), PIdnDef("MyInt")))) =>
+      case Vector(PExplicitGhostMember(PTypeDef(PIntType(), PIdnDef("MyInt"), _))) =>
     }
   }
 
   test("Parser: should be able to parse a struct ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyStruct struct { Value int }") should matchPattern {
-      case Vector(PExplicitGhostMember(PTypeDef(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType()))))), PIdnDef("MyStruct")))) =>
+      case Vector(PExplicitGhostMember(PTypeDef(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType()))))), PIdnDef("MyStruct"), _))) =>
     }
   }
 
   test("Parser: should be able to parse a ghost struct type declaration") {
     // this definition will fail type checking but in order to provide better error messages, we nevertheless parse it
     frontend.parseMemberOrFail("type MyStruct ghost struct { Value int }") should matchPattern {
-      case Vector(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct"))) =>
+      case Vector(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct"), _)) =>
     }
   }
 
   test("Parser: should be able to parse a ghost struct ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyStruct ghost struct { Value int }") should matchPattern {
-      case Vector(PExplicitGhostMember(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct")))) =>
+      case Vector(PExplicitGhostMember(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct"), _))) =>
     }
   }
 

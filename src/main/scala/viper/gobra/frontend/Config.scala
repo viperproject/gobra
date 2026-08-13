@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
+import viper.gobra.util.AbortSignal
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
@@ -192,6 +193,8 @@ case class Config(
                    includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                    projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
                    reporter: GobraReporter = ConfigDefaults.DefaultReporter,
+                   // signal to cooperatively abort a verification, which is used by Gobra-IDE
+                   abortSignal: AbortSignal = new AbortSignal(),
                    // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
                    backend: Option[ViperBackend] = None,
                    isolate: Option[Vector[SourcePosition]] = None,
@@ -233,7 +236,6 @@ case class Config(
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
                    enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
-                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
@@ -289,7 +291,7 @@ case class Config(
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
       enableExperimentalHyperFeatures = enableExperimentalHyperFeatures || input.enableExperimentalHyperFeatures.value.contains(true),
-      noVerify = noVerify || input.noVerify.value.contains(true),
+      shouldVerify = shouldVerify && !input.noVerify.value.contains(true),
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
       requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
       disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
@@ -349,7 +351,6 @@ case class Config(
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
       "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
-      "noVerify" -> noVerify,
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
     )
@@ -435,7 +436,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
-  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding
+  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding && !noVerify
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {
     val positions = isolate.flatMap{ case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0)) }
@@ -1106,7 +1107,6 @@ trait RawConfig {
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
     enableExperimentalHyperFeatures = baseConfig.enableExperimentalHyperFeatures,
-    noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,

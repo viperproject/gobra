@@ -48,9 +48,8 @@ closed pred Mem2() {
 - Note that private types are allowed to occur in the signature of a public function or public predicate, but the importing package cannot name them. Gobra should not know which interface types private imported types implement, other than `interface{}`. For now, clients cannot access any members of private imported types, not even public ones (e.g., in the constructor pattern `func New() *client`, where `*client` has public methods, clients cannot call those methods). We may extend this in the future by exposing the public method set and the public fields of private types that occur in public signatures.
 
 ### Desugar
-- Imported private functions, methods, and predicates may be fully skipped.
-- Bodies of predicates of imported closed members may be fully skipped.
-- Private types that do not occur in the signatures of public members can be fully skipped. Those that do occur in signatures of public member become uninterpreted types (domain types for which nothing is known).
+- Imported private non-pure functions and non-pure methods may be fully skipped.
+
 
 ### Termination checking transform
 Gobra relies on Viper's termination checking to prove termination of programs. In Go, one could create an infinite loop by writing a program like the following:
@@ -86,13 +85,12 @@ Clearly, `main` does not terminate. In order to detect these kinds of non-termin
 - TImpl1.M() depends on T.M()
 However, because T.M() does not depend on TImpl1.M() yet, the call-graph does not have a cycle and Viper does not check that the termination measure decreases through the recursive calls. To fix that, there is an internal transformation that adds such an edge in the call graph. This is implemented and documented in CGEdgesTerminationTransform.scala. With this check, Viper checks for termination and no measure can satisfy the generated constraints.
 
-So far so good, but once we introduce `closed` functions, we can mark `TImpl1.M()` as closed and the client (`pkg2`) would not be aware of the call. Thus, even with CGEdgesTerminationTransform.scala, our call-graphs do not have all the necessary edges. There are two solutions to this:
-- The easiest way is to prevent closed pure methods from implementing interface methods (e.g., through a type-check). This is by far the easiest solution and potentially preferable for now, but it may be puzzling for users.
-- The other one is to extend CGEdges to introduce all relevant edges. This complicates this transformation even further, which is itself already complicated.
-For now, I think the first option is preferable until some user requests the later.
+So far so good, but once we introduce `closed` functions, we can mark `TImpl1.M()` as closed and the client (`pkg2`) would not be aware of the call. Thus, even with CGEdgesTerminationTransform.scala, our call-graphs do not have all the necessary edges. It could also be the case that, even if an implementation is not closed, it calls a pure function that is and that would still cause non-termination. As such, imported pure functions and methods (even private ones) may need to be included.
 
 ### Encoding
-- Uninterpreted private types are translated into an empty domain type.
 - TODO: check that this is compatible with the go language spec:
-	- imported types may have multiple fields that are private. As such, just because two values `v1` and `v2` of an imported type `T` have equal public fields, it does not mean that `v1 == v2` (or that equality is defined in the first place -- they may have incomparable types). Note that the type checker already rejects `==` on imported types that are not annotated as `comparable`, so the construction below matters for `comparable` imported types and for `===`. As such, when encoding (public) imported struct types, we should make sure that equality in public fields does not imply equality. To that end, we can introduce a new field of a domain type `PrivateFields` which contains a single function: `default` that returns the zero value. This acts as a stub for all private fields the function may have and is not comparable (using `==`). Notice that we may still be able to prove `===` equalities: In particular, `T{} === T{}`, given that all public params get the 0 value, and the private ones too. Thus, all fields are `===` equal, even if they are not `==` equal. 
+	- imported types may have multiple fields that are private. As such, just because two values `v1` and `v2` of an imported type `T` have equal public fields, it does not mean that `v1 == v2` (or that equality is defined in the first place -- they may have incomparable types). Note that the type checker already rejects `==` on imported types that are not annotated as `comparable`, so the construction below matters for `comparable` imported types and for `===`. As such, when encoding (public) imported struct types, we should make sure that equality in public fields does not imply equality. To that end, we can introduce a new field of a domain type `PrivateFields` which contains a single function: `default` that returns the zero value. This acts as a stub for all private fields the function may have and is not comparable (using `==`). Notice that we may still be able to prove `===` equalities: In particular, `T{} === T{}`, given that all public params get the 0 value, and the private ones too. Thus, all fields are `===` equal, even if they are not `==` equal.
+- Implementations of imported `closed` pure functions and methods should not be observable to clients. As such, they should be translated to `opaque` functions.
 
+### Potential optimizations to implement in the future:
+1. `closed` imported functions need not to be always present. We can skip the encoding of parts of closed and private functions. We need to keep the body interface method implementations and any imported functions called from it (be they private or closed or public). For unreachable imported functions, we can fully skip them.

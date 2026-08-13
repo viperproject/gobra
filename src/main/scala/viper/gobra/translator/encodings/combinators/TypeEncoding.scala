@@ -544,8 +544,8 @@ object TypeEncoding {
     @tailrec
     def aux(e: in.Expr): Boolean = e match {
       case _: in.Var => true
-      case l: in.FieldRef => cannotBeNil(l.recv)
-      case l: in.IndexedExp => cannotBeNil(l.base)
+      case l: in.FieldRef => aux(l.recv)
+      case l: in.IndexedExp => aux(l.base)
       case _ => false
     }
     aux(l)

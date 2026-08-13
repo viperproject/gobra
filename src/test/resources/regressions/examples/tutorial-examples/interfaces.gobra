@@ -7,7 +7,7 @@ type stream interface {
 	pred mem()
 
 	decreases
-	requires acc(mem(), 1/2)
+	requires acc(mem(), perm(1, 2))
 	pure hasNext() bool
 
 	requires mem() && hasNext()
@@ -18,15 +18,15 @@ type stream interface {
 // implementation
 type counter struct{ f, max int }
 
-requires acc(x, 1/2)
+requires acc(x, perm(1, 2))
 decreases
 pure func (x *counter) hasNext() bool {
 	return x.f < x.max
 }
 
-requires acc(&x.f) && acc(&x.max, 1/2)
+requires acc(&x.f) && acc(&x.max, perm(1, 2))
 requires x.hasNext()
-ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 
+ensures  acc(&x.f) && acc(&x.max, perm(1, 2)) && x.f == old(x.f)+1
 ensures  typeOf(y) == type[int] && y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
 	y = x.f
@@ -39,7 +39,7 @@ pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
 	pure (x *counter) hasNext() bool {
-		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+		return unfolding acc(x.mem(), perm(1, 2)) in x.hasNext()
 	}
 
 	(x *counter) next() (res interface{}) {

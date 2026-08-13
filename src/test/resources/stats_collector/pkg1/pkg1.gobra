@@ -6,7 +6,7 @@ package pkg1
 type Shape interface {
    pred mem()
 
-   requires acc(mem(), 1/2)
+   requires acc(mem(), perm(1, 2))
    pure Size() bool
 
    requires mem() && Size()

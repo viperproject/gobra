@@ -92,17 +92,36 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case _ => None
       }
       case PBitNegation(op) =>
-        // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
-        exprType(op) match {
-          case IntT(t) =>
-            val constEval = intConstantEval(op)
-            constEval map { constValue =>
-              t match {
-                case UnboundedInteger | _: Signed => ~constValue
-                case u: Unsigned => ~constValue mod (u.upper + 1)
+        // In Go, ^x for an untyped constant x is computed as -(x+1) in arbitrary precision.
+        // For a typed operand (e.g., uint8(42) or a named typed constant), the complement is
+        // computed modulo the operand's type. We detect "untyped" by checking structurally
+        // whether the operand is a pure literal cluster (no type conversions or typed constants).
+        // This mirrors the isUntypedIntConst predicate in ExprTyping.
+        def isLiteralCluster(e: PExpressionOrType): Boolean = e match {
+          case _: PIntLit | _: PIota => true
+          case PBitNegation(inner) => isLiteralCluster(inner)
+          case bExpr: PShiftLeft => isLiteralCluster(bExpr.left)
+          case bExpr: PShiftRight => isLiteralCluster(bExpr.left)
+          case bExpr: PBinaryExp[_,_] if bExpr.isInstanceOf[PNumExpression] =>
+            isLiteralCluster(bExpr.left) && isLiteralCluster(bExpr.right)
+          case _ => false
+        }
+        if (isLiteralCluster(op)) {
+          // Untyped: arbitrary-precision bitwise NOT = -(x+1)
+          intConstantEval(op) map (v => -(v + 1))
+        } else {
+          // Typed operand: compute complement in the operand's concrete type
+          exprType(op) match {
+            case IntT(t) =>
+              val constEval = intConstantEval(op)
+              constEval map { constValue =>
+                t match {
+                  case UnboundedInteger | UntypedConstInteger | _: Signed => ~constValue
+                  case u: Unsigned => ~constValue mod (u.upper + 1)
+                }
               }
-            }
-          case _ => None
+            case _ => None
+          }
         }
       case e: PBinaryExp[_,_] =>
         def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
@@ -129,7 +148,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
               }
             case _: PShiftRight => exprType(l) match {
               case IntT(t) => t match {
-                case UnboundedInteger | _: Signed =>
+                case UnboundedInteger | UntypedConstInteger | _: Signed =>
                   aux(l, r){
                     x => y =>
                       // The type system ensures that y is convertible to int
@@ -139,10 +158,14 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
                 case _: Unsigned =>
                   aux(l, r){
                     x => y =>
-                      // The type system ensures that x is convertible to long and y is convertible to int
-                      violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
+                      // The type system ensures that y is convertible to int
                       violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
-                      BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
+                      // An unsigned constant is non-negative, and for non-negative values the
+                      // arithmetic shift equals the logical shift — no need to round-trip
+                      // through Long (which crashed for constants above Long.MaxValue, e.g.
+                      // anything near MaxUint64).
+                      violation(x >= 0, s"unsigned operand expected to be non-negative")
+                      x >> y.toInt
                   }
               }
               case _ => None
@@ -180,16 +203,13 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
   lazy val permConstantEval: PExpression => Option[(BigInt, BigInt)] = {
     attr[PExpression, Option[(BigInt, BigInt)]] {
-      case PDiv(a, b) =>
-        // Here, we support the cases where 'a' and 'b' are int. In the future, this can be expanded to also
-        // support 'a' of type perm.
-        for {
-          dividend <- intConstantEval(a)
-          divisor  <- intConstantEval(b)
-        } yield (dividend, divisor)
-
       case inv: PInvoke => resolve(inv) match {
         case Some(ap.Conversion(t, e)) if underlyingTypeP(t).contains(PPermissionType()) => permConstantEval(e)
+        case Some(ap.FractionalPermConstructor(num, den)) =>
+          for {
+            n <- intConstantEval(num)
+            d <- intConstantEval(den)
+          } yield (n, d)
         case _ => None
       }
 

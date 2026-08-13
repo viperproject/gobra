@@ -19,7 +19,7 @@ import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.{BackendAnnotation, Decimal, GoString, NumBase, TypeBounds, Violation}
-import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger, UntypedConstInteger}
 import viper.gobra.util.Violation.violation
 
 import scala.collection.SortedSet
@@ -644,6 +644,8 @@ sealed trait Permission extends Expr {
 case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
 case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
+case class PermConstructorFromInt(num: Expr, den: Expr)(val info: Source.Parser.Info) extends Permission
+case class PermConstructorFromPerm(p: Expr, den: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
 case class CurrentPerm(acc: Accessible.Predicate)(val info: Source.Parser.Info) extends Permission
 case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission
@@ -1095,15 +1097,23 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
     // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
     // As an exception to the addressability requirement, x may also be a (possibly parenthesized) composite literal.
-    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.merge(kind1, kind2))
+    // `mergeLenient`, rather than the strict `merge`: the type-checker deliberately accepts
+    // arithmetic mixing the mathematical `integer` kind with a bounded one (TypeMerging makes
+    // `integer` the common type of itself and any bounded kind), so that e.g. the `integer`-typed
+    // `len` of a ghost collection can be combined with a bounded `int`. The desugarer carries both
+    // operand kinds through unchanged, so such a mix reaches this point and must be merged, not
+    // rejected. With the strict `merge`, `len(s) - i` for `s seq[int]` and `i int` fails here with
+    // "kinds IntegerKind(integer) and IntegerKind(int) cannot be merged".
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.mergeLenient(kind1, kind2))
 
-    // A binary expression may have one operand of a defined type T and another operand that is an unbounded integer.
+    // A binary expression may have one operand of a defined type T and another operand that is an unbounded
+    // integer or an untyped integer constant.
     // If T's underlying type is an integer type, then the result of the expression should be of type T.
     // Here, the underlying type of a defined type is not checked, as the information is not available at this point.
     // However, this should not pose a problem assuming that the original program has been type-checked before the
     // translation to the internal language.
-    case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
-    case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+    case (x, IntT(_, UnboundedInteger | UntypedConstInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
+    case (IntT(_, UnboundedInteger | UntypedConstInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
     case (x, y) if x.equalsWithoutMod(y) => x.withAddressability(Addressability.Exclusive)
     case (l, r) => violation(s"cannot merge types $l and $r")
 

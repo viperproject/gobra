@@ -323,6 +323,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
     case POptionGet(e) => exprType(e) match {
+      // An untyped-constant element (e.g. `get(some(33))` without further context) defaults
+      // to the mathematical `integer` type: the projection result is a ghost value, not a
+      // constant that could still adapt to a bounded context.
+      case OptionT(IntT(viper.gobra.util.TypeBounds.UntypedConstInteger)) => IntT(viper.gobra.util.TypeBounds.UnboundedInteger)
       case OptionT(t) => t
       case t => violation(s"expected an option type, but got $t")
     }
@@ -332,12 +336,21 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       else typeMergeAll(m.clauses map { c => exprType(c.exp) }).get
 
     case expr : PGhostCollectionExp => expr match {
-      // The result of integer ghost expressions is unbounded (UntypedConst)
-      case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
+      // Multiplicities are ghost values counting occurrences — mathematical integers,
+      // not adaptable constants.
+      case PMultiplicity(_, _) => IntT(viper.gobra.util.TypeBounds.UnboundedInteger)
       case PElem(_, _) => BooleanT
       case PGhostCollectionUpdate(seq, _) => exprType(seq)
       case expr : PSequenceExp => expr match {
-        case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))
+        case PRangeSequence(low, high) =>
+          // Elements are mathematical integers unless a bound has a concrete bounded kind
+          // (e.g. `seq[x..y]` with x, y of type int), in which case the range adopts it.
+          val elemKind = (exprType(low), exprType(high)) match {
+            case (IntT(k: viper.gobra.util.TypeBounds.BoundedIntegerKind), _) => k
+            case (_, IntT(k: viper.gobra.util.TypeBounds.BoundedIntegerKind)) => k
+            case _ => viper.gobra.util.TypeBounds.UnboundedInteger
+          }
+          SequenceT(IntT(elemKind))
 
         case PSequenceAppend(left, right) =>
           val lType = exprType(left)
@@ -445,6 +458,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(p: ap.Conversion)) =>
           !isEffectfulConversion(p) && go(p.arg)
+        case (Right(_), Some(fc: ap.FractionalPermConstructor)) => go(fc.num) && go(fc.den)
         case (Left(callee), Some(p@ap.FunctionCall(f, _))) => go(callee) && p.args.forall(go) && (f match {
           case ap.Function(_, symb) => symb.isPure
           case ap.Closure(_, symb) => symb.isPure

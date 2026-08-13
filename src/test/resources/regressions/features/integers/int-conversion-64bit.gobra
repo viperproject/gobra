@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Explicit int(x)/uint(x) conversions must use the *configured* integer kind.
+// In (default) 64-bit mode, values above 2^31 - 1 are valid ints; the built-in
+// type tags statically defaulted to the 32-bit kinds, which gave the generated
+// conversion functions 32-bit bounds and made this fail.
+func convertLarge() {
+	var x int64 = 4000000000
+	var y int = int(x)
+	assert y == 4000000000
+
+	var u uint64 = 8000000000
+	var v uint = uint(u)
+	assert v == 8000000000
+}

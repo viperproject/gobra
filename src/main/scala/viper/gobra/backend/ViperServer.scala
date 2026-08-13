@@ -12,8 +12,8 @@ import viper.silver.verifier.{Success, VerificationResult}
 import akka.actor.{Actor, Props, Status}
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
-import viper.gobra.reporting.IntermediateVerifierResult
-import viper.gobra.reporting.IntermediateVerifierResult.{Aborted, IntermediateVerifierResult}
+import viper.gobra.reporting.{IntermediateVerifierResult, VerifierResult}
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
 
 import scala.concurrent.{Await, Promise}
 import viper.gobra.util.{AbortSignal, GobraExecutionContext}
@@ -84,7 +84,7 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, a
     }
     if (abortSignal.isAborted) {
       // the verification has been aborted before this backend verification was submitted:
-      return IntermediateVerifierResult(Aborted)
+      return IntermediateVerifierResult(VerifierResult.Aborted)
     }
     val handle = server.verify(programID, serverConfig, program)
     // interrupt this backend verification as soon as the verification is aborted. Note that the

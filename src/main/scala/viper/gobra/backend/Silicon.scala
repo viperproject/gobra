@@ -8,7 +8,8 @@ package viper.gobra.backend
 
 import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
-import viper.gobra.reporting.IntermediateVerifierResult.{IntermediateVerifierResult, LeftIntermediateVerifierResult}
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
+import viper.gobra.reporting.NegativeVerifierResult
 import viper.gobra.util.GobraExecutionContext
 import viper.silicon
 import viper.silver.ast.Program
@@ -22,7 +23,7 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
   override def verify(programID: String, reporter: Reporter, program: Program)(executor: GobraExecutionContext): IntermediateVerifierResult[VerificationResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
-    EitherT.fromEither(Future[Either[LeftIntermediateVerifierResult, VerificationResult]] {
+    EitherT.fromEither(Future[Either[NegativeVerifierResult, VerificationResult]] {
       val siliconApi: silicon.SiliconFrontendAPI = new silicon.SiliconFrontendAPI(reporter)
       
       val startTime = System.currentTimeMillis()

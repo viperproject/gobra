@@ -11,8 +11,8 @@ import scalaz.Scalaz.futureInstance
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.reporting.IntermediateVerifierResult.{IntermediateVerifierResult, LeftIntermediateVerifierResult}
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage, NegativeVerifierResult}
 import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
 import viper.silver
 import viper.silver.verifier.VerificationResult
@@ -72,11 +72,8 @@ object BackendVerifier {
         }
 
         val fut = partialVerificationResults map { partialRes =>
-          partialRes.foldLeft[Either[LeftIntermediateVerifierResult, VerificationResult]](Right(silver.verifier.Success)) {
-            // merge logic: we accumulate (right) verification errors until we hit the first left result at which point
-            // we stop accumulating. While this models the monadic bind of Either, one could consider improving this merge
-            // logic in the future: E.g., one could accumulate Left(Errored(errs)) or define a precedence for different
-            // left results.
+          partialRes.foldLeft[Either[NegativeVerifierResult, VerificationResult]](Right(silver.verifier.Success)) {
+            // possible future improvement of the merge logic: accumulate the errors of multiple left results or define a precedence among them
             case (Right(silver.verifier.Success), res) => res // accumulator is irrelevant as it does not contain any errors yet
             case (Right(silver.verifier.Failure(l)), Right(silver.verifier.Success)) => Right(silver.verifier.Failure(l))
             case (Right(silver.verifier.Failure(l)), Right(silver.verifier.Failure(r))) => Right(silver.verifier.Failure(l ++ r))

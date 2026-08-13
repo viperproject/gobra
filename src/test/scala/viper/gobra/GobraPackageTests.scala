@@ -15,7 +15,7 @@ import org.rogach.scallop.throwError
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
-import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Success}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Skipped, Success}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -88,6 +88,7 @@ class GobraPackageTests extends GobraTests {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
           case Aborted => fail("the verification has unexpectedly been aborted")
+          case Skipped => fail("the verification has unexpectedly been skipped")
         })
       }
     }

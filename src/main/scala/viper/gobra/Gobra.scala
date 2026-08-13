@@ -104,6 +104,8 @@ trait GoVerifier extends StrictLogging {
           result match {
             case VerifierResult.Aborted =>
               logger.info(s"the verification$suffix has been aborted.")
+            case VerifierResult.Skipped =>
+              logger.info(s"the verification$suffix has been skipped.")
             case VerifierResult.Success =>
               logger.info(s"$name found 0 errors$suffix.")
             case VerifierResult.Failure(errors) =>
@@ -208,14 +210,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     } yield result
 
     result
-      .leftMap(_.toVerifierResult)
       .merge
   }
 
   /** fails an aborted result (left) if the verification has been aborted */
   private def abortCheckpoint(config: Config)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Unit] = {
     if (config.abortSignal.isAborted) {
-      IntermediateVerifierResult(IntermediateVerifierResult.Aborted)
+      IntermediateVerifierResult(VerifierResult.Aborted)
     } else {
       IntermediateVerifierResult(())
     }
@@ -226,7 +227,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     implicit val _executor: GobraExecutionContext = executor
     val viperTask = BackendVerifier.Task(ast, backtrack)
     performVerification(config, pkgInfo, viperTask)
-      .leftMap(_.toVerifierResult)
       .merge
   }
 
@@ -265,7 +265,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
     })
     val (errors, inFileInputConfigs) = inFileEitherInputConfigs.partitionMap(identity)
-    if (errors.nonEmpty) IntermediateVerifierResult(IntermediateVerifierResult.Errored(errors.flatten))
+    if (errors.nonEmpty) IntermediateVerifierResult(VerifierResult.Failure(errors.flatten))
     else {
       // merge all in-file InputConfigs together, then apply to the original config:
       val mergedInputConfig = inFileInputConfigs.flatten.foldLeft(InputConfig()) {
@@ -293,16 +293,16 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
       res
     } else {
-      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
+      IntermediateVerifierResult(VerifierResult.Skipped)
     }
   }
 
   private def performTypeChecking(config: Config, pkgInfo: PackageInfo, parseResults: Map[AbstractPackage, ParseResult])(implicit executor: GobraExecutionContext): IntermediateVerifierResult[TypeInfo] = {
     if (config.shouldTypeCheck) {
       Info.check(config, RegularPackage(pkgInfo.id), parseResults)
-        .leftMap(errs => IntermediateVerifierResult.Errored(errs))
+        .leftMap(errs => VerifierResult.Failure(errs))
     } else {
-      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
+      IntermediateVerifierResult(VerifierResult.Skipped)
     }
   }
 
@@ -316,7 +316,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       }
       res
     } else {
-      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
+      IntermediateVerifierResult(VerifierResult.Skipped)
     }
   }
 
@@ -351,11 +351,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         s"Viper encoding done, took ${durationS}s"
       }
       res.fold(
-        errs => IntermediateVerifierResult(IntermediateVerifierResult.Errored(errs)),
+        errs => IntermediateVerifierResult(VerifierResult.Failure(errs)),
         task => IntermediateVerifierResult(task)
       )
     } else {
-      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
+      IntermediateVerifierResult(VerifierResult.Skipped)
     }
   }
 
@@ -369,9 +369,15 @@ class Gobra extends GoVerifier with GoIdeVerifier {
             // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
             Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
         }
+        .recover {
+          // interrupting a running backend verification may fail the result future (e.g., ViperServer
+          // completes the message stream without an overall result when a job is stopped). Such
+          // failures are reported as an aborted verification:
+          case _ if config.abortSignal.isAborted => Left(VerifierResult.Aborted)
+        }
       EitherT.fromEither(fut)
     } else {
-      IntermediateVerifierResult(IntermediateVerifierResult.Skipped)
+      IntermediateVerifierResult(VerifierResult.Skipped)
     }
   }
 }

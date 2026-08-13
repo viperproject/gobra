@@ -16,8 +16,7 @@ import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Desugar, Parser}
-import viper.gobra.reporting.IntermediateVerifierResult.LeftIntermediateVerifierResult
-import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, IntermediateVerifierResult, VerifierResult}
+import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, NegativeVerifierResult, VerifierResult}
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation
 
@@ -117,10 +116,10 @@ class DetailedBenchmarkTests extends BenchmarkTests {
         assert(c.packageInfoInputMap.size == 1)
         val pkgInfo = c.packageInfoInputMap.keys.head
         Info.check(c, RegularPackage(pkgInfo.id), parseResults)(executor)
-          .leftMap(errs => IntermediateVerifierResult.Errored(errs): LeftIntermediateVerifierResult)
+          .leftMap(errs => VerifierResult.Failure(errs): NegativeVerifierResult)
       })
 
-    private val desugaring: NextStep[TypeInfo, LeftIntermediateVerifierResult, Program] =
+    private val desugaring: NextStep[TypeInfo, NegativeVerifierResult, Program] =
       NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
         assert(config.isDefined)
         val c = config.get
@@ -147,7 +146,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
       Translator.translate(program, pkgInfo)(c)
-        .left.map(errs => IntermediateVerifierResult.Errored(errs): LeftIntermediateVerifierResult)
+        .left.map(errs => VerifierResult.Failure(errs))
     })
 
     private val verifying = NextStepEitherT("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
@@ -172,7 +171,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     }
 
     override def gobraResult: VerifierResult = lastStep.res match {
-      case Some(Left(stepResult)) => stepResult.toVerifierResult
+      case Some(Left(stepResult)) => stepResult
       case Some(Right(result))    => result
       case None                   => Violation.violation("the result is only available after the last step has been executed")
     }

@@ -15,9 +15,8 @@ import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
-import viper.gobra.reporting.IntermediateVerifierResult.LeftIntermediateVerifierResult
-import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Success}
-import viper.gobra.reporting.{GobraMessage, GobraReporter, IntermediateVerifierResult, VerifierError}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Skipped, Success}
+import viper.gobra.reporting.{GobraMessage, GobraReporter, NegativeVerifierResult, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -73,7 +72,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           parseResult <- Parser.parse(finalConfig, pkgInfo)
           pkg = RegularPackage(pkgInfo.id)
           typeCheckResult <- Info.check(finalConfig, pkg, parseResult)
-            .leftMap(errs => IntermediateVerifierResult.Errored(errs): LeftIntermediateVerifierResult)
+            .leftMap(errs => Failure(errs): NegativeVerifierResult)
         } yield typeCheckResult
         fut.toEither
       })
@@ -106,6 +105,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
           case Aborted => fail("the verification has unexpectedly been aborted")
+          case Skipped => fail("the verification has unexpectedly been skipped")
         }
       }
     }

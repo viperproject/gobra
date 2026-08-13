@@ -6,7 +6,7 @@
 
 package viper.gobra
 
-import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Success}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Skipped, Success}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -50,6 +50,7 @@ class GobraConfigTests extends GobraPackageTests {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
           case Aborted => fail("the verification has unexpectedly been aborted")
+          case Skipped => fail("the verification has unexpectedly been skipped")
         }
       }
     }

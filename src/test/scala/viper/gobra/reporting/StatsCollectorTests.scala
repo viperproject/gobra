@@ -65,6 +65,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
         case VerifierResult.Success => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).forall(_.success))
         case VerifierResult.Failure(_) => assert(statsCollector.memberMap.values.flatMap(_.viperMembers.values).exists(!_.success))
         case VerifierResult.Aborted => fail("the verification has unexpectedly been aborted")
+        case VerifierResult.Skipped => fail("the verification has unexpectedly been skipped")
       }
     })
   }
@@ -83,6 +84,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
           assert(newErrors > errorCount)
           errorCount = newErrors
         case VerifierResult.Aborted => fail("the verification has unexpectedly been aborted")
+        case VerifierResult.Skipped => fail("the verification has unexpectedly been skipped")
       }
     })
   }

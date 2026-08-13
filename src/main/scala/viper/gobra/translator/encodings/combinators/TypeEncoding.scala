@@ -10,7 +10,6 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-//  import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, DerefError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, LoadError, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
@@ -541,11 +540,14 @@ object TypeEncoding {
     }
   }
 
-  @tailrec
-  private def cannotBeNil(l: in.Expr): Boolean = l match {
-    case _: in.Var => true
-    case l: in.FieldRef => cannotBeNil(l.recv)
-    case l: in.IndexedExp => cannotBeNil(l.base)
-    case _ => false
+  private def cannotBeNil(l: in.Location): Boolean = {
+    @tailrec
+    def aux(e: in.Expr): Boolean = e match {
+      case _: in.Var => true
+      case l: in.FieldRef => cannotBeNil(l.recv)
+      case l: in.IndexedExp => cannotBeNil(l.base)
+      case _ => false
+    }
+    aux(l)
   }
 }

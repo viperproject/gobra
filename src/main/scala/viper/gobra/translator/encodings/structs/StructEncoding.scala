@@ -186,7 +186,7 @@ class StructEncoding extends TypeEncoding {
     * R[ (base: Struct{F})[f = e] ] -> ex_struct_upd([base], f, [e], F)
     * R[ dflt(Struct{F}) ] -> create_ex_struct( [T] | (f: T) in F )
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
-    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] ) // assert [&loc != nil] if Struct{F} has size zero
+    * R[ loc: Struct{F}@ if size != 0] -> convert_to_exclusive( Ref[loc] ) // zero-sized structs are handled by the default implementation
     */
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expression(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>

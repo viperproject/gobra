@@ -1,5 +1,6 @@
 {
   "default_job_cfg": {
+    "assert_timeout": 60000,
     "check_consistency": true,
     "overflow": true,
     "require_triggers": true,

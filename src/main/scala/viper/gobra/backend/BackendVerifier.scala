@@ -6,10 +6,13 @@
 
 package viper.gobra.backend
 
+import scalaz.EitherT
+import scalaz.Scalaz.futureInstance
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.{Config, PackageInfo}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage}
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedProgressMessage, NegativeVerifierResult}
 import viper.gobra.util.{ChopperUtil, GobraExecutionContext}
 import viper.silver
 import viper.silver.verifier.VerificationResult
@@ -31,7 +34,7 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task, pkgInfo: PackageInfo)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
+  def verify(task: Task, pkgInfo: PackageInfo)(config: Config)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Result] = {
 
     var exePaths: Vector[String] = Vector.empty
 
@@ -47,7 +50,7 @@ object BackendVerifier {
       case _ =>
     }
 
-    val verificationResults: Future[VerificationResult] =  {
+    val verificationResults: IntermediateVerifierResult[VerificationResult] =  {
       val verifier = config.backendOrDefault.create(exePaths, config, pkgInfo)
       val reporter = BacktranslatingReporter(config.reporter, task.backtrack, config)
 
@@ -62,19 +65,23 @@ object BackendVerifier {
         // Starts verifying all chopped programs in parallel
         val partialVerificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
           val programID = s"${config.taskName}_$idx"
-          verifier.verify(programID, reporter, program)(executor).andThen { _ =>
+          verifier.verify(programID, reporter, program)(executor).toEither.andThen { _ =>
             // this block ensures that progress messages are printed in order
             this.synchronized { counter += 1; config.reporter report ChoppedProgressMessage(counter, num, idx) }
           }
         }
 
-        partialVerificationResults map { partialRes =>
-          partialRes.foldLeft[VerificationResult](silver.verifier.Success) {
-            case (acc, silver.verifier.Success) => acc
-            case (silver.verifier.Success, res) => res
-            case (silver.verifier.Failure(l), silver.verifier.Failure(r)) => silver.verifier.Failure(l ++ r)
+        val fut = partialVerificationResults map { partialRes =>
+          partialRes.foldLeft[Either[NegativeVerifierResult, VerificationResult]](Right(silver.verifier.Success)) {
+            // possible future improvement of the merge logic: accumulate the errors of multiple left results or define a precedence among them
+            case (Right(silver.verifier.Success), res) => res // accumulator is irrelevant as it does not contain any errors yet
+            case (Right(silver.verifier.Failure(l)), Right(silver.verifier.Success)) => Right(silver.verifier.Failure(l))
+            case (Right(silver.verifier.Failure(l)), Right(silver.verifier.Failure(r))) => Right(silver.verifier.Failure(l ++ r))
+            case (Left(err), _) => Left(err) // accumulator is left --> ignore all remaining results
+            case (Right(_), Left(err)) => Left(err)
           }
         }
+        EitherT.fromEither(fut)
       }
     }
 

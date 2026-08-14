@@ -10,14 +10,13 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.scalatest.{Args, BeforeAndAfterAll, Status}
-import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.PackageResolver.RegularPackage
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, PackageResolver, Parser, Source}
-import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.reporting.{GobraMessage, GobraReporter, VerifierError}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Skipped, Success}
+import viper.gobra.reporting.{GobraMessage, GobraReporter, NegativeVerifierResult, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -69,10 +68,11 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = getConfig(source)
         val pkgInfo = config.packageInfoInputMap.keys.head
         val fut = for {
-          finalConfig <- EitherT.fromEither(Future.successful(gobraInstance.getAndMergeInFileConfig(config, pkgInfo)))
+          finalConfig <- gobraInstance.getAndMergeInFileConfig(config, pkgInfo)
           parseResult <- Parser.parse(finalConfig, pkgInfo)
           pkg = RegularPackage(pkgInfo.id)
           typeCheckResult <- Info.check(finalConfig, pkg, parseResult)
+            .leftMap(errs => Failure(errs): NegativeVerifierResult)
         } yield typeCheckResult
         fut.toEither
       })
@@ -104,6 +104,8 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
+          case Aborted => fail("the verification has unexpectedly been aborted")
+          case Skipped => fail("the verification has unexpectedly been skipped")
         }
       }
     }

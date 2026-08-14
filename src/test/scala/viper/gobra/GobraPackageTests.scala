@@ -15,7 +15,7 @@ import org.rogach.scallop.throwError
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, ScallopGobraConfig, Source}
 import viper.gobra.reporting.{NoopReporter, ParserError}
-import viper.gobra.reporting.VerifierResult.{Failure, Success}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Skipped, Success}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -41,7 +41,7 @@ class GobraPackageTests extends GobraTests {
       samePkgFiles = currentDir.listFiles
         .filter(_.isFile)
         .map(f => (f, getPackageClause(f)))
-        .filter { case (_, Some(clause)) if clause == pkgName => true }
+        .filter { case (_, clause) => clause.contains(pkgName) }
         .map { case (f, _) => f.toPath }
         .sortBy(_.toString)
         .toSeq
@@ -87,6 +87,8 @@ class GobraPackageTests extends GobraTests {
         equalConfigs(parsedConfig.get, config) ++ (result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
+          case Aborted => fail("the verification has unexpectedly been aborted")
+          case Skipped => fail("the verification has unexpectedly been skipped")
         })
       }
     }

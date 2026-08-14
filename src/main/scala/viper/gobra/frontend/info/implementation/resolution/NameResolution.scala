@@ -246,6 +246,9 @@ trait NameResolution {
         case _ => Vector.empty
       }
 
+      // a preamble is only parsed to resolve the imports of a file and is thus never part of a type-checked tree
+      case n: PPreamble => Violation.violation(s"unexpected preamble $n")
+
       case n: PInterfaceType =>
         n.methSpecs.map(_.id) ++ n.predSpecs.map(_.id)
 

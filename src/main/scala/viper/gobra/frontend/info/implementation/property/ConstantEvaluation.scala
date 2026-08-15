@@ -137,8 +137,12 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             case _: PAdd => aux(l, r)(x => y => x + y)
             case _: PSub => aux(l, r)(x => y => x - y)
             case _: PMul => aux(l, r)(x => y => x * y)
-            case _: PMod => aux(l, r)(x => y => x % y)
-            case _: PDiv => aux(l, r)(x => y => x / y)
+            // From the spec: "the divisor of a constant division or remainder operation must not be
+            // zero". Such an expression has no constant value; the well-definedness checker reports
+            // it (see divisionByZero in ExprTyping). Yielding None here instead of evaluating is
+            // what keeps this from throwing an ArithmeticException.
+            case _: PMod => intConstantEval(r).filter(_ != 0).flatMap(d => intConstantEval(l).map(_ % d))
+            case _: PDiv => intConstantEval(r).filter(_ != 0).flatMap(d => intConstantEval(l).map(_ / d))
             case _: PShiftLeft =>
               aux(l, r){
                 x => y =>

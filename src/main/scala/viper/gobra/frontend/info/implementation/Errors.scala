@@ -21,18 +21,17 @@ trait Errors { this: TypeInfoImpl =>
     }
 
   /**
-    * In imported packages, the well-definedness of non-exported functions, methods, and
-    * predicates (and of all nodes they contain) is not checked: the package under verification
-    * cannot reference these members, they are not encoded, and they are checked when the
-    * imported package itself is verified. Note that non-exported types are still checked, as
-    * they may occur in the signatures of exported members.
+    * In imported packages, the well-definedness of non-exported, non-pure functions and methods
+    * (and of all nodes they contain) is not checked: the package under verification cannot
+    * reference these members, they are not encoded (see [[viper.gobra.frontend.Desugar]]), and
+    * they are checked when the imported package itself is verified. All remaining members are
+    * checked, as they are encoded and may thus not be ill-formed. Note that non-exported types
+    * are checked as well, as they may occur in the signatures of exported members.
     */
   private def skipWellDefinedness(n: PNode): Boolean =
     !isMainContext && (enclosingMemberOfNode(n) match {
-      case Some(d: PFunctionDecl) => !isExportedName(d.id.name)
-      case Some(d: PMethodDecl) => !isExportedName(d.id.name)
-      case Some(d: PFPredicateDecl) => !isExportedName(d.id.name)
-      case Some(d: PMPredicateDecl) => !isExportedName(d.id.name)
+      case Some(d: PFunctionDecl) => !d.spec.isPure && !isExportedName(d.id.name)
+      case Some(d: PMethodDecl) => !d.spec.isPure && !isExportedName(d.id.name)
       case _ => false
     })
 

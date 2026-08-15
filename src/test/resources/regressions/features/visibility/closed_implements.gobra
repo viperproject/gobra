@@ -3,6 +3,10 @@
 
 package pkg
 
+// Closed pure methods may implement interface methods: their bodies are still encoded (they
+// are only hidden from importing packages by being marked as opaque), so the call graph that
+// Gobra's termination checks rely on remains complete.
+
 type I interface {
 	decreases
 	pure Foo() int
@@ -16,6 +20,12 @@ pure func (t T) Foo() int {
 	return 1
 }
 
-// closed pure methods cannot implement interface methods
-//:: ExpectedOutput(type_error)
 T implements I
+
+decreases
+func client(i I) {
+	assert i != nil ==> true
+	t := T{}
+	// within the declaring package, the body of a closed member is visible
+	assert t.Foo() == 1
+}

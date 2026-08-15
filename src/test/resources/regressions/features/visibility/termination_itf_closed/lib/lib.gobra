@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+type T interface {
+	requires t != nil
+	decreases
+	pure M(t T) int
+}
+
+// The body of a closed member is not observable by importing packages, but it must still be
+// encoded: otherwise, the call graph of an importing package misses the edge from `Indirect`
+// to `T.M` and Viper cannot detect the mutual recursion introduced in main.gobra.
+closed
+requires t != nil
+decreases
+pure func Indirect(t T) int {
+	return t.M(t)
+}

@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PInterfaceType, PTypeDef, AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method, MethodImpl}
+import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, NilType, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -88,16 +88,6 @@ trait Implements { this: TypeInfoImpl =>
                     }
                   }){
                     Vector(s"The implementation of atomic method $name is not marked as atomic")
-                  } else if ({
-                    (implMember, itfMember) match {
-                      // Closed pure methods cannot implement interface methods: their bodies (and
-                      // thus their call-graph edges) are invisible to importing packages, which
-                      // would render Gobra's termination checks for dynamic dispatch unsound.
-                      case (implMember: MethodImpl, _: Method) => implMember.isClosed
-                      case _ => false
-                    }
-                  }) {
-                    Vector(s"The closed method $name cannot implement an interface method")
                   } else {
                     Vector.empty
                   }

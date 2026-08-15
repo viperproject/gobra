@@ -49,19 +49,20 @@ object Desugar extends LazyLogging {
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector)
-      // Non-exported functions, methods, and predicates of imported packages cannot be referenced
-      // by the package under verification (Go's visibility rules are enforced by the type checker)
-      // and are thus skipped entirely. The `builtin` package is exempt, as its (non-exported)
+      // Non-exported, non-pure functions and methods of imported packages cannot be referenced by
+      // the package under verification (Go's visibility rules are enforced by the type checker) and
+      // are thus skipped entirely. Pure members and predicates must be kept even when they are not
+      // exported: their bodies contribute edges to the call graph, which Viper requires to detect
+      // non-terminating (mutual) recursion through dynamically-bound calls (see
+      // CGEdgesTerminationTransform). The `builtin` package is exempt, as its (non-exported)
       // members are implicitly available in every package.
       val isBuiltinPkg = importedPackage.packageClause.id.name == "builtin"
-      val onlyExportedMembers: PMember => Boolean = {
-        case d: PFunctionDecl => isBuiltinPkg || isExportedName(d.id.name)
-        case d: PMethodDecl => isBuiltinPkg || isExportedName(d.id.name)
-        case d: PFPredicateDecl => isBuiltinPkg || isExportedName(d.id.name)
-        case d: PMPredicateDecl => isBuiltinPkg || isExportedName(d.id.name)
+      val shouldDesugarMember: PMember => Boolean = {
+        case d: PFunctionDecl => isBuiltinPkg || d.spec.isPure || isExportedName(d.id.name)
+        case d: PMethodDecl => isBuiltinPkg || d.spec.isPure || isExportedName(d.id.name)
         case _ => true
       }
-      val res = (d, d.packageD(importedPackage, isImportedPkg = true, shouldDesugar = onlyExportedMembers))
+      val res = (d, d.packageD(importedPackage, isImportedPkg = true, shouldDesugar = shouldDesugarMember))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
     }
@@ -199,9 +200,10 @@ object Desugar extends LazyLogging {
   private class Desugarer(@unused pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector) {
 
     /**
-      * True iff this desugarer processes an imported package. In that case, the bodies of
-      * `closed` predicates and pure functions are hidden, i.e., the corresponding members
-      * are desugared as abstract members. Set by [[packageD]].
+      * True iff this desugarer processes an imported package. In that case, `closed` pure functions
+      * and methods are desugared as opaque members, i.e., their bodies are encoded (they are needed
+      * to obtain a complete call graph) but hidden from the package under verification.
+      * Set by [[packageD]].
       */
     private var isDesugaringImportedPackage: Boolean = false
 
@@ -751,12 +753,11 @@ object Desugar extends LazyLogging {
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
       val name = functionProxyD(decl, info)
       val fsrc = meta(decl, info)
-      // the body of a closed pure function is not visible to importing packages
-      val skipBody = isDesugaringImportedPackage && decl.spec.isClosed
-      val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info, skipBody)
+      val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
       in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
-        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body,
+        funcInfo.isOpaque || hidesBodyFromClients(decl.spec))(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -770,7 +771,16 @@ object Desugar extends LazyLogging {
                                         isOpaque: Boolean)
 
 
-    private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo, skipBody: Boolean = false): PureFunctionInfo = {
+    /**
+      * The body of a `closed` pure member is not visible to importing packages. It is still encoded,
+      * as it is required to obtain a complete call graph for Viper's termination checks; the member
+      * is instead marked as opaque, which hides its body from the package under verification. The
+      * type checker rejects `reveal`s of imported closed members, so the body remains hidden.
+      */
+    private def hidesBodyFromClients(spec: PFunctionSpec): Boolean =
+      isDesugaringImportedPackage && spec.isClosed
+
+    private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
       require(decl.spec.isPure)
 
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p, i, info) }
@@ -817,7 +827,7 @@ object Desugar extends LazyLogging {
 
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
-      val bodyOpt = if (skipBody) None else decl.body.map {
+      val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
@@ -994,10 +1004,9 @@ object Desugar extends LazyLogging {
       assert(interfaceType(recv.typ).isEmpty)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
 
-      val isOpaque = decl.spec.isOpaque
+      val isOpaque = decl.spec.isOpaque || hidesBodyFromClients(decl.spec)
 
-      // the body of a closed pure method is not visible to importing packages
-      val bodyOpt = if (isDesugaringImportedPackage && decl.spec.isClosed) None else decl.body.map {
+      val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx, info)(ret)
@@ -1019,8 +1028,7 @@ object Desugar extends LazyLogging {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      // the body of a closed predicate is not visible to importing packages
-      val bodyOpt = if (isDesugaringImportedPackage && decl.isClosed) None else decl.body.map{ s =>
+      val bodyOpt = decl.body.map{ s =>
         specificationD(ctx, info)(s)
       }
 
@@ -1040,8 +1048,7 @@ object Desugar extends LazyLogging {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      // the body of a closed predicate is not visible to importing packages
-      val bodyOpt = if (isDesugaringImportedPackage && decl.isClosed) None else decl.body.map{ s =>
+      val bodyOpt = decl.body.map{ s =>
         specificationD(ctx, info)(s)
       }
 

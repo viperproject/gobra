@@ -58,7 +58,19 @@ func addrOfSliceElem(s []byte) (r *byte) {
 	return
 }
 
+requires len(s) > 0
+func addrOfSliceElemNoPerm(s []byte) (r *byte) {
+	r = &s[0] // succeeds
+	return
+}
 
+// Indexing is bounded by the length: in Go, even taking the address of an element
+// panics for an out-of-range index (only slicing is bounded by the capacity).
+func addrOfSliceElemPossiblyEmpty(s []byte) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &s[0] // fails as it might be out of bound
+	return
+}
 
 // Taking the address of an element only requires the implicitly dereferenced
 // pointer to be non-nil.
@@ -98,8 +110,24 @@ func sliceOfArrayPointer(p *[8]byte) []byte {
 	return p[1:3]
 }
 
+requires p != nil
+func addrOfArrayElemDynamicIndex(p *[8]byte, idx int) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &p[idx]
+	return
+}
 
+requires p != nil && 0 <= idx && idx < 8
+func addrOfArrayElemDynamicIndexInBounds(p *[8]byte, idx int) (r *byte) {
+	r = &p[idx]
+	return
+}
 
+// The internal footprint of make ranges up to the capacity and must not be
+// affected by the length-bounded obligation.
+func makeWithLargerCap() []byte {
+	return make([]byte, 2, 10)
+}
 
 type definedArrayPtr *[8]byte
 
@@ -111,5 +139,12 @@ func addrOfDefinedArrayPtrElemOfNil(p definedArrayPtr) (r *byte) {
 	return
 }
 
+// The base of an indexed access does not have to be an assignable location.
+requires len(s) >= 2
+func addrOfReslicedElemOutOfBounds(s []byte) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &s[0:2][5]
+	return
+}
 
 

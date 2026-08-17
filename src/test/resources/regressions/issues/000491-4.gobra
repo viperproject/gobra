@@ -147,4 +147,16 @@ func addrOfReslicedElemOutOfBounds(s []byte) (r *byte) {
 	return
 }
 
+// Triggers are patterns that are never evaluated and, thus, must not generate
+// panic-absence checks, also in expression positions within actual code.
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func quantifierWithAddrTriggerInCode(s []byte) {
+	b := forall i int :: { &s[i] } 0 <= i && i < len(s) ==> s[i] >= 0
+	_ = b
+}
 
+// In Go, `len` of an operand of array type is a constant and the operand is not
+// evaluated; hence, neither bounds nor nil-ness of the operand are checked.
+func lengthOfNestedArray(a *[4][8]byte, idx int) int {
+	return len(a[idx])
+}

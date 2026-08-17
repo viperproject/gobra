@@ -87,7 +87,9 @@ trait Context {
 
   def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
 
-  def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this)(x)
+  // triggers are patterns that are never evaluated; panic-absence checks would wrap them in
+  // function applications that are invalid as triggers:
+  def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this.withoutNilChecks)(x)
 
   def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this.withoutNilChecks)(x)
 
@@ -139,19 +141,21 @@ trait Context {
     case t => t
   }
 
-  // nil checks
+  // panic checks
 
   /**
-    * Whether usages of L-values generate nil-dereference checks (see [[TypeEncoding.checkNotNil]]).
-    * Nil-dereference checks are only meaningful in actual code, where a nil dereference causes a
-    * runtime panic. They are suppressed in specifications and intrinsically ghost statements
-    * (assert, inhale, exhale, fold, unfold), which are never executed: there, an L-value rooted
-    * in a nil pointer denotes an unconstrained value, and the permission system already prevents
-    * deriving any facts about actual memory from it.
+    * Whether usages of L-values generate panic checks, i.e. checks for the absence of runtime panics: nil-dereference checks
+    * (see [[TypeEncoding.checkNotNil]]) and index-bounds checks
+    * (see [[TypeEncoding.checkIndicesInBounds]]).
+    * These checks are only meaningful in actual code, where a nil dereference or an out-of-bounds
+    * index causes a runtime panic. They are suppressed in specifications and intrinsically ghost
+    * statements (assert, inhale, exhale, fold, unfold), which are never executed: there, an
+    * L-value rooted in a nil pointer or an out-of-range index denotes an unconstrained value, and
+    * the permission system already prevents deriving any facts about actual memory from it.
     */
   def emitNilChecks: Boolean
 
-  /** Returns a context that does not generate nil-dereference checks. See [[emitNilChecks]]. */
+  /** Returns a context that does not generate panic checks. See [[emitNilChecks]]. */
   def withoutNilChecks: Context = if (emitNilChecks) :=(emitNilChecksN = false) else this
 
   // mapping

@@ -1,0 +1,85 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--interpretBitwise)
+
+// Symbolic properties of bitwise operations under --interpretBitwise.
+//
+// Unlike the generated files, these say nothing about particular values: they hold for every
+// operand, so they exercise the bitvector encoding rather than constant evaluation.
+package bitvectors
+
+decreases
+func identitiesUint8(x uint8, y uint8) {
+	assert x & x == x
+	assert x | x == x
+	assert x ^ x == 0
+	assert x &^ x == 0
+	assert x & 0 == 0
+	assert x | 0 == x
+	assert x ^ 0 == x
+	assert x &^ 0 == x
+	assert x << 0 == x
+	assert x >> 0 == x
+}
+
+decreases
+func identitiesUint32(x uint32, y uint32) {
+	assert x & x == x
+	assert x | 0 == x
+	assert x ^ x == 0
+	assert x &^ x == 0
+	assert x << 0 == x
+	assert x >> 0 == x
+}
+
+// Nested expressions: each operation hands back a mathematical integer, so without the round-trip
+// axioms in the bridge the operand of the outer operation would have to be rebuilt from an opaque
+// value, which does not scale past 8-bit operands.
+decreases
+func nestedUint32(x uint32, y uint32) {
+	assert (x & y) & (x & y) == x & y
+	assert (x & 0xFF) & 0xFF == x & 0xFF
+}
+
+// `x &^ y` clears exactly the bits of `y`, so it is `x & ^y`.
+decreases
+func bitClearIsAndNot(x uint8, y uint8) {
+	assert x &^ y == x & ^y
+}
+
+// Masking bounds -- the shape real code relies on when decoding packed fields.
+decreases
+func maskBounds(x uint32) {
+	assert 0 <= x & 0xFF && x & 0xFF <= 0xFF
+	assert 0 <= (x >> 8) & 0xFF && (x >> 8) & 0xFF <= 0xFF
+	assert 0 <= (x >> 24) & 0xFF && (x >> 24) & 0xFF <= 0xFF
+}
+
+// Shifting by at least the width saturates rather than wrapping to a no-op. Stated at uint8: the
+// same property with a symbolic 32-bit operand does not currently terminate, so the wider cases are
+// covered with concrete operands by the generated bitvector-*.gobra files instead.
+decreases
+func saturatingShifts(u uint8, s uint) {
+	if s == 8 {
+		assert u >> s == 0
+		assert u << s == 0
+	}
+}
+
+// Signed types: `-1` has every bit set, so masking with it is the identity.
+decreases
+func signedMasks(x int32) {
+	assert x & -1 == x
+	assert x | 0 == x
+	assert x ^ 0 == x
+}
+
+// Bitwise operations are usable inside triggers, because each one is encoded as a function
+// application rather than being inlined into a bitvector expression.
+ghost
+decreases
+requires forall i uint8 :: { i & 0x0F } i & 0x0F <= 0x0F
+func bitwiseInTrigger() {
+	assert forall i uint8 :: { i & 0x0F } i & 0x0F <= 0x0F
+}

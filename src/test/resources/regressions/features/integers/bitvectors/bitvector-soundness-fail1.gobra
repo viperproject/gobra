@@ -1,0 +1,106 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--interpretBitwise)
+
+// Negative tests for --interpretBitwise.
+//
+// These matter more than the positive ones. The bitwise helpers are given bodies over bitvectors,
+// and the bridge between integers and bitvectors is axiomatised; an inconsistency there would not
+// show up as a wrong answer but as *everything* becoming provable. The assertions below are false
+// in Go and must therefore still fail.
+package bitvectors
+
+// If the bridge axioms were inconsistent, this would verify.
+decreases
+func falseIsNotProvable() {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}
+
+// The same, but only reachable once bitvector machinery for a given width has been pulled in --
+// an inconsistency might be confined to one width's domain.
+decreases
+func falseIsNotProvableAfterBitwise8(x uint8) {
+	assert x & 0xF0 == x &^ 0x0F
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}
+
+decreases
+func falseIsNotProvableAfterBitwise32(x uint32) {
+	assert x & 0xFFFF0000 == x &^ 0x0000FFFF
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}
+
+decreases
+func falseIsNotProvableAfterShift(x int64, s uint) {
+	assert x >> 0 == x
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert false
+}
+
+// Wrong values must be rejected. Go: uint8(255) & uint8(0) == 0.
+decreases
+func wrongAndValue(x uint8) {
+	if x == 255 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x & 0 == 255
+	}
+}
+
+// Go: int8(100) << 1 == -56, because the result wraps. Asserting a non-wrapping value must fail.
+// (The unwrapped 200 cannot even be written here: it does not fit int8, so Go rejects it too.)
+decreases
+func shiftDoesWrap(x int8) {
+	if x == 100 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x << 1 == 56
+	}
+}
+
+// Go: a signed right shift is arithmetic, so int8(-1) >> 1 is -1, not 127.
+decreases
+func signedShiftIsArithmetic(x int8) {
+	if x == -1 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x >> 1 == 127
+	}
+}
+
+// Go: an unsigned right shift is logical, so uint8(255) >> 1 is 127, not 255.
+decreases
+func unsignedShiftIsLogical(x uint8) {
+	if x == 255 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x >> 1 == 255
+	}
+}
+
+// `&` and `|` do not coincide in general.
+decreases
+func andIsNotOr(x uint8, y uint8) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x & y == x | y
+}
+
+// A shift count at or beyond the width saturates rather than wrapping around to a no-op: for a
+// bitvector encoding this is the tempting mistake, since the shift amount is itself a bitvector.
+// Go: uint8(1) << 8 == 0, not 1.
+decreases
+func largeShiftDoesNotWrap(x uint8, s uint) {
+	if x == 1 && s == 8 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x << s == 1
+	}
+}
+
+// Go: uint8(1) << 256 == 0. If the shift amount were taken modulo the width, this would be 1.
+decreases
+func shiftBy256DoesNotWrap(x uint8, s uint) {
+	if x == 1 && s == 256 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x << s == 1
+	}
+}

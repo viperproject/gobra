@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Deliberately built WITHOUT --interpretBitwise.
+//
+// This is the counterpart to the generated bitvector-*.gobra files: the assertions below are true
+// in Go and are proved once the flag is on, but bitwise operations are uninterpreted by default, so
+// nothing is known about their results and each of them must fail here. If one of these ever starts
+// to verify, the interpreted encoding has leaked into the default configuration -- which would be a
+// performance regression for every existing proof, since bitvector reasoning is far more expensive.
+package bitvectorsnoflag
+
+decreases
+func groundAndIsOpaque(x uint8) {
+	if x == 12 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x & 10 == 8
+	}
+}
+
+decreases
+func groundShiftIsOpaque(x int8) {
+	if x == 100 {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert x << 1 == -56
+	}
+}
+
+decreases
+func identityIsOpaque(x uint32) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x & x == x
+}
+
+decreases
+func maskBoundIsOpaque(x uint32) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x & 0xFF <= 0xFF
+}
+
+// The range of the result is known even without the flag, since the helper's postcondition gives
+// it. Only the value is opaque. This one must keep verifying.
+decreases
+func rangeIsStillKnown(x uint8, y uint8) {
+	assert 0 <= x & y && x & y <= 255
+}

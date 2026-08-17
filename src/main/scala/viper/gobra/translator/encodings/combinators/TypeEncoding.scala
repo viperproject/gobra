@@ -525,7 +525,7 @@ object TypeEncoding {
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
     outermostDeref(loc) match {
-      case Some(d) if ctx.emitNilChecks =>
+      case Some(d) if ctx.emitPanicChecks =>
         for {
           cond <- dereferencedPointerNotNil(d)(ctx)
           checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
@@ -563,7 +563,7 @@ object TypeEncoding {
     * an explicit obligation (in Go, indexing panics if the index is out of range).
     */
   final def checkIndicesInBounds(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
-    if (!ctx.emitNilChecks) cl.unit(res) // the obligation only applies to actual code
+    if (!ctx.emitPanicChecks) cl.unit(res) // the obligation only applies to actual code
     else {
       // The conditions are emitted innermost-first and every condition is guarded by the
       // conjunction of the inner conditions: the well-definedness of an outer condition may

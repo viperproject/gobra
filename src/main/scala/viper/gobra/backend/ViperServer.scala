@@ -15,7 +15,7 @@ import scalaz.Scalaz.futureInstance
 import viper.gobra.reporting.{IntermediateVerifierResult, VerifierResult}
 import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
 
-import scala.concurrent.{Await, Promise}
+import scala.concurrent.{Await, Future, Promise}
 import viper.gobra.util.{AbortSignal, GobraExecutionContext}
 import viper.server.core.{CarbonConfig, SiliconConfig, VerificationExecutionContext, ViperBackendConfig, ViperCoreServer, ViperServerBackendNotFoundException}
 import viper.server.frontends.lsp.ViperServerService
@@ -87,20 +87,34 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, a
       return IntermediateVerifierResult(VerifierResult.Aborted)
     }
     val handle = server.verify(programID, serverConfig, program)
-    // interrupt this backend verification as soon as the verification is aborted. Note that the
-    // listener is invoked immediately in case the verification was aborted since the check above:
+    if (handle.id < 0) {
+      // the server rejected the job, e.g. because the maximum number of concurrently active jobs
+      // has been reached. Fail fast: there is no job whose messages could be streamed, i.e. the
+      // returned future would otherwise never complete:
+      return EitherT.rightT(Future.failed[VerificationResult](new RuntimeException(
+        s"ViperServer rejected the verification job for $programID, e.g. because the maximum number of active jobs has been reached")))
+    }
+    // we have to create our own GlueActor and replicate parts of `ViperCoreServerUtils.getResultsFuture(...)` because
+    // we do not only need to return a future but also forward all messages to the reporter
+    val promise: Promise[VerificationResult] = Promise()
+    val clientActor = executor.actorSystem.actorOf(Props(new GlueActor(reporter, promise)))
+    // We do not perform an AST job before verification. Thus, we pass "false" as the value of include_ast.
+    val streamed = server.streamMessages(handle, clientActor, include_ast = false)
+    if (streamed.isEmpty) {
+      // the job is unknown to the server, i.e. it completed and was cleaned up between `verify`
+      // and `streamMessages`. Without an attached stream, `promise` would never complete:
+      promise.tryFailure(new RuntimeException(
+        s"the verification job for $programID completed before its messages could be streamed"))
+    }
+    // interrupt this backend verification as soon as the verification is aborted. The listener is
+    // registered only after the message stream has been attached. Note that the listener is invoked
+    // immediately in case the verification was aborted since the check above:
     abortSignal.onAbort(() => server match {
       case service: ViperServerService => service.stopVerification(handle)
       case _ =>
         // the underlying server does not expose an API to interrupt single jobs -- the job keeps
         // running but its result is suppressed by the caller
     })
-    // we have to create our own GlueActor and replicate parts of `ViperCoreServerUtils.getResultsFuture(...)` because
-    // we do not only need to return a future but also forward all messages to the reporter
-    val promise: Promise[VerificationResult] = Promise()
-    val clientActor = executor.actorSystem.actorOf(Props(new GlueActor(reporter, promise)))
-    // We do not perform an AST job before verification. Thus, we pass "false" as the value of include_ast.
-    server.streamMessages(handle, clientActor, include_ast = false)
     EitherT.rightT(promise.future)
   }
 }

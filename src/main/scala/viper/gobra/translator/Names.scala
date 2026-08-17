@@ -206,6 +206,23 @@ object Names {
   // unbounded → bounded conversion (also reused for bounded → bounded via from-composition)
   def integerToBounded(to: BoundedIntegerKind): String = s"integer$$to_${to.name}"
 
+  // Bitvector support for `--interpretBitwise`. The bitvector domain itself is named by Silver's
+  // BVFactory (`BitVectorDomain<bits>`), so only the functions need names here. They are keyed by
+  // bit width rather than by kind, since kinds of equal width share one bitvector domain.
+  def bvAnd(bits: Int): String     = s"bv$bits$$and"
+  def bvOr(bits: Int): String      = s"bv$bits$$or"
+  def bvXor(bits: Int): String     = s"bv$bits$$xor"
+  def bvNot(bits: Int): String     = s"bv$bits$$not"
+  def bvShl(bits: Int): String     = s"bv$bits$$shl"
+  def bvLshr(bits: Int): String    = s"bv$bits$$lshr"
+  def bvAshr(bits: Int): String    = s"bv$bits$$ashr"
+  def bvFromInt(bits: Int): String = s"bv$bits$$fromInt"
+  def bvToInt(bits: Int): String   = s"bv$bits$$toInt"
+
+  // Per-kind bridge between the integer and bitvector worlds (see BitVectors).
+  def boundedIntBvDomain(k: IntegerKind): String = s"Bounded_${k.name}BV"
+  def boundedIntFromBv(k: IntegerKind): String   = s"${k.name}$$fromBv"
+
   private val boundedIntHelperSuffixes =
     Set("add", "sub", "mul", "div", "mod", "band", "bor", "bxor", "bclear", "bneg", "shl", "shr")
 

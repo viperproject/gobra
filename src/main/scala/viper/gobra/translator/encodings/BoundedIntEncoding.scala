@@ -50,7 +50,13 @@ import scala.collection.mutable
   * no-overflow condition (`rangeOk ==> result == computed`): proofs about possibly-overflowing
   * arithmetic are meant to break unless the specs exclude the overflow.
   */
-class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
+class BoundedIntEncoding(checkOverflows: Boolean, interpretBitwise: Boolean = false) extends LeafTypeEncoding {
+
+  /**
+    * Bitvector machinery for `--interpretBitwise`. Untouched (and therefore emitting nothing) unless
+    * the flag is set: it is only consulted while building the bodies of the bitwise/shift helpers.
+    */
+  private val bitVectors: BitVectors = new BitVectors
 
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -164,12 +170,13 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     // Encodes `left <op> right` of kind `k` as `to(helper(from(left), from(right)))`. The helper
     // operates on Int and carries the range contract; `to` lifts the in-range result back into the
     // domain. The overflow error (if any) is attributed to the helper application.
-    def handleBoundedBinOp(k: BoundedIntegerKind, helper: vpr.Function)(left: in.Expr, right: in.Expr, src: in.Node): CodeWriter[vpr.Exp] = {
+    def handleBoundedBinOp(k: BoundedIntegerKind, helper: vpr.Function, bitwise: Boolean = false)(left: in.Expr, right: in.Expr, src: in.Node): CodeWriter[vpr.Exp] = {
       val (pos, info, errT) = src.vprMeta
+      val project = if (bitwise) asIntOperandOfBitwise(ctx) _ else asInt(ctx) _
       for {
         vl <- goE(left)
         vr <- goE(right)
-        app = vpr.FuncApp(helper, Seq(asInt(ctx)(left, vl), asInt(ctx)(right, vr)))(pos, info, errT)
+        app = vpr.FuncApp(helper, Seq(project(left, vl), project(right, vr)))(pos, info, errT)
         _ <- if (checkOverflows) errorT {
           case e @ err.PreconditionInAppFalse(Source(info), _, _) if e.causedBy(app) =>
             OverflowError(info)
@@ -197,17 +204,17 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       case e @ in.Mod(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).mod)(l, r, e)
 
       // Bitwise binary — no overflow possible (helper postcondition guarantees range)
-      case e @ in.BitAnd(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).band)(l, r, e)
-      case e @ in.BitOr(l, r)    :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bor)(l, r, e)
-      case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bxor)(l, r, e)
-      case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bclear)(l, r, e)
+      case e @ in.BitAnd(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).band, bitwise = true)(l, r, e)
+      case e @ in.BitOr(l, r)    :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bor, bitwise = true)(l, r, e)
+      case e @ in.BitXor(l, r)   :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bxor, bitwise = true)(l, r, e)
+      case e @ in.BitClear(l, r) :: ctx.BoundedInt(k) => handleBoundedBinOp(k, funcsOf(k).bclear, bitwise = true)(l, r, e)
 
       // Bitwise unary NOT — encode as to(bneg(from(op))). BitNeg.typ equals the operand's type,
       // so enclosing operations correctly treat the result as a domain value.
       case e @ in.BitNeg(op :: ctx.BoundedInt(k)) =>
         val (pos, info, errT) = e.vprMeta
         for { ve <- goE(op) } yield
-          toApp(k, vpr.FuncApp(funcsOf(k).bneg, Seq(fromApp(k, ve)))(pos, info, errT), pos, info, errT)
+          toApp(k, vpr.FuncApp(funcsOf(k).bneg, Seq(asIntOperandOfBitwise(ctx)(op, ve)))(pos, info, errT), pos, info, errT)
 
       // Shifts — value operand is projected to Int via from; shift amount is Int.
       case e @ in.ShiftLeft(l, r) :: ctx.BoundedInt(k) => handleShift(ctx, k, funcsOf(k).shl)(l, r, e)
@@ -307,6 +314,9 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     }
     for ((_, fns) <- kindCache)       fns.topLevelFns.foreach(addMemberFn)
     for ((_, fn)  <- intToBoundedCache) addMemberFn(fn)
+    // Bitvector domains backing the bodies of the bitwise/shift helpers. Empty unless
+    // `--interpretBitwise` is set, since nothing else ever touches `bitVectors`.
+    bitVectors.members.foreach(addMemberFn)
     // Emit a well-founded order domain for each kind so termination measures over
     // bounded-int values type-check. Mirrors the shape of `IntWellFoundedOrder` from
     // Silver's `import <decreases/int.vpr>`, but the underlying order is the Int order
@@ -405,7 +415,7 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     for {
       vl <- ctx.expression(left)
       vr <- ctx.expression(right)
-      app = vpr.FuncApp(helper, Seq(asInt(ctx)(left, vl), asInt(ctx)(right, vr)))(pos, info, errT)
+      app = vpr.FuncApp(helper, Seq(asIntOperandOfBitwise(ctx)(left, vl), asIntOperandOfBitwise(ctx)(right, vr)))(pos, info, errT)
       _ <- errorT {
         case e2 @ err.PreconditionInAppFalse(Source(info2), _, _) if e2.causedBy(app) =>
           ShiftPreconditionError(info2)
@@ -444,6 +454,32 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
     ctx.BoundedInt.unapply(expr.typ) match {
       case Some(k) => fromApp(k, v)
       case None    => v
+    }
+
+  /**
+    * Projection of an operand of a *bitwise or shift* operation to Int.
+    *
+    * Identical to [[asInt]] except that, under `--interpretBitwise`, a bounded integer literal is
+    * emitted as a plain Viper literal rather than as `from(to(c))`.
+    *
+    * The two operations want opposite things from a literal, which is why this cannot simply be
+    * folded into `asInt`. Arithmetic wants `from(to(c))`, because those ground terms anchor the
+    * domain values to their integer images and folding them away was measured to send nonlinear
+    * queries into multi-minute timeouts (see [[asInt]]). Bitwise operations under this flag want the
+    * bare numeral, because their helper bodies feed the operand to `(_ int2bv n)`: Z3's bitvector
+    * rewriter folds `int2bv` of a *numeral* to a bitvector constant and then simplifies, say,
+    * `bvor(b, #x00000000)` to `b`, but it rewrites syntactically rather than up to congruence, so
+    * an operand that merely happens to be provably equal to zero blocks the simplification and the
+    * solver falls back to bit-blasting. Measured on `x | 0 == x` and `x << 0 == x` at 32 bits: both
+    * time out with the wrapped form and take 0.03s with the folded one.
+    *
+    * With the flag off this is exactly [[asInt]], so no existing proof is perturbed.
+    */
+  private def asIntOperandOfBitwise(ctx: Context)(expr: in.Expr, v: vpr.Exp): vpr.Exp =
+    expr match {
+      case lit: in.IntLit if interpretBitwise && ctx.BoundedInt.unapply(lit.typ).isDefined =>
+        vpr.IntLit(lit.v)()
+      case _ => asInt(ctx)(expr, v)
     }
 
   // ===== Build per-kind functions =====
@@ -667,45 +703,75 @@ class BoundedIntEncoding(checkOverflows: Boolean) extends LeafTypeEncoding {
       vpr.Function(Names.boundedIntMod(k), Seq(xDecl, yDecl), vpr.Int, pres, posts, None)()
     }
 
-    // Bitwise binary: abstract; result is in range. Bitwise operations never overflow.
-    def bitwiseBinaryFunc(name: String): vpr.Function = {
+    // Bitwise binary: result is in range. Bitwise operations never overflow.
+    //
+    // Without `--interpretBitwise` these stay abstract, so only the range postcondition is known and
+    // nothing can be proved about the actual bits. With the flag, they receive a body defined over
+    // the bitvectors of `k`'s width: `k$fromBv(<bv op>(k$toBv(x), k$toBv(y)))`. Note that the
+    // signature is unchanged either way — the helpers still take and return mathematical integers,
+    // and every bitvector is created and consumed inside the body. That keeps call sites, error
+    // reporting and triggers exactly as they are, and keeps bitvector values out of the heap.
+    //
+    // Giving the helpers bodies also means Viper *checks* the range postcondition against the
+    // definition rather than assuming it, so a mistake in the bitvector encoding shows up as a
+    // verification failure instead of silent unsoundness.
+    def bitwiseBinaryFunc(name: String, bvOp: (vpr.Exp, vpr.Exp) => vpr.Exp): vpr.Function = {
       val xDecl  = vpr.LocalVarDecl("x", vpr.Int)()
       val yDecl  = vpr.LocalVarDecl("y", vpr.Int)()
       val result = vpr.Result(vpr.Int)()
+      val body   = Option.when(interpretBitwise)(
+        bitVectors.fromBv(k, bvOp(bitVectors.toBv(k, xDecl.localVar), bitVectors.toBv(k, yDecl.localVar)))
+      )
       vpr.Function(name, Seq(xDecl, yDecl), vpr.Int,
         pres  = Seq(decreases),
         posts = Seq(inRange(k, result)),
-        body  = None)()
+        body  = body)()
     }
 
-    val bandFn   = bitwiseBinaryFunc(Names.boundedIntBand(k))
-    val borFn    = bitwiseBinaryFunc(Names.boundedIntBor(k))
-    val bxorFn   = bitwiseBinaryFunc(Names.boundedIntBxor(k))
-    val bclearFn = bitwiseBinaryFunc(Names.boundedIntBclear(k))
+    val bandFn = bitwiseBinaryFunc(Names.boundedIntBand(k), bitVectors.bvAnd(k, _, _))
+    val borFn  = bitwiseBinaryFunc(Names.boundedIntBor(k), bitVectors.bvOr(k, _, _))
+    val bxorFn = bitwiseBinaryFunc(Names.boundedIntBxor(k), bitVectors.bvXor(k, _, _))
+    // Go's `x &^ y` (AND NOT) clears in `x` exactly the bits set in `y`.
+    val bclearFn = bitwiseBinaryFunc(Names.boundedIntBclear(k), (x, y) => bitVectors.bvAnd(k, x, bitVectors.bvNot(k, y)))
 
     // bneg: unary NOT; takes Int (caller applies from to the operand), returns Int
     val bnegFn = {
       val xDecl  = vpr.LocalVarDecl("x", vpr.Int)()
       val result = vpr.Result(vpr.Int)()
+      val body   = Option.when(interpretBitwise)(
+        bitVectors.fromBv(k, bitVectors.bvNot(k, bitVectors.toBv(k, xDecl.localVar)))
+      )
       vpr.Function(Names.boundedIntBneg(k), Seq(xDecl), vpr.Int,
         pres  = Seq(decreases),
         posts = Seq(inRange(k, result)),
-        body  = None)()
+        body  = body)()
     }
 
-    // shifts: (x: Int, shift: Int): Int; shift amount must be non-negative.
-    def shiftFn(name: String): vpr.Function = {
+    // shifts: (x: Int, shift: Int): Int; shift amount must be non-negative (Go panics otherwise).
+    //
+    // Go places no upper limit on the shift count: `x << s` behaves as if `x` were shifted one bit
+    // at a time, `s` times, so any `s` at or above the width yields 0 (or, for an arithmetic right
+    // shift, the sign fill). SMT-LIB's shifts agree once the shift amount reaches the width, but the
+    // amount is itself a bitvector of that same width, so a large `s` would wrap: `uint8 >> 256`
+    // would become a shift by 0, i.e. a no-op, instead of 0. Clamping to `min(s, width)` before the
+    // conversion reproduces Go's semantics for every `s`.
+    def shiftFn(name: String, bvOp: (vpr.Exp, vpr.Exp) => vpr.Exp): vpr.Function = {
       val xDecl     = vpr.LocalVarDecl("x",     vpr.Int)(info = vpr.Synthesized)
       val shiftDecl = vpr.LocalVarDecl("shift", vpr.Int)(info = vpr.Synthesized)
       val result    = vpr.Result(vpr.Int)()
+      val body      = Option.when(interpretBitwise) {
+        val width   = vpr.IntLit(k.nbits)()
+        val clamped = vpr.CondExp(vpr.LtCmp(shiftDecl.localVar, width)(), shiftDecl.localVar, width)()
+        bitVectors.fromBv(k, bvOp(bitVectors.toBv(k, xDecl.localVar), bitVectors.toBv(k, clamped)))
+      }
       vpr.Function(name, Seq(xDecl, shiftDecl), vpr.Int,
         pres  = Seq(vpr.GeCmp(shiftDecl.localVar, zero)(), decreases),
         posts = Seq(inRange(k, result)),
-        body  = None)()
+        body  = body)()
     }
 
-    val shlFn = shiftFn(Names.boundedIntShl(k))
-    val shrFn = shiftFn(Names.boundedIntShr(k))
+    val shlFn = shiftFn(Names.boundedIntShl(k), bitVectors.bvShl(k, _, _))
+    val shrFn = shiftFn(Names.boundedIntShr(k), bitVectors.bvShr(k, _, _))
 
     KindFunctions(fromFn, invFn, toFn, rangeAxiom, invAxiom, toFromAxiom, invFromAxiom, addFn, subFn, mulFn, divFn, modFn,
       bandFn, borFn, bxorFn, bclearFn, bnegFn, shlFn, shrFn)

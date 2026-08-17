@@ -123,6 +123,32 @@ func addrOfArrayElemDynamicIndexInBounds(p *[8]byte, idx int) (r *byte) {
 	return
 }
 
+// Computing the address of a nested element reads the inner slice header, which
+// requires permission and, thus, an in-bounds inner index; an out-of-bounds inner
+// index therefore surfaces as a permission failure on the inner access.
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func addrOfNestedSliceElemInnerOutOfBounds(s [][]byte, idx int) (r *byte) {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	r = &s[idx][0]
+	return
+}
+
+requires len(s) > 0
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func addrOfNestedSliceElemOuterOutOfBounds(s [][]byte) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &s[0][5]
+	return
+}
+
+requires len(s) > 0
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+requires 5 < len(s[0])
+func addrOfNestedSliceElem(s [][]byte) (r *byte) {
+	r = &s[0][5]
+	return
+}
+
 // The internal footprint of make ranges up to the capacity and must not be
 // affected by the length-bounded obligation.
 func makeWithLargerCap() []byte {

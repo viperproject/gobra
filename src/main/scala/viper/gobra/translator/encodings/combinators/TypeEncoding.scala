@@ -571,14 +571,14 @@ object TypeEncoding {
       // bound of `j` in `&s[i][j]` requires permission, which the caller only holds for an
       // in-bounds `i`) and an out-of-bounds inner index should be reported as such.
       indexedExps(loc).reverse.foldLeft(cl.unit((res, None: Option[vpr.Exp]))){ case (w, e) =>
-        val (pos, info, errT) = e.vprMeta
         for {
           rg <- w
           (r, guard) = rg
           c <- indexInBounds(e)(ctx)
-          guarded = guard.fold(c)(g => vpr.Implies(g, c)(pos, info, errT))
+          // the wrappers reuse the condition's meta such that its annotation is preserved:
+          guarded = guard.fold(c)(g => vpr.Implies(g, c)(c.pos, c.info, c.errT))
           checked <- cl.assertWithDefaultReason(guarded, r, LoadError)(ctx)
-        } yield (checked, Some(guard.fold(c)(g => vpr.And(g, c)(pos, info, errT))))
+        } yield (checked, Some(guard.fold(c)(g => vpr.And(g, c)(c.pos, c.info, c.errT))))
       }.map(_._1)
     }
   }

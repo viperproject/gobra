@@ -610,10 +610,26 @@ class InterfaceEncoding extends LeafTypeEncoding {
     predicateFamilyTupleRes.getOrElse{
       implicit val tuple3Ordering: Ordering[(in.MPredicateProxy, in.InterfaceT, SortedSet[in.Type])] = Ordering.by(_._1)
 
-      val itfNodes = for {
+      val implementedItfNodes = for {
         (itf, impls) <- ctx.table.getImplementations.toSet
         itfProxy <- ctx.table.lookupMembers(itf).collect{ case m: in.MPredicateProxy => m }
       } yield (itfProxy, itf, impls)
+
+      // predicates of interfaces without any known implementation form a singleton family such
+      // that their instances are also encoded via the (dispatching) family predicate. Otherwise,
+      // such instances would refer to the abstract predicate emitted for the interface member,
+      // which, e.g., cannot be folded without rendering the Viper program inconsistent:
+      val implementedItfs = implementedItfNodes.map(_._2.withAddressability(Addressability.Exclusive))
+      val unimplementedItfNodes = for {
+        m <- ctx.table.getMPredicates.toSet[in.MPredicateLikeMember].collect{ case m: in.MPredicate => m }
+        itf <- m.receiver.typ match {
+          case itf: in.InterfaceT if !implementedItfs.contains(itf.withAddressability(Addressability.Exclusive)) =>
+            Set(itf.withAddressability(Addressability.Exclusive))
+          case _ => Set.empty[in.InterfaceT]
+        }
+      } yield (m.name, itf, SortedSet.empty[in.Type])
+
+      val itfNodes = implementedItfNodes ++ unimplementedItfNodes
 
       val edges = for {
         (itfProxy, itf, impls) <- itfNodes

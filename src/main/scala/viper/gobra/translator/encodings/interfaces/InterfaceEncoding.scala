@@ -622,12 +622,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val implementedItfs = implementedItfNodes.map(_._2.withAddressability(Addressability.Exclusive))
       val unimplementedItfNodes = for {
         (m, itf) <- ctx.table.getMPredicates.toSet[in.MPredicateLikeMember]
-          .collect{ case m: in.MPredicate => m }
           // restrict the predicates to those that have an unimplemented interface receiver:
-          .collect{ m => m.receiver.typ match {
-            case itf: in.InterfaceT if !implementedItfs.contains(itf.withAddressability(Addressability.Exclusive)) =>
-              (m, itf.withAddressability(Addressability.Exclusive))
-          }}
+          .collect{ case m@in.MPredicate(in.Parameter.In(_, itf: in.InterfaceT), _, _, _) if !implementedItfs.contains(itf.withAddressability(Addressability.Exclusive)) =>
+            (m, itf.withAddressability(Addressability.Exclusive))
+          }
       } yield (m.name, itf, SortedSet.empty[in.Type])
 
       val itfNodes = implementedItfNodes ++ unimplementedItfNodes

@@ -31,6 +31,7 @@ import viper.silver.{ast => vpr}
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
 import scala.concurrent.{Await, Future, TimeoutException}
+import scala.util.control.NonFatal
 
 object GoVerifier {
 
@@ -66,22 +67,25 @@ trait GoVerifier extends StrictLogging {
     var warningCount: Int = 0
     var allVerifierErrors: Vector[VerifierError] = Vector()
     var allTimeoutErrors: Vector[TimeoutError] = Vector()
+    var allExceptionErrors: Vector[ExceptionError] = Vector()
     val isVerifyingMultiplePackages = config.packageInfoInputMap.size != 1
+
+    def writeStatsReport(): Unit = config.gobraDirectory match {
+      case Some(path) =>
+        val statsFile = path.resolve("stats.json").toFile
+        logger.info("Writing report to " + statsFile.getPath)
+        val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
+        if (!wroteFile) {
+          logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+        }
+      case _ =>
+    }
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run(): Unit = {
-        config.gobraDirectory match {
-          case Some(path) =>
-            val statsFile = path.resolve("stats.json").toFile
-            logger.info("Writing report to " + statsFile.getPath)
-            val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
-            if (!wroteFile) {
-              logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
-            }
-          case _ =>
-        }
+        writeStatsReport()
         // Report timeouts that were not previously reported
         statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }
@@ -125,7 +129,18 @@ trait GoVerifier extends StrictLogging {
           val errors = statsCollector.getTimeoutErrors(pkgId)
           errors.foreach(err => logger.error(err.formattedMessage))
           allTimeoutErrors = allTimeoutErrors ++ errors
+        case NonFatal(e) =>
+          // A crash while verifying one package (e.g. silicon's
+          // ProverInteractionFailed when a prover process dies) must not
+          // abort the verification of the remaining packages.
+          logger.error(s"The verification of package $pkgId was aborted by an exception.", e)
+          statsCollector.report(VerificationTaskFinishedMessage(pkgId))
+          allExceptionErrors = allExceptionErrors :+ ExceptionError(pkgId, e)
       }
+      // Keep the on-disk report current after every package: a later kill
+      // that bypasses shutdown hooks (e.g. SIGKILL) then loses at most the
+      // statistics of the package that was in flight.
+      writeStatsReport()
     })
 
     // Print statistics for caching
@@ -158,8 +173,12 @@ trait GoVerifier extends StrictLogging {
     if(allTimeoutErrors.nonEmpty) {
       logger.info(s"The verification of ${allTimeoutErrors.size} member${addPlural(allTimeoutErrors.size)} timed out.")
     }
+    if (allExceptionErrors.nonEmpty) {
+      val pkgs = allExceptionErrors.map(_.pkgId).mkString(", ")
+      logger.error(s"The verification of ${allExceptionErrors.size} package${addPlural(allExceptionErrors.size)} was aborted by an exception: $pkgs")
+    }
 
-    val allErrors = allVerifierErrors ++ allTimeoutErrors
+    val allErrors = allVerifierErrors ++ allTimeoutErrors ++ allExceptionErrors
     if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
   }
 
@@ -441,7 +460,14 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         logger.error(e.getLocalizedMessage, e)
         exitCode = 1
     } finally {
-      executor.terminate()
+      try {
+        executor.terminate()
+      } catch {
+        // An exception here must not prevent `sys.exit` such that exiting the
+        // JVM runs the shutdown hooks.
+        case e: Throwable =>
+          logger.error(s"Terminating the execution context failed: ${e.getMessage}")
+      }
       sys.exit(exitCode)
     }
   }

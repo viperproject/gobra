@@ -441,7 +441,19 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         logger.error(e.getLocalizedMessage, e)
         exitCode = 1
     } finally {
-      executor.terminate()
+      try {
+        executor.terminate()
+      } catch {
+        // An exception here must not prevent `sys.exit`: exiting the JVM runs
+        // the shutdown hooks (in particular the one in `verifyAllPackages`
+        // that writes the statistics file) and ends verification threads that
+        // would otherwise keep a JVM without a main thread alive forever.
+        // Observed in CI: `DefaultVerificationExecutionContext.terminate`
+        // times out after 1s when worker threads hang; the escaping exception
+        // skipped `sys.exit`, leaving a zombie JVM and no statistics file.
+        case e: Throwable =>
+          logger.error(s"Terminating the execution context failed: ${e.getMessage}")
+      }
       sys.exit(exitCode)
     }
   }

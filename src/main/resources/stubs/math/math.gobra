@@ -76,6 +76,65 @@ ensures !IsNaN(x) ==> res == (x < 0.0 ? -x : x)
 decreases _
 pure func Abs(x float64) (res float64)
 
+// Ceil returns the least integer value greater than or equal to x.
+//
+// Special cases are:
+//	Ceil(±0) = ±0
+//	Ceil(±Inf) = ±Inf
+//	Ceil(NaN) = NaN
+//
+// The function is intentionally uninterpreted: stating its properties as
+// postconditions would install quantified axioms over floating-point terms,
+// which the SMT solver handles very poorly on symbolic queries. Its properties
+// are instead provided on demand, per call site, by the lemmas below.
+decreases _
+pure func Ceil(x float64) (res float64)
+
+// CeilProperties provides the basic properties of Ceil at x: NaN propagation
+// and the lower bound x <= Ceil(x).
+ghost
+ensures IsNaN(x) ==> IsNaN(Ceil(x))
+ensures !IsNaN(x) ==> x <= Ceil(x)
+decreases _
+func CeilProperties(x float64)
+
+// CeilUpperBound provides the strict upper bound of Ceil at x. The
+// precondition |x| < 2^52 guarantees that x + 1.0 is computed exactly, so the
+// mathematical bound ceil(x) < x + 1 carries over to the float computation.
+// (For |x| >= 2^52, every float is already an integer and Ceil(x) == x.)
+ghost
+requires -4503599627370496.0 < x && x < 4503599627370496.0
+ensures  Ceil(x) < x + 1.0
+decreases _
+func CeilUpperBound(x float64)
+
+// Floor returns the greatest integer value less than or equal to x.
+//
+// Special cases are:
+//	Floor(±0) = ±0
+//	Floor(±Inf) = ±Inf
+//	Floor(NaN) = NaN
+//
+// Like Ceil, the function is uninterpreted, with its properties provided by
+// the lemmas below.
+decreases _
+pure func Floor(x float64) (res float64)
+
+// FloorProperties provides the basic properties of Floor at x.
+ghost
+ensures IsNaN(x) ==> IsNaN(Floor(x))
+ensures !IsNaN(x) ==> Floor(x) <= x
+decreases _
+func FloorProperties(x float64)
+
+// FloorLowerBound provides the strict lower bound of Floor at x, analogously
+// to CeilUpperBound.
+ghost
+requires -4503599627370496.0 < x && x < 4503599627370496.0
+ensures  x - 1.0 < Floor(x)
+decreases _
+func FloorLowerBound(x float64)
+
 // Max returns the larger of x or y.
 //
 // Special cases are:

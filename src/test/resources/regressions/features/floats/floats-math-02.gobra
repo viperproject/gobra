@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package floats
+
+import "math"
+
+// The properties of Ceil and Floor are provided by lemmas, per call site.
+
+func ceilBasics(x float64) {
+	math.CeilProperties(x)
+	assert math.IsNaN(x) ==> math.IsNaN(math.Ceil(x))
+	assert !math.IsNaN(x) ==> x <= math.Ceil(x)
+}
+
+func ceilBracket() {
+	math.CeilProperties(2.5)
+	assert 2.5 <= math.Ceil(2.5)
+	math.CeilUpperBound(2.5)
+	assert math.Ceil(2.5) < 3.5
+}
+
+func floorBasics(x float64) {
+	math.FloorProperties(x)
+	assert math.IsNaN(x) ==> math.IsNaN(math.Floor(x))
+	assert !math.IsNaN(x) ==> math.Floor(x) <= x
+}
+
+func floorBracket() {
+	math.FloorProperties(2.5)
+	assert math.Floor(2.5) <= 2.5
+	math.FloorLowerBound(2.5)
+	assert 1.5 < math.Floor(2.5)
+}
+
+// The exact integer value of Ceil is not known: only the bracketing is.
+func ceilIncomplete() {
+	math.CeilProperties(2.5)
+	//:: ExpectedOutput(assert_error)
+	assert math.Ceil(2.5) == 3.0 // not provable: integrality is not modeled
+}

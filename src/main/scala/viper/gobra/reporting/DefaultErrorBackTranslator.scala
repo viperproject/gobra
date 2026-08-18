@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, InvariantMightBeOpenAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, InvariantMightBeOpenAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, NonPositivePermissionToRangeExpressionAnnotation, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -199,6 +199,9 @@ class DefaultErrorBackTranslator(
 
       case _ / InsufficientPermissionToRangeExpressionAnnotation() =>
         x.reasons.foldLeft(InsufficientPermissionToRangeExpressionError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
+
+      case _ / NonPositivePermissionToRangeExpressionAnnotation() =>
+        x.reasons.foldLeft(NonPositivePermissionToRangeExpressionError(x.info): VerificationError) { case (err, reason) => err dueTo reason }
 
       case _ / LoopInvariantNotEstablishedAnnotation =>
         x.reasons.foldLeft(LoopInvariantEstablishmentError(x.info): VerificationError) { case (err, reason) => err dueTo reason }

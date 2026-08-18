@@ -511,9 +511,11 @@ assign_op: ass_op=(
     | BIT_CLEAR
   )? ASSIGN;
 
-// Add permission argument to range
+// Add an optional permission amount and an optional enumerated variable to range.
+// The permission amount is the amount of permission to the range expression that is
+// exhaled while iterating over it; it is only supported for maps.
 
 rangeClause: (
 		expressionList ASSIGN
 		| maybeAddressableIdentifierList DECLARE_ASSIGN
-	)? RANGE expression (WITH IDENTIFIER?)?;
+	)? RANGE rangeExp = expression (COMMA perm = expression)? (WITH IDENTIFIER?)?;

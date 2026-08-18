@@ -32,6 +32,7 @@ object Source {
   case object LoopInvariantNotEstablishedAnnotation extends Annotation
   case class NoPermissionToRangeExpressionAnnotation() extends Annotation
   case class InsufficientPermissionToRangeExpressionAnnotation() extends Annotation
+  case class NonPositivePermissionToRangeExpressionAnnotation() extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
   case class InvalidImplTermMeasureAnnotation() extends Annotation
   case class IsInvariantAnnotation() extends Annotation

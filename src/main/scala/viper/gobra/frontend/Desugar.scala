@@ -1398,11 +1398,35 @@ object Desugar extends LazyLogging {
       } yield enc))
 
       /**
+        * Desugars the amount of permission to the range expression that is exhaled while iterating
+        * over it. The result is the sequence of statements assigning that amount to `permVar`.
+        *
+        * By default, a very small (but positive) amount is used, which suffices to guarantee that
+        * the range expression is not modified by the loop body. Users may provide a different
+        * amount with the syntax `range exp, p`, in which case we additionally check that `p` is
+        * strictly positive.
+        */
+      def rangePermD(range: PRange, permVar: in.LocalVar)(src: Source.Parser.Info): Writer[Vector[in.Stmt]] =
+        range.perm match {
+          case None => unit(Vector[in.Stmt](singleAss(in.Assignee.Var(permVar), in.PermLit(1, MapExhalePermDenom)(src))(src)))
+          case Some(p) =>
+            val permSrc = meta(p, info)
+            val checkSrc = permSrc.createAnnotatedInfo(Source.NonPositivePermissionToRangeExpressionAnnotation())
+            for { dPerm <- permissionD(ctx, info)(p) } yield Vector[in.Stmt](
+              singleAss(in.Assignee.Var(permVar), dPerm)(permSrc),
+              // check that the permission amount provided by the user is valid
+              in.Assert(in.ExprAssertion(in.PermLtCmp(in.NoPerm(checkSrc), permVar)(checkSrc))(checkSrc))(checkSrc)
+            )
+        }
+
+      /**
         * This case handles for loops with a range clause of a map expression of the form:
         *
         * <invariants>
         * // visited here is a set containing the already visited keys in the map
-        * for k, v := range x with visited {
+        * // per is the optional permission amount provided by the user;
+        * // it defaults to 1/MapExhalePermDenom
+        * for k, v := range x, per with visited {
         *     body
         * }
         *
@@ -1411,6 +1435,8 @@ object Desugar extends LazyLogging {
         * name declared outside. This is also the go behaviour.
         *
         * c := x
+        * p := per
+        * assert none < p // check if permission provided by user is valid; omitted if per is absent
         *
         * if (|c| == 0) {
         *     var k : T1
@@ -1424,7 +1450,6 @@ object Desugar extends LazyLogging {
         *     inhale k in domain(c)
         *     v := c[k] // [v]
         *     var visited : Set[T1] := Set()
-        *     assert 0 / 1 < per // check if permission provided by user is valid
         *     while (|visited| < |domain(c)|)
         *     invariant |visited| < |domain(c)| ==> k in domain(x) && v == c[k] // [v]
         *     invariant |visited| <= |domain(c)|
@@ -1435,9 +1460,9 @@ object Desugar extends LazyLogging {
         *         inhale key in domain(c) && !(key in visited)
         *         k := key
         *         v := x[k] // [v]
-        *         exhale acc(x, 1/100000)
+        *         exhale acc(x, p)
         *         <body>
-        *         inhale acc(x, 1/100000)
+        *         inhale acc(x, p)
         *         visited := visited union Set(k)
         *
         * In the case where the value variable 'v' is missing all the code annotated with [v]
@@ -1460,7 +1485,7 @@ object Desugar extends LazyLogging {
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
-        initPerm = singleAss(in.Assignee.Var(perm), in.PermLit(1, MapExhalePermDenom)(src))(src)
+        initPerm <- rangePermD(range, perm)(src)
 
         exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
@@ -1507,8 +1532,8 @@ object Desugar extends LazyLogging {
 
         updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k))(src), visitedT)(src))(src)
 
-        enc = in.Seqn(Vector(
-          singleAss(in.Assignee.Var(c), exp)(src),
+        enc = in.Seqn(Vector[in.Stmt](
+          singleAss(in.Assignee.Var(c), exp)(src)) ++ initPerm ++ Vector[in.Stmt](
           initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
@@ -1517,7 +1542,6 @@ object Desugar extends LazyLogging {
               (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
             in.Seqn(
               dInvPre ++ dTerPre ++ Vector(
-                initPerm,
                 in.While(
                   in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, k) ++ (if (hasValue) Vector(v) else Vector()),
@@ -1544,7 +1568,7 @@ object Desugar extends LazyLogging {
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
-        initPerm = singleAss(in.Assignee.Var(perm), in.PermLit(1, MapExhalePermDenom)(src))(src)
+        initPerm <- rangePermD(range, perm)(src)
 
         exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
@@ -1591,8 +1615,8 @@ object Desugar extends LazyLogging {
 
         updateVisited = singleAss(visited, in.Union(visited.op, in.SetLit(keyType, Vector(k.op))(src), visitedT)(src))(src)
 
-        enc = in.Seqn(Vector(
-          singleAss(in.Assignee.Var(c), exp)(src),
+        enc = in.Seqn(Vector[in.Stmt](
+          singleAss(in.Assignee.Var(c), exp)(src)) ++ initPerm ++ Vector[in.Stmt](
           initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
@@ -1601,7 +1625,6 @@ object Desugar extends LazyLogging {
               (spec.invariants zip dInv).map[in.Stmt]((x: (PExpression, in.Assertion)) => in.Assert(x._2)(meta(x._1, info).createAnnotatedInfo(Source.LoopInvariantNotEstablishedAnnotation))))(src),
             in.Seqn(
               dInvPre ++ dTerPre ++ Vector(
-                initPerm,
                 in.While(
                   in.LessCmp(in.Length(visited.op)(src), in.Length(c)(src))(src),
                   dInv ++ addedInvariants, dTer, in.Block(Vector(continueLoopLabelProxy, tempk),

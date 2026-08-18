@@ -2746,6 +2746,43 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a range clause without a permission amount") {
+    frontend.parseStmtOrFail("for k := range m { }") should matchPattern {
+      case PShortForRange(PRange(PNamedOperand(PIdnUse("m")), None, PWildcard()), Vector(PIdnUnk("k")), Vector(false), _, _) =>
+    }
+  }
+
+  test("Parser: should be able to parse a range clause with a permission amount") {
+    frontend.parseStmtOrFail("for k := range m, 1/2 { }") should matchPattern {
+      case PShortForRange(
+        PRange(PNamedOperand(PIdnUse("m")), Some(PDiv(PIntLit(one, Decimal), PIntLit(two, Decimal))), PWildcard()),
+        Vector(PIdnUnk("k")), Vector(false), _, _) if one == 1 && two == 2 =>
+    }
+  }
+
+  test("Parser: should be able to parse a range clause with a named permission amount") {
+    // the loop body must not be mistaken for a composite literal of type 'p'
+    frontend.parseStmtOrFail("for k := range m, p { }") should matchPattern {
+      case PShortForRange(
+        PRange(PNamedOperand(PIdnUse("m")), Some(PNamedOperand(PIdnUse("p"))), PWildcard()),
+        Vector(PIdnUnk("k")), Vector(false), _, _) =>
+    }
+  }
+
+  test("Parser: should be able to parse a range clause with a permission amount and a with clause") {
+    frontend.parseStmtOrFail("for k, v = range m, p with visited { }") should matchPattern {
+      case PAssForRange(
+        PRange(PNamedOperand(PIdnUse("m")), Some(PNamedOperand(PIdnUse("p"))), PIdnUnk("visited")),
+        Vector(PNamedOperand(PIdnUse("k")), PNamedOperand(PIdnUse("v"))), _, _) =>
+    }
+  }
+
+  test("Parser: should be able to parse a range clause with a permission amount and a blank with clause") {
+    frontend.parseStmtOrFail("for range m, perm(1/2) with _ { }") should matchPattern {
+      case PAssForRange(PRange(PNamedOperand(PIdnUse("m")), Some(_), PWildcard()), Vector(PBlankIdentifier()), _, _) =>
+    }
+  }
+
   test("Parser: should be able to parse an int ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyInt int") should matchPattern {
       case Vector(PExplicitGhostMember(PTypeDef(PIntType(), PIdnDef("MyInt")))) =>

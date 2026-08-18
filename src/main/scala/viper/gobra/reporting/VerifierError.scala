@@ -325,6 +325,11 @@ case class InsufficientPermissionToRangeExpressionError(info: Source.Verifier.In
   override def localMessage: String = s"Range expression should be immutable inside the loop body"
 }
 
+case class NonPositivePermissionToRangeExpressionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "non_positive_permission_to_range_expression"
+  override def localMessage: String = s"The permission amount ${info.origin.tag.trim} provided in the range clause might not be strictly positive"
+}
+
 case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"

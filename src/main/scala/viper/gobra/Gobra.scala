@@ -70,20 +70,22 @@ trait GoVerifier extends StrictLogging {
     var abortedPackages: Vector[String] = Vector()
     val isVerifyingMultiplePackages = config.packageInfoInputMap.size != 1
 
+    def writeStatsReport(): Unit = config.gobraDirectory match {
+      case Some(path) =>
+        val statsFile = path.resolve("stats.json").toFile
+        logger.info("Writing report to " + statsFile.getPath)
+        val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
+        if (!wroteFile) {
+          logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
+        }
+      case _ =>
+    }
+
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
     // by some signal.
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run(): Unit = {
-        config.gobraDirectory match {
-          case Some(path) =>
-            val statsFile = path.resolve("stats.json").toFile
-            logger.info("Writing report to " + statsFile.getPath)
-            val wroteFile = statsCollector.writeJsonReportToFile(statsFile)
-            if (!wroteFile) {
-              logger.error(s"Could not write to the file $statsFile. Check whether the permissions to the file allow writing to it.")
-            }
-          case _ =>
-        }
+        writeStatsReport()
         // Report timeouts that were not previously reported
         statsCollector.getTimeoutErrorsForNonFinishedTasks.foreach(err => logger.error(err.formattedMessage))
       }
@@ -135,6 +137,10 @@ trait GoVerifier extends StrictLogging {
           statsCollector.report(VerificationTaskFinishedMessage(pkgId))
           abortedPackages = abortedPackages :+ pkgId
       }
+      // Keep the on-disk report current after every package: a later kill
+      // that bypasses shutdown hooks (e.g. SIGKILL) then loses at most the
+      // statistics of the package that was in flight.
+      writeStatsReport()
     })
 
     // Print statistics for caching
@@ -458,13 +464,8 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       try {
         executor.terminate()
       } catch {
-        // An exception here must not prevent `sys.exit`: exiting the JVM runs
-        // the shutdown hooks (in particular the one in `verifyAllPackages`
-        // that writes the statistics file) and ends verification threads that
-        // would otherwise keep a JVM without a main thread alive forever.
-        // Observed in CI: `DefaultVerificationExecutionContext.terminate`
-        // times out after 1s when worker threads hang; the escaping exception
-        // skipped `sys.exit`, leaving a zombie JVM and no statistics file.
+        // An exception here must not prevent `sys.exit` such that exiting the
+        // JVM runs the shutdown hooks.
         case e: Throwable =>
           logger.error(s"Terminating the execution context failed: ${e.getMessage}")
       }

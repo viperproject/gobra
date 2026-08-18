@@ -31,6 +31,7 @@ import viper.silver.{ast => vpr}
 import java.time.format.DateTimeFormatter
 import java.time.LocalTime
 import scala.concurrent.{Await, Future, TimeoutException}
+import scala.util.control.NonFatal
 
 object GoVerifier {
 
@@ -66,6 +67,7 @@ trait GoVerifier extends StrictLogging {
     var warningCount: Int = 0
     var allVerifierErrors: Vector[VerifierError] = Vector()
     var allTimeoutErrors: Vector[TimeoutError] = Vector()
+    var abortedPackages: Vector[String] = Vector()
     val isVerifyingMultiplePackages = config.packageInfoInputMap.size != 1
 
     // write report to file on shutdown, this makes sure a report is produced even if a run is shutdown
@@ -125,6 +127,13 @@ trait GoVerifier extends StrictLogging {
           val errors = statsCollector.getTimeoutErrors(pkgId)
           errors.foreach(err => logger.error(err.formattedMessage))
           allTimeoutErrors = allTimeoutErrors ++ errors
+        case NonFatal(e) =>
+          // A crash while verifying one package (e.g. silicon's
+          // ProverInteractionFailed when a prover process dies) must not
+          // abort the verification of the remaining packages.
+          logger.error(s"The verification of package $pkgId was aborted by an exception.", e)
+          statsCollector.report(VerificationTaskFinishedMessage(pkgId))
+          abortedPackages = abortedPackages :+ pkgId
       }
     })
 
@@ -158,9 +167,14 @@ trait GoVerifier extends StrictLogging {
     if(allTimeoutErrors.nonEmpty) {
       logger.info(s"The verification of ${allTimeoutErrors.size} member${addPlural(allTimeoutErrors.size)} timed out.")
     }
+    if (abortedPackages.nonEmpty) {
+      logger.error(s"The verification of ${abortedPackages.size} package${addPlural(abortedPackages.size)} was aborted by an exception: ${abortedPackages.mkString(", ")}")
+    }
 
     val allErrors = allVerifierErrors ++ allTimeoutErrors
-    if (allErrors.isEmpty) VerifierResult.Success else VerifierResult.Failure(allErrors)
+    if (allErrors.nonEmpty) VerifierResult.Failure(allErrors)
+    else if (abortedPackages.nonEmpty) VerifierResult.Aborted
+    else VerifierResult.Success
   }
 
   protected[this] def verify(pkgInfo: PackageInfo, config: Config)(implicit executor: GobraExecutionContext): Future[VerifierResult]

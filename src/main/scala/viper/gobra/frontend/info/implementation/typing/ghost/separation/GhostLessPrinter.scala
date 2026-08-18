@@ -78,6 +78,12 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
   }
 
   /**
+    * The permission amount and the enumerated variable of a range clause are both
+    * specification-only, so neither survives ghost erasure.
+    */
+  override def showRange(n: PRange): Doc = super.showRange(PRange(n.exp, None, PWildcard()))
+
+  /**
     * Filters and shows assignment, variable declaration, and short variable declaration statements by filtering their lhs and rhs
     */
   private def showAssign[N <: PNode](right: Vector[PExpression], left: Vector[N], copy: (Vector[PExpression], Vector[N], Vector[Boolean]) => PStatement): Doc = {

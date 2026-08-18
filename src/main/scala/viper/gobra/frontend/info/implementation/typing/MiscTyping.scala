@@ -31,16 +31,11 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case t => message(n, s"type error: got $t but expected rangeable type")
       })
       // the permission amount is only used by the encoding of ranging over a map, where it is
-      // exhaled to guarantee that the map is not modified while iterating over it.
+      // exhaled to guarantee that the map is not modified while iterating over it. The amount
+      // itself is checked in `wellDefGhostMisc`.
       val permCheck = perm.fold(noMessages) { p =>
-        val isPermExpr = isExpr(p).out
-        if (isPermExpr.nonEmpty) isPermExpr
-        else {
-          error(p, s"type error: got ${exprType(p)} but expected perm or integer division expression",
-            !assignableTo(exprType(p), PermissionT, isEnclosingMayInit(n))) ++
-            error(p, "type error: a permission amount may only be provided when ranging over a map",
-              !underlyingType(exprType(exp)).isInstanceOf[MapT])
-        }
+        error(p, "type error: a permission amount may only be provided when ranging over a map",
+          !underlyingType(exprType(exp)).isInstanceOf[MapT])
       }
       rangeableCheck ++ permCheck
 

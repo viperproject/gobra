@@ -2067,7 +2067,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     } else if (has(ctx.rangeClause())) {
       // for <assignees (:= | =)>? range <expr> (, <perm>)? (with enumerated)?
       val expr = visitNode[PExpression](ctx.rangeClause().rangeExp).at(ctx.rangeClause())
-      val perm = visitNodeOrNone[PExpression](ctx.rangeClause().perm)
+      val perm = if (has(ctx.rangeClause().perm)) {
+        Some(PRangePerm(visitNode[PExpression](ctx.rangeClause().perm)).at(ctx.rangeClause().perm)).pos()
+      } else None
       // enumerated will be used no matter what, so we just make it a wildcard if it is not
       // present in the range clause
       val enumerated: PUnkLikeId = if (has(ctx.rangeClause().IDENTIFIER())) {

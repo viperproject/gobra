@@ -847,7 +847,7 @@ sealed trait PActualMisc extends PMisc
   * `perm` is the (optional) amount of permission to `exp` that is exhaled while iterating over it.
   * It is only supported for maps, where it defaults to a very small, but positive, amount.
   */
-case class PRange(exp: PExpression, perm: Option[PExpression], enumerated: PUnkLikeId) extends PActualMisc
+case class PRange(exp: PExpression, perm: Option[PRangePerm], enumerated: PUnkLikeId) extends PActualMisc
 
 sealed trait PParameter extends PMisc {
   def typ: PType
@@ -1363,6 +1363,13 @@ sealed trait PGhostMisc extends PMisc with PGhostNode
 case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
 
 case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
+
+/**
+  * The permission amount of a range clause, i.e. the `p` in `range exp, p`. It is a
+  * specification-only annotation, and thus ghost, even though the enclosing for statement
+  * and the range expression itself need not be.
+  */
+case class PRangePerm(exp: PExpression) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

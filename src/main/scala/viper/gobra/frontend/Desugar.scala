@@ -1409,7 +1409,7 @@ object Desugar extends LazyLogging {
       def rangePermD(range: PRange, permVar: in.LocalVar)(src: Source.Parser.Info): Writer[Vector[in.Stmt]] =
         range.perm match {
           case None => unit(Vector[in.Stmt](singleAss(in.Assignee.Var(permVar), in.PermLit(1, MapExhalePermDenom)(src))(src)))
-          case Some(p) =>
+          case Some(PRangePerm(p)) =>
             val permSrc = meta(p, info)
             val checkSrc = permSrc.createAnnotatedInfo(Source.NonPositivePermissionToRangeExpressionAnnotation())
             for { dPerm <- permissionD(ctx, info)(p) } yield Vector[in.Stmt](

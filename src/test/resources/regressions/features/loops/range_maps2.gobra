@@ -68,3 +68,31 @@ func noWithClause() {
 		assert k elem domain(x)
 	}
 }
+
+// The permission amount is ghost code, so it may mention ghost variables and call ghost
+// pure functions.
+
+ghost
+decreases
+pure func half() perm {
+	return 1/2
+}
+
+requires acc(x)
+ensures acc(x)
+decreases
+func ghostPerm(x map[int]int) {
+	ghost var p perm = half() / 2
+
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, p with visited {
+		assert k elem domain(x)
+	}
+
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, half() with visited {
+		assert k elem domain(x)
+	}
+}

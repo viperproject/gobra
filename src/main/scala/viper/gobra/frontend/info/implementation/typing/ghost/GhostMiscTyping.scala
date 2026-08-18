@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PermissionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -29,6 +29,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
+    case n@PRangePerm(exp) =>
+      val isPermExpr = isExpr(exp).out
+      if (isPermExpr.nonEmpty) isPermExpr
+      else isPureExpr(exp) ++
+        error(exp, s"type error: got ${exprType(exp)} but expected perm or integer division expression",
+          !assignableTo(exprType(exp), PermissionT, isEnclosingMayInit(n)))
     case PExplicitGhostParameter(_) => noMessages
     case p: PPredConstructorBase => p match {
       case PFPredBase(id) => entity(id) match {
@@ -113,6 +119,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     case PBoundVariable(_, typ) => typeSymbType(typ)
     case PTrigger(_) => BooleanT
+    case PRangePerm(_) => PermissionT
     case PExplicitGhostParameter(param) => miscType(param)
     case b: PPredConstructorBase => b match {
       case PDottedBase(recvWithId) => exprOrTypeType(recvWithId)

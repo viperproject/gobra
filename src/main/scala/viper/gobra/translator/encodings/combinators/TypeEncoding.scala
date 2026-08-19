@@ -341,7 +341,7 @@ trait TypeEncoding extends Generator {
     * Instead of checking that a dereference is safe immediately, the encoding checks that usages of l-values are safe.
     * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
     *
-    * SafeRef[loc: T@] => assert [&loc != nil: *T°]; Ref[loc]
+    * SafeRef[loc: T@] => assert [p != nil]; Ref[loc]    where *p is the root of loc (if any, see checkNotNil)
     */
   final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     val r = reference(ctx); { case loc@r(w) =>
@@ -505,23 +505,65 @@ object TypeEncoding {
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Checks that using `loc` does not dereference nil.
     *
-    * assert [&loc != nil: *T°]; res
+    * assert [p != nil]; res    where *p is the outermost dereference of loc
     *
+    * Only the outermost dereference has to be checked. The dereferences nested inside it read
+    * their pointers from memory, which requires permission to the fields holding them, and
+    * permission to a field entails that its receiver is non-nil. The outermost dereference has no
+    * such witness, as the memory it refers to is not necessarily read.
+    *
+    * Checking `p` instead of the address of `loc` keeps the obligation independent of the address
+    * arithmetic of composite types (see PR #531).
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
-    if (cannotBeNil(loc)) cl.unit(res)
-    else {
-      for {
-        cond <- checkNotNil(loc)(ctx)
-        checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
-      } yield checked
+    outermostDeref(loc) match {
+      case Some(d) if ctx.emitNilChecks =>
+        for {
+          cond <- dereferencedPointerNotNil(d)(ctx)
+          checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
+        } yield checked
+      case _ => cl.unit(res)
     }
   }
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Encodes that the pointer dereferenced by `d` is not nil: [ d.exp != nil ].
+    *
+    * The annotation is attached to `d.exp` and not to `d`, so that the error names the pointer:
+    * the position of an implicit dereference, as in `p.f`, spans the entire selector.
+    */
+  private def dereferencedPointerNotNil(d: in.Deref)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val annotatedInfo = d.exp.info match {
+      case s: Source.Parser.Single => s.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
+      case i => i
+    }
+    ctx.expression(in.UneqCmp(
+      d.exp,
+      in.NilLit(in.PointerT(d.typ, Exclusive))(annotatedInfo)
+    )(annotatedInfo))
+  }
+
+  /**
+    * Returns the outermost dereference of `l`, i.e. the one that is not nested inside another
+    * dereference of `l`, if `l` has one. For `l.next.val`, this is the dereference of `l.next`.
+    */
+  @tailrec
+  private def outermostDeref(l: in.Location): Option[in.Deref] = l match {
+    case d: in.Deref => Some(d)
+    case in.FieldRef(recv: in.Location, _) => outermostDeref(recv)
+    case in.IndexedExp(base: in.Location, _, _) => outermostDeref(base)
+    // The receiver of a field access and the base of an index expression are exclusive values,
+    // which are not dereferenced. An in-bounds index implies that an element exists.
+    case _: in.FieldRef | _: in.IndexedExp => None
+    // Variables are not dereferenced.
+    case _: in.Var => None
+  }
+
+  /**
+    * Encodes the non-nilness of the address of an L-value. Used as the footprint of zero-sized types
+    * (which have no permission footprint), not as a runtime-panic check.
     *
     * [&loc != nil: *T°]
     *

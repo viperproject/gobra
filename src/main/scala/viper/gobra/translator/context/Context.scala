@@ -89,13 +89,13 @@ trait Context {
 
   def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this)(x)
 
-  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
+  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this.withoutNilChecks)(x)
 
-  def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)
+  def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this.withoutNilChecks)(x)
 
-  def precondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.precondition(this)(x)
+  def precondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.precondition(this.withoutNilChecks)(x)
 
-  def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this)(x)
+  def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this.withoutNilChecks)(x)
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
@@ -139,6 +139,21 @@ trait Context {
     case t => t
   }
 
+  // nil checks
+
+  /**
+    * Whether usages of L-values generate nil-dereference checks (see [[TypeEncoding.checkNotNil]]).
+    * Nil-dereference checks are only meaningful in actual code, where a nil dereference causes a
+    * runtime panic. They are suppressed in specifications and intrinsically ghost statements
+    * (assert, inhale, exhale, fold, unfold), which are never executed: there, an L-value rooted
+    * in a nil pointer denotes an unconstrained value, and the permission system already prevents
+    * deriving any facts about actual memory from it.
+    */
+  def emitNilChecks: Boolean
+
+  /** Returns a context that does not generate nil-dereference checks. See [[emitNilChecks]]. */
+  def withoutNilChecks: Context = if (emitNilChecks) :=(emitNilChecksN = false) else this
+
   // mapping
   def addVars(vars: vpr.LocalVarDecl*): Context
 
@@ -167,8 +182,9 @@ trait Context {
           typeEncodingN: TypeEncoding = typeEncoding,
           defaultEncodingN: DefaultEncoding = defaultEncoding,
           initialFreshCounterValueN: Option[Int] = None,
+          emitNilChecksN: Boolean = emitNilChecks,
         ): Context = {
-    update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN)
+    update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN, emitNilChecksN)
   }
 
   protected def update(
@@ -188,6 +204,7 @@ trait Context {
           typeEncodingN: TypeEncoding,
           defaultEncodingN: DefaultEncoding,
           initialFreshCounterValueN: Option[Int],
+          emitNilChecksN: Boolean,
         ): Context
 
 

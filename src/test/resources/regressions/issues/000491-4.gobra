@@ -46,3 +46,143 @@ func addrOfFieldOfNil(p *Pair) (r *int) {
 	r = &p.x
 	return
 }
+
+// []byte and *[N]byte behave differently: indexing a slice never dereferences a
+// pointer (the slice header itself carries the element addresses), whereas
+// indexing a pointer to an array implicitly dereferences the pointer.
+
+requires len(s) > 0
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func addrOfSliceElem(s []byte) (r *byte) {
+	r = &s[0]
+	return
+}
+
+requires len(s) > 0
+func addrOfSliceElemNoPerm(s []byte) (r *byte) {
+	r = &s[0] // succeeds
+	return
+}
+
+// Indexing is bounded by the length: in Go, even taking the address of an element
+// panics for an out-of-range index (only slicing is bounded by the capacity).
+func addrOfSliceElemPossiblyEmpty(s []byte) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &s[0] // fails as it might be out of bound
+	return
+}
+
+// Taking the address of an element only requires the implicitly dereferenced
+// pointer to be non-nil.
+requires p != nil
+func addrOfArrayElem(p *[8]byte) (r *byte) {
+	r = &p[0]
+	return
+}
+
+// p might be nil, so dereferencing it might panic.
+func addrOfArrayElemOfNil(p *[8]byte) (r *byte) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &p[0]
+	return
+}
+
+// Unlike for structs, permission to the array does not (yet) entail that the pointer is
+// non-nil: the shared-array footprint consists of quantified permissions over embedded
+// locations rather than field permissions on the dereferenced pointer itself, so Viper's
+// permission-implies-non-null reasoning does not apply.
+requires acc(p)
+func addrOfArrayElemWithPermission(p *[8]byte) (r *byte) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &p[0]
+	return
+}
+
+// Like indexing, slicing a pointer to an array implicitly dereferences the pointer.
+func sliceOfNilArrayPointer(p *[8]byte) []byte {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	return p[1:3]
+}
+
+requires p != nil
+preserves forall i int :: { &p[i] } 0 <= i && i < len(p) ==> acc(&p[i])
+func sliceOfArrayPointer(p *[8]byte) []byte {
+	return p[1:3]
+}
+
+requires p != nil
+func addrOfArrayElemDynamicIndex(p *[8]byte, idx int) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &p[idx]
+	return
+}
+
+requires p != nil && 0 <= idx && idx < 8
+func addrOfArrayElemDynamicIndexInBounds(p *[8]byte, idx int) (r *byte) {
+	r = &p[idx]
+	return
+}
+
+// Computing the address of a nested element reads the inner slice header, which
+// requires permission and, thus, an in-bounds inner index; an out-of-bounds inner
+// index therefore surfaces as a permission failure on the inner access.
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func addrOfNestedSliceElemInnerOutOfBounds(s [][]byte, idx int) (r *byte) {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	r = &s[idx][0]
+	return
+}
+
+requires len(s) > 0
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func addrOfNestedSliceElemOuterOutOfBounds(s [][]byte) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &s[0][5]
+	return
+}
+
+requires len(s) > 0
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+requires 5 < len(s[0])
+func addrOfNestedSliceElem(s [][]byte) (r *byte) {
+	r = &s[0][5]
+	return
+}
+
+// The internal footprint of make ranges up to the capacity and must not be
+// affected by the length-bounded obligation.
+func makeWithLargerCap() []byte {
+	return make([]byte, 2, 10)
+}
+
+type definedArrayPtr *[8]byte
+
+// The implicit dereference also applies to defined types whose underlying type
+// is a pointer to an array.
+func addrOfDefinedArrayPtrElemOfNil(p definedArrayPtr) (r *byte) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &p[0]
+	return
+}
+
+// The base of an indexed access does not have to be an assignable location.
+requires len(s) >= 2
+func addrOfReslicedElemOutOfBounds(s []byte) (r *byte) {
+	//:: ExpectedOutput(load_error:index_out_of_bounds_error)
+	r = &s[0:2][5]
+	return
+}
+
+// Triggers are patterns that are never evaluated and, thus, must not generate
+// panic-absence checks, also in expression positions within actual code.
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func quantifierWithAddrTriggerInCode(s []byte) {
+	b := forall i int :: { &s[i] } 0 <= i && i < len(s) ==> s[i] >= 0
+	_ = b
+}
+
+// In Go, `len` of an operand of array type is a constant and the operand is not
+// evaluated; hence, neither bounds nor nil-ness of the operand are checked.
+func lengthOfNestedArray(a *[4][8]byte, idx int) int {
+	return len(a[idx])
+}

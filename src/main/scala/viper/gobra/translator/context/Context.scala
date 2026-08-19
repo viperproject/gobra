@@ -87,15 +87,17 @@ trait Context {
 
   def expression(x: in.Expr): CodeWriter[vpr.Exp] = typeEncoding.finalExpression(this)(x)
 
-  def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this)(x)
+  // triggers are patterns that are never evaluated; panic-absence checks would wrap them in
+  // function applications that are invalid as triggers:
+  def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this.withoutPanicChecks)(x)
 
-  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this.withoutNilChecks)(x)
+  def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this.withoutPanicChecks)(x)
 
-  def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this.withoutNilChecks)(x)
+  def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this.withoutPanicChecks)(x)
 
-  def precondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.precondition(this.withoutNilChecks)(x)
+  def precondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.precondition(this.withoutPanicChecks)(x)
 
-  def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this.withoutNilChecks)(x)
+  def postcondition(x: in.Assertion): MemberWriter[vpr.Exp] = typeEncoding.postcondition(this.withoutPanicChecks)(x)
 
   def reference(x: in.Location): CodeWriter[vpr.Exp] = typeEncoding.reference(this)(x)
 
@@ -139,20 +141,22 @@ trait Context {
     case t => t
   }
 
-  // nil checks
+  // panic checks
 
   /**
-    * Whether usages of L-values generate nil-dereference checks (see [[TypeEncoding.checkNotNil]]).
-    * Nil-dereference checks are only meaningful in actual code, where a nil dereference causes a
-    * runtime panic. They are suppressed in specifications and intrinsically ghost statements
-    * (assert, inhale, exhale, fold, unfold), which are never executed: there, an L-value rooted
-    * in a nil pointer denotes an unconstrained value, and the permission system already prevents
-    * deriving any facts about actual memory from it.
+    * Whether usages of L-values generate panic checks, i.e. checks for the absence of runtime panics: nil-dereference checks
+    * (see [[TypeEncoding.checkNotNil]]) and index-bounds checks
+    * (see [[TypeEncoding.checkIndicesInBounds]]).
+    * These checks are only meaningful in actual code, where a nil dereference or an out-of-bounds
+    * index causes a runtime panic. They are suppressed in specifications and intrinsically ghost
+    * statements (assert, inhale, exhale, fold, unfold), which are never executed: there, an
+    * L-value rooted in a nil pointer or an out-of-range index denotes an unconstrained value, and
+    * the permission system already prevents deriving any facts about actual memory from it.
     */
-  def emitNilChecks: Boolean
+  def emitPanicChecks: Boolean
 
-  /** Returns a context that does not generate nil-dereference checks. See [[emitNilChecks]]. */
-  def withoutNilChecks: Context = if (emitNilChecks) :=(emitNilChecksN = false) else this
+  /** Returns a context that does not generate panic checks. See [[emitPanicChecks]]. */
+  def withoutPanicChecks: Context = if (emitPanicChecks) :=(emitPanicChecksN = false) else this
 
   // mapping
   def addVars(vars: vpr.LocalVarDecl*): Context
@@ -182,9 +186,9 @@ trait Context {
           typeEncodingN: TypeEncoding = typeEncoding,
           defaultEncodingN: DefaultEncoding = defaultEncoding,
           initialFreshCounterValueN: Option[Int] = None,
-          emitNilChecksN: Boolean = emitNilChecks,
+          emitPanicChecksN: Boolean = emitPanicChecks,
         ): Context = {
-    update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN, emitNilChecksN)
+    update(fieldN, arrayN, seqToSetN, seqToMultisetN, seqMultiplicityN, optionN, optionToSeqN, sliceN, fixpointN, tupleN, equalityN, conditionN, unknownValueN, typeEncodingN, defaultEncodingN, initialFreshCounterValueN, emitPanicChecksN)
   }
 
   protected def update(
@@ -204,7 +208,7 @@ trait Context {
           typeEncodingN: TypeEncoding,
           defaultEncodingN: DefaultEncoding,
           initialFreshCounterValueN: Option[Int],
-          emitNilChecksN: Boolean,
+          emitPanicChecksN: Boolean,
         ): Context
 
 

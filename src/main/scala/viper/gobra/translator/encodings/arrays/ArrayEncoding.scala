@@ -176,7 +176,9 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     case n@ in.Length(e :: ctx.Array(len, t) / m) =>
       m match {
         case Exclusive => ctx.expression(e).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
-        case Shared => ctx.safeReference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        // in Go, `len` of an operand of array type is a constant and the operand is not
+        // evaluated; hence, no panic-absence checks apply (cf. [[TypeEncoding.safeReference]]):
+        case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
     case in.Length(exp :: ctx.*(t: in.ArrayT)) =>

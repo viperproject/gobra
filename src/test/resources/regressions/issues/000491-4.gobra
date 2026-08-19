@@ -186,3 +186,16 @@ func quantifierWithAddrTriggerInCode(s []byte) {
 func lengthOfNestedArray(a *[4][8]byte, idx int) int {
 	return len(a[idx])
 }
+
+// The length and capacity of a *[N]byte are the constant N; in Go, this holds
+// even for a nil pointer and, thus, must not generate a nil-ness proof
+// obligation.
+func lenOfNilArrayPointer() {
+	var p *[8]byte = nil
+	assert len(p) == 8
+}
+
+func capOfNilArrayPointer() {
+	var p *[8]byte = nil
+	assert cap(p) == 8
+}

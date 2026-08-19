@@ -18,7 +18,7 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.library.embeddings.EmbeddingParameter
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperUtil.synthesized
-import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.ViperWriter.{CodeLevel, CodeWriter}
 import viper.gobra.util.Violation
 import viper.silver.plugin.standard.termination
 import viper.silver.{ast => vpr}
@@ -136,10 +136,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ arrayLit(E) ] -> create_ex_array( [e] | e in E )
     * R[ len(e: [n]T@°) ] -> ex_array_length([e])
     * R[ len(e: [n]T@) ] -> sh_array_length(Ref[e])
-    * R[ len(e: *[n]T) ] -> sh_array_length(Ref[*e])
+    * R[ len(e: *[n]T) ] -> n
     * R[ cap(e: [n]T@°) ] -> ex_array_length([e])
     * R[ cap(e: [n]T@) ] -> sh_array_length(Ref[e])
-    * R[ cap(e: *[n]T) ] -> sh_array_length(Ref[*e])
+    * R[ cap(e: *[n]T) ] -> n
     * R[ seq(e: [n]T°) ] -> ex_array_toSeq([e])
     * R[ seq(e: [n]T@) ] -> ex_array_toSeq(arrayConversion(Ref[e]))
     * R[ set(e: [n]T) ] -> seqToSet(ex_array_toSeq([e]))
@@ -181,11 +181,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case in.Length(exp :: ctx.*(t: in.ArrayT)) =>
-      val expInfo = exp.info
-      val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
-      val newLenExpr = in.Length(derefExp)(expInfo)
-      expression(ctx)(newLenExpr)
+    case n@in.Length(_ :: ctx.*(t: in.ArrayT)) =>
+      // In Go, the length of a pointer to an array is the array type's length; this holds even
+      // for a nil pointer and, thus, neither requires a dereference nor a nil check:
+      val (pos, info, errT) = n.vprMeta
+      CodeLevel.unit(vpr.IntLit(t.length)(pos, info, errT))
 
     case n@in.Capacity(e :: ctx.Array(len, t) / m) =>
       m match {
@@ -193,11 +193,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         case Shared => ctx.reference(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case in.Capacity(exp :: ctx.*(t: in.ArrayT)) =>
-      val expInfo = exp.info
-      val derefExp = in.Deref(exp, in.PointerT(t, t.addressability))(expInfo)
-      val newLenExpr = in.Capacity(derefExp)(expInfo)
-      expression(ctx)(newLenExpr)
+    case n@in.Capacity(_ :: ctx.*(t: in.ArrayT)) =>
+      // In Go, the capacity of a pointer to an array is the array type's length; this holds even
+      // for a nil pointer and, thus, neither requires a dereference nor a nil check:
+      val (pos, info, errT) = n.vprMeta
+      CodeLevel.unit(vpr.IntLit(t.length)(pos, info, errT))
 
     case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
       // for a shared array, `ctx.expression` already yields the corresponding exclusive array

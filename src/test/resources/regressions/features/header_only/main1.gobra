@@ -7,8 +7,8 @@ package header_only
 
 import "pkg1"
 
-func f(n int) (res int) {
-    res = pkg1.f(n)
+func F(n int) (res int) {
+    res = pkg1.F(n)
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false
 }

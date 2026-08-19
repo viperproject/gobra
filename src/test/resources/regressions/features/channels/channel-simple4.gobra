@@ -12,5 +12,5 @@ func main() {
     c := make(chan int)
     assert c.IsChannel()
     assert c.BufferSize() == 0
-    b.useChannel(c)
+    b.UseChannel(c)
 }

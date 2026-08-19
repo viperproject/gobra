@@ -11,8 +11,8 @@ import f "foo"
 decreases
 func test() {
     foo := f.Foo{}
-    f.pure_foo_function()
-    foo.pure_foo_method()
-    f.foo_function()
-    foo.foo_method()
+    f.Pure_foo_function()
+    foo.Pure_foo_method()
+    f.Foo_function()
+    foo.Foo_method()
 }

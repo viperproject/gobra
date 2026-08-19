@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+type Pair struct {
+	X int
+	y int
+}
+
+closed pred ClosedPred(p *Pair) {
+	acc(&p.y)
+}
+
+opaque
+closed
+decreases
+pure func OpaqueClosed(x int) int {
+	return x + 1
+}
+
+requires acc(p)
+ensures ClosedPred(p)
+decreases
+func MkClosed(p *Pair) {
+	fold ClosedPred(p)
+}

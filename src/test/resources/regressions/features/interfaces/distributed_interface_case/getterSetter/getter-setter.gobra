@@ -4,12 +4,12 @@
 package getterSetter
 
 type GetterSetter interface {
-    pred mem()
+    pred Mem()
 
-    requires acc(mem(), 1/2)
+    requires acc(Mem(), 1/2)
     pure GetVal() int
 
-    requires mem()
-    ensures  mem() && GetVal() == v
+    requires Mem()
+    ensures  Mem() && GetVal() == v
     SetVal(v int)
 }

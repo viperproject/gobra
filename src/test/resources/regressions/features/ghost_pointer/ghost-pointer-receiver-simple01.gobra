@@ -4,7 +4,7 @@
 package GhostPointerReceiverSimple01
 
 type Foo struct {
-    field int
+    Field int
 }
 
 ghost
@@ -39,28 +39,28 @@ ghost
 decreases
 preserves acc(r)
 func (r gpointer[Foo]) GhostPointerReceiver() int {
-    r.field = 0
-    return r.field
+    r.Field = 0
+    return r.Field
 }
 
 decreases
 preserves acc(r)
 func (r *Foo) ActualPointerReceiver() int {
-    r.field = 0
-    return r.field
+    r.Field = 0
+    return r.Field
 }
 
 ghost
 decreases
 func (r Foo) GhostNonPointerReceiver() int {
-    r.field = 42
-    return r.field
+    r.Field = 42
+    return r.Field
 }
 
 decreases
 //:: ExpectedOutput(postcondition_error:assertion_error)
-ensures r.field == 42
+ensures r.Field == 42
 func (r Foo) ActualNonPointerReceiver() int {
-    r.field = 42
-    return r.field
+    r.Field = 42
+    return r.Field
 }

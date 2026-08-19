@@ -5,7 +5,7 @@ package shadowed_mpred
 
 // Exposed struct type.
 type T struct {
-	x int
+	X int
 }
 
 // `Holder` carries a method predicate that *also* happens to be named `T`. This is legal

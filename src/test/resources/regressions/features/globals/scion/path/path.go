@@ -16,14 +16,15 @@ package path
 
 /*@
 
-pred PkgInv() {
+closed pred PkgInv() {
 	acc(&registeredPaths) &&
 	registeredKeys.Inv()  &&
-	(forall i uint16 :: 0 <= i && i < maxPathType ==>
+	(forall i uint16 :: 0 <= i && i < MaxPathType ==>
 		registeredPaths[i].inUse == registeredKeys.FContains(i))
 }
 
 ghost
+closed
 decreases
 pure func RegisteredTypes() monotonicset.BoundedMonotonicSet {
 	return registeredKeys
@@ -31,9 +32,9 @@ pure func RegisteredTypes() monotonicset.BoundedMonotonicSet {
 
 @*/
 
-const maxPathType = 256
+const MaxPathType = 256
 
-var registeredPaths /*@@@*/ [maxPathType]metadata
+var registeredPaths /*@@@*/ [MaxPathType]metadata
 
 // @ ghost var registeredKeys = monotonicset.Alloc()
 
@@ -82,7 +83,7 @@ func RegisterPath(pathMeta Metadata) {
 	registeredPaths[pathMeta.Type].Metadata = pathMeta
 }
 
-// @ requires  0 <= t && t < maxPathType
+// @ requires  0 <= t && t < MaxPathType
 // @ preserves acc(PkgInv(), 1/512)
 // @ decreases
 func (t Type) String() string {

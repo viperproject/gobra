@@ -5,4 +5,4 @@ package pkg2
 
 type T struct {}
 
-pred (t *T) mpred(x int)
+pred (t *T) Mpred(x int)

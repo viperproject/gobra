@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+requires acc(p)
+decreases
+func client(p *lib.Pair) {
+	lib.MkClosed(p)
+	// closed predicates cannot be unfolded outside their declaring package
+	//:: ExpectedOutput(type_error)
+	unfold lib.ClosedPred(p)
+	//:: ExpectedOutput(type_error)
+	fold lib.ClosedPred(p)
+	// closed pure functions remain callable
+	x := lib.OpaqueClosed(1)
+	_ = x
+	// closed functions cannot be revealed outside their declaring package
+	//:: ExpectedOutput(type_error)
+	y := reveal lib.OpaqueClosed(1)
+	_ = y
+}
+
+requires lib.ClosedPred(p)
+decreases
+pure func uf(p *lib.Pair) int {
+	//:: ExpectedOutput(type_error)
+	return unfolding lib.ClosedPred(p) in 0
+}

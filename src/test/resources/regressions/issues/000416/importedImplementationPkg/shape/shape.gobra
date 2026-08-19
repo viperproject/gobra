@@ -4,12 +4,12 @@
 package shape
 
 type Shape interface {
-   pred mem()
+   pred Mem()
 
-   requires acc(mem(), 1/2)
+   requires acc(Mem(), 1/2)
    pure Size() bool
 
-   requires mem()
-   ensures  mem()
+   requires Mem()
+   ensures  Mem()
    Area() (ret int)
 }

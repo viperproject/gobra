@@ -7,5 +7,5 @@ package main1
 import . "bar1"
 
 func foo() {
-  bar()
+  Bar()
 }

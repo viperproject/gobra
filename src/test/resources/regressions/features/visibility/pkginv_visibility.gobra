@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// package invariants may not reference non-exported members
+//:: ExpectedOutput(type_error)
+pkgInvariant privConst == 1
+package pkg
+
+const privConst = 1

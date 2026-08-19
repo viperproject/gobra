@@ -13,9 +13,31 @@ import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 
 trait Errors { this: TypeInfoImpl =>
 
+  /** Returns the closest enclosing member of `n` (or `n` itself, if it is a member). */
+  private lazy val enclosingMemberOfNode: PNode => Option[PMember] =
+    attr[PNode, Option[PMember]] {
+      case m: PMember => Some(m)
+      case n => tree.parent(n).headOption.flatMap(enclosingMemberOfNode)
+    }
+
+  /**
+    * In imported packages, the well-definedness of non-exported, non-pure functions and methods
+    * (and of all nodes they contain) is not checked: the package under verification cannot
+    * reference these members, they are not encoded (see [[viper.gobra.frontend.Desugar]]), and
+    * they are checked when the imported package itself is verified. All remaining members are
+    * checked, as they are encoded and may thus not be ill-formed. Note that non-exported types
+    * are checked as well, as they may occur in the signatures of exported members.
+    */
+  private def skipWellDefinedness(n: PNode): Boolean =
+    !isMainContext && (enclosingMemberOfNode(n) match {
+      case Some(d: PFunctionDecl) => !d.spec.isPure && !isExportedName(d.id.name)
+      case Some(d: PMethodDecl) => !d.spec.isPure && !isExportedName(d.id.name)
+      case _ => false
+    })
+
   lazy val (errors: Messages, missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]) =
     {
-      val partialRes = collectMessages(tree) { case m: PNode =>
+      val partialRes = collectMessages(tree) { case m: PNode if !skipWellDefinedness(m) =>
 
         val wellDef = m match {
           case n: PProgram => wellDefProgram(n).out

@@ -150,9 +150,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
 
-        case Some(p: ap.AdtClause) =>
-          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ))
-          AdtClauseT(p.symb.getName, fields, p.symb.decl, p.symb.typeDecl, p.symb.context)
+        case Some(p: ap.AdtClause) => p.symb.context.adtClauseSymbType(p.symb.decl)
 
         case Some(p: ap.AdtField) =>
           p.symb match {

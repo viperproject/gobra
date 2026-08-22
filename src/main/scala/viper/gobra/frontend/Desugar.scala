@@ -214,7 +214,7 @@ object Desugar extends LazyLogging {
     }
 
     def domainFunctionProxy(symb: st.DomainFunction): in.DomainFuncProxy = {
-      val domainName = nm.domain(Type.DomainT(symb.domain, symb.context))
+      val domainName = nm.domain(symb.context.symbType(symb.domain).asInstanceOf[Type.DomainT])
       val functionName = idName(symb.decl.id, symb.context.getTypeInfo)
       in.DomainFuncProxy(functionName, domainName)(meta(symb.decl.id, symb.context.getTypeInfo))
     }
@@ -582,8 +582,8 @@ object Desugar extends LazyLogging {
     //       However, currently, this would require to have versions of [[typeD]].
     /** desugars a defined type for each addressability modifier to register them with [[definedTypes]] */
     def desugarAllTypeDefVariants(decl: PTypeDef): Unit = {
-      typeD(DeclaredT(decl, info), Addressability.Shared)(meta(decl, info))
-      typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl, info))
+      typeD(info.declaredSymbType(decl), Addressability.Shared)(meta(decl, info))
+      typeD(info.declaredSymbType(decl), Addressability.Exclusive)(meta(decl, info))
     }
 
     def desugarBackendAnnotations(annotations: Vector[PBackendAnnotation]): Vector[BackendAnnotation] = {
@@ -2164,7 +2164,7 @@ object Desugar extends LazyLogging {
           )(src))(src)
 
         case disc: st.AdtDiscriminator =>
-          val declT = Type.DeclaredT(disc.typeDecl, disc.context)
+          val declT = disc.context.declaredSymbType(disc.typeDecl)
           in.AdtDiscriminator(
             base,
             adtClauseProxy(nm.adt(declT), disc.decl, disc.context.getTypeInfo)

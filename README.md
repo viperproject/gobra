@@ -17,7 +17,8 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 1. Install Z3 and Boogie.
     Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend. Gobra uses the Silicon verification backend by default.
     1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases).
-      We tested version 4.14.1 64-Bit, which is the version used in CI.
+      We tested version 4.11.2 64-Bit, which is the version used in CI.
+      Note that Z3 4.12.0 and newer make some of the examples in our test suite blow up.
     2. Set the environment variable `Z3_EXE` to the path of your Z3 executable.
     3. Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie).
         [Mono](https://www.mono-project.com/download/stable/) is required on Linux and macOS to run Boogie.

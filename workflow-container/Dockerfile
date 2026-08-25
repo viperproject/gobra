@@ -29,12 +29,19 @@ RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/so
     apt-get update && \
     apt-get install sbt
 # Install Z3
-# Note that the platform of the release archive must match the base image: Z3's Linux
-# releases are only backwards-compatible down to the glibc version they are named after.
-# The base image is Ubuntu 22.04, which provides glibc 2.35, so the newest usable release
-# is the last one built against glibc 2.35 (Z3 4.15.0 and newer require glibc 2.38+).
-ENV Z3_VERSION="4.14.1"
-ENV Z3_PLATFORM="x64-glibc-2.35"
+# Two constraints bound the version that can be used here:
+#  - Proof stability: Z3 4.12.0 and newer blow up on
+#    `regressions/examples/evaluation/spec_errors/pair_insertion_sort.gobra`, where a single
+#    Z3 process grows past 4GB instead of finishing in seconds; that OOM-kills the test job.
+#    4.11.2 is the newest release that still verifies the regression suite's hard cases
+#    (that file, `all_nearest_smaller_values.gobra` and `parallel_search_replace_shared.gobra`)
+#    in seconds and in a few hundred MB.
+#  - The platform of the release archive must match the base image: Z3's Linux releases only
+#    run on the glibc version they are named after or newer. The base image is Ubuntu 22.04
+#    (glibc 2.35), so Z3 4.15.0 and newer, which are only published as glibc 2.39 builds and
+#    require GLIBC_2.38, would need an Ubuntu 24.04 based image.
+ENV Z3_VERSION="4.11.2"
+ENV Z3_PLATFORM="x64-glibc-2.31"
 ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/z3-${Z3_VERSION}-${Z3_PLATFORM}.zip"
 # path to z3 binary unzipping Z3_ZIP:
 ENV Z3_BIN="z3-${Z3_VERSION}-${Z3_PLATFORM}/bin/z3"

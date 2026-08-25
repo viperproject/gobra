@@ -10,7 +10,7 @@ Gobra is a prototype verifier for Go programs built on the [Viper verification i
 
 - **Java 64-bit** (11+)
 - **SBT** (1.4.4+)
-- **Z3 executable** (4.8.7 64-bit recommended) — set `Z3_EXE=/path/to/z3`
+- **Z3 executable** (4.14.1 64-bit recommended) — set `Z3_EXE=/path/to/z3`
 - **Git submodules** initialized: `git submodule update --init --recursive`
 - Optional (Carbon backend): **Boogie** — set `BOOGIE_EXE=/path/to/Boogie`
 

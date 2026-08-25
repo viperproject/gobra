@@ -29,16 +29,24 @@ RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/so
     apt-get update && \
     apt-get install sbt
 # Install Z3
-ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
+# Note that the platform of the release archive must match the base image: Z3's Linux
+# releases are only backwards-compatible down to the glibc version they are named after.
+# The base image is Ubuntu 22.04, which provides glibc 2.35, so the newest usable release
+# is the last one built against glibc 2.35 (Z3 4.15.0 and newer require glibc 2.38+).
+ENV Z3_VERSION="4.14.1"
+ENV Z3_PLATFORM="x64-glibc-2.35"
+ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/z3-${Z3_VERSION}-${Z3_PLATFORM}.zip"
 # path to z3 binary unzipping Z3_ZIP:
-ENV Z3_BIN="z3-4.8.7-x64-ubuntu-16.04/bin/z3"
+ENV Z3_BIN="z3-${Z3_VERSION}-${Z3_PLATFORM}/bin/z3"
 
 # download z3 release from GitHub, unzip, and copy to bin:
 RUN curl -L $Z3_URL --output /z3.zip && \
     unzip /z3.zip -d /z3/ && \
     rm /z3.zip && \
     cp /z3/$Z3_BIN /usr/bin/ && \
-    rm -r /z3
+    rm -r /z3 && \
+    # fail the build early if the binary is incompatible with the base image:
+    /usr/bin/z3 --version
 
 ENV Z3_EXE=/usr/bin/z3
 

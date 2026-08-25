@@ -120,7 +120,9 @@ or restricted by `friend` clauses — where the declaring package really does se
   cross-package dynamic recursion.
 - **Whole-program mode**: abandons modularity; unusable against stub packages that have no bodies.
 - **Call permissions** (Jacobs et al., VeriFast): the general contract-carried solution, and what P1's
-  rank idiom approximates by hand. Too large a change to Gobra's specification language for this fix.
+  rank idiom approximates by hand. Larger surface change, but it needs no whole-program assumption and
+  deletes more than it adds — written up separately in `modular-termination-call-permissions.md`, and
+  preferred over this plan if the syntax cost is acceptable.
 
 ## 6. Implementation
 

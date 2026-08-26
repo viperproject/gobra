@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+// An importing package may hold `acc` to a whole struct of an imported type, even though it
+// cannot name the non-exported fields that permission covers.
+requires acc(p)
+ensures  acc(p)
+decreases
+func client(p *lib.Pair) {
+	x := lib.GetX(p)
+	lib.Bump(p)
+	assert lib.GetX(p) == x
+}
+
+requires acc(p)
+decreases
+func clientPred(p *lib.Pair) {
+	fold lib.Mem(p)
+	assert lib.MemGetX(p) == old(p.X)
+	unfold lib.Mem(p)
+	assert acc(&p.X)
+}

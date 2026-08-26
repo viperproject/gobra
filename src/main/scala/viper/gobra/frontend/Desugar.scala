@@ -34,9 +34,6 @@ import scala.reflect.ClassTag
 // `LazyLogging` provides us with access to `logger` to emit log messages
 object Desugar extends LazyLogging {
 
-  /** Go's visibility rule: a name is exported iff its first character is an upper-case letter. */
-  private def isExportedName(name: String): Boolean = name.nonEmpty && name.head.isUpper
-
   // We currently desugar packages sequentially. We may make it parallel again in the future (if that is beneficial),
   // but care must be taken to guarantee that updates to the init specs collector are synchronized.
   def desugar(config: Config, info: viper.gobra.frontend.info.TypeInfo)(@unused executionContext: GobraExecutionContext): in.Program = {
@@ -49,20 +46,7 @@ object Desugar extends LazyLogging {
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector)
-      // Non-exported, non-pure functions and methods of imported packages cannot be referenced by
-      // the package under verification (Go's visibility rules are enforced by the type checker) and
-      // are thus skipped entirely. Pure members and predicates must be kept even when they are not
-      // exported: their bodies contribute edges to the call graph, which Viper requires to detect
-      // non-terminating (mutual) recursion through dynamically-bound calls (see
-      // CGEdgesTerminationTransform). The `builtin` package is exempt, as its (non-exported)
-      // members are implicitly available in every package.
-      val isBuiltinPkg = importedPackage.packageClause.id.name == "builtin"
-      val shouldDesugarMember: PMember => Boolean = {
-        case d: PFunctionDecl => isBuiltinPkg || d.spec.isPure || isExportedName(d.id.name)
-        case d: PMethodDecl => isBuiltinPkg || d.spec.isPure || isExportedName(d.id.name)
-        case _ => true
-      }
-      val res = (d, d.packageD(importedPackage, isImportedPkg = true, shouldDesugar = shouldDesugarMember))
+      val res = (d, d.packageD(importedPackage, isImportedPkg  = true))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
     }

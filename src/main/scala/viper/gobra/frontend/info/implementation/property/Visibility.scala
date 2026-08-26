@@ -8,8 +8,9 @@ package viper.gobra.frontend.info.implementation.property
 
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PIdnUse, PNode, PReceiver, PTypeDef}
+import viper.gobra.ast.frontend.{PIdnUse, PLiteralValue, PNode, PReceiver, PTypeDef}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, Constant, DomainFunction, Embbed, ErrorMsgEntity, FPredicate, Field, Function, GlobalVariable, MPredicateImpl, MethodImpl, Regular}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -81,7 +82,21 @@ trait Visibility { this: TypeInfoImpl =>
   }
 
   /**
-    * Returns an error for every reference within `root` to a non-exported member of this package.
+    * True iff `lit` is a positional (i.e., non-keyed) struct literal that assigns to non-exported
+    * fields. Such a literal does not name those fields, but it does constrain them, and it reveals
+    * how many of them there are. Keyed literals that mention a non-exported field are caught by
+    * the reference check below, and keyed literals that do not -- like the empty literal -- leave
+    * the non-exported fields at their default value and are unproblematic.
+    */
+  private def assignsToNonExportedFields(lit: PLiteralValue): Boolean =
+    lit.elems.nonEmpty && lit.elems.forall(_.key.isEmpty) && (underlyingType(expectedMiscType(lit)) match {
+      case s: StructT => (s.fields.keys ++ s.embedded.keys).exists(!isExportedName(_))
+      case _ => false
+    })
+
+  /**
+    * Returns an error for every reference within `root` to a non-exported member of this package,
+    * and for every composite literal within `root` that assigns to non-exported fields.
     * Used to enforce that the client-facing parts of a package -- contracts of exported members,
     * bodies of fully-public (non-closed) predicates and pure functions, package invariants, and
     * friend-package assertions -- can be interpreted by importing packages.
@@ -93,6 +108,9 @@ trait Visibility { this: TypeInfoImpl =>
           error(id, s"$where cannot reference ${id.name}, which is not exported")
         case _ => noMessages
       }
+      case lit: PLiteralValue if assignsToNonExportedFields(lit) =>
+        error(lit, s"$where cannot use a positional composite literal of a struct type with " +
+          s"non-exported fields, as it assigns to them")
       case _ => noMessages
     }
 }

@@ -33,3 +33,9 @@ decreases
 pure func MemGetX(p *Pair) int {
 	return unfolding acc(Mem(p), 1/2) in p.X
 }
+
+// Composite literals of an imported type may occur in the contracts of clients as long as they
+// do not assign to non-exported fields (see main.gobra).
+ensures res === Pair{X: x}
+decreases
+pure func Make(x int) (res Pair)

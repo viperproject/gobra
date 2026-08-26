@@ -25,3 +25,13 @@ func clientPred(p *lib.Pair) {
 	unfold lib.Mem(p)
 	assert acc(&p.X)
 }
+
+// An importing package may use composite literals of an imported type that leave the
+// non-exported fields at their default value.
+ensures res === lib.Pair{}
+decreases
+pure func zero() (res lib.Pair)
+
+ensures res === lib.Pair{X: 1}
+decreases
+pure func one() (res lib.Pair)

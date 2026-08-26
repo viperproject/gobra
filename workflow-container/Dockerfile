@@ -29,18 +29,20 @@ RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/so
     apt-get update && \
     apt-get install sbt
 # Install Z3
-# Upgrading Z3 is not just a matter of bumping the version below; the test suite is
-# currently only stable with 4.8.7. Measured on
-# `regressions/examples/evaluation/spec_errors/pair_insertion_sort.gobra` (a file that
-# 4.8.7 verifies in 17s using 184MB), with Z3's address space capped at 4GB:
-#   4.11.2   31s, 731MB, expected error reported
-#   4.12.1   >120s, >4.1GB, no result
-#   4.12.4   >120s, >5.2GB, no result
-#   4.12.6   >150s, >5.2GB, no result
-#   4.13.4   >150s, >1.1GB, no result
-#   4.14.1   165s, 4.6GB, Z3 killed, verification aborted
-# With 4.14.1 the test job is OOM-killed (exit code 137) on that file. 4.11.2 gets past it
-# but makes the overall test run several times slower, so it is not usable either.
+# Upgrading Z3 is blocked by a single example rather than by the suite as a whole:
+# `regressions/examples/evaluation/pair_insertion_sort.gobra` (and its `spec_errors`
+# variant). With any Z3 from 4.11.2 on, Z3 grows without bound on that file instead of
+# finishing in seconds, which OOM-kills the test job (CI exit code 137). The rest of the
+# suite is unaffected - running it end to end with a 4GB cap on Z3's address space, so that
+# the blow-up fails only that test, gives, over the 1239 tests that are timed in all runs:
+#   version   suite total   median per-test   tests >2s slower   failures beyond the above
+#   4.8.7      1149.7s       1.00 (baseline)   -                  -
+#   4.11.2     1241.6s       1.05              7                  none
+#   4.14.1     1198.1s       1.00              8                  none
+# So a bump needs `pair_insertion_sort.gobra` to be made robust (its proof presumably relies
+# on quantifier instantiations that newer Z3 versions no longer find the same way); once
+# that file holds, the remaining cost is a handful of heavy examples getting a few seconds
+# slower (`parallel_search_replace`, `binary_search_tree`, `wands/ghost-list`).
 # Independently of that, the platform of the release archive must match the base image:
 # Z3's Linux releases only run on the glibc version they are named after or newer. The base
 # image is Ubuntu 22.04 (glibc 2.35), so Z3 4.15.0 and newer, which are only published as

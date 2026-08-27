@@ -265,7 +265,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < len(loc) ==> Footprint[ loc[idx] ]
+    * Footprint[loc: [n]T] -> Ref[loc] != nil && forall idx :: {trigger} 0 <= idx < len(loc) ==> Footprint[ loc[idx] ]
     *   where trigger = sh_array_get(Ref[loc], idx, n)
     *
     * Note that the bound is `len(loc)` and not the statically known length `n`: the nil array has length 1
@@ -273,21 +273,30 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * indices outside those bounds makes the injectivity check fail when it is performed instead of assumed
     * (see --noassumeInjectivityOnInhale).
     *
+    * The first conjunct (`Ref[loc] != nil`) is implied by the second one, because all locations of the nil
+    * array are null and Viper does not permit holding permission to null. That derivation is not triggered
+    * where we need it, though: without the conjunct the prover cannot rule out the nil case, and hence
+    * cannot conclude `len(loc) == n` from the embedding invariant `len(loc) == n || loc == nil`, which makes
+    * the permissions obtained above unusable at their statically known indices.
+    *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
   override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
     case (loc :: ctx.Array(len, t) / Shared, perm) =>
       val (pos, info, errT) = loc.vprMeta
       val typ = underlyingType(loc.typ)(ctx)
-      val trigger = (idx: vpr.LocalVar) =>
-        Seq(vpr.Trigger(Seq(sh.get(ctx.reference(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
       val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, typ)(loc.info), perm)
       for {
+        locRef <- ctx.reference(loc)
+        trigger = (idx: vpr.LocalVar) =>
+          Seq(vpr.Trigger(Seq(sh.get(locRef, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+        nonNil = vpr.Not(vpr.EqCmp(locRef, sh.nil(cptParam(len, t)(ctx))(loc)(ctx))(pos, info, errT))(pos, info, errT)
         length <- ctx.expression(in.Length(loc)(loc.info))
-        res <- boundedQuant(length, trigger, body)(loc)(ctx).map(forall =>
+        arrayPerm <- boundedQuant(length, trigger, body)(loc)(ctx).map(forall =>
           // to eliminate nested quantified permissions, which are not supported by the silver ast.
           VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
         )
+        res: vpr.Exp = vpr.And(nonNil, arrayPerm)(pos, info, errT)
       } yield res
   }
 

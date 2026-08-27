@@ -112,13 +112,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)){
     case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
+      val (pos, info, errT) = src.vprMeta
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
         (y, yTrigger) <- copyArray(rhs)(ctx)
         typLhs = underlyingType(lhs.typ)(ctx)
         typRhs = underlyingType(rhs.typ)(ctx)
         body = (idx: in.BoundVar) => ctx.equal(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info))(src)
-        res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
+        res <- boundedQuant(vpr.IntLit(len)(pos, info, errT), idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
   }
 
@@ -264,8 +265,13 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
+    * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < len(loc) ==> Footprint[ loc[idx] ]
     *   where trigger = sh_array_get(Ref[loc], idx, n)
+    *
+    * Note that the bound is `len(loc)` and not the statically known length `n`: the nil array has length 1
+    * regardless of `n`, and array locations are only injective within the array's bounds. Quantifying over
+    * indices outside those bounds makes the injectivity check fail when it is performed instead of assumed
+    * (see --noassumeInjectivityOnInhale).
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
@@ -276,10 +282,13 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(sh.get(ctx.reference(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
       val body = (idx: in.BoundVar) => ctx.footprint(in.IndexedExp(loc, idx, typ)(loc.info), perm)
-      boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
-        // to eliminate nested quantified permissions, which are not supported by the silver ast.
-        VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
-      )
+      for {
+        length <- ctx.expression(in.Length(loc)(loc.info))
+        res <- boundedQuant(length, trigger, body)(loc)(ctx).map(forall =>
+          // to eliminate nested quantified permissions, which are not supported by the silver ast.
+          VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
+        )
+      } yield res
   }
 
   /**
@@ -301,7 +310,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
           res = vpr.Forall(
             variables = Seq(vIdxDecl),
             triggers = Seq(vpr.Trigger(Seq(rhs))(pos, info, errT)),
-            exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, len)(exp), rhs)(pos, info, errT)
+            exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, vpr.IntLit(len)(pos, info, errT))(exp), rhs)(pos, info, errT)
           )(pos, info, errT)
         } yield res: vpr.Exp
       }
@@ -367,7 +376,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val arrayEq = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(trigger))()),
-        vpr.Implies(boundaryCondition(vIdx.localVar, t.len)(src), idxEq)()
+        vpr.Implies(boundaryCondition(vIdx.localVar, vpr.IntLit(t.len)())(src), idxEq)()
       )()
       val terminationMeasure =
         synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
@@ -384,17 +393,17 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   }
 
   /** Returns: 0 <= 'base' && 'base' < 'length'. */
-  private def boundaryCondition(base: vpr.Exp, length: BigInt)(src : in.Node) : vpr.Exp = {
+  private def boundaryCondition(base: vpr.Exp, length: vpr.Exp)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
     vpr.And(
       vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), base)(pos, info, errT),
-      vpr.LtCmp(base, vpr.IntLit(length)(pos, info, errT))(pos, info, errT)
+      vpr.LtCmp(base, length)(pos, info, errT)
     )(pos, info, errT)
   }
 
   /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
-  private def boundedQuant(length: BigInt, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
+  private def boundedQuant(length: vpr.Exp, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
                                   (src: in.Node)(ctx: Context)
                                   : CodeWriter[vpr.Forall] = {
 

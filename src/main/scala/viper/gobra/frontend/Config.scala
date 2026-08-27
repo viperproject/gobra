@@ -64,7 +64,7 @@ object ConfigDefaults {
   // In the past, the default Gobra directory used to be Path.of(".gobra")
   lazy val DefaultGobraDirectory: Option[Path] = None
   val DefaultTaskName: String = "gobra-task"
-  val DefaultAssumeInjectivityOnInhale: Boolean = true
+  val DefaultAssumeInjectivityOnInhale: Boolean = false
   val DefaultParallelizeBranches: Boolean = false
   val DefaultConditionalizePermissions: Boolean = false
   val DefaultZ3APIMode: Boolean = false

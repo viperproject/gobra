@@ -4,14 +4,21 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392 AS build
+# Ubuntu 24.04 (glibc 2.39) rather than a Microsoft OpenJDK image: every
+# mcr.microsoft.com/openjdk/jdk *-ubuntu tag is still Ubuntu 22.04 (glibc 2.35), and Z3 4.15.0
+# and newer are published only as glibc 2.39 builds that need GLIBC_2.38.
+FROM ubuntu:24.04 AS build
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /build
 
 # Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
-# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
+# On Ubuntu 24.04, provide a compatibility libssl1.1 from focal-security.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    openjdk-21-jdk-headless \
+    ca-certificates \
     gnupg2 \
 	curl \
 	unzip \
@@ -29,26 +36,11 @@ RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/so
     apt-get update && \
     apt-get install sbt
 # Install Z3
-# Upgrading Z3 is blocked by a single example rather than by the suite as a whole:
-# `regressions/examples/evaluation/pair_insertion_sort.gobra` (and its `spec_errors`
-# variant). With any Z3 from 4.11.2 on, Z3 grows without bound on that file instead of
-# finishing in seconds, which OOM-kills the test job (CI exit code 137). The rest of the
-# suite is unaffected - running it end to end with a 4GB cap on Z3's address space, so that
-# the blow-up fails only that test, gives, over the 1239 tests that are timed in all runs:
-#   version   suite total   median per-test   tests >2s slower   failures beyond the above
-#   4.8.7      1149.7s       1.00 (baseline)   -                  -
-#   4.11.2     1241.6s       1.05              7                  none
-#   4.14.1     1198.1s       1.00              8                  none
-# So a bump needs `pair_insertion_sort.gobra` to be made robust (its proof presumably relies
-# on quantifier instantiations that newer Z3 versions no longer find the same way); once
-# that file holds, the remaining cost is a handful of heavy examples getting a few seconds
-# slower (`parallel_search_replace`, `binary_search_tree`, `wands/ghost-list`).
-# Independently of that, the platform of the release archive must match the base image:
-# Z3's Linux releases only run on the glibc version they are named after or newer. The base
-# image is Ubuntu 22.04 (glibc 2.35), so Z3 4.15.0 and newer, which are only published as
-# glibc 2.39 builds and require GLIBC_2.38, would additionally need an Ubuntu 24.04 base.
-ENV Z3_VERSION="4.8.7"
-ENV Z3_PLATFORM="x64-ubuntu-16.04"
+# The platform of the release archive has to match the base image: Z3's Linux releases only
+# run on the glibc version they are named after or newer, and 4.15.0 and newer are published
+# only as glibc 2.39 builds, hence the Ubuntu 24.04 base above.
+ENV Z3_VERSION="4.16.0"
+ENV Z3_PLATFORM="x64-glibc-2.39"
 ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/z3-${Z3_VERSION}-${Z3_PLATFORM}.zip"
 # path to z3 binary unzipping Z3_ZIP:
 ENV Z3_BIN="z3-${Z3_VERSION}-${Z3_PLATFORM}/bin/z3"
@@ -92,11 +84,15 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
-# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
-RUN echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
+# On Ubuntu 24.04, provide a compatibility libssl1.1 from focal-security.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-21-jre-headless ca-certificates && \
+    echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends libssl1.1 && \
     rm -f /etc/apt/sources.list.d/focal-security.list && \

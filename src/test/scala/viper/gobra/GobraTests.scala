@@ -59,6 +59,13 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
       // but requires some work to add termination measures all over the test suite.
       disableCheckTerminationPureFns = true,
+      // Bound how long the prover may spend on a single assertion. Without a bound, a test whose
+      // proof the prover cannot find does not fail: it makes the prover grow until the whole test
+      // job is killed, which hides both the culprit and every test after it. Timing out is sound
+      // here, since it can only turn a proof the prover did not find into a reported error. The
+      // bound is deliberately far above what the slowest assertions in the suite need, so that it
+      // catches divergence rather than slow machines.
+      assertTimeout = Some(20_000),
     )
 
   override def runTests(testName: Option[String], args: Args): Status = {

@@ -345,7 +345,8 @@ trait TypeEncoding extends Generator {
     * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
     *
     * SafeRef[loc: T@] => assert [p != nil]; assert [0 <= idx_k && idx_k < length_k]; Ref[loc]
-    *   where *p is the root of loc (if any, see checkNotNil)
+    *   where *p is the outermost dereference of loc, i.e. the one that is not nested inside
+    *   another dereference of loc (if loc has one, see checkNotNil)
     *   and idx_k are the indices of the indexed accesses of loc (see checkIndicesInBounds)
     */
   final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
@@ -380,10 +381,10 @@ trait TypeEncoding extends Generator {
     * An encoding for type T should be defined at all shared locations of type T.
     *
     * The default implements:
-    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]
+    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]   (see addressNotNil)
     */
   def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
-    case (loc :: (t@ctx.ZeroSize()) / Shared, _) if typ(ctx).isDefinedAt(t) => checkNotNil(loc)(ctx)
+    case (loc :: (t@ctx.ZeroSize()) / Shared, _) if typ(ctx).isDefinedAt(t) => addressNotNil(loc)(ctx)
   }
 
   /**
@@ -645,13 +646,20 @@ object TypeEncoding {
   }
 
   /**
-    * Encodes the non-nilness of the address of an L-value. Used as the footprint of zero-sized types
-    * (which have no permission footprint), not as a runtime-panic check.
+    * Encodes that the address of an L-value is not nil: [&loc != nil: *T°].
     *
-    * [&loc != nil: *T°]
+    * In contrast to [[checkNotNil]], this is not a proof obligation imposed on a usage of `loc`,
+    * but an assertion that describes the memory of `loc`: it is the footprint of a location of a
+    * zero-sized type (see [[addressFootprint]]). Such a location occupies no memory, so there is
+    * no permission that could constitute its footprint. Non-nilness of its address is what remains
+    * to distinguish an allocated location from a nil pointer, and it is inhaled and exhaled like
+    * the permissions of a non-zero-sized type, e.g., inhaled when the location is allocated (see
+    * [[statement]]) and exhaled whenever `acc(loc)` is exhaled.
     *
+    * The address of a location that is rooted in a variable is never nil, in which case the
+    * footprint is trivially true.
     */
-  final def checkNotNil(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
+  final def addressNotNil(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     val annotatedInfo = loc.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
     val (pos, info, errT) = loc.vprMeta

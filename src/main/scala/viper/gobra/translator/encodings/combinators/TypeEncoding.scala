@@ -345,8 +345,8 @@ trait TypeEncoding extends Generator {
     * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
     *
     * SafeRef[loc: T@] => assert [p != nil]; assert [0 <= idx_k && idx_k < length_k]; Ref[loc]
-    *   where *p is the outermost dereference of loc, i.e. the one that is not nested inside
-    *   another dereference of loc (if loc has one, see checkNotNil)
+    *   where *p is the outermost dereference of loc, i.e. the last one evaluated when evaluating
+    *   loc, if loc has one (see checkNotNil),
     *   and idx_k are the indices of the indexed accesses of loc (see checkIndicesInBounds)
     */
   final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
@@ -516,6 +516,10 @@ object TypeEncoding {
     *
     * assert [p != nil]; res    where *p is the outermost dereference of loc
     *
+    * The outermost dereference is the one that is not nested inside another dereference of loc,
+    * i.e. the last one evaluated when evaluating loc: for `l.next.val`, it is the dereference of
+    * `l.next` (see outermostDeref).
+    *
     * Only the outermost dereference has to be checked. The dereferences nested inside it read
     * their pointers from memory, which requires permission to the fields holding them, and
     * permission to a field entails that its receiver is non-nil. The outermost dereference has no
@@ -648,16 +652,13 @@ object TypeEncoding {
   /**
     * Encodes that the address of an L-value is not nil: [&loc != nil: *T°].
     *
-    * In contrast to [[checkNotNil]], this is not a proof obligation imposed on a usage of `loc`,
-    * but an assertion that describes the memory of `loc`: it is the footprint of a location of a
-    * zero-sized type (see [[addressFootprint]]). Such a location occupies no memory, so there is
-    * no permission that could constitute its footprint. Non-nilness of its address is what remains
-    * to distinguish an allocated location from a nil pointer, and it is inhaled and exhaled like
-    * the permissions of a non-zero-sized type, e.g., inhaled when the location is allocated (see
-    * [[statement]]) and exhaled whenever `acc(loc)` is exhaled.
-    *
-    * The address of a location that is rooted in a variable is never nil, in which case the
-    * footprint is trivially true.
+    * Unlike [[checkNotNil]], this is not an obligation imposed on a usage of `loc`, but an
+    * assertion describing the memory of `loc`: it is the footprint of a location of a zero-sized
+    * type (see [[addressFootprint]]). Such a location occupies no memory, so no permission could
+    * constitute its footprint, and the non-nilness of its address is all that is left to tell an
+    * allocated location from a nil pointer. It is inhaled and exhaled exactly where the permissions
+    * of a non-zero-sized type would be, e.g., inhaled when the location is allocated and exhaled
+    * whenever `acc(loc)` is exhaled.
     */
   final def addressNotNil(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
 
@@ -673,6 +674,11 @@ object TypeEncoding {
     }
   }
 
+  /**
+    * Returns whether the address of `l` is necessarily non-nil, which is the case if `l` is a
+    * variable or a field or element thereof: a variable is always allocated and no dereference
+    * occurs on the way to `l`.
+    */
   private def cannotBeNil(l: in.Location): Boolean = {
     @tailrec
     def aux(e: in.Expr): Boolean = e match {

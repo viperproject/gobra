@@ -7,7 +7,10 @@
 
 package time
 
-type Time struct {
+// All fields of `Time` are comparable, so values of this type may be compared with `==` and
+// used as map keys. The annotation is needed because importing packages do not rely on the
+// non-exported fields of an imported struct type to decide whether it is comparable.
+comparable type Time struct {
 	wall uint64
 	ext  int64
 	loc *Location

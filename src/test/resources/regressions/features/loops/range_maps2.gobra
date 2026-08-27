@@ -69,6 +69,22 @@ func noWithClause() {
 	}
 }
 
+// A wildcard amount is always small enough to be available, so it is the amount to use
+// when all that is at hand is a wildcard itself. Note that the amount inhaled after the
+// loop body is a fresh wildcard rather than the one exhaled before it, so this only works
+// for loops whose invariant holds a wildcard amount too.
+
+requires acc(x, _)
+ensures acc(x, _)
+decreases
+func wildcardPerm(x map[int]int) {
+	invariant acc(x, _)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, _ with visited {
+		assert k elem domain(x)
+	}
+}
+
 // The permission amount is ghost code, so it may mention ghost variables and call ghost
 // pure functions.
 

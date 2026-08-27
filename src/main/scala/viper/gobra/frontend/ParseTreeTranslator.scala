@@ -2068,7 +2068,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       // for <assignees (:= | =)>? range <expr> (, <perm>)? (with enumerated)?
       val expr = visitNode[PExpression](ctx.rangeClause().rangeExp).at(ctx.rangeClause())
       val perm = if (has(ctx.rangeClause().perm)) {
-        Some(PRangePerm(visitNode[PExpression](ctx.rangeClause().perm)).at(ctx.rangeClause().perm)).pos()
+        val permCtx = ctx.rangeClause().perm
+        // as in an 'acc' expression, the blank identifier denotes a wildcard permission
+        val amount = visitNode[PExpression](permCtx) match {
+          case blank: PBlankIdentifier => PWildcardPerm().at(blank)
+          case exp => exp
+        }
+        Some(PRangePerm(amount).at(permCtx)).pos()
       } else None
       // enumerated will be used no matter what, so we just make it a wildcard if it is not
       // present in the range clause

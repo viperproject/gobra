@@ -2760,6 +2760,14 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a range clause with a wildcard permission amount") {
+    frontend.parseStmtOrFail("for k := range m, _ { }") should matchPattern {
+      case PShortForRange(
+        PRange(PNamedOperand(PIdnUse("m")), Some(PRangePerm(PWildcardPerm())), PWildcard()),
+        Vector(PIdnUnk("k")), Vector(false), _, _) =>
+    }
+  }
+
   test("Parser: should be able to parse a range clause with a named permission amount") {
     // the loop body must not be mistaken for a composite literal of type 'p'
     frontend.parseStmtOrFail("for k := range m, p { }") should matchPattern {

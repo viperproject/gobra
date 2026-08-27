@@ -1399,24 +1399,38 @@ object Desugar extends LazyLogging {
 
       /**
         * Desugars the amount of permission to the range expression that is exhaled while iterating
-        * over it. The result is the sequence of statements assigning that amount to `permVar`.
+        * over it. The result is the statements that have to be executed before the loop, together
+        * with the expression denoting the amount.
         *
         * By default, a very small (but positive) amount is used, which suffices to guarantee that
         * the range expression is not modified by the loop body. Users may provide a different
-        * amount with the syntax `range exp, p`, in which case we additionally check that `p` is
+        * amount with the syntax `range exp, p`. Such an amount is stored in `permVar`, so that the
+        * same amount is exhaled before and inhaled after the loop body, and is checked to be
         * strictly positive.
+        *
+        * The exception is a wildcard amount, `range exp, _`, which is not stored: as in an `acc`
+        * expression, every occurrence of a wildcard denotes a fresh positive amount that is small
+        * enough to be available. In particular, the amount inhaled after the body need not be the
+        * one exhaled before it, so a wildcard is only useful for loops whose invariant holds a
+        * wildcard amount itself. There is nothing to check, since wildcards are positive by
+        * construction (and cannot be compared to other amounts).
         */
-      def rangePermD(range: PRange, permVar: in.LocalVar)(src: Source.Parser.Info): Writer[Vector[in.Stmt]] =
+      def rangePermD(range: PRange, permVar: in.LocalVar)(src: Source.Parser.Info): Writer[(Vector[in.Stmt], in.Expr)] =
         range.perm match {
-          case None => unit(Vector[in.Stmt](singleAss(in.Assignee.Var(permVar), in.PermLit(1, MapExhalePermDenom)(src))(src)))
+          case None =>
+            unit((Vector[in.Stmt](singleAss(in.Assignee.Var(permVar), in.PermLit(1, MapExhalePermDenom)(src))(src)), permVar))
+
+          case Some(PRangePerm(w: PWildcardPerm)) =>
+            unit((Vector.empty[in.Stmt], in.WildcardPerm(meta(w, info))))
+
           case Some(PRangePerm(p)) =>
             val permSrc = meta(p, info)
             val checkSrc = permSrc.createAnnotatedInfo(Source.NonPositivePermissionToRangeExpressionAnnotation())
-            for { dPerm <- permissionD(ctx, info)(p) } yield Vector[in.Stmt](
+            for { dPerm <- permissionD(ctx, info)(p) } yield (Vector[in.Stmt](
               singleAss(in.Assignee.Var(permVar), dPerm)(permSrc),
               // check that the permission amount provided by the user is valid
               in.Assert(in.ExprAssertion(in.PermLtCmp(in.NoPerm(checkSrc), permVar)(checkSrc))(checkSrc))(checkSrc)
-            )
+            ), permVar)
         }
 
       /**
@@ -1485,13 +1499,13 @@ object Desugar extends LazyLogging {
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
-        initPerm <- rangePermD(range, perm)(src)
+        (initPerm, permAmount) <- rangePermD(range, perm)(src)
 
         exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
         // exhale acc(x, p)
-        exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(exhSrc)
-        inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(src)
+        exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(c), permAmount)(exhSrc))(exhSrc)
+        inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(c), permAmount)(exhSrc))(src)
 
         hasValue = shorts.length > 1 && !(shorts(1).isInstanceOf[PWildcard])
 
@@ -1568,13 +1582,13 @@ object Desugar extends LazyLogging {
 
         perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
 
-        initPerm <- rangePermD(range, perm)(src)
+        (initPerm, permAmount) <- rangePermD(range, perm)(src)
 
         exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
         // exhale acc(x, p)
-        exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(exhSrc)
-        inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(c), perm)(exhSrc))(src)
+        exhalePerm = in.Exhale(in.Access(in.Accessible.ExprAccess(c), permAmount)(exhSrc))(exhSrc)
+        inhalePerm = in.Inhale(in.Access(in.Accessible.ExprAccess(c), permAmount)(exhSrc))(src)
 
         hasValue = ass.length > 1 && !(ass(1).isInstanceOf[PBlankIdentifier])
 

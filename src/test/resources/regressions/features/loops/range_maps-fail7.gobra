@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// The default amount is a fixed fraction, which is not known to be smaller than a
+// wildcard. This is the case a wildcard amount, `range x, _`, is meant for.
+
+requires acc(x, _)
+ensures acc(x, _)
+decreases
+func defaultAmountWithWildcardAtHand(x map[int]int) {
+	invariant acc(x, _)
+	decreases len(domain(x)) - len(visited)
+	//:: ExpectedOutput(insufficient_permission_to_range_expression)
+	for k := range x with visited {
+	}
+}
+
+// Conversely, every occurrence of a wildcard denotes a fresh amount, so the amount inhaled
+// after the loop body does not restore the one exhaled before it. A wildcard amount is
+// therefore of no use to a loop whose invariant holds write permission.
+
+requires acc(x)
+ensures acc(x)
+decreases
+func wildcardAmountWithWriteAtHand(x map[int]int) {
+	//:: ExpectedOutput(invariant_preservation_error:permission_error)
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, _ with visited {
+	}
+}

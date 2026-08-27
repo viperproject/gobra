@@ -380,14 +380,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showRange(n: PRange): Doc = {
-    val perm = n.perm.map(p => "," <+> showRangePerm(p)).getOrElse(emptyDoc)
+    val perm = n.perm.map("," <+> showExpr(_)).getOrElse(emptyDoc)
     n.enumerated match {
       case _: PWildcard => "range" <+> showExpr(n.exp) <> perm
       case _ => "range" <+> showExpr(n.exp) <> perm <+> "with" <+> showId(n.enumerated)
     }
   }
-
-  def showRangePerm(n: PRangePerm): Doc = showExpr(n.exp)
 
   def showMatchClauseStatement(n: PMatchStmtCase): Doc = "case" <+> showMatchPattern(n.pattern) <> ":" <+> nest(line <> ssep(n.stmt map showStmt, line))
 
@@ -778,7 +776,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDottedBase(expr) => showExprOrType(expr)
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
-      case p: PRangePerm => showRangePerm(p)
       case PExplicitGhostParameter(actual) => showParameter(actual)
       case PDomainFunction(id, args, res) =>
         "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)

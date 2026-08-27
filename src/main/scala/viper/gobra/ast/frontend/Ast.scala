@@ -848,7 +848,7 @@ sealed trait PActualMisc extends PMisc
   * It is only supported for maps, where it defaults to a very small, but positive, amount.
   * As in an `acc` expression, the blank identifier denotes a wildcard amount.
   */
-case class PRange(exp: PExpression, perm: Option[PRangePerm], enumerated: PUnkLikeId) extends PActualMisc
+case class PRange(exp: PExpression, perm: Option[PExpression], enumerated: PUnkLikeId) extends PActualMisc
 
 sealed trait PParameter extends PMisc {
   def typ: PType
@@ -1364,14 +1364,6 @@ sealed trait PGhostMisc extends PMisc with PGhostNode
 case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
 
 case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
-
-/**
-  * The permission amount of a range clause, i.e. the `p` in `range exp, p`. It is a
-  * specification-only annotation, and thus ghost, even though the enclosing for statement
-  * and the range expression itself need not be. A `PWildcardPerm` amount stands for the
-  * `_` written by the user.
-  */
-case class PRangePerm(exp: PExpression) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

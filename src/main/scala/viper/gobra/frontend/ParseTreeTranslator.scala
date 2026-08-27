@@ -2074,7 +2074,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
           case blank: PBlankIdentifier => PWildcardPerm().at(blank)
           case exp => exp
         }
-        Some(PRangePerm(amount).at(permCtx)).pos()
+        Some(amount).pos()
       } else None
       // enumerated will be used no matter what, so we just make it a wildcard if it is not
       // present in the range clause

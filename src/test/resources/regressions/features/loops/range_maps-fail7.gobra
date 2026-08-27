@@ -3,8 +3,9 @@
 
 package pkg
 
-// The default amount is a fixed fraction, which is not known to be smaller than a
-// wildcard. This is the case a wildcard amount, `range x, _`, is meant for.
+// The default amount is a fixed fraction, which is not known to be smaller than an
+// existentially quantified permission amount.
+// This is the case a wildcard amount, `range x, _`, is meant for.
 
 requires acc(x, _)
 ensures acc(x, _)

@@ -3,8 +3,8 @@
 
 package pkg
 
-// The permission amount of a range clause is specification-only, and thus ghost code: it
-// must be a pure expression, and it may not call non-ghost impure functions.
+// The permission amount of a range clause is specification-only, so it must not have any
+// effect of its own: it has to be a pure expression, whether or not it is ghost.
 
 decreases
 func impurePerm() (ghost p perm) {
@@ -23,8 +23,6 @@ decreases
 func callsNonGhostImpure(x map[int]int) {
 	invariant acc(x)
 	decreases len(domain(x)) - len(visited)
-	// reported both as an impure expression and as a call to a non-ghost impure function
-	// from ghost code
 	//:: ExpectedOutput(type_error)
 	for k := range x, impurePerm() with visited {
 	}

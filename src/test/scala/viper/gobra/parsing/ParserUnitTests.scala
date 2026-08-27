@@ -2755,7 +2755,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a range clause with a permission amount") {
     frontend.parseStmtOrFail("for k := range m, 1/2 { }") should matchPattern {
       case PShortForRange(
-        PRange(PNamedOperand(PIdnUse("m")), Some(PRangePerm(PDiv(PIntLit(one, Decimal), PIntLit(two, Decimal)))), PWildcard()),
+        PRange(PNamedOperand(PIdnUse("m")), Some(PDiv(PIntLit(one, Decimal), PIntLit(two, Decimal))), PWildcard()),
         Vector(PIdnUnk("k")), Vector(false), _, _) if one == 1 && two == 2 =>
     }
   }
@@ -2763,7 +2763,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a range clause with a wildcard permission amount") {
     frontend.parseStmtOrFail("for k := range m, _ { }") should matchPattern {
       case PShortForRange(
-        PRange(PNamedOperand(PIdnUse("m")), Some(PRangePerm(PWildcardPerm())), PWildcard()),
+        PRange(PNamedOperand(PIdnUse("m")), Some(PWildcardPerm()), PWildcard()),
         Vector(PIdnUnk("k")), Vector(false), _, _) =>
     }
   }
@@ -2772,7 +2772,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // the loop body must not be mistaken for a composite literal of type 'p'
     frontend.parseStmtOrFail("for k := range m, p { }") should matchPattern {
       case PShortForRange(
-        PRange(PNamedOperand(PIdnUse("m")), Some(PRangePerm(PNamedOperand(PIdnUse("p")))), PWildcard()),
+        PRange(PNamedOperand(PIdnUse("m")), Some(PNamedOperand(PIdnUse("p"))), PWildcard()),
         Vector(PIdnUnk("k")), Vector(false), _, _) =>
     }
   }
@@ -2780,7 +2780,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a range clause with a permission amount and a with clause") {
     frontend.parseStmtOrFail("for k, v = range m, p with visited { }") should matchPattern {
       case PAssForRange(
-        PRange(PNamedOperand(PIdnUse("m")), Some(PRangePerm(PNamedOperand(PIdnUse("p")))), PIdnUnk("visited")),
+        PRange(PNamedOperand(PIdnUse("m")), Some(PNamedOperand(PIdnUse("p"))), PIdnUnk("visited")),
         Vector(PNamedOperand(PIdnUse("k")), PNamedOperand(PIdnUse("v"))), _, _) =>
     }
   }

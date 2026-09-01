@@ -161,7 +161,41 @@ All three counterexamples are now rejected, and the two mutually recursive inter
 `GobraPackageTests`: 1227/1229, the two failures being the Carbon tests, which need `BOOGIE_EXE` and
 fail identically without this change.
 
-Two limitations remain, and they are why the call-permission design is still preferred:
+### Closures have the same defect, and it is worse
+
+`cl(args) as spec` is dynamic dispatch through `spec`'s contract, and it received neither of the two
+ingredients interfaces got: `ClosureSpecsEncoder` emits `closureCall$<spec>` as a **body-less** method
+carrying the spec's measure (`ClosureSpecsEncoder.scala:298`), created during encoding — after
+`CGEdgesTerminationTransform` runs — so it has no dispatch body over the proven implementations and no
+stub, and its measure carries the plain `NonItfMethodMeasure()` tail rather than an interface-style
+tier. Calls to it are therefore never inside a component and never receive a decrease obligation. The
+following diverging program verifies with 0 errors **in a single package** (the existing
+`closures-recursion1-simple` test does not catch this because a literal used as its own spec keeps its
+body, so self-spec recursion is visible — dispatch through a declared spec is not):
+
+```go
+type Box struct { f func(Box) int }
+
+decreases
+requires b.f implements spec1
+func spec1(b Box) (r int) { return 0 }
+
+decreases
+func run() int {
+	c := requires b.f implements spec1
+	     decreases
+	     func rec(b Box) (r int) { r = b.f(b) as spec1; return r }
+	proof c implements spec1 { r = c(b) as rec }
+	return c(Box{f: c}) as spec1        // run → rec → rec → …  stack overflow in Go
+}
+```
+
+A fix needs the closure analogues of both interface ingredients (a dispatch body over proven
+implementations plus a spec-tier in the measure encoding), or the call-permission design, which covers
+interfaces and closures uniformly because the required bound rides in the spec's contract. Method
+values (`x.m implements spec`, `MethodObjectEncoder`) are the same family and are unaudited.
+
+Two further limitations remain, and they are why the call-permission design is still preferred:
 
 - **Blame can land on the client.** In §1's `Loop` example the wrong contract is `util`'s, but `util`
   still verifies and the importing package is rejected. Edges cannot fix this: putting `Loop` in a

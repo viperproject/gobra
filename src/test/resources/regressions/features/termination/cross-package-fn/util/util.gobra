@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Loop dispatches on I. No implementation of I is visible here, so on its own this package says
+// nothing about which method the call reaches.
+
+package util
+
+type I interface {
+	decreases
+	M()
+}
+
+requires i != nil
+decreases
+func Loop(i I) {
+	i.M()
+}

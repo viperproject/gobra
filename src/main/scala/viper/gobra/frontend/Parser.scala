@@ -480,6 +480,13 @@ object Parser extends LazyLogging {
       * These steps ensure that termination of imported pure functions and pure methods is not checked again (in case
       * a decreases measure has been provided) and instead gets simply assumed.
       *
+      * Non-pure functions and methods keep their measures. Their bodies are dropped, so nothing about them is
+      * re-checked either way, but [[viper.gobra.ast.internal.transform.CGEdgesTerminationTransform]] gives them a
+      * call-graph stub, which can place them in a strongly connected component together with members of the package
+      * under verification. A call to a member without a tuple measure from inside such a component is compiled to an
+      * unconditional failure, so dropping the measure here would turn every such call into an error instead of a
+      * comparison of the measures.
+      *
       * Note that we do not transform the body of pure functions and pure methods (e.g. by turning the body into a
       * postcondition) because this would result in a matching loop for recursive functions.
       */
@@ -500,8 +507,8 @@ object Parser extends LazyLogging {
         strategyWithName[Any]("replaceTerminationMeasuresForFunctionsAndMethods", {
           // apply transformation only to the specification of function or method declaration (in particular, do not
           // apply the transformation to method signatures in interface declarations)
-          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
-          case n: PMethodDecl => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
+          case n: PFunctionDecl if n.spec.isPure => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
+          case n: PMethodDecl if n.spec.isPure => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
           case n: PMember => Some(n)
         })
 

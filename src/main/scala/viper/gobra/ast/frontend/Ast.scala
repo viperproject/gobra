@@ -920,6 +920,10 @@ case class PFunctionSpec(
                           isAtomic: Boolean = false,
                           opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
+                          // set when the member has a body in the source but that body was dropped because its
+                          // package is only parsed for its specification. Distinguishes such a member from one that
+                          // is abstract or trusted by design, whose contract is meant to be assumed.
+                          bodyErased: Boolean = false,
                       ) extends PSpecification {
   /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
   def pres: Vector[PExpression] = clauses.collect {

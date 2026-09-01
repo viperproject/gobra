@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// X implements base.A and dispatches on base.B. No implementation of base.B is visible here, but one
+// may exist in another package, so the call has to be rejected on the strength of the contracts alone.
+
+package p1
+
+// ##(-I ../)
+import "base"
+
+type X struct{}
+
+requires b != nil
+decreases
+func (x X) F(b base.B) {
+	//:: ExpectedOutput(function_termination_error)
+	b.G(x)
+}
+
+X implements base.A

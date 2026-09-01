@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// T.M calls back into util.Loop, which dispatches to T.M again. The cycle runs through util.Loop,
+// whose body is dropped by spec-only parsing, so it is only visible through the call-graph stub.
+
+package main
+
+// ##(-I ./)
+import "util"
+
+type T struct{}
+
+decreases
+func (t T) M() {
+	//:: ExpectedOutput(function_termination_error)
+	util.Loop(t)
+}
+
+func main() {
+	var i util.I = T{}
+	i.M()
+}
+
+T implements util.I

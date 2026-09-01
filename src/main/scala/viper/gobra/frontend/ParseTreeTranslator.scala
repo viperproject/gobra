@@ -868,10 +868,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitSpecMember(ctx: SpecMemberContext): PFunctionOrMethodDecl = super.visitSpecMember(ctx) match {
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
-      => PFunctionDecl(id, args, result, spec, body)
-    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
-      => PMethodDecl(id, receiver, args, result, spec, body)
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked], bodyErased: Boolean))
+      => PFunctionDecl(id, args, result, spec.copy(bodyErased = bodyErased).at(spec), body)
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked], bodyErased: Boolean))
+      => PMethodDecl(id, receiver, args, result, spec.copy(bodyErased = bodyErased).at(spec), body)
   }
 
   /**
@@ -880,23 +880,25 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): (PIdnDef, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+  override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): (PIdnDef, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)], Boolean) = {
     // Go allows the blank identifier here, but PFunctionDecl doesn't.
     val id = goIdnDef.get(ctx.IDENTIFIER())
     val sig = visitNode[Signature](ctx.signature())
     // Translate the function body if the function is not abstract or trusted, specOnly isn't set or the function is pure
-    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
-    (id, sig._1, sig._2, body)
+    val hasBody = has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted
+    val body = if (hasBody && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, sig._1, sig._2, body, hasBody && body.isEmpty)
   }
 
 
-  override def visitMethodDecl(ctx: MethodDeclContext): (PIdnDef, PReceiver, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+  override def visitMethodDecl(ctx: MethodDeclContext): (PIdnDef, PReceiver, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)], Boolean) = {
     // Go allows the blank identifier here, but PFunctionDecl doesn't.
     val id = goIdnDef.get(ctx.IDENTIFIER())
     val recv = visitNode[PReceiver](ctx.receiver())
     val sig = visitNode[Signature](ctx.signature())
-    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
-    (id, recv,sig._1, sig._2, body)
+    val hasBody = has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted
+    val body = if (hasBody && (!specOnly || ctx.pure)) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, recv,sig._1, sig._2, body, hasBody && body.isEmpty)
   }
 
   /**

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Symmetric to p1. Together with p1 this diverges, but neither package can see the other.
+
+package p2
+
+// ##(-I ../)
+import "base"
+
+type Y struct{}
+
+requires a != nil
+decreases
+func (y Y) G(a base.A) {
+	//:: ExpectedOutput(function_termination_error)
+	a.F(y)
+}
+
+Y implements base.B

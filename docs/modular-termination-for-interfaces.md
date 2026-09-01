@@ -1,7 +1,8 @@
 # Sound modular termination checking for interfaces
 
-Status: proposal. Target: `CGEdgesTerminationTransform`, `TerminationEncoding`, `Parser`, and two small
-additions to Silver's termination plugin.
+Status: **P3 and P4 implemented** (see §8); P1, P2 and P5 still proposals. Target:
+`CGEdgesTerminationTransform`, `TerminationEncoding`, `Parser`, and two small additions to Silver's
+termination plugin.
 
 ## 1. Problem
 
@@ -144,6 +145,30 @@ Gobra side, in order:
 If the upstream changes are unwelcome, both are replaceable Gobra-side: emit the assertion directly
 using the `WellFoundedOrder` domain functions, and emit `if (false) { … }` stub bodies. Uglier, and
 step 2 then needs synthetic arguments.
+
+## 8. What was implemented
+
+P3 and P4, in the coarse form: every member whose body was dropped by spec-only parsing gets a
+vacuous body calling *every* interface method of the program, and the same stub is appended to each
+interface method's dispatch body (an interface may be implemented by any package importing it, so a
+method with no visible implementation must still be assumed to dispatch). Non-`pure` imported members
+keep their measure tuples. `PFunctionSpec` and the internal `Method`/`Function` carry a `bodyErased`
+flag so that members which are abstract or `trusted` by design — whose contracts the author asked to
+be assumed — are left alone; stubbing those breaks the SIF encoding and retracts the assumption.
+
+All three counterexamples are now rejected, and the two mutually recursive interfaces are rejected in
+`p1` and `p2` *individually*, neither package knowing the other exists. `GobraTests` and
+`GobraPackageTests`: 1227/1229, the two failures being the Carbon tests, which need `BOOGIE_EXE` and
+fail identically without this change.
+
+Two limitations remain, and they are why the call-permission design is still preferred:
+
+- **Blame can land on the client.** In §1's `Loop` example the wrong contract is `util`'s, but `util`
+  still verifies and the importing package is rejected. Edges cannot fix this: putting `Loop` in a
+  component would need an edge from an interface method back to it, i.e. edges from every interface
+  method to every member. Only the unconditional obligation P1 reports it in `util`.
+- **The whole-program assumption stands.** A cycle is only caught in a package where all of its
+  members are visible.
 
 ## 7. Tests
 

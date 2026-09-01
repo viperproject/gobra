@@ -19,6 +19,9 @@ import viper.gobra.util.Violation
 object CGEdgesTerminationTransform extends InternalTransform {
   override def name(): String = "add_cg_edges_for_termination_checking"
 
+  /** Prefix of the local variables receiving the results of the calls in a call-graph stub. */
+  private val CGEdgeTargetPrefix: String = "$cgEdge$"
+
   /**
     * Program-to-program transformation
     */
@@ -248,11 +251,109 @@ object CGEdgesTerminationTransform extends InternalTransform {
 
       }
 
+      val membersWithCGEdges = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd)
+
+      // Interface methods that a body-less member could dispatch to. Only methods with termination
+      // measures matter: a call to a member without measures already fails the plugin's termination
+      // condition check, irrespective of any cycle.
+      val itfMethods = membersWithCGEdges.collect {
+        case m: in.Method if m.receiver.typ.isInstanceOf[in.InterfaceT] && m.terminationMeasures.nonEmpty => m
+      }.toVector
+
+      var stubbedMethods: Map[in.MethodProxy, in.MethodLikeMember] = Map.empty
+      var stubbedFunctions: Map[in.FunctionProxy, in.FunctionLikeMember] = Map.empty
+
+      val membersWithStubs = if (itfMethods.isEmpty) membersWithCGEdges else membersWithCGEdges.map {
+        // an interface method dispatches to the implementations of the package under verification,
+        // and, for all we know here, to implementations declared in packages that import this one
+        case m: in.Method if m.receiver.typ.isInstanceOf[in.InterfaceT] && m.terminationMeasures.nonEmpty =>
+          val stubbed = m.copy(body = Some(appendCallGraphStub(m.body, itfMethods, m.info)))(m.info)
+          stubbedMethods += m.name -> stubbed
+          stubbed
+        case m: in.Method if needsCallGraphStub(m.bodyErased, m.terminationMeasures) =>
+          val stubbed = m.copy(body = Some(callGraphStub(itfMethods, m.info)))(m.info)
+          stubbedMethods += m.name -> stubbed
+          stubbed
+        case f: in.Function if needsCallGraphStub(f.bodyErased, f.terminationMeasures) =>
+          val stubbed = f.copy(body = Some(callGraphStub(itfMethods, f.info)))(f.info)
+          stubbedFunctions += f.name -> stubbed
+          stubbed
+        case m => m
+      }
+
       in.Program(
         types = p.types,
-        members = p.members.diff(methodsToRemove.toSeq).appendedAll(methodsToAdd),
-        table = p.table.merge(new in.LookupTable(definedMethods = definedMethodsDelta)),
+        members = membersWithStubs,
+        table = p.table.merge(new in.LookupTable(
+          definedMethods = definedMethodsDelta ++ stubbedMethods,
+          definedFunctions = stubbedFunctions,
+        )),
       )(p.info)
+  }
+
+  /**
+    * Members of imported packages are encoded without a body, because imported packages are parsed
+    * spec-only. Viper's termination plugin builds its call graph exclusively from bodies, so such a
+    * member has no outgoing edges and can never be part of a strongly connected component. Every
+    * recursion that runs back through an imported body is therefore invisible to the plugin, and the
+    * decrease checks along that cycle are silently skipped.
+    *
+    * A member without a body is given a body that only exists to contribute those edges:
+    *   {
+    *     assume false
+    *     call I1.m1(dflt, ..., dflt)
+    *     ...
+    *     call In.mn(dflt, ..., dflt)
+    *   }
+    * covering every interface method of the program, since it is not known which of them the erased
+    * body could dispatch to. The leading `assume false` makes the body vacuous, so no proof
+    * obligation arises from it; the calls serve only to close the call graph, which is enough for the
+    * plugin to place the member in the right component and to check the measures of its callers.
+    *
+    * The same stub is appended to the dispatch body of every interface method. That body only covers
+    * the implementations visible here, but an interface declared in this package may be implemented
+    * by any package importing it, and those implementations may dispatch anywhere. Without the stub,
+    * an interface method with no visible implementation has no outgoing edges at all, and a call to
+    * it is never part of a component.
+    *
+    * Only members whose body was erased are stubbed. A member that is abstract or trusted by design
+    * has no body to hide: its contract is what the author asked to be assumed, exactly like a
+    * wildcard termination measure, and giving it edges would retract that assumption.
+    */
+  private def needsCallGraphStub(bodyErased: Boolean,
+                                 measures: Vector[in.TerminationMeasure]): Boolean =
+    bodyErased && measures.nonEmpty
+
+  private def appendCallGraphStub(body: Option[in.MethodBody],
+                                  itfMethods: Vector[in.Method],
+                                  src: Source.Parser.Info): in.MethodBody = {
+    val stub = callGraphStub(itfMethods, src)
+    body match {
+      case None => stub
+      case Some(b) =>
+        in.MethodBody(
+          b.decls ++ stub.decls,
+          in.MethodBodySeqn(b.seqn.stmts ++ stub.seqn.stmts)(b.seqn.info),
+          b.postprocessing
+        )(b.info)
+    }
+  }
+
+  private def callGraphStub(itfMethods: Vector[in.Method], src: Source.Parser.Info): in.MethodBody = {
+    val assumeFalse = in.Assume(in.ExprAssertion(in.BoolLit(b = false)(src))(src))(src)
+    val (targetss, calls) = itfMethods.zipWithIndex.map { case (itf, i) =>
+      val targets = itf.results.zipWithIndex.map { case (res, j) =>
+        in.LocalVar(s"$CGEdgeTargetPrefix$i$$$j", res.typ)(src)
+      }
+      val call = in.MethodCall(
+        targets,
+        in.DfltVal(itf.receiver.typ)(src),
+        itf.name,
+        itf.args.map(a => in.DfltVal(a.typ)(src))
+      )(src)
+      (targets, call)
+    }.unzip
+    in.Block(targetss.flatten, assumeFalse +: calls)(src).toMethodBody
   }
 
   private def parameterAsLocalValVar(p: in.Parameter): in.LocalVar = {

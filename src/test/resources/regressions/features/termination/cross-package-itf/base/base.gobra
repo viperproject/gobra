@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Two mutually recursive interfaces. Implementations may live in any package importing this one,
+// so a call to one of these methods may come back through the other.
+
+package base
+
+type A interface {
+	requires b != nil
+	decreases
+	F(b B)
+}
+
+type B interface {
+	requires a != nil
+	decreases
+	G(a A)
+}

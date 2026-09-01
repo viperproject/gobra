@@ -598,7 +598,8 @@ object Desugar extends LazyLogging {
       val functionInfo = functionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)))
 
       in.Function(name, functionInfo.args, functionInfo.results, functionInfo.pres, functionInfo.posts,
-        functionInfo.terminationMeasures, functionInfo.backendAnnotations, functionInfo.body)(fsrc)
+        functionInfo.terminationMeasures, functionInfo.backendAnnotations, functionInfo.body,
+        bodyErased = decl.spec.bodyErased)(fsrc)
     }
 
     private case class FunctionInfo(args: Vector[in.Parameter.In],
@@ -922,7 +923,8 @@ object Desugar extends LazyLogging {
 
       val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
 
-      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt)(fsrc)
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt,
+        bodyErased = decl.spec.bodyErased)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {

@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// T.M passes its own n on to util.Loop, whose measure is n+1, and Loop dispatches back to T.M with
+// the same n. Nothing decreases. The offending edge is the static call, so this is only caught once
+// util.Loop contributes its edges to the interface method.
+
+package main
+
+// ##(-I ./)
+import "util"
+
+type T struct{}
+
+requires 0 <= n
+decreases n
+func (t T) M(n int) {
+	//:: ExpectedOutput(function_termination_error)
+	util.Loop(t, n)
+}
+
+T implements util.I

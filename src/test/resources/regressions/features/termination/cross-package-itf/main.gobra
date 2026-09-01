@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Wires the two implementations together. Both were already rejected in their own packages.
+
+package main
+
+// ##(-I ./)
+import "base"
+import "p1"
+import "p2"
+
+decreases
+func run() {
+	var x base.A = p1.X{}
+	var y base.B = p2.Y{}
+	x.F(y)
+}

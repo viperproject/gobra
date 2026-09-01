@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// The dynamically bound call does decrease the interface's measure, so this package verifies. The
+// divergence in the importing package comes from the static call raising the measure again.
+
+package util
+
+type I interface {
+	requires 0 <= n
+	decreases n
+	M(n int)
+}
+
+requires i != nil
+requires 0 <= n
+decreases n + 1
+func Loop(i I, n int) {
+	i.M(n)
+}

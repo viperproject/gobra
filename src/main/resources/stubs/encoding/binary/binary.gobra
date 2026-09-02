@@ -254,4 +254,6 @@ pure func (b bigEndian) GoString() (res string) { return "binary.BigEndian" }
 // If v is neither of these, Size returns -1.
 // (joao) requires support for the reflect package
 decreases
-func Size(v interface{}) int
+func Size(v interface{}) int /*{
+	return dataSize(reflect.Indirect(reflect.ValueOf(v)))
+}*/

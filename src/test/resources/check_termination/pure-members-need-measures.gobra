@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pure_members_need_measures
+
+// Issue #841: pure method signatures declared in an interface must carry a termination measure, just
+// like pure functions and pure methods. Unlike the main regression test suite, the files in this
+// directory are checked with `disableCheckTerminationPureFns` disabled.
+
+type T struct{ f int }
+
+// Type error, a pure function must have a termination measure.
+//:: ExpectedOutput(type_error)
+pure func missingMeasureFunc(a int) int {
+	return a
+}
+
+// Type error, a pure method must have a termination measure.
+//:: ExpectedOutput(type_error)
+pure func (t T) missingMeasureMethod(a int) int {
+	return a
+}
+
+// Type error, a ghost function must have a termination measure.
+ghost
+//:: ExpectedOutput(type_error)
+func missingMeasureGhostFunc(a int) int {
+	return a
+}
+
+type I interface {
+	// Type error, a pure interface method must have a termination measure.
+	//:: ExpectedOutput(type_error)
+	pure MissingMeasure(a int) int
+
+	decreases
+	pure HasMeasure(a int) int
+}
+
+decreases
+pure func withMeasureFunc(a int) int {
+	return a
+}
+
+decreases
+pure func (t T) withMeasureMethod(a int) int {
+	return a
+}

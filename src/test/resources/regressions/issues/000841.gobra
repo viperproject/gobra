@@ -3,32 +3,43 @@
 
 package issue000841
 
-// Issue #841: pure method signatures in an interface must satisfy the same
-// requirements as pure implementations. Requiring a termination measure is
-// gated behind the same flag as for pure functions and methods
-// (`disableCheckTerminationPureFns`), which the regression test suite disables;
-// hence this file exercises the requirements that are always checked: exactly
-// one result parameter, non-variadic parameters, and the rejection of
-// conditional termination measures.
+// Issue #841: pure method signatures declared in an interface must satisfy the same requirements as
+// pure functions and pure methods. The requirement of carrying a termination measure is gated behind
+// `disableCheckTerminationPureFns`, which this test suite enables; that case is covered by the tests
+// in `src/test/resources/check_termination` instead.
 
 type J interface {
-	// Type error, a pure interface method must have exactly one result parameter.
+	// Type error, a pure member must have exactly one result parameter.
 	//:: ExpectedOutput(type_error)
 	decreases
-	pure M1(a int)
+	pure NoResult(a int)
 
-	// Type error, we do not permit conditional termination measures for members that must terminate.
+	// Type error, a pure member must have exactly one result parameter.
 	//:: ExpectedOutput(type_error)
-	decreases if a == 42
-	pure M2(a int) int
-
-	// Type error, a pure interface method cannot have variadic parameters.
 	decreases
+	pure TwoResults(a int) (int, int)
+
+	decreases
+	// Type error, a pure member cannot have variadic parameters.
 	//:: ExpectedOutput(type_error)
-	pure M3(a ...int) int
+	pure Variadic(a ...int) int
+
+	// Type error, a pure member cannot have preserves clauses.
+	//:: ExpectedOutput(type_error)
+	preserves a > 0
+	decreases
+	pure Preserves(a int) int
+
+	// Type error, the postconditions of a pure member must be pure.
+	//:: ExpectedOutput(type_error)
+	ensures acc(x)
+	decreases
+	pure ImpurePostcondition(x *int) int
 }
 
-// Conditional termination measures are likewise rejected for top-level pure functions.
-//:: ExpectedOutput(type_error)
-decreases _ if b // we syntactically disallow conditional termination measures for members that must terminate
-pure func f(b bool) bool
+// A pure method signature that satisfies all of the requirements above is accepted.
+type K interface {
+	ensures res >= a
+	decreases
+	pure WellFormed(a int) (res int)
+}

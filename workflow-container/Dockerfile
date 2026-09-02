@@ -4,9 +4,6 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-# Ubuntu 24.04 (glibc 2.39) rather than a Microsoft OpenJDK image: every
-# mcr.microsoft.com/openjdk/jdk *-ubuntu tag is still Ubuntu 22.04 (glibc 2.35), and Z3 4.15.0
-# and newer are published only as glibc 2.39 builds that need GLIBC_2.38.
 FROM ubuntu:24.04 AS build
 
 ENV DEBIAN_FRONTEND=noninteractive

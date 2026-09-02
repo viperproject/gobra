@@ -61,8 +61,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       disableCheckTerminationPureFns = true,
       // Bound how long the prover may spend on a single assertion. Without a bound, a test whose
       // proof the prover cannot find does not fail: it makes the prover grow until the whole test
-      // job is killed, which hides both the culprit and every test after it. Timing out is sound
-      // here, since it can only turn a proof the prover did not find into a reported error. The
+      // job is killed, which hides both the culprit and every test after it. The
       // bound is deliberately far above what the slowest assertions in the suite need, so that it
       // catches divergence rather than slow machines.
       assertTimeout = Some(20_000),

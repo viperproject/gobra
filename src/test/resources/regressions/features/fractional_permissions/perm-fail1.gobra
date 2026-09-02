@@ -78,8 +78,9 @@ func test11() {
 }
 
 func test12() {
+	// perm(6, 8) denotes the same amount as perm(3, 4)
 	//:: ExpectedOutput(assert_error)
-	assert getPerm() != perm(3, 4)
+	assert getPerm() != perm(6, 8)
 }
 
 func test13() {
@@ -96,8 +97,7 @@ ghost pure func getPerm() perm {
 	return perm(3, 4)
 }
 
-// behaviour consistent with Viper: the subexpressions of the following perm expression
-// are treated as integer expressions and not as perms
+// dividing a permission amount by an integer yields a permission amount: perm(1, 2) / 2 == perm(1, 4)
 requires acc(i, perm(1, 2) / 2)
 ensures acc(i, perm(1, 4))
 func test15(i *int) {}

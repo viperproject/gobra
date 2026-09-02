@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.combinators
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.theory.Comparability
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
+import viper.gobra.reporting.BackTranslator.ErrorTransformer
 import viper.gobra.reporting.{AssignmentError, DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, NoPermissionToRangeExpressionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator

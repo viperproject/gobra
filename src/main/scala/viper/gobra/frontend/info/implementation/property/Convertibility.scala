@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{ActualPointerT, DeclaredT, Float32T, Float64T, FloatT, GhostPointerT, IntT, PermissionT, Single, SliceT, StringT, Type}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, DeclaredT, Float32T, Float64T, FloatT, GhostPointerT, IntT, Single, SliceT, StringT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Convertibility extends BaseProperty { this: TypeInfoImpl =>

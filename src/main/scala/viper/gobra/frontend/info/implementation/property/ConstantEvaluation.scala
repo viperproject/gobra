@@ -94,19 +94,9 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
       case PBitNegation(op) =>
         // In Go, ^x for an untyped constant x is computed as -(x+1) in arbitrary precision.
         // For a typed operand (e.g., uint8(42) or a named typed constant), the complement is
-        // computed modulo the operand's type. We detect "untyped" by checking structurally
-        // whether the operand is a pure literal cluster (no type conversions or typed constants).
-        // This mirrors the isUntypedIntConst predicate in ExprTyping.
-        def isLiteralCluster(e: PExpressionOrType): Boolean = e match {
-          case _: PIntLit | _: PIota => true
-          case PBitNegation(inner) => isLiteralCluster(inner)
-          case bExpr: PShiftLeft => isLiteralCluster(bExpr.left)
-          case bExpr: PShiftRight => isLiteralCluster(bExpr.left)
-          case bExpr: PBinaryExp[_,_] if bExpr.isInstanceOf[PNumExpression] =>
-            isLiteralCluster(bExpr.left) && isLiteralCluster(bExpr.right)
-          case _ => false
-        }
-        if (isLiteralCluster(op)) {
+        // computed modulo the operand's type. Whether the operand is untyped is determined
+        // structurally (no type conversions or typed constants), see isUntypedIntConst.
+        if (isUntypedIntConst(op)) {
           // Untyped: arbitrary-precision bitwise NOT = -(x+1)
           intConstantEval(op) map (v => -(v + 1))
         } else {

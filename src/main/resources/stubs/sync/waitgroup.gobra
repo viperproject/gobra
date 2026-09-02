@@ -83,7 +83,7 @@ requires (n > 0 && p == noPerm) ==> g.UnitDebt(P)
 requires n < 0 ==> acc(g.UnitDebt(PredTrue{}), perm(-integer(n), 1)) // negate in exact `integer`: -n on int may overflow for MinInt64
 ensures (n > 0 && p > noPerm) ==> acc(g.WaitGroupP(), p)
 ensures (n > 0 && p == noPerm) ==> g.UnitDebt(P)
-ensures n > 0 ==> acc(g.UnitDebt(PredTrue{}), perm(integer(n), 1))
+ensures n > 0 ==> acc(g.UnitDebt(PredTrue{}), perm(n, 1))
 // this is actually necessary, otherwise Gobra cannot prove that Add does not modify the wait mode
 ensures (n > 0 && p > noPerm) ==> g.WaitMode() == old(g.WaitMode())
 decreases _

@@ -273,26 +273,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Right(_), Some(fc: ap.FractionalPermConstructor)) =>
-          // perm(num, den): num must be `integer` (mathematical, unbounded) or `perm`; den
-          // must be `integer`. Untyped int constants are accepted on either side because Go
-          // freely coerces them. Bounded integer kinds (int, int8, …) are not auto-coerced —
-          // callers must convert explicitly with `integer(x)`. Conceptual signature:
-          // `perm(integer, integer): perm`.
-          def isIntegerOrUntypedConst(t: Type): Boolean = t match {
-            case IntT(UnboundedInteger | TypeBounds.UntypedConstInteger) => true
-            case _ => false
-          }
+          // perm(num, den) denotes the permission amount num/den. Conceptually, its signature is
+          // `perm(integer, integer) perm`: both arguments must be assignable to `integer`, which
+          // holds for an untyped constant and for every integer kind, since a bounded kind is
+          // implicitly promoted to the mathematical `integer` (see Assignability). Alternatively,
+          // `num` may itself be a permission amount, which is then divided by `den`.
+          val integerT = IntT(UnboundedInteger)
           val numT = exprType(fc.num)
-          val numOk = if (numT == PermissionT) noMessages
-                      else error(fc.num,
-                        s"the numerator of `perm` must be of type `integer` or `perm`, but got $numT",
-                        !isIntegerOrUntypedConst(numT))
-          val denOk = {
-            val denT = exprType(fc.den)
-            error(fc.den,
-              s"the denominator of `perm` must be of type `integer`, but got $denT",
-              !isIntegerOrUntypedConst(denT))
-          }
+          val numOk =
+            if (numT == PermissionT) noMessages
+            else assignableTo.errors(numT, integerT, mayInit)(fc.num)
+          val denOk = assignableTo.errors(exprType(fc.den), integerT, mayInit)(fc.den)
           isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
@@ -1139,7 +1130,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // For unary bit negation: the operand takes the same type as the negation expression,
         // so propagate the negation's own context upward.
         case bNeg: PBitNegation => getTypeFromCtxt(bNeg) match {
-          case result @ Some(_: InterfaceT) => None
+          case Some(_: InterfaceT) => None
           case result => result
         }
 
@@ -1147,12 +1138,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // of the shift expression itself. The right operand (shift count) gets no type from context.
         case bExpr: PShiftLeft  =>
           if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) match {
-            case result @ Some(_: InterfaceT) => None
+            case Some(_: InterfaceT) => None
             case result => result
           } else None
         case bExpr: PShiftRight =>
           if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) match {
-            case result @ Some(_: InterfaceT) => None
+            case Some(_: InterfaceT) => None
             case result => result
           } else None
 
@@ -1218,7 +1209,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             }
             if (isUnaryNegOperand) None
             else getTypeFromCtxt(bExpr) match {
-              case result @ Some(_: InterfaceT) => None
+              case Some(_: InterfaceT) => None
               case Some(PermissionT)            => None
               case result => result
             }
@@ -1325,7 +1316,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * and by [[isInnerNodeOfUntypedIntConst]] to locate the node at which representability is
     * checked.
     */
-  private def isUntypedIntConst(expr: PExpressionOrType): Boolean = isUntypedIntConst(expr, Set.empty)
+  def isUntypedIntConst(expr: PExpressionOrType): Boolean = isUntypedIntConst(expr, Set.empty)
 
   /**
     * @param visited the definitions of the named constants already followed, so that a cyclic
@@ -1364,19 +1355,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBitNegation(op) => exprOrTypeType(op)
 
+      case PShiftLeft(left, _) => exprOrTypeType(left)
+      case PShiftRight(left, _) => exprOrTypeType(left)
+
+      // a permission amount divided by an integer is a permission amount (PermDiv)
+      case PDiv(left, _) if exprOrTypeType(left) == PermissionT => PermissionT
+
       case bExpr: PBinaryExp[_, _] =>
-        bExpr match {
-          case _: PShiftLeft | _: PShiftRight => exprOrTypeType(bExpr.left)
-          case _: PDiv =>
-            val typeLeft = exprOrTypeType(bExpr.left)
-            // perm / int → PermDiv, result type is Perm
-            if (typeLeft == PermissionT) PermissionT
-            else typeMerge(typeLeft, exprOrTypeType(bExpr.right)).getOrElse(UnknownType)
-          case _ =>
-            val typeLeft = exprOrTypeType(bExpr.left)
-            val typeRight = exprOrTypeType(bExpr.right)
-            typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
-        }
+        typeMerge(exprOrTypeType(bExpr.left), exprOrTypeType(bExpr.right)).getOrElse(UnknownType)
 
       case e => violation(s"unexpected expression $e while type-checking integer expressions.")
     }

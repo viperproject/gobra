@@ -7,7 +7,8 @@
 package viper.gobra.frontend
 
 import com.typesafe.scalalogging.LazyLogging
-import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
+import viper.gobra.ast.frontend.utility.Nodes
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
@@ -16,7 +17,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, MainPreNotEstablished}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, ImportPreNotEstablished, IsInvariantAnnotation, MainPreNotEstablished}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -526,6 +527,27 @@ object Desugar extends LazyLogging {
       in.GlobalVarProxy(v.id.name, name)(meta(v.decl, v.context.getTypeInfo))
     }
 
+    def openInvsVar : in.LocalVar =
+      in.LocalVar(
+        "openInvariants",
+        in.SetT(
+          in.PredT(Vector.empty, Addressability.exclusiveVariable),
+          Addressability.exclusiveVariable))(Source.Parser.Internal)
+
+    /**
+      * Returns whether the subtree rooted at `n` contains a critical region. Function literals
+      * are not inspected, given that their bodies are desugared separately and get their own
+      * `openInvariants` set. The `openInvariants` set is only modified by the encoding of
+      * critical regions, so members whose bodies do not contain a critical region do not need
+      * the set at all, and loops whose bodies do not contain a critical region cannot modify it
+      * (and thus, do not need a loop invariant preserving its value).
+      */
+    def containsCriticalRegion(n: PNode): Boolean = n match {
+      case _: PCritical => true
+      case _: PClosureDecl => false
+      case _ => Nodes.subnodes(n).exists(containsCriticalRegion)
+    }
+
     def constDeclD(block: PConstDecl): Vector[in.GlobalConstDecl] = block.specs.flatMap(constSpecD)
 
     def constSpecD(decl: PConstSpec): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
@@ -692,7 +714,8 @@ object Desugar extends LazyLogging {
       val capturedWithAliases = (captured.map { v => in.Ref(localVarD(outerCtx, info)(v))(meta(v, info)) } zip capturedPar)
 
       val bodyOpt = decl.body.map{ case (_, s) =>
-        val vars = argSubs.flatten ++ capturedSubs ++ returnSubs.flatten
+        val vars = argSubs.flatten ++ capturedSubs ++ returnSubs.flatten ++
+          (if (containsCriticalRegion(s)) Vector(openInvsVar) else Vector.empty)
         val varsInit = vars map (v => in.Initialization(v)(v.info))
         val body = varsInit ++ argInits ++ capturedInits ++ Vector(blockD(ctx, info)(s))
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
@@ -890,7 +913,8 @@ object Desugar extends LazyLogging {
 
 
       val bodyOpt = decl.body.map{ case (_, s) =>
-        val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
+        val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten ++
+          (if (containsCriticalRegion(s)) Vector(openInvsVar) else Vector.empty)
         val varsInit = vars map (v => in.Initialization(v)(v.info))
         val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx, info)(s))
         in.MethodBody(vars, in.MethodBodySeqn(body)(fsrc), resultAssignments)(fsrc)
@@ -1097,6 +1121,32 @@ object Desugar extends LazyLogging {
         * In the case where the value variable 'j' is missing all the code annotated with [v]
         * is omitted
         */
+      /**
+        * Returns a statement that snapshots the openInvariants set before a loop and a loop
+        * invariant stating that the set still has its snapshotted value. The invariant prevents
+        * loops whose body opens critical regions from havocking the value of openInvariants,
+        * which would prevent opening invariants in later iterations or after the loop. It does
+        * not impose any restrictions on the user, given that the syntax of critical regions
+        * guarantees that no invariant may be open for longer than one loop iteration.
+        *
+        * The openInvariants set is only assigned by the encoding of critical regions. Thus, for
+        * loops whose body does not contain a critical region (the common case), the set is not
+        * modified by the loop and its value is trivially preserved, so no snapshot and no loop
+        * invariant are generated (`n` is the loop node, whose subtree includes the loop's body).
+        */
+      def openInvsUnchangedByLoop(n: PNode)(src: Source.Parser.Info): Writer[(in.Stmt, Vector[in.Assertion])] =
+        if (containsCriticalRegion(n)) {
+          for {
+            oldOpenInvs <- freshDeclaredExclusiveVar(
+              in.SetT(in.PredT(Vector.empty, Addressability.Exclusive), Addressability.Exclusive), n, info
+            )(src)
+            init = in.SingleAss(in.Assignee.Var(oldOpenInvs), openInvsVar)(src)
+            unchanged = in.ExprAssertion(in.EqCmp(oldOpenInvs, openInvsVar)(src))(src)
+          } yield (init, Vector(unchanged))
+        } else {
+          unit((in.Seqn(Vector.empty)(src), Vector.empty))
+        }
+
       def desugarArrSliceShortRange(n: PShortForRange, range: PRange, shorts: Vector[PUnkLikeId], spec: PLoopSpec, body: PBlock)(src: Source.Parser.Info): Writer[in.Stmt] = unit(block(for {
         exp <- goE(range.exp)
 
@@ -1126,7 +1176,8 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariantsBefore = Vector(
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+        addedInvariantsBefore = openInvsDoesNotChange ++ Vector(
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
             in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src),
@@ -1159,6 +1210,7 @@ object Desugar extends LazyLogging {
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
           singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(Vector(
@@ -1265,7 +1317,8 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariantsBefore = Vector(
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+        addedInvariantsBefore = openInvsDoesNotChange ++ Vector(
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), i0)(src),
             in.AtMostCmp(i0, in.Length(c)(src))(src))(src))(src)
@@ -1301,6 +1354,7 @@ object Desugar extends LazyLogging {
           singleAss(in.Assignee.Var(c), exp)(rangeExpSrc),
           // length := len(c) to save for later since it can change
           singleAss(in.Assignee.Var(length), in.Length(c)(src))(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(length, in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1418,11 +1472,12 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+        addedInvariants = openInvsDoesNotChange ++ (if (range.enumerated != PWildcard()) // emit invariants about visited set only if we actually use a with clause and specify an identifier for it
           Vector(
             in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
             in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
-          else Vector()
+          else Vector())
 
         dBody = blockD(ctx, info)(body)
 
@@ -1454,6 +1509,7 @@ object Desugar extends LazyLogging {
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1500,7 +1556,8 @@ object Desugar extends LazyLogging {
 
         (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx, info, false)))
         (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
-        addedInvariants = Vector(
+        (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+        addedInvariants = openInvsDoesNotChange ++ Vector(
           in.ExprAssertion(in.AtMostCmp(in.Length(visited.op)(src), in.Length(c)(src))(src))(src),
           in.ExprAssertion(in.Subset(visited.op, domain)(src))(src))
 
@@ -1536,6 +1593,7 @@ object Desugar extends LazyLogging {
 
         enc = in.Seqn(Vector(
           singleAss(in.Assignee.Var(c), exp)(src),
+          initOldOpenInvs,
           in.If(
             in.EqCmp(in.Length(c)(src), in.IntLit(0)(src))(src),
             in.Seqn(
@@ -1587,6 +1645,8 @@ object Desugar extends LazyLogging {
           case n@PForStmt(pre, cond, post, spec, body) =>
             unit(block( // is a block because 'pre' might define new variables
               for {
+                (initOldOpenInvs, openInvsDoesNotChange) <- openInvsUnchangedByLoop(n)(src)
+
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx, info)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx, info)))
@@ -1605,8 +1665,8 @@ object Desugar extends LazyLogging {
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
-                  Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
-                    in.While(dCond, dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
+                  Vector(initOldOpenInvs, dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(dCond, openInvsDoesNotChange ++ dInv, dTer, in.Block(Vector(continueLoopLabelProxy),
                       Vector(dBody, continueLoopLabel, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src), breakLoopLabel
                   )
@@ -1903,6 +1963,26 @@ object Desugar extends LazyLogging {
               } yield in.Outline(name, pres, posts, terminationMeasures, annotations, dummyBody, trusted = true)(src)
             }
 
+          case PCritical(expr, stmts) =>
+            val exprSrcIsInv = meta(expr, info).createAnnotatedInfo(IsInvariantAnnotation())
+
+            for {
+              e <- goE(expr)
+              // `Invariant(e)`: constructed here (rather than in the encoding of the critical
+              // statement) because the built-in `Invariant` function must be registered with
+              // the desugarer.
+              invIsInv = in.PureFunctionCall(
+                functionProxy(InvariantFunctionTag, Vector(e.typ))(exprSrcIsInv),
+                Vector(e),
+                in.BoolT(Addressability.Exclusive),
+                false
+              )(exprSrcIsInv)
+              stmtsW = sequence(stmts map goS)
+              // variable declarations from the region's body are propagated to the enclosing
+              // block, keeping the variables accessible after the region.
+              _ <- declare(stmtsW.declared : _*)
+              body = in.Seqn(stmtsW.written ++ stmtsW.res)(src)
+            } yield in.Critical(e, invIsInv, openInvsVar, body)(src)
 
           case n@PContinue(label) => unit(in.Continue(label.map(x => x.name), nm.fetchContinueLabel(n, info))(src))
 
@@ -2023,13 +2103,30 @@ object Desugar extends LazyLogging {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(_, _, _: in.MapT) if lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable), astCtx, info)(src)
           in.Block(
             Vector(resTarget, successTarget),
             Vector(
               in.SafeMapLookup(resTarget, successTarget, l)(l.info),
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
+
+        case l@ in.IndexedExp(base, idx, t: in.MathMapT) if lefts.size == 2 =>
+          // in contrast to a lookup in a map, a lookup in a mathematical map is only well-defined if the key is
+          // contained in the map. Thus, the zero value of the value type is assigned for keys that are not contained.
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable), astCtx, info)(src)
+          val contains = in.Contains(idx, in.MapKeys(base, t)(src))(src)
+          val lookup = in.Conditional(contains, l, in.DfltVal(l.typ)(src), l.typ)(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector( // the results are computed before they are assigned because a target may occur in `l`
+              singleAss(in.Assignee.Var(resTarget), lookup)(src),
+              singleAss(in.Assignee.Var(successTarget), contains)(src),
               singleAss(lefts(0), resTarget)(src),
               singleAss(lefts(1), successTarget)(src)
             )
@@ -2401,6 +2498,40 @@ object Desugar extends LazyLogging {
       }
     }
 
+    /**
+      * Returns the type that an index of `typ` has, if `typ` can be indexed. The index type of a (mathematical) map
+      * is its key type; all other indexable types are indexed with integers.
+      */
+    def indexType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.MapT => Some(t.keys)
+      case t: in.MathMapT => Some(t.keys)
+      case _: in.ArrayT | _: in.SliceT | _: in.SequenceT | _: in.StringT => Some(in.IntT(Addressability.rValue))
+      case in.PointerT(base, _) if underlyingType(base).isInstanceOf[in.ArrayT] => Some(in.IntT(Addressability.rValue))
+      case _ => None
+    }
+
+    /** Returns the type of the elements contained in `typ`, if `typ` is a collection type. */
+    def elementType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.ArrayT => Some(t.elems)
+      case t: in.SliceT => Some(t.elems)
+      case t: in.SequenceT => Some(t.t)
+      case t: in.SetT => Some(t.t)
+      case t: in.MultisetT => Some(t.t)
+      case t: in.MapT => Some(t.values)
+      case t: in.MathMapT => Some(t.values)
+      case _ => None
+    }
+
+    /**
+      * Returns the type that the left-hand side of a membership expression `x elem c` must have, where `c` has type
+      * `typ`. Membership in a (mathematical) map ranges over its keys, whereas membership in any other collection
+      * ranges over its elements.
+      */
+    def membershipType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case _: in.MapT | _: in.MathMapT => indexType(typ)
+      case t => elementType(t)
+    }
+
     def singleAss(left: in.Assignee, right: in.Expr)(info: Source.Parser.Info): in.SingleAss = {
       in.SingleAss(left, implicitConversion(right.typ, left.op.typ, right))(info)
     }
@@ -2481,7 +2612,10 @@ object Desugar extends LazyLogging {
         dbase <- exprD(ctx, info)(base)
         dindex <- exprD(ctx, info)(index)
         baseUnderlyingType = underlyingType(dbase.typ)
-      } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
+        // the index of a map may require an implicit conversion, e.g., when the key type of the map is an
+        // interface type and `index` has a concrete type
+        dkey = indexType(baseUnderlyingType).fold(dindex)(implicitConversion(dindex.typ, _, dindex))
+      } yield in.IndexedExp(dbase, dkey, baseUnderlyingType)(src)
     }
 
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
@@ -3202,7 +3336,7 @@ object Desugar extends LazyLogging {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
-            entryKey <- key match {
+            dKey <- key match {
               case v: PCompositeVal => compositeValD(ctx, info)(v, keys)
               case k: PIdentifierKey => info.regular(k.id) match {
                 case _: st.Variable => unit(varD(ctx, info)(k.id))
@@ -3210,6 +3344,9 @@ object Desugar extends LazyLogging {
                 case _ => violation(s"unexpected key $key")
               }
             }
+            // keys that are not composite values do not go through `compositeValD` and, thus, may still require
+            // an implicit conversion, e.g., when the key type is an interface type
+            entryKey = implicitConversion(dKey.typ, keys, dKey)
             entryVal <- compositeValD(ctx, info)(value, values)
           } yield (entryKey, entryVal)
 
@@ -3678,6 +3815,13 @@ object Desugar extends LazyLogging {
         }.values.flatten.toVector
       }
 
+      // The generated function inlines the bodies of the file's init functions. Thus, it only
+      // needs the openInvariants set if one of these bodies contains a critical region.
+      val needsOpenInvs = p.declarations.exists {
+        case x: PFunctionDecl if x.id.name == Constants.INIT_FUNC_NAME => containsCriticalRegion(x)
+        case _ => false
+      }
+
       /**
         * [ p ] ->
         * requires progPres // import preconditions
@@ -3707,7 +3851,7 @@ object Desugar extends LazyLogging {
         backendAnnotations = Vector.empty,
         body = Some(
           in.MethodBody(
-            decls = Vector(),
+            decls = if (needsOpenInvs) Vector(openInvsVar) else Vector.empty,
             postprocessing = Vector(),
             seqn = in.MethodBodySeqn{
               // Init all global variables declared in the file (not all declarations in the package!).
@@ -4396,6 +4540,54 @@ object Desugar extends LazyLogging {
     }
 
     // Ghost Expression
+
+    /**
+      * Desugars the assignment of a let expression `let ass in ...` to the pairs of variables and the expressions
+      * that they are bound to, in the order in which they are introduced by `ass`.
+      * Besides the case where every variable on the left is bound to the expression at the same position on the
+      * right, the "comma-ok" form of map lookups is supported: `let v, ok := m[k] in ...` binds `v` to `m[k]` and
+      * `ok` to `k in m`. The type checker rejects all other assignments of a let expression.
+      */
+    def letBindingsD(ctx: FunctionContext, info: TypeInfo)(ass: PShortVarDecl)(src: Meta): Vector[(in.LocalVar, in.Expr)] = {
+      def binder(id: PUnkLikeId, right: in.Expr): in.LocalVar = in.LocalVar(
+        nm.variable(id.name, info.scope(id), info),
+        right.typ.withAddressability(Addressability.exclusiveVariable)
+      )(src)
+
+      if (ass.left.length == ass.right.length) {
+        (ass.left zip ass.right).map { case (id, exp) =>
+          val right = pureExprD(ctx, info)(exp)
+          (binder(id, right), right)
+        }
+      } else {
+        // the type checker guarantees that all remaining cases are of the form `v, ok := m[k]`
+        val lookup = ass.right match {
+          case Vector(idx: PIndexedExp) =>
+            val dIdx = indexedExprD(idx)(ctx, info)
+            Violation.violation(dIdx.stmts.isEmpty && dIdx.decls.isEmpty, s"expected pure expression, but got $idx")
+            dIdx.res
+          case rights => violation(s"expected the comma-ok form of a map lookup, but got $rights")
+        }
+        // `ok` holds iff the key is contained in the map. If it is not, then the zero value of the map's value type
+        // is bound instead of the value stored in the map.
+        val (value, contains) = lookup.baseUnderlyingType match {
+          case _: in.MapT =>
+            // a lookup in a map already yields the zero value if the key is not contained in the map
+            (lookup, in.Contains(lookup.index, lookup.base)(src))
+          case t: in.MathMapT =>
+            // in contrast, a lookup in a mathematical map is only well-defined if the key is contained in the map
+            val contains = in.Contains(lookup.index, in.MapKeys(lookup.base, t)(src))(src)
+            val dflt = in.DfltVal(lookup.typ)(src)
+            (in.Conditional(contains, lookup, dflt, lookup.typ)(src), contains)
+          case t => violation(s"expected a map type, but got $t")
+        }
+        Vector(
+          (binder(ass.left(0), value), value),
+          (binder(ass.left(1), contains), contains)
+        )
+      }
+    }
+
     def ghostExprD(ctx: FunctionContext, info: TypeInfo)(expr: PGhostExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
@@ -4416,14 +4608,9 @@ object Desugar extends LazyLogging {
 
         case PLet(ass, op) =>
           val dOp = pureExprD(ctx, info)(op)
-          unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-            val right = pureExprD(ctx, info)(lr._2)
-            val left = in.LocalVar(
-              nm.variable(lr._1.name, info.scope(lr._1), info),
-              right.typ.withAddressability(Addressability.exclusiveVariable)
-            )(src)
+          unit(letBindingsD(ctx, info)(ass)(src).foldRight(dOp) { case ((left, right), letop) =>
             in.PureLet(left, right, letop)(src)
-          }))
+          })
 
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
@@ -4456,10 +4643,13 @@ object Desugar extends LazyLogging {
         case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
+          // the left-hand side may require an implicit conversion, e.g., when the elements of the collection have
+          // an interface type and `left` has a concrete type
+          delem = membershipType(dright.typ).fold(dleft)(implicitConversion(dleft.typ, _, dleft))
         } yield underlyingType(dright.typ) match {
-          case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
-          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
-          case _: in.MapT => in.Contains(dleft, dright)(src)
+          case _: in.SequenceT | _: in.SetT => in.Contains(delem, dright)(src)
+          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(delem, dright)(src))(src)
+          case _: in.MapT => in.Contains(delem, dright)(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
@@ -4492,8 +4682,9 @@ object Desugar extends LazyLogging {
         } yield dop.typ match {
           case _: in.SequenceT => dop
           case _: in.ArrayT => in.SequenceConversion(dop)(src)
+          case _: in.SliceT => in.SequenceConversion(dop)(src)
           case _: in.OptionT => in.SequenceConversion(dop)(src)
-          case t => violation(s"expected a sequence, array or option type, but got $t")
+          case t => violation(s"expected a sequence, array, slice or option type, but got $t")
         }
 
         case PSetConversion(op) => for {
@@ -4709,14 +4900,9 @@ object Desugar extends LazyLogging {
         case PLet(ass, op) =>
           for {
             dOp <- assertionD(ctx, info)(op)
-            lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-              val right = pureExprD(ctx, info)(lr._2)
-              val left = in.LocalVar(
-                nm.variable(lr._1.name, info.scope(lr._1), info),
-                right.typ.withAddressability(Addressability.exclusiveVariable)
-              )(src)
+            lets = letBindingsD(ctx, info)(ass)(src).foldRight(dOp) { case ((left, right), letop) =>
               in.Let(left, right, letop)(src)
-            })
+            }
           } yield lets
 
         case m: PMatchExp =>
@@ -4840,7 +5026,7 @@ object Desugar extends LazyLogging {
           unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInPredicate =>
-          val fproxy = fpredicateProxy(b.id, info)
+          val fproxy = fpredicateProxy(b.symb.tag, convertArgs(dArgs).map(_.typ))(src)
           unit(in.FPredicateAccess(fproxy, convertArgs(dArgs))(src))
 
         case b: ap.BuiltInReceivedPredicate =>

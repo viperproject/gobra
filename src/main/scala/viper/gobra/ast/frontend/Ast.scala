@@ -13,7 +13,7 @@ import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.VerifierError
-import viper.gobra.util.{Decimal, NumBase}
+import viper.gobra.util.{Decimal, GoString, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -325,6 +325,8 @@ case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScop
   }
 }
 
+case class PCritical(expr: PExpression, stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement
+
 case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement {
   def nonEmptyStmts: Vector[PStatement] = stmts.filterNot {
     case _: PEmptyStmt => true
@@ -425,7 +427,7 @@ case class PFloatLit(lit: BigDecimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
-case class PStringLit(lit: String) extends PBasicLiteral
+case class PStringLit(lit: GoString) extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
@@ -760,7 +762,7 @@ sealed trait PMethodRecvType extends PType { // TODO: will have to be removed fo
 
 case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
-trait PMethodReceivePointer extends PMethodRecvType
+sealed trait PMethodReceivePointer extends PMethodRecvType
 
 case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
 
@@ -915,6 +917,8 @@ case class PFunctionSpec(
                           isPure: Boolean = false,
                           isTrusted: Boolean = false,
                           isOpaque: Boolean = false,
+                          isAtomic: Boolean = false,
+                          opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
                       ) extends PSpecification {
   /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */

@@ -91,6 +91,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             noConditionalMeasureErrors(sig.spec.terminationMeasures)
           else noMessages
         }
+        val interfaceMethodsNotAtomic = t.methSpecs.flatMap { sig =>
+          error(sig, s"Interface methods cannot be marked as atomic.", sig.spec.isAtomic)
+        }
         // Pure method signatures in an interface must satisfy the same requirements as pure implementations,
         // including having a meaningful termination measure. This is checked uniformly in `wellDefIfPureSpec`.
         val pureSigErrors = t.methSpecs.flatMap { sig =>
@@ -99,6 +102,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
+          interfaceMethodsNotAtomic ++
           sigsWithWildcardMeasuresErrors ++
           sigsWithConditionalMeasuresErrors ++
           pureSigErrors ++

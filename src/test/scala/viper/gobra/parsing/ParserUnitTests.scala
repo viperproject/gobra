@@ -12,7 +12,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.ParserError
-import viper.gobra.util.{Decimal, Hexadecimal}
+import viper.gobra.util.{Decimal, GoString, Hexadecimal}
 
 class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   private val frontend = new ParserTestFrontend()
@@ -121,13 +121,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: spec only function") {
     frontend.parseMemberOrFail("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: spec only function with nested blocks") {
     frontend.parseMemberOrFail("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
     }
   }
 
@@ -160,7 +160,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
       frontend.parseMemberOrFail("func bar()", specOnly) should matchPattern {
-        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false), None)) =>
+        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
       }
     })
   }
@@ -2519,6 +2519,33 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a selector-ended predicate constructor") {
+    frontend.parseExpOrFail("pkg.T.P{x}") should matchPattern {
+      case PPredConstructor(
+        PDottedBase(PDot(PDot(PNamedOperand(PIdnUse("pkg")), PIdnUse("T")), PIdnUse("P"))),
+        Vector(Some(PNamedOperand(PIdnUse("x")))),
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a parenthesized selector-ended predicate constructor") {
+    frontend.parseExpOrFail("(pkg.T.P){x}") should matchPattern {
+      case PPredConstructor(
+        PDottedBase(PDot(PDot(PNamedOperand(PIdnUse("pkg")), PIdnUse("T")), PIdnUse("P"))),
+        Vector(Some(PNamedOperand(PIdnUse("x")))),
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a parenthesized two-component predicate constructor") {
+    frontend.parseExpOrFail("(pkg.P){x}") should matchPattern {
+      case PPredConstructor(
+        PDottedBase(PDot(PNamedOperand(PIdnUse("pkg")), PIdnUse("P"))),
+        Vector(Some(PNamedOperand(PIdnUse("x")))),
+      ) =>
+    }
+  }
+
   // Without parentheses, `name { args }` parses as the ambiguous `PCompositeLitOrPredConstructor`:
   // the parse tree records that this is *either* a composite literal or a predicate constructor.
   // The decision is made later by `Info.rewritePredConstructors`, which has access to the
@@ -2647,37 +2674,37 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: raw string") {
     frontend.parseExp("`Hello World`") should matchPattern {
-      case Right(PStringLit("Hello World")) =>
+      case Right(PStringLit(value)) if value == GoString.fromRawLiteral("Hello World") =>
     }
   }
 
   test("Parser: interpreted string") {
     frontend.parseExp("\"Hello World\"") should matchPattern {
-      case Right(PStringLit("Hello World")) =>
+      case Right(PStringLit(value)) if value == GoString.fromRawLiteral("Hello World") =>
     }
   }
 
   test("Parser: interpreted string with a quote") {
     frontend.parseExp("\"\\\"\"") should matchPattern {
-      case Right(PStringLit("""\"""")) =>
+      case Right(PStringLit(value)) if value == GoString(Vector('"'.toByte)) =>
     }
   }
 
   test("Parser: should be able to parse normal termination measure") {
     frontend.parseMemberOrFail("decreases n; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), Vector(), false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), Vector(), false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: should be able to parse underscore termination measure") {
     frontend.parseMemberOrFail("decreases _; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PWildcardMeasure(None)), Vector(), false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PWildcardMeasure(None)), Vector(), false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
     frontend.parseMemberOrFail("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), Vector(), false, false, false, false), None)) if one == 1 && two == 2 =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), Vector(), false, false, false, false, false, false), None)) if one == 1 && two == 2 =>
     }
   }
 

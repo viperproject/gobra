@@ -61,6 +61,12 @@ case class TimeoutError(message: String) extends VerifierError {
   val id = "timeout_error"
 }
 
+case class ExceptionError(pkgId: String, throwable: Throwable) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "exception_error"
+  val message = s"Verifying package $pkgId resulted in the exception ${throwable.getMessage}."
+}
+
 case class ConsistencyError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "consistency_error"
 }
@@ -388,6 +394,21 @@ case class LoopTerminationError(info: Source.Verifier.Info) extends Verification
 case class SIFGotoError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "sif_goto_error"
   override def localMessage: String = s"The side conditions for the goto statement ${info.origin.tag.trim} caused by verifying hyper properties might not hold"
+}
+
+case class IsInvariantFailedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "is_invariant_failed"
+  override def localMessage: String = s"${info.origin.tag.trim} might not be an invariant"
+}
+
+case class InvariantMightBeOpenError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_already_open"
+  override def localMessage: String = s"Invariant ${info.origin.tag.trim} might already be open"
+}
+
+case class InvariantNotRestoredError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_not_restored"
+  override def localMessage: String = s"Invariant ${info.origin.tag.trim} might not have been restored"
 }
 
 sealed trait VerificationErrorReason {

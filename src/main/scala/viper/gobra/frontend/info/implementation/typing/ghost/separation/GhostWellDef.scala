@@ -79,6 +79,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PSeq
       |  _: PExpressionStmt
       |  _: POutline
+      |  _: PCritical
       | _: PShortForRange
       | _: PAssForRange
     => noMessages

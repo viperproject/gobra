@@ -83,6 +83,11 @@ case class GobraInstallCfg(
 }
 
 case class VerificationJobCfg(
+                               /**
+                                * `assert_timeout` sets a timeout (in milliseconds) for the assert operations
+                                * performed by Silicon. It has no effect on non-Silicon-based backends.
+                                */
+                               assert_timeout: Option[Int] = None,
                                assume_injectivity_inhale: Option[Boolean] = None,
                                backend: Option[ViperBackendJson.Backend] = None,
                                check_consistency: Option[Boolean] = None,

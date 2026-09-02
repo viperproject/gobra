@@ -27,13 +27,13 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         wellDefIfInitBlock(n) ++
         wellDefIfMain(n) ++
         wellFoundedIfGhost(n) ++
-        noConditionalMeasureIfGhost(n)
+        atomicMemberIsWellFormed(n)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++
         wellDefIfPureMethod(m) ++
         wellFoundedIfGhost(m) ++
-        noConditionalMeasureIfGhost(m)
+        atomicMemberIsWellFormed(m)
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PVarDecl if isGlobalVarDeclaration(g) =>

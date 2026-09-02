@@ -763,7 +763,7 @@ sealed trait PMethodRecvType extends PType { // TODO: will have to be removed fo
 
 case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
-trait PMethodReceivePointer extends PMethodRecvType
+sealed trait PMethodReceivePointer extends PMethodRecvType
 
 case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
 

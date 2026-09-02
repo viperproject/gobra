@@ -3001,9 +3001,39 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert (frontend.wellDefExpr(expr)(args).valid)
   }
 
-  test("TypeChecker: should not mark a 'shared array to sequence' conversion expression as well-defined") {
+  test("TypeChecker: should mark a 'shared array to sequence' conversion expression as well-defined") {
     val args = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType())), true))
     val expr = PSequenceConversion(PNamedOperand(PIdnUse("a")))
+
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should mark a 'slice to sequence' conversion expression as well-defined") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("s")))
+
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should type a 'slice to sequence' conversion expression as a sequence") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PBoolType())), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("s")))
+
+    frontend.exprType(expr)(args) should matchPattern {
+      case Type.SequenceT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should mark a 'ghost slice to sequence' conversion expression as well-defined") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PGhostSliceType(PIntType())), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("s")))
+
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should not mark a 'map to sequence' conversion expression as well-defined") {
+    val args = Vector((PNamedParameter(PIdnDef("m"), PMapType(PIntType(), PIntType())), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("m")))
 
     assert (!frontend.wellDefExpr(expr)(args).valid)
   }

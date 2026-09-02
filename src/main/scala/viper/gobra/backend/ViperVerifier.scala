@@ -6,14 +6,14 @@
 
 package viper.gobra.backend
 
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
+import viper.gobra.reporting.NegativeVerifierResult
 import viper.gobra.util.GobraExecutionContext
 import viper.silver
 import viper.silver.reporter.Reporter
 
-import scala.concurrent.Future
+trait ViperVerifier extends Backend[String, Reporter, silver.ast.Program, NegativeVerifierResult, silver.verifier.VerificationResult] {
 
-trait ViperVerifier extends Backend[String, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
-
-  def verify(programID: String, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): Future[silver.verifier.VerificationResult]
+  def verify(programID: String, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): IntermediateVerifierResult[silver.verifier.VerificationResult]
 
 }

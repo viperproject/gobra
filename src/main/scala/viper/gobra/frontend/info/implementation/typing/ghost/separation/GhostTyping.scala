@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, NamedType, Regular, SingleLocalVariable, TypeAlias}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -175,11 +175,6 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case PMapType(key, elem) => isTypeGhost(key) || isTypeGhost(elem)
     case t: PChannelType => isTypeGhost(t.elem)
     case t: PMethodRecvType => isTypeGhost(t.typ)
-    case t: PTypeDecl => entity(t.left) match {
-      case nt: NamedType => nt.ghost
-      case at: TypeAlias => at.ghost
-      case _ => false
-    }
     case _: PStructType => false // `PExplicitGhostStructType` is already captured by the `PGhostType` case above
     case PVariadicType(elem) => isTypeGhost(elem)
     case t @ (_: PNamedOperand | _: PDeref | _: PDot) => resolve(t) match {

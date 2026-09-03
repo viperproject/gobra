@@ -28,21 +28,16 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         nonVariadicArguments(args)
   }
 
-  // Ghost functions and methods must be guaranteed to terminate, i.e., they must have a termination measure and
-  // that measure must not be conditional. Pure members, whether ghost or not, are checked uniformly in
-  // `wellDefIfPureSpec`, which is why they are excluded here.
+  // Ghost functions and methods must be guaranteed to terminate. Pure members, whether ghost or not, are
+  // checked uniformly in `wellDefIfPureSpec`, which is why they are excluded here.
   private[typing] def wellFoundedIfGhost(member: PMember): Messages = {
     val spec = member match {
       case m: PMethodDecl => m.spec
       case f: PFunctionDecl => f.spec
       case _ => Violation.violation("Unexpected member type")
     }
-    if (isEnclosingGhost(member) && !spec.isPure) {
-      val missingMeasureError = error(member,
-        "All ghost functions and methods must have termination measures, but none was found for this member.",
-        !config.disableCheckTerminationPureFns && spec.terminationMeasures.isEmpty)
-      missingMeasureError ++ noConditionalMeasureErrors(spec.terminationMeasures)
-    } else noMessages
+    if (isEnclosingGhost(member) && !spec.isPure) mustTerminateErrors(member, spec)
+    else noMessages
   }
 
   private def pureFunctionsDoNotNeedMayInitMsg = "Pure functions and methods cannot open package invariants," +
@@ -81,27 +76,16 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   // Well-definedness checks shared by pure functions, pure methods, and pure interface method signatures:
-  // exactly one result, pure postconditions, no `preserves` clauses, non-variadic arguments, and a meaningful
-  // termination measure. Checks specific to members with a body (e.g., a single pure return expression) or to a
-  // particular kind of member (e.g., `mayInit`) are added by the callers.
+  // exactly one result, pure postconditions, no `preserves` clauses, non-variadic arguments, and a termination
+  // measure that guarantees termination. Checks specific to members with a body (e.g., a single pure return
+  // expression) or to a particular kind of member (e.g., `mayInit`) are added by the callers.
   private[typing] def wellDefIfPureSpec(node: PCodeRootWithResult, args: Vector[PParameter], spec: PFunctionSpec): Messages = {
     Violation.violation(spec.isPure, "wellDefIfPureSpec may only be called for the specification of a pure member.")
     isSingleResultArg(node) ++
       isPurePostcondition(spec) ++
       pureMembersCannotHavePreserves(spec) ++
       nonVariadicArguments(args) ++
-      wellFoundedMeasure(spec)
-  }
-
-  // A pure member must have a meaningful termination measure: one must be provided (unless termination checking of
-  // pure members is disabled) and it must not be conditional, since we do not check that the conditions are
-  // exhaustive. Wildcard measures are additionally rejected for interface method signatures (see `wellDefType`),
-  // where their semantics is unclear; they remain allowed for pure functions and methods.
-  private def wellFoundedMeasure(spec: PFunctionSpec): Messages = {
-    val missingMeasureError =
-      error(spec, "Pure functions, methods, and interface methods must have termination measures, but none was found.",
-        !config.disableCheckTerminationPureFns && spec.terminationMeasures.isEmpty)
-    missingMeasureError ++ noConditionalMeasureErrors(spec.terminationMeasures)
+      mustTerminateErrors(node, spec)
   }
 
   private[typing] def atomicMemberIsWellFormed(member: PMember): Messages = {

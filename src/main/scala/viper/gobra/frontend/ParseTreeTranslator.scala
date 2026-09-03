@@ -436,10 +436,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
     val ghost = has(ctx.GHOST())
     val spec = if (ctx.specification() != null)
-      // `visitSpecification` does not position the node it returns; usually, this is done by `visitChildren` of the
-      // enclosing context, which we bypass here. We position the spec at the `specification` context, exactly as
-      // `visitChildren` does for the specs of function and method declarations, such that errors reported on the
-      // spec of an interface method signature (e.g., a missing termination measure) have a position.
+      // `visitSpecification` does not position the node it returns; usually, this is done by `visitChildren` of
+      // the enclosing context, which we bypass here. Without this, the specification of an interface method
+      // signature would be the only `PFunctionSpec` in the AST without a position, so any error reported on it
+      // would be rendered without a source location. We position it at the `specification` context, exactly as
+      // `visitChildren` does for the specs of function and method declarations.
       visitSpecification(ctx.specification()).at(ctx.specification())
     else
       PFunctionSpec(Vector.empty, Vector.empty, Vector.empty).at(ctx)

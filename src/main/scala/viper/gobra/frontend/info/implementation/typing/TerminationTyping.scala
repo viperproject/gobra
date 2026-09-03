@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
+import viper.gobra.ast.frontend.{PFunctionSpec, PNode, PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 /**
@@ -45,6 +45,25 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
         "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
         isConditional(m))
     }
+
+  /**
+    * Checks that `spec` guarantees that the member it belongs to terminates on every call, as Gobra
+    * requires of all ghost and pure members: functions, methods, and interface method signatures alike.
+    * The missing-measure error is reported on `node`, which should be the member or signature that
+    * `spec` specifies.
+    *
+    * Note that this does not simply reject the specifications for which `measuresGuaranteeTermination`
+    * does not hold, because that would collapse two distinct problems into one message. Instead, a
+    * missing measure and a conditional measure are reported separately, the latter on the offending
+    * measure itself. Reporting a missing measure is subject to `disableCheckTerminationPureFns`,
+    * whereas conditional measures are always rejected.
+    */
+  private[typing] def mustTerminateErrors(node: PNode, spec: PFunctionSpec): Messages = {
+    val missingMeasureError = error(node,
+      "Ghost and pure functions, methods, and interface methods must have termination measures, but none was found.",
+      !config.disableCheckTerminationPureFns && spec.terminationMeasures.isEmpty)
+    missingMeasureError ++ noConditionalMeasureErrors(spec.terminationMeasures)
+  }
 
   private[typing] def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
     val tupleMeasureTypes = measures

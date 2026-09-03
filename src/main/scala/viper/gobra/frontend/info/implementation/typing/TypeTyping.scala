@@ -75,36 +75,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         }
 
-        // The semantics of wildcard termination measures in interface method specifications is not clear.
-        // Thus, they are rejected.
-        val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
-          sig.spec.terminationMeasures.flatMap {
-            case w: PWildcardMeasure =>
-              error(w, s"Wildcard termination measures are not allowed in the specifications of interface methods.")
-            case _ => noMessages
-          }
-        }
-        // Ghost method signatures must be guaranteed to terminate, exactly like ghost functions and methods.
-        // Pure signatures, ghost or not, are covered by `pureSigErrors` below instead.
-        val ghostSigsMustTerminateErrors = t.methSpecs.flatMap { sig =>
-          if (sig.isGhost && !sig.spec.isPure) mustTerminateErrors(sig, sig.spec)
-          else noMessages
-        }
-        val interfaceMethodsNotAtomic = t.methSpecs.flatMap { sig =>
-          error(sig, s"Interface methods cannot be marked as atomic.", sig.spec.isAtomic)
-        }
-        // Pure method signatures in an interface must satisfy the same requirements as pure implementations,
-        // including being guaranteed to terminate. This is checked uniformly in `wellDefIfPureSpec`.
-        val pureSigErrors = t.methSpecs.flatMap { sig =>
-          if (sig.spec.isPure) wellDefIfPureSpec(sig, sig.args, sig.spec)
-          else noMessages
-        }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
-          interfaceMethodsNotAtomic ++
-          sigsWithWildcardMeasuresErrors ++
-          ghostSigsMustTerminateErrors ++
-          pureSigErrors ++
+          t.methSpecs.flatMap(wellDefMethodSig) ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

@@ -436,12 +436,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
     val ghost = has(ctx.GHOST())
     val spec = if (ctx.specification() != null)
-      // `visitSpecification` does not position the node it returns; usually, this is done by `visitChildren` of
-      // the enclosing context, which we bypass here. Without this, the specification of an interface method
-      // signature would be the only `PFunctionSpec` in the AST without a position, so any error reported on it
-      // would be rendered without a source location. We position it at the `specification` context, exactly as
-      // `visitChildren` does for the specs of function and method declarations.
-      visitSpecification(ctx.specification()).at(ctx.specification())
+      visitSpecification(ctx.specification())
     else
       PFunctionSpec(Vector.empty, Vector.empty, Vector.empty).at(ctx)
     // The name of each explicitly specified method must be unique and not blank.
@@ -907,6 +902,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /**
     * Visits Gobra specifications
     *
+    * The returned node is positioned here rather than by `visitChildren` of the enclosing context, because
+    * `visitMethodSpec` calls this method directly. Positioning it twice is harmless, as `visitChildren` positions
+    * it at the very same `specification` context.
     * */
   override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
     // Get the backend options if available
@@ -944,7 +942,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       isAtomic = ctx.atomic,
       opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
-    )
+    ).at(ctx)
   }
 
   /**

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{PFunctionSpec, PNode, PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -37,6 +37,17 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
       case m: PTupleTerminationMeasure => !isConditional(m)
       case m: PWildcardMeasure => !isConditional(m)
       case _ => false
+    }
+
+  /**
+    * The semantics of wildcard termination measures in interface method specifications is not clear.
+    * Thus, they are rejected.
+    */
+  private[typing] def noWildcardMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
+    measures.flatMap {
+      case w: PWildcardMeasure =>
+        error(w, "Wildcard termination measures are not allowed in the specifications of interface methods.")
+      case _ => noMessages
     }
 
   private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =

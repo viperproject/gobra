@@ -45,6 +45,17 @@ type I interface {
 	//:: ExpectedOutput(type_error)
 	ghost MissingMeasureGhost(a int)
 
+	// Type error, a conditional measure does not guarantee that a pure interface method terminates.
+	//:: ExpectedOutput(type_error)
+	decreases a if a >= 0
+	pure ConditionalMeasurePure(a int) int
+
+	// Type error, a conditional measure does not guarantee that a ghost interface method terminates.
+	ghost
+	//:: ExpectedOutput(type_error)
+	decreases a if a >= 0
+	ConditionalMeasureGhost(a int)
+
 	decreases
 	pure HasMeasurePure(a int) int
 

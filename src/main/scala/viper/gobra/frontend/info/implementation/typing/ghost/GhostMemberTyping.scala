@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PCodeRootWithSpec, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PMethodSig, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -29,7 +29,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   // Ghost functions and methods must be guaranteed to terminate. Pure members, whether ghost or not, are
-  // checked uniformly in `wellDefIfPureSpec`, which is why they are excluded here.
+  // checked uniformly in `wellDefPureSpec`, which is why they are excluded here.
   private[typing] def wellFoundedIfGhost(member: PMember): Messages = {
     val spec = member match {
       case m: PMethodDecl => m.spec
@@ -45,7 +45,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
-      wellDefIfPureSpec(member, member.args, member.spec) ++
+      wellDefPureSpec(member) ++
         isSinglePureReturnExpr(member) ++
         error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
@@ -69,23 +69,39 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
-      wellDefIfPureSpec(member, member.args, member.spec) ++
+      wellDefPureSpec(member) ++
         isSinglePureReturnExpr(member) ++
         error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
   }
 
-  // Well-definedness checks shared by pure functions, pure methods, and pure interface method signatures:
-  // exactly one result, pure postconditions, no `preserves` clauses, non-variadic arguments, and a termination
-  // measure that guarantees termination. Checks specific to members with a body (e.g., a single pure return
-  // expression) or to a particular kind of member (e.g., `mayInit`) are added by the callers.
-  private[typing] def wellDefIfPureSpec(node: PCodeRootWithResult, args: Vector[PParameter], spec: PFunctionSpec): Messages = {
-    Violation.violation(spec.isPure, "wellDefIfPureSpec may only be called for the specification of a pure member.")
-    isSingleResultArg(node) ++
-      isPurePostcondition(spec) ++
-      pureMembersCannotHavePreserves(spec) ++
-      nonVariadicArguments(args) ++
-      mustTerminateErrors(node, spec)
+  /**
+    * Well-definedness checks that every pure member must satisfy, whether it is a pure function, a pure method
+    * or the signature of a pure interface method: exactly one result, pure postconditions, no `preserves`
+    * clauses, non-variadic arguments, and a termination measure that guarantees termination. Checks specific to
+    * members with a body (e.g., a single pure return expression) or to a particular kind of member (e.g.,
+    * `mayInit`) are added by the callers.
+    */
+  private[typing] def wellDefPureSpec(member: PCodeRootWithSpec): Messages = {
+    Violation.violation(member.spec.isPure, "wellDefPureSpec may only be called for a pure member.")
+    isSingleResultArg(member) ++
+      isPurePostcondition(member.spec) ++
+      pureMembersCannotHavePreserves(member.spec) ++
+      nonVariadicArguments(member.args) ++
+      mustTerminateErrors(member, member.spec)
+  }
+
+  /**
+    * Well-definedness checks for the signature of an interface method. This is the counterpart of
+    * `wellDefActualMember` for the members declared by an interface, and imposes the same requirements on ghost
+    * and pure signatures as the ones imposed on ghost and pure implementations.
+    */
+  private[typing] def wellDefMethodSig(sig: PMethodSig): Messages = {
+    error(sig, "Interface methods cannot be marked as atomic.", sig.spec.isAtomic) ++
+      noWildcardMeasureErrors(sig.spec.terminationMeasures) ++
+      (if (sig.spec.isPure) wellDefPureSpec(sig)
+       else if (sig.isGhost) mustTerminateErrors(sig, sig.spec)
+       else noMessages)
   }
 
   private[typing] def atomicMemberIsWellFormed(member: PMember): Messages = {

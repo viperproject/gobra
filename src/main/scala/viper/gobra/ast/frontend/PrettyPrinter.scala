@@ -379,9 +379,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "case" <+> showIdList(shorts) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
   }
 
-  def showRange(n: PRange): Doc = n.enumerated match {
-    case _: PWildcard => "range" <+> showExpr(n.exp)
-    case _ => "range" <+> showExpr(n.exp) <+> "with" <+> showId(n.enumerated)
+  def showRange(n: PRange): Doc = {
+    val perm = n.perm.map("," <+> showExpr(_)).getOrElse(emptyDoc)
+    n.enumerated match {
+      case _: PWildcard => "range" <+> showExpr(n.exp) <> perm
+      case _ => "range" <+> showExpr(n.exp) <> perm <+> "with" <+> showId(n.enumerated)
+    }
   }
 
   def showMatchClauseStatement(n: PMatchStmtCase): Doc = "case" <+> showMatchPattern(n.pattern) <> ":" <+> nest(line <> ssep(n.stmt map showStmt, line))

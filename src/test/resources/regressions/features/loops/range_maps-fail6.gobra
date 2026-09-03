@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// The permission amount of a range clause is specification-only, so it must not have any
+// effect of its own: it has to be a pure expression, whether or not it is ghost.
+
+decreases
+func impurePerm() (ghost p perm) {
+	return 1/4
+}
+
+ghost
+decreases
+func ghostImpurePerm() perm {
+	return 1/4
+}
+
+requires acc(x)
+ensures acc(x)
+decreases
+func callsNonGhostImpure(x map[int]int) {
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	//:: ExpectedOutput(type_error)
+	for k := range x, impurePerm() with visited {
+	}
+}
+
+requires acc(x)
+ensures acc(x)
+decreases
+func callsGhostImpure(x map[int]int) {
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	//:: ExpectedOutput(type_error)
+	for k := range x, ghostImpurePerm() with visited {
+	}
+}

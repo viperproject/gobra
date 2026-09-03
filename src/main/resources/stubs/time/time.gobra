@@ -269,7 +269,7 @@ func (t Time) MarshalBinary() ([]byte, error)
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
 requires acc(t)
-requires p > 0
+requires p > noPerm
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
@@ -283,7 +283,7 @@ func (t Time) GobEncode() (res []byte, error)
 
 // GobDecode implements the gob.GobDecoder interface.
 requires acc(t)
-requires p > 0
+requires p > noPerm
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
@@ -297,7 +297,7 @@ func (t Time) MarshalJSON() (res []byte, error)
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
 requires acc(t)
-requires p > 0
+requires p > noPerm
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
@@ -311,7 +311,7 @@ func (t Time) MarshalText() (res []byte, error)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 requires acc(t)
-requires p > 0
+requires p > noPerm
 requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 ensures acc(t)
 ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
@@ -325,7 +325,7 @@ func Unix(sec int64, nsec int64) Time
 
 // Date returns the Time corresponding to yyyy-mm-dd hh:mm:ss + nsec nanoseconds
 // in the appropriate zone for that time in the given location.
-requires p > 0
+requires p > noPerm
 requires acc(loc, p)
 ensures acc(loc, p)
 decreases

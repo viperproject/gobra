@@ -6,14 +6,14 @@ package ints
 
 // Even though the value of the expression as a whole
 // may not overflow, (x * x) and (x + 1) may both lead to overflows
-requires 0 < x && x <= 250
+requires 0 < x
 func subExp1(x int8) int8 {
 	//:: ExpectedOutput(integer_overflow_error)
 	return (x * x) / (x + 1)
 }
 
 // the example above is made clear here
-requires 0 < x && x <= 250
+requires 0 < x
 func subExp(x int8) int8 {
 	//:: ExpectedOutput(integer_overflow_error)
     x_square := x * x

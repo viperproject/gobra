@@ -16,8 +16,8 @@ func main() {
     assert *x == 42
 }
 
-requires acc(myPred(x), 1/2)
-ensures acc(myPred(x), 1/2)
+requires acc(myPred(x), perm(1, 2))
+ensures acc(myPred(x), perm(1, 2))
 func test(x *int) {
-    assert unfolding acc(myPred(x), 1/2) in *x == 42
+    assert unfolding acc(myPred(x), perm(1, 2)) in *x == 42
 }

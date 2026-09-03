@@ -78,13 +78,13 @@ var (
 
 // IsUnspecified reports whether ip is an unspecified address, either
 // the IPv4 address "0.0.0.0" or the IPv6 address "::".
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) IsUnspecified() bool /*{
 	return ip.Equal(IPv4zero) || ip.Equal(IPv6unspecified)
 }*/
 
 // IsLoopback reports whether ip is a loopback address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) IsLoopback() bool // {
 //	if ip4 := ip.To4(); ip4 != nil {
 //		return ip4[0] == 127
@@ -93,24 +93,24 @@ func (ip IP) IsLoopback() bool // {
 //}
 
 // IsMulticast reports whether ip is a multicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) IsMulticast() bool
 
 // IsInterfaceLocalMulticast reports whether ip is an interface-local multicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) IsInterfaceLocalMulticast() bool
 
 // IsLinkLocalMulticast reports whether ip is a link-local multicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
-func (ip IP) IsLinkLocalMulticast() bool 
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
+func (ip IP) IsLinkLocalMulticast() bool
 
 // IsLinkLocalUnicast reports whether ip is a link-local unicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
-func (ip IP) IsLinkLocalUnicast() bool 
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
+func (ip IP) IsLinkLocalUnicast() bool
 
 // IsGlobalUnicast reports whether ip is a global unicast
 // address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) IsGlobalUnicast() bool /*{
 	return (len(ip) == IPv4len || len(ip) == IPv6len) &&
 		!ip.Equal(IPv4bcast) &&
@@ -121,7 +121,7 @@ func (ip IP) IsGlobalUnicast() bool /*{
 }*/
 
 // To4 converts the IPv4 address ip to a 4-byte representation.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 ensures res != nil ==> len(res) == IPv4len
 ensures len(ip) == IPv4len ==> forall i int :: 0 <= i && i < len(ip) ==> &ip[i] == &res[i]
 ensures (len(ip) == IPv6len && isZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255) ==> res != nil
@@ -148,7 +148,7 @@ decreases _
 func isZeros(s []byte) bool
 
 // To16 converts the IP address ip to a 16-byte representation.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 ensures len(ip) == IPv4len ==> (len(res) == IPv4len && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i]))
 ensures len(ip) == IPv6len ==> (len(res) == IPv6len && forall i int :: 0 <= i && i < len(res) ==> &ip[i] == &res[i])
 func (ip IP) To16() (res IP) {
@@ -162,19 +162,19 @@ func (ip IP) To16() (res IP) {
 }
 
 // DefaultMask returns the default IP mask for the IP address ip.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) DefaultMask() IPMask
 
 // Mask returns the result of masking the IP address ip with mask.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (ip IP) Mask(mask IPMask) IP
 
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 decreases _
 func (ip IP) String() string
 
 // MarshalText implements the encoding.TextMarshaler interface.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 ensures (len(ip) == IPv4len || len(ip) == IPv6len || len(ip) == 0) ==> err == nil
 func (ip IP) MarshalText() (res []byte, err error) {
@@ -189,21 +189,21 @@ func (ip IP) MarshalText() (res []byte, err error) {
 	return []byte(ip.String()), nil
 }
 
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func hexString(ip IP) string
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 // The IP address is expected in a form accepted by ParseIP.
 preserves acc(ip)
-preserves forall i int :: 0 <= i && i < len(text) ==> acc(&text[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(text) ==> acc(&text[i], perm(1, 10000))
 ensures forall i int :: 0 <= i && i < len(*ip) ==> acc(&((*ip)[i]))
 func (ip *IP) UnmarshalText(text []byte) error 
 
 // Equal reports whether ip and x are the same IP address.
 // An IPv4 address and that same address in IPv6 form are
 // considered to be equal.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
-preserves forall i int :: 0 <= i && i < len(x) ==> acc(&x[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
+preserves forall i int :: 0 <= i && i < len(x) ==> acc(&x[i], perm(1, 10000))
 decreases _
 func (ip IP) Equal(x IP) bool // {
 //	if len(ip) == len(x) {
@@ -219,16 +219,16 @@ func (ip IP) Equal(x IP) bool // {
 //}
 
 // Size returns the number of leading ones and total bits in the mask.
-preserves forall i int :: 0 <= i && i < len(m) ==> acc(&m[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(m) ==> acc(&m[i], perm(1, 10000))
 func (m IPMask) Size() (ones, bits int)
 
 // String returns the hexadecimal form of m, with no punctuation.
-preserves forall i int :: 0 <= i && i < len(m) ==> acc(&m[i], 1/10000)
-func (m IPMask) String() string 
+preserves forall i int :: 0 <= i && i < len(m) ==> acc(&m[i], perm(1, 10000))
+func (m IPMask) String() string
 
 // Contains reports whether the network includes ip.
-preserves acc(n) && forall i int :: 0 <= i && i < len(n.IP) ==> acc(&(n.IP)[i], 1/10000)
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(n) && forall i int :: 0 <= i && i < len(n.IP) ==> acc(&(n.IP)[i], perm(1, 10000))
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], perm(1, 10000))
 func (n *IPNet) Contains(ip IP) bool
 
 // Network returns the address's network name, "ip+net".
@@ -237,8 +237,8 @@ func (n *IPNet) Network() string { return "ip+net" }
 // String returns the CIDR notation of n like "192.0.2.0/24"
 // or "2001:db8::/48" as defined in RFC 4632 and RFC 4291.
 preserves acc(n)
-preserves forall i int :: 0 <= i && i < len(n.IP) ==> acc(&(n.IP)[i], 1/10000)
-preserves forall i int :: 0 <= i && i < len(n.Mask) ==> acc(&(n.Mask)[i], 1/10000)
+preserves forall i int :: 0 <= i && i < len(n.IP) ==> acc(&(n.IP)[i], perm(1, 10000))
+preserves forall i int :: 0 <= i && i < len(n.Mask) ==> acc(&(n.Mask)[i], perm(1, 10000))
 func (n *IPNet) String() string
 
 // ParseIP parses s as an IP address, returning the result.

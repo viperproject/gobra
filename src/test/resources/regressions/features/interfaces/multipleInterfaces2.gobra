@@ -7,7 +7,7 @@ package pkg
 type stream interface {
     pred mem()
 
-    requires acc(mem(), 1/2)
+    requires acc(mem(), perm(1, 2))
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -32,18 +32,18 @@ type safeStream interface {
 
 type counter struct{ f, max int }
 
-requires acc(x, 1/2)
+requires acc(x, perm(1, 2))
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
 
-requires acc(x, 1/2)
+requires acc(x, perm(1, 2))
 pure func (x *counter) safe() bool {
   return true
 }
 
-requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
-ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == type[int]
+requires acc(&x.f) && acc(&x.max, perm(1, 2)) && x.hasNext()
+ensures  acc(&x.f) && acc(&x.max, perm(1, 2)) && x.f == old(x.f)+1 && typeOf(y) == type[int]
 ensures  y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
   y = x.f
@@ -58,7 +58,7 @@ pred (x *counter) mem() { acc(x) }
 (*counter) implements stream {
 
   pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+    return unfolding acc(x.mem(), perm(1, 2)) in x.hasNext()
   }
 
   (x *counter) next() (res interface{}) {
@@ -71,11 +71,11 @@ pred (x *counter) mem() { acc(x) }
 (*counter) implements safeStream {
 
   pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+    return unfolding acc(x.mem(), perm(1, 2)) in x.hasNext()
   }
 
   pure (x *counter) safe() bool {
-    return unfolding acc(x.mem(), 1/2) in x.safe()
+    return unfolding acc(x.mem(), perm(1, 2)) in x.safe()
   }
 }
 

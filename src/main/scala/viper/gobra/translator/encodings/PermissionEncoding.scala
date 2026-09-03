@@ -64,6 +64,16 @@ class PermissionEncoding extends LeafTypeEncoding {
       case pm@ in.PermMul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermMul(vl, vr), pm)
       case pd@ in.PermDiv(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermDiv(vl, vr), pd)
 
+      case pc: in.PermConstructorFromInt =>
+        val (pos, info, errT) = pc.vprMeta
+        for { vn <- goE(pc.num); vd <- goE(pc.den) }
+          yield vpr.FractionalPerm(vn, vd)(pos, info, errT)
+
+      case pc: in.PermConstructorFromPerm =>
+        val (pos, info, errT) = pc.vprMeta
+        for { vp <- goE(pc.p); vd <- goE(pc.den) }
+          yield vpr.PermDiv(vp, vd)(pos, info, errT)
+
       // Perm comparisons
       case lt@in.PermLtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLtCmp(vl, vr), lt)
       case le@in.PermLeCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLeCmp(vl, vr), le)

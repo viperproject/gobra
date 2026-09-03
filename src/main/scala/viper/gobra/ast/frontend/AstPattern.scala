@@ -36,6 +36,7 @@ object AstPattern {
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class AdtField(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: PExpression) extends Expr
+  case class FractionalPermConstructor(num: PExpression, den: PExpression) extends Expr
 
   sealed trait FunctionLikeCall extends Expr {
     def args: Vector[PExpression]

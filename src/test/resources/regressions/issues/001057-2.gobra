@@ -19,5 +19,5 @@ pred ProgramShape(p *Program, frac perm) {
 
 ghost
 pure
-requires acc(ProgramShape(p, 1/2))
+requires acc(ProgramShape(p, perm(1, 2)))
 func memberIn(p *Program) bool

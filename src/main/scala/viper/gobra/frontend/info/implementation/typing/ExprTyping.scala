@@ -38,6 +38,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
+        // An untyped integer constant used where the context imposes a type must be representable in
+        // that type, exactly like a literal (see the PIntLit case of wellDefActualExpr): with
+        // `const c = 300`, `var x uint8 = c`, `return c`, `g(c)`, and `x == c` for `x uint8` are all
+        // invalid Go. As for literals, an inner node of a larger untyped constant expression is not
+        // checked, only the outermost node is. Note that the operand's own type must not be computed
+        // here, since typing an expression presupposes its well-definedness; the check only needs
+        // the structural predicate and the constant's value.
+        case Some(_: ap.Constant) if isUntypedIntConst(n) && !isInnerNodeOfUntypedIntConst(n) =>
+          intExprWithinTypeBounds(n, UNTYPED_INT_CONST)
         case _ => noMessages
       } // no more checks to avoid cycles
 

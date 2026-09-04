@@ -67,6 +67,21 @@ type I interface {
 	NeedNotTerminate(a int)
 }
 
+func closures() {
+	// Type error, a pure closure must have a termination measure.
+	//:: ExpectedOutput(type_error)
+	cl := pure func g() (x int) {
+		return 0
+	}
+	_ = cl
+
+	cl2 := decreases
+		pure func h() (x int) {
+			return 0
+		}
+	_ = cl2
+}
+
 decreases
 pure func withMeasureFunc(a int) int {
 	return a

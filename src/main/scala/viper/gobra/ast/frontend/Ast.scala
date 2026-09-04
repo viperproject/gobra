@@ -478,7 +478,7 @@ case class PFunctionLit(id: Option[PIdnDef], decl: PClosureDecl) extends PLitera
 case class PClosureDecl(args: Vector[PParameter],
                   result: PResult,
                   spec: PFunctionSpec,
-                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithSpec with PActualMisc
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithSpec with PWithBody with PActualMisc
 
 case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement]) extends PGhostMisc {
   require(params.forall(p => p.exp.isInstanceOf[PExpCompositeVal]))

@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PCodeRootWithSpec, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PMethodSig, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PCodeRootWithSpec, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PMethodSig, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -75,12 +75,19 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
+  private[typing] def wellDefIfPureClosure(lit: PFunctionLit): Messages = {
+    if (lit.spec.isPure) {
+      wellDefPureSpec(lit.decl) ++
+        isSinglePureReturnExpr(lit.decl) ++
+        error(lit, pureFunctionsDoNotNeedMayInitMsg, lit.spec.mayBeUsedInInit)
+    } else noMessages
+  }
+
   /**
-    * Well-definedness checks that every pure member must satisfy, whether it is a pure function, a pure method
-    * or the signature of a pure interface method: exactly one result, pure postconditions, no `preserves`
-    * clauses, non-variadic arguments, and a termination measure that guarantees termination. Checks specific to
-    * members with a body (e.g., a single pure return expression) or to a particular kind of member (e.g.,
-    * `mayInit`) are added by the callers.
+    * Well-definedness checks that every pure member must satisfy, whether it is a pure function, a pure method,
+    * a pure closure or the signature of a pure interface method: exactly one result, pure postconditions, no
+    * `preserves` clauses, non-variadic arguments, and a termination measure that guarantees termination. Checks
+    * specific to a particular kind of member (e.g., `mayInit`) are added by the callers.
     */
   private[typing] def wellDefPureSpec(member: PCodeRootWithSpec): Messages = {
     Violation.violation(member.spec.isPure, "wellDefPureSpec may only be called for a pure member.")

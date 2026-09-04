@@ -7,11 +7,10 @@ func main() {
 	x@ := 0
 	// Closure cannot be made opaque
 	//:: ExpectedOutput(type_error)
-	c := preserves acc(&x)
-		 ensures x == old(x) + n && m == x
+	c := requires acc(&x, _)
+		 ensures m == x + n
 		 opaque
 		 pure func f(n int) (m int) {
-			x += n;
-			return x
+			return x + n
 		 }
 }

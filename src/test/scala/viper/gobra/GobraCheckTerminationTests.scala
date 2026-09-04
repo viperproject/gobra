@@ -11,14 +11,17 @@ import viper.gobra.frontend.Config
 
 /**
   * Runs the test files in `src/test/resources/check_termination` with `disableCheckTerminationPureFns`
-  * disabled, i.e., with the requirement that all pure and ghost members carry a termination measure.
+  * disabled, i.e., with the requirement that all ghost and pure members carry a termination measure.
   *
-  * The main regression test suite ([[GobraTests]]) sets `disableCheckTerminationPureFns` to `true`,
-  * because adding termination measures to all of its test files is still pending work. Note that an
-  * in-file configuration (`// ##(...)`) cannot be used to opt out of that setting, as configurations
-  * are merged by taking the disjunction of the boolean flags. This suite exists so that the
-  * requirement itself can be tested; test files that are unrelated to termination checking belong to
-  * the main regression test suite instead.
+  * This suite exists because that requirement cannot be tested from the main regression test suite:
+  * [[GobraTests]] sets `disableCheckTerminationPureFns` to `true`, as adding termination measures to
+  * all of its test files is still pending work, and an in-file configuration (`// ##(...)`) cannot opt
+  * out of that setting. In-file configurations are merged into the base configuration by taking the
+  * disjunction of the boolean flags (see `Config.merge`), so they can only ever turn this flag on.
+  *
+  * Only test files about that requirement belong here. Everything else, including the requirements on
+  * ghost and pure members that hold irrespective of the flag, belongs to the main regression test
+  * suite, which is where a reader looks for it.
   */
 class GobraCheckTerminationTests extends GobraTests {
   val checkTerminationPropertyName = "GOBRATESTS_CHECK_TERMINATION_DIR"

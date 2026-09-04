@@ -63,11 +63,16 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     * The missing-measure error is reported on `node`, which should be the member or signature that
     * `spec` specifies.
     *
-    * Note that this does not simply reject the specifications for which `measuresGuaranteeTermination`
-    * does not hold, because that would collapse two distinct problems into one message. Instead, a
-    * missing measure and a conditional measure are reported separately, the latter on the offending
-    * measure itself. Reporting a missing measure is subject to `disableCheckTerminationPureFns`,
-    * whereas conditional measures are always rejected.
+    * Ghost and pure members are held to a stricter rule than `measuresGuaranteeTermination`: they may
+    * not carry a conditional measure at all, not even next to a non-conditional one, because we do not
+    * check that the conditions of conditional measures cover all inputs. The two problems are therefore
+    * reported separately, the missing measure on `node` and each conditional measure on the measure
+    * itself, and only the former is subject to `disableCheckTerminationPureFns`.
+    *
+    * Testing `terminationMeasures.isEmpty` rather than `!measuresGuaranteeTermination(...)` makes no
+    * difference to which specifications are rejected: the two differ only when every measure of a
+    * specification is conditional, which `noConditionalMeasureErrors` rejects anyway. It only avoids a
+    * second, vaguer message for that one mistake.
     */
   private[typing] def mustTerminateErrors(node: PNode, spec: PFunctionSpec): Messages = {
     val missingMeasureError = error(node,

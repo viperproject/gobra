@@ -68,11 +68,6 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     * check that the conditions of conditional measures cover all inputs. The two problems are therefore
     * reported separately, the missing measure on `node` and each conditional measure on the measure
     * itself, and only the former is subject to `disableCheckTerminationPureFns`.
-    *
-    * Testing `terminationMeasures.isEmpty` rather than `!measuresGuaranteeTermination(...)` makes no
-    * difference to which specifications are rejected: the two differ only when every measure of a
-    * specification is conditional, which `noConditionalMeasureErrors` rejects anyway. It only avoids a
-    * second, vaguer message for that one mistake.
     */
   private[typing] def mustTerminateErrors(node: PNode, spec: PFunctionSpec): Messages = {
     val missingMeasureError = error(node,

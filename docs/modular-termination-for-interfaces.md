@@ -195,6 +195,41 @@ implementations plus a spec-tier in the measure encoding), or the call-permissio
 interfaces and closures uniformly because the required bound rides in the spec's contract. Method
 values (`x.m implements spec`, `MethodObjectEncoder`) are the same family and are unaudited.
 
+### Residual unsoundness: the obligation inside the erased body
+
+Retaining the measures (P4) leaves a hole of its own. Checks the plugin inserts inside a stub are
+placed after its leading `assume false`, so they are vacuous — the stub contributes edges, never
+obligations. When the only non-descending edge of a cycle is one of those, nothing fires:
+
+```go
+// util                                    // main
+requires 0 <= k                            requires 0 <= n
+decreases k                                decreases n
+func Loop(i I, k int) {                    func (t T) M(n int) {
+    i.M(k + 1)   // ← the bad edge             if n > 0 { util.Loop(t, n-1) }
+}                                          }
+```
+
+`I.M` has `decreases n`. Both packages verify with 0 errors; `T.M(n)` calls `Loop(t, n-1)` which
+calls back `t.M(n)`, and the Go equivalent stack-overflows. The two checks that do fire both pass
+honestly — `T.M → Loop` is `(n-1) ≺ (n)`, and `I.M → T.M` is `(n, NonItf) ≺ (n, Itf)`. The one that
+would fail, `Loop → I.M` needing `(k+1, Itf) ≺ (k, NonItf)`, sits inside the stub.
+
+Wildcarding imported measures instead closes this, because an intra-component call to a tuple-less
+member is an unconditional failure — but it is a poison pill, not a check, and it costs every
+cross-package dynamic recursion. Measured on one build, flipping only `TerminationMeasurePostprocessor`:
+
+| | measures kept | measures wildcarded |
+|---|---|---|
+| the divergent program above | **0 errors** (unsound) | rejected |
+| a terminating cross-package recursion | verifies | **rejected** (incomplete) |
+
+So under "obligations inside erased bodies are ignored" the choice is soundness or completeness, never
+both: the fact that separates the two programs lives exactly where the design has chosen not to look.
+Both entries are repaired by P1, which discharges `Loop → I.M` in `util`, where the call site and its
+real arguments are — `Loop` calling `i.M(k+1)` above its own measure is a local property of `util`.
+With P1 in place the measures are safe to keep and the completeness row survives.
+
 Two further limitations remain, and they are why the call-permission design is still preferred:
 
 - **Blame can land on the client.** In §1's `Loop` example the wrong contract is `util`'s, but `util`

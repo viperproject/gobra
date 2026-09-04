@@ -939,7 +939,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       isAtomic = ctx.atomic,
       opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
-    )
+    ).at(ctx)
   }
 
   /**

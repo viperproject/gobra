@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000841
+
+// Issue #841: pure method signatures declared in an interface must satisfy the same requirements as
+// pure functions and pure methods. The requirement of carrying a termination measure is gated behind
+// `disableCheckTerminationPureFns`, which this test suite enables; that case is covered by the tests
+// in `src/test/resources/check_termination` instead.
+
+type J interface {
+	// Type error, a pure member must have exactly one result parameter.
+	//:: ExpectedOutput(type_error)
+	decreases
+	pure NoResult(a int)
+
+	// Type error, a pure member must have exactly one result parameter.
+	//:: ExpectedOutput(type_error)
+	decreases
+	pure TwoResults(a int) (int, int)
+
+	decreases
+	// Type error, a pure member cannot have variadic parameters.
+	//:: ExpectedOutput(type_error)
+	pure Variadic(a ...int) int
+
+	// Type error, a pure member cannot have preserves clauses.
+	//:: ExpectedOutput(type_error)
+	preserves a > 0
+	decreases
+	pure Preserves(a int) int
+
+	// Type error, the postconditions of a pure member must be pure.
+	//:: ExpectedOutput(type_error)
+	ensures acc(x)
+	decreases
+	pure ImpurePostcondition(x *int) int
+}
+
+// A pure method signature that satisfies all of the requirements above is accepted.
+type K interface {
+	ensures res >= a
+	decreases
+	pure WellFormed(a int) (res int)
+}

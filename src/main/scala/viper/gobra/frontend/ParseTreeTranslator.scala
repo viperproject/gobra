@@ -902,9 +902,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   /**
     * Visits Gobra specifications
     *
-    * The returned node is positioned here rather than by `visitChildren` of the enclosing context, because
-    * `visitMethodSpec` calls this method directly. Positioning it twice is harmless, as `visitChildren` positions
-    * it at the very same `specification` context.
     * */
   override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
     // Get the backend options if available

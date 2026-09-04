@@ -7,7 +7,7 @@ func main() {
 	x@ := 0
 	// Closure cannot be made opaque
 	//:: ExpectedOutput(type_error)
-	c := requires acc(&x, _)
+	c := requires acc(&x)
 		 ensures m == x + n
 		 opaque
 		 pure func f(n int) (m int) {

@@ -64,10 +64,10 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     * `spec` specifies.
     *
     * Ghost and pure members are held to a stricter rule than `measuresGuaranteeTermination`: they may
-    * not carry a conditional measure at all, not even next to a non-conditional one, because we do not
-    * check that the conditions of conditional measures cover all inputs. The two problems are therefore
-    * reported separately, the missing measure on `node` and each conditional measure on the measure
-    * itself, and only the former is subject to `disableCheckTerminationPureFns`.
+    * not carry a conditional measure at all because we do not check that the conditions of conditional
+    * measures cover all inputs. The two problems are therefore reported separately, the missing
+    * measure on `node` and each conditional measure on the measure itself, and only the former
+    * is subject to `disableCheckTerminationPureFns`.
     */
   private[typing] def mustTerminateErrors(node: PNode, spec: PFunctionSpec): Messages = {
     val missingMeasureError = error(node,

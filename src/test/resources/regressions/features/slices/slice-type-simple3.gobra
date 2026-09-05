@@ -9,7 +9,7 @@ func foo(s []int, t []int) {
 }
 
 type Comp interface{
-	m() int
+	M() int
 }
 
 // interfaces can also be compared with ghost equality (===)

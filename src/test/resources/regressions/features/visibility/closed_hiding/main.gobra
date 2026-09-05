@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+decreases
+func client() {
+	x := lib.Val()
+	// the body of a closed pure function is not visible to importing packages
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert x == 42
+}
+
+decreases
+func clientDeterministic() {
+	// closed pure functions still behave like mathematical functions
+	assert lib.Val() == lib.Val()
+	lib.MkPos(1)
+}

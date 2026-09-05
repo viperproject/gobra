@@ -7,7 +7,7 @@ type ItfcT interface {
 	pure
 	ensures n >= 0
 	decreases
-	f() (n int)
+	F() (n int)
 }
 
 type ImplT struct{}
@@ -15,7 +15,7 @@ type ImplT struct{}
 pure
 ensures n >= 0
 decreases
-func (i ImplT) f() (n int) {
+func (i ImplT) F() (n int) {
 	return 0
 }
 

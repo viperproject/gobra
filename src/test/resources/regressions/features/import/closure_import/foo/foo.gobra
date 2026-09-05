@@ -4,21 +4,21 @@
 package foo
 
 type I1 interface {
-    pure getx() int
+    pure Getx() int
 }
 
-type S1 struct { x int }
+type S1 struct { X int }
 
-pure func (self S1) getx() (r int) {
-    return self.x
+pure func (self S1) Getx() (r int) {
+    return self.X
 }
 
-pure func ret2() int {
+pure func Ret2() int {
     return 2
 }
 
 ensures r == x + 2
-func p2(x int) (r int) {
+func P2(x int) (r int) {
     return x + 2
 }
 

@@ -47,14 +47,14 @@ func error3() {
 }
 
 type Singleton struct {
-    x int
+    X int
 }
 
 type Empty struct {
 }
 
 pred (s *Singleton)isVal(val int) {
-	acc(s) && s.x == val
+	acc(s) && s.X == val
 }
 
 func error4() {

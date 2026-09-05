@@ -9,6 +9,6 @@ package names
 
 // ##(-I ..)
 
-pred NamesInv() { 	
+closed pred NamesInv() { 	
     acc(&chrs) && len(chrs) == 131072
 }

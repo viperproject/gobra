@@ -3,15 +3,15 @@
 
 package bar
 
-pred vIsOne(v int) {
+pred VIsOne(v int) {
     v == 1
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == vIsOne{_}
+requires c.SendGivenPerm() == VIsOne{_}
 requires c.SendGotPerm() == PredTrue{}
-func send1(c chan<- int) {
+func Send1(c chan<- int) {
     v := 1
-    fold vIsOne{_}(v)
+    fold VIsOne{_}(v)
     c <- v
 }

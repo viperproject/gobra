@@ -62,6 +62,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   with Implements
   with UnderlyingType
   with TypeMerging
+  with Visibility
 
   with Errors
   with StrictLogging

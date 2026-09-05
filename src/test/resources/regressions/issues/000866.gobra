@@ -6,5 +6,5 @@ package issue000866
 type I interface {
 	//:: ExpectedOutput(type_error)
 	decreases _
-	m()
+	M()
 }

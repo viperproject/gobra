@@ -8,13 +8,13 @@ package foo
 ghost type IntPair domain {
     func fst(IntPair) int
     func snd(IntPair) int
-    func pair(int, int) IntPair
+    func Pair(int, int) IntPair
 
     axiom {
-      forall p IntPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+      forall p IntPair :: {fst(p)}{snd(p)} p == Pair(fst(p),snd(p))
     } // pair
 
     axiom {
-      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+      forall l, r int :: {Pair(l,r)} l == fst(Pair(l,r)) && r == snd(Pair(l,r))
     }
 }

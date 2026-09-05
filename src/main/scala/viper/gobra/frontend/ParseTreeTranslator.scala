@@ -765,7 +765,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitTypeDecl(ctx: GobraParser.TypeDeclContext): Vector[PTypeDecl] = {
-    visitListNode[PTypeDecl](ctx.typeSpec())
+    val decls = visitListNode[PTypeDecl](ctx.typeSpec())
+    if (ctx.COMPARABLE() == null) decls else decls.map {
+      case d: PTypeDef => PTypeDef(d.right, d.left, isComparable = true).at(d)
+      case _: PTypeAlias => fail(ctx, "A type alias cannot be marked as comparable.")
+    }
   }
 
   /**
@@ -939,6 +943,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       isAtomic = ctx.atomic,
       opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
+      isClosed = ctx.closed,
     )
   }
 
@@ -1085,7 +1090,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val receiver = visitReceiver(ctx.receiver())
     val params = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
     val body = if (has(ctx.predicateBody())) Some(visitNode[PExpression](ctx.predicateBody().expression())) else None
-    Vector(PMPredicateDecl(id, receiver, params.flatten, body).at(ctx))
+    Vector(PMPredicateDecl(id, receiver, params.flatten, body, isClosed = has(ctx.CLOSED())).at(ctx))
   }
 
   /**
@@ -1098,7 +1103,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val id = idnDef.get(ctx.IDENTIFIER())
     val params = visitNode[Vector[Vector[PParameter]]](ctx.parameters())
     val body = if (has(ctx.predicateBody())) Some(visitNode[PExpression](ctx.predicateBody().expression())) else None
-    Vector(PFPredicateDecl(id, params.flatten, body).at(ctx))
+    Vector(PFPredicateDecl(id, params.flatten, body, isClosed = has(ctx.CLOSED())).at(ctx))
   }
   //endregion
 

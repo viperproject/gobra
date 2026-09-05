@@ -4,70 +4,70 @@
 package closuresMutualRecursion
 
 type Inv interface {
-    pred inv()
+    pred Invariant()
 }
 
-type EvenInv struct{ e *func(int)bool; o *func(int)bool }
-pred (self EvenInv) inv() {
-    acc(self.o, 1/2) && *self.o implements odd_spec{OddInv{self.e, self.o}} && OddInv{self.e, self.o}.inv()
+type EvenInv struct{ E *func(int)bool; O *func(int)bool }
+pred (self EvenInv) Invariant() {
+    acc(self.O, 1/2) && *self.O implements Odd_spec{OddInv{self.E, self.O}} && OddInv{self.E, self.O}.Invariant()
 }
 
-type OddInv struct{ e *func(int)bool; o *func(int)bool }
-pred (self OddInv) inv() {
-    acc(self.e, 1/2) && *self.e implements even_spec{EvenInv{self.e, self.o}} && EvenInv{self.e, self.o}.inv()
+type OddInv struct{ E *func(int)bool; O *func(int)bool }
+pred (self OddInv) Invariant() {
+    acc(self.E, 1/2) && *self.E implements Even_spec{EvenInv{self.E, self.O}} && EvenInv{self.E, self.O}.Invariant()
 }
 
 ghost
 requires x >= 0
-preserves i.inv()
+preserves i.Invariant()
 ensures (x%2 == 0 ==> even) && (even ==> x%2 == 0)
 decreases x
-func even_spec(i Inv, x int)(even bool)
+func Even_spec(i Inv, x int)(even bool)
 
 ghost
 requires y >= 0
-preserves i.inv()
+preserves i.Invariant()
 ensures (y%2 == 1 ==> odd) && (odd ==> y%2 == 1)
 decreases y
-func odd_spec(i Inv, y int)(odd bool)
+func Odd_spec(i Inv, y int)(odd bool)
 
 func main() {
     var e@ func(int)bool
     var o@ func(int)bool
 
     e = requires x >= 0
-        preserves acc(&o, 1/2) && OddInv{&e, &o}.inv() && o implements odd_spec{OddInv{&e, &o}}
+        preserves acc(&o, 1/2) && OddInv{&e, &o}.Invariant() && o implements Odd_spec{OddInv{&e, &o}}
         ensures (x%2 == 0 ==> even) && (even ==> x%2 == 0)
         decreases x
         func is_even(x int)(even bool) {
             if x == 0 {
                 return true
             } else {
-                return o(x-1) as odd_spec{OddInv{&e, &o}}
+                return o(x-1) as Odd_spec{OddInv{&e, &o}}
             }
         }
 
-    proof e implements even_spec{EvenInv{&e, &o}} {
-        unfold EvenInv{&e, &o}.inv()
+    proof e implements Even_spec{EvenInv{&e, &o}} {
+        unfold EvenInv{&e, &o}.Invariant()
         even = e(x) as is_even
-        fold EvenInv{&e, &o}.inv()
+        fold EvenInv{&e, &o}.Invariant()
     }
 
     o = requires y >= 0
-        preserves acc(&e, 1/2) && EvenInv{&e, &o}.inv() && e implements even_spec{EvenInv{&e, &o}}
+        preserves acc(&e, 1/2) && EvenInv{&e, &o}.Invariant() && e implements Even_spec{EvenInv{&e, &o}}
         ensures (y%2 == 1 ==> odd) && (odd ==> y%2 == 1)
         decreases y
         func is_odd(y int)(odd bool) {
             if y == 0 {
                 return false
             } else {
-                return e(y-1) as even_spec{EvenInv{&e, &o}}
+                return e(y-1) as Even_spec{EvenInv{&e, &o}}
             }
         }
 
-    proof o implements odd_spec{OddInv{&e, &o}} {
-        unfold OddInv{&e, &o}.inv()
+    proof o implements Odd_spec{OddInv{&e, &o}} {
+        unfold OddInv{&e, &o}.Invariant()
         odd = o(y) as is_odd
-        fold OddInv{&e, &o}.inv()
+        fold OddInv{&e, &o}.Invariant()
     }
 }

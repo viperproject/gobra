@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+type I interface {
+	decreases
+	pure M() int
+}
+
+// A private type may occur in the signature of an exported member. Importing packages cannot
+// name it, but they may use the values of it that they obtain from such members.
+type client struct {
+	X int
+}
+
+decreases
+pure func (c client) M() int {
+	return 42
+}
+
+client implements I
+
+ensures res.X == x
+decreases
+func New(x int) (res client) {
+	return client{X: x}
+}

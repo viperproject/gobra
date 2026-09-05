@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+type Pair struct {
+	X int
+	y int
+}
+
+// `acc(p)` denotes access to all fields of `p`, including the non-exported ones. Unlike
+// `acc(&p.y)`, it does not name a non-exported member and is thus permitted in the contract
+// of an exported member, as well as in the body of a fully-public predicate.
+requires acc(p)
+ensures  acc(p) && p.X == old(p.X)
+decreases
+func Bump(p *Pair) {
+	p.y = p.y + 1
+}
+
+pred Mem(p *Pair) {
+	acc(p)
+}
+
+requires acc(p, 1/2)
+decreases
+pure func GetX(p *Pair) int {
+	return p.X
+}
+
+requires acc(Mem(p), 1/2)
+decreases
+pure func MemGetX(p *Pair) int {
+	return unfolding acc(Mem(p), 1/2) in p.X
+}
+
+// Composite literals of an imported type may occur in the contracts of clients as long as they
+// do not assign to non-exported fields (see main.gobra).
+ensures res === Pair{X: x}
+decreases
+pure func Make(x int) (res Pair)

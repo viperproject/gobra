@@ -7,15 +7,15 @@ import "pkg1"
 import "pkg2"
 
 func main () {
-  r@ := pkg2.Rect{width: 2, height: 3}
-  c@ := pkg2.Circle{radius: 10}
-  fold r.mem()
-  fold c.mem()
+  r@ := pkg2.Rect{Width: 2, Height: 3}
+  c@ := pkg2.Circle{Radius: 10}
+  fold r.Mem()
+  fold c.Mem()
 
   trustedFunction(abstractFunction(Area(&r)), abstractFunction(Area(&c)))
 }
 
-requires acc(s.mem()) && s.Size()
+requires acc(s.Mem()) && s.Size()
 ensures ret > 0
 func Area(s pkg1.Shape) (ret int) {
   return s.Area()

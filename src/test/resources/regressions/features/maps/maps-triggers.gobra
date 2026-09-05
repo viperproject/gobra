@@ -34,11 +34,13 @@ func test2(m map[int]int, k int) {
 	assert k elem m ==> m[k] > 0
 }
 
-// the same trigger, once nested and once at the top level, must match the same terms
+// a map lookup nested inside a larger expression produces the same term as the
+// lookup written at the top level of a trigger, so the quantifier below is matched
+// by the lookup occurring under `id` in the assertion
 requires acc(m, _)
-requires forall k int :: { id(m[k]) } k elem m ==> m[k] > 0
+requires forall k int :: { m[k] } k elem m ==> m[k] > 0
 func test3(m map[int]int, k int) {
-	assert k elem m ==> m[k] > 0
+	assert k elem m ==> id(m[k]) > 0
 }
 
 // membership in a map, nested inside a trigger
@@ -76,6 +78,34 @@ func test8(m map[int]int, j int) {
 	assert forall k int :: { m[k] } k elem m ==> m[k] > 0
 	assert m[j] == 1
 	assert j elem m
+}
+
+type meta struct {
+	inUse bool
+}
+
+ghost
+decreases
+pure func p(t int) bool
+
+// A quantified fact about a map survives an update at a single key, both when it is
+// stated in terms of the looked-up value itself and when it is stated in terms of a
+// field of it. The latter is the shape of VerifiedSCION's gopacket package invariant.
+requires acc(m)
+requires forall t int :: { m[t].inUse } m[t].inUse == p(t)
+ensures acc(m)
+func test8a(m map[int]meta, k int) {
+	m[k] = meta{true}
+	assert forall t int :: { m[t].inUse } t != k ==> m[t].inUse == p(t)
+	assert m[k].inUse
+}
+
+requires acc(m)
+requires forall t int :: { m[t] } m[t] == 1
+ensures acc(m)
+func test8b(m map[int]int, k int) {
+	m[k] = 1
+	assert forall t int :: { m[t] } m[t] == 1
 }
 
 // values in the range of a map are reachable through a lookup

@@ -318,9 +318,18 @@ class MapEncoding extends LeafTypeEncoding {
   /**
     * Encodes an assignment.
     * [ mapExp[idx] = newVal ] ->
-    *     var m: Map[ [k], [v] ]
-    *     m = [mapExp].underlyingMapField
-    *     [mapExp].underlyingMapField := m[ [idx] = [newVal] ]
+    *     label lbl
+    *     [mapExp].underlyingMapField := [mapExp].underlyingMapField[ [idx] = [newVal] ]
+    *     inhale forall k :: { mapLookup$K$V([ mapExp ], k) }
+    *              k != [ idx ] ==> mapLookup$K$V([ mapExp ], k) == old[lbl](mapLookup$K$V([ mapExp ], k))
+    *
+    * The inhaled assumption frames the lookups at the keys that the assignment leaves
+    * untouched. It is not implied by the assignment as far as the SMT solver is concerned:
+    * an update makes the underlying maps of the two states differ by a `MapUpdate`, which
+    * Viper's map axiomatization relates through terms of the form `m[k]`, whereas after
+    * this encoding a quantified fact about the map is triggered by `mapLookup` terms. Both
+    * states have to be mentioned for such a fact to survive an update, and the term for the
+    * old state is only ever produced by this assumption.
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = {
 
@@ -333,8 +342,24 @@ class MapEncoding extends LeafTypeEncoding {
             _ <- assert(isCompKey, comparabilityErrorT) // key must be comparable
             vRhs <- ctx.expression(rhs)
             vIdx <- ctx.expression(idx)
+            vMap <- ctx.expression(m)
             correspondingMapM <- getCorrespondingMap(m, keys, values)(ctx)
-          } yield vpr.FieldAssign(correspondingMapM, vpr.MapUpdate(correspondingMapM, vIdx, vRhs)(pos, info, errT))(pos, info, errT)
+
+            label = vpr.Label(ctx.freshNames.next(), Vector.empty)(pos, info, errT)
+            _ <- write(label)
+            _ <- write(vpr.FieldAssign(correspondingMapM, vpr.MapUpdate(correspondingMapM, vIdx, vRhs)(pos, info, errT))(pos, info, errT))
+
+            boundVar = vpr.LocalVarDecl(ctx.freshNames.next(), ctx.typ(keys))(pos, info, errT)
+            lookup = mapLookupGenerator(Vector(vMap, boundVar.localVar), (keys, values))(pos, info, errT)(ctx)
+            framingAxiom = vpr.Forall(
+              Seq(boundVar),
+              Seq(vpr.Trigger(Seq(lookup))(pos, info, errT)),
+              vpr.Implies(
+                vpr.NeCmp(boundVar.localVar, vIdx)(pos, info, errT),
+                vpr.EqCmp(lookup, vpr.LabelledOld(lookup, label.name)(pos, info, errT))(pos, info, errT)
+              )(pos, info, errT)
+            )(pos, info, errT)
+          } yield vpr.Inhale(framingAxiom)(pos, info, errT)
         )
     }
   }

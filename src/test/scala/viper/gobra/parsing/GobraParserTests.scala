@@ -10,7 +10,7 @@ import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver, Source}
-import viper.gobra.reporting.VerifierResult.{Failure, Success}
+import viper.gobra.reporting.VerifierResult.{Aborted, Failure, Skipped, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.gobra.{AbstractGobraTests, Gobra}
@@ -66,6 +66,8 @@ class GobraParserTests extends AbstractGobraTests with BeforeAndAfterAll {
         result match {
           case Success => Vector.empty
           case Failure(errors) => errors map GobraTestOuput
+          case Aborted => fail("the verification has unexpectedly been aborted")
+          case Skipped => fail("the verification has unexpectedly been skipped")
         }
       }
     }

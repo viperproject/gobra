@@ -4,14 +4,18 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392 AS build
+FROM ubuntu:24.04 AS build
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /build
 
 # Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
-# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
+# On Ubuntu 24.04, provide a compatibility libssl1.1 from focal-security.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    openjdk-21-jdk-headless \
+    ca-certificates \
     gnupg2 \
 	curl \
 	unzip \
@@ -29,16 +33,23 @@ RUN echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | tee -a /etc/apt/so
     apt-get update && \
     apt-get install sbt
 # Install Z3
-ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
+# The platform of the release archive has to match the base image: Z3's Linux releases only
+# run on the glibc version they are named after or newer, and 4.15.0 and newer are published
+# only as glibc 2.39 builds, hence the Ubuntu 24.04 base above.
+ENV Z3_VERSION="4.16.0"
+ENV Z3_PLATFORM="x64-glibc-2.39"
+ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/z3-${Z3_VERSION}-${Z3_PLATFORM}.zip"
 # path to z3 binary unzipping Z3_ZIP:
-ENV Z3_BIN="z3-4.8.7-x64-ubuntu-16.04/bin/z3"
+ENV Z3_BIN="z3-${Z3_VERSION}-${Z3_PLATFORM}/bin/z3"
 
 # download z3 release from GitHub, unzip, and copy to bin:
 RUN curl -L $Z3_URL --output /z3.zip && \
     unzip /z3.zip -d /z3/ && \
     rm /z3.zip && \
     cp /z3/$Z3_BIN /usr/bin/ && \
-    rm -r /z3
+    rm -r /z3 && \
+    # fail the build early if the binary is incompatible with the base image:
+    /usr/bin/z3 --version
 
 ENV Z3_EXE=/usr/bin/z3
 
@@ -70,11 +81,15 @@ RUN sbt assembly
 # note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
 # environment variables are not carried over either and need to be redeclared.
-FROM mcr.microsoft.com/openjdk/jdk:21-ubuntu@sha256:95786a5e921982d10b1a03352e049daaeab63d83bf0ebf1e3049cf327b091392
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Boogie (current boogie-builder artifact) needs an older OpenSSL ABI at runtime.
-# On Ubuntu 22.04, provide a compatibility libssl1.1 from focal-security.
-RUN echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
+# On Ubuntu 24.04, provide a compatibility libssl1.1 from focal-security.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-21-jre-headless ca-certificates && \
+    echo "deb http://security.ubuntu.com/ubuntu focal-security main" > /etc/apt/sources.list.d/focal-security.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends libssl1.1 && \
     rm -f /etc/apt/sources.list.d/focal-security.list && \

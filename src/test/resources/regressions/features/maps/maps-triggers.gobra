@@ -1,0 +1,95 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package maptriggers
+
+// Regression tests for map operations occurring inside triggers.
+// Map operations are encoded as applications of pure functions; in particular, they are
+// admissible Viper triggers wherever they occur, and the terms they give rise to are the
+// same whether or not they occur in a trigger.
+
+pure
+decreases
+func id(x int) int {
+	return x
+}
+
+pure
+decreases
+func idKey(x string) string {
+	return x
+}
+
+// a map lookup that is not the top-level expression of a trigger
+requires acc(m, _)
+requires forall k int :: { id(m[k]) } k elem m ==> id(m[k]) > 0
+func test1(m map[int]int, k int) {
+	assert k elem m ==> id(m[k]) > 0
+}
+
+// a map lookup as the top-level expression of a trigger
+requires acc(m, _)
+requires forall k int :: { m[k] } k elem m ==> m[k] > 0
+func test2(m map[int]int, k int) {
+	assert k elem m ==> m[k] > 0
+}
+
+// the same trigger, once nested and once at the top level, must match the same terms
+requires acc(m, _)
+requires forall k int :: { id(m[k]) } k elem m ==> m[k] > 0
+func test3(m map[int]int, k int) {
+	assert k elem m ==> m[k] > 0
+}
+
+// membership in a map, nested inside a trigger
+requires acc(m, _)
+requires forall k string :: { m[idKey(k)] } m[idKey(k)] == 0
+func test4(m map[string]int, k string) {
+	assert m[idKey(k)] == 0
+}
+
+// `k elem m` and `k elem domain(m)` denote the same thing
+requires acc(m, _)
+requires forall k int :: { k elem m } k elem m ==> m[k] > 0
+func test5(m map[int]int, k int) {
+	assert k elem domain(m) ==> m[k] > 0
+}
+
+requires acc(m, _)
+requires forall k int :: { k elem domain(m) } k elem domain(m) ==> m[k] > 0
+func test6(m map[int]int, k int) {
+	assert k elem m ==> m[k] > 0
+}
+
+// the cardinality of a map is the cardinality of its domain
+requires acc(m, _)
+func test7(m map[int]int) {
+	assert len(m) == len(domain(m))
+}
+
+// updating a map preserves what is known about the other keys
+requires acc(m)
+requires forall k int :: { m[k] } k elem m ==> m[k] > 0
+ensures acc(m)
+func test8(m map[int]int, j int) {
+	m[j] = 1
+	assert forall k int :: { m[k] } k elem m ==> m[k] > 0
+	assert m[j] == 1
+	assert j elem m
+}
+
+// values in the range of a map are reachable through a lookup
+requires acc(m, _)
+requires v elem range(m)
+func test9(m map[string]int, v int) {
+	assert exists k string :: m[k] == v
+	assert exists k string :: k elem m && m[k] == v
+}
+
+// nil maps
+func test10() {
+	var m map[int]int
+	assert forall k int :: { m[k] } m[k] == 0
+	assert forall k int :: { k elem m } !(k elem m)
+	assert len(m) == 0
+}

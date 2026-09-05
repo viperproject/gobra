@@ -5,7 +5,7 @@ package gomap
 
 // no access to m granted
 func test1(m map[int]int) int {
-	//:: ExpectedOutput(assignment_error:permission_error)
+	//:: ExpectedOutput(map_permission_error)
 	return len(m)
 }
 
@@ -26,7 +26,7 @@ func test3() {
 
 
 // cannot compute domain(m), no permission to m
-//:: ExpectedOutput(contract_not_well_formed)
+//:: ExpectedOutput(map_permission_error)
 requires "key" elem domain(m)
 func test4(m map[string]string) (r string){
 	return m["key"]

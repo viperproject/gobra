@@ -202,24 +202,6 @@ class MapEncoding extends LeafTypeEncoding {
     * be instantiated on.
     */
   override def triggerExprAlt(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
-    case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>
-      for {
-        vIdx <- ctx.expression(idx)
-        underlying <- getCorrespondingMap(m, keys, values)(ctx)
-      } yield withSrc(vpr.MapLookup(underlying, vIdx), l)
-
-    case l@in.Contains(key, m :: ctx.Map(keys, values)) =>
-      for {
-        vKey <- ctx.expression(key)
-        underlying <- getCorrespondingMap(m, keys, values)(ctx)
-      } yield withSrc(vpr.AnySetContains(vKey, withSrc(vpr.MapDomain(underlying), l)), l)
-
-    case l@in.Contains(key, in.MapKeys(m :: ctx.Map(keys, values), _)) =>
-      for {
-        vKey <- ctx.expression(key)
-        underlying <- getCorrespondingMap(m, keys, values)(ctx)
-      } yield withSrc(vpr.AnySetContains(vKey, withSrc(vpr.MapDomain(underlying), l)), l)
-
     case l@in.Contains(key, in.MapValues(m :: ctx.Map(keys, values), _)) =>
       for {
         vKey <- ctx.expression(key)

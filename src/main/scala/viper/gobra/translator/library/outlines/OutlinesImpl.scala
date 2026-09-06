@@ -84,7 +84,16 @@ class OutlinesImpl extends Outlines {
       val actualBody = if (!trusted) {
         val prelude = (arguments zip formals).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
         val ending = (returns zip results).map{ case (l, r) => vpr.LocalVarAssign(l, r)(l.pos, l.info, l.errT) }
-        val tb = body.transform{ case lold: vpr.LabelledOld => vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT) }
+        // A labelled old referring to a label declared outside of the outlined region cannot be
+        // kept, as that label does not exist in the generated method; the state on entry of the
+        // method is used instead. Labels declared inside the region, on the other hand, are still
+        // in scope in the generated method and must be left alone: rewriting them would silently
+        // change which state they denote.
+        val labelsInBody: Set[String] = body.deepCollect{ case l: vpr.Label => l.name }.toSet
+        val tb = body.transform{
+          case lold: vpr.LabelledOld if !labelsInBody.contains(lold.oldLabel) =>
+            vpr.Old(lold.exp)(lold.pos, lold.info, lold.errT)
+        }
         Some(vpr.Seqn(prelude ++ (tb +: ending), arguments map ViperUtil.toVarDecl)(body.pos, body.info, body.errT))
       } else None
 

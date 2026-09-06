@@ -102,7 +102,7 @@ class AssertionEncoding extends Encoding {
       val newVars = vars map ctx.variable
       val (pos, info, errT) = n.vprMeta
       for {
-        newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+        newTriggers <- sequence(triggers map (triggerSets(_)(ctx))).map(_.flatten)
         newBody <- pure(ctx.assertion(body))(ctx)
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
         desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
@@ -220,17 +220,30 @@ class AssertionEncoding extends Encoding {
       } yield vpr.Apply(w)(pos, info, errT)
   }
 
-  def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
+  /**
+    * Encodes a trigger. Whenever at least one of the trigger's expressions has an alternative
+    * encoding (see [[viper.gobra.translator.encodings.combinators.TypeEncoding.triggerExprAlt]]),
+    * a second Viper trigger is emitted alongside the first, so that the quantifier can be matched
+    * either way. Expressions without an alternative are encoded the same way in both.
+    */
+  def triggerSets(trigger: in.Trigger)(ctx: Context) : CodeWriter[Vector[vpr.Trigger]] = {
     val (pos, info, errT) = trigger.vprMeta
-    for { expr <- sequence(trigger.exprs map ctx.triggerExpr)}
-      yield vpr.Trigger(expr)(pos, info, errT)
+    for {
+      exprs <- sequence(trigger.exprs map ctx.triggerExpr)
+      altExprs <- sequence(trigger.exprs map { e => ctx.triggerExprAlt(e).map(_.map(Some(_))).getOrElse(unit(None)) })
+      primary = vpr.Trigger(exprs)(pos, info, errT)
+      alternative =
+        if (altExprs.exists(_.isDefined)) {
+          Vector(vpr.Trigger(exprs.zip(altExprs).map { case (e, alt) => alt.getOrElse(e) })(pos, info, errT))
+        } else Vector.empty
+    } yield primary +: alternative
   }
 
   def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {
     val newVars = vars map ctx.variable
 
     for {
-      newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+      newTriggers <- sequence(triggers map (triggerSets(_)(ctx))).map(_.flatten)
       newBody <- ctx.expression(body)
     } yield (newVars, newTriggers, newBody)
   }

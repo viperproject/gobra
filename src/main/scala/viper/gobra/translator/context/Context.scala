@@ -89,6 +89,9 @@ trait Context {
 
   def triggerExpr(x: in.TriggerExpr): CodeWriter[vpr.Exp] = typeEncoding.triggerExpr(this)(x)
 
+  /** Alternative encoding of a trigger expression, if the type encoding provides one. */
+  def triggerExprAlt(x: in.TriggerExpr): Option[CodeWriter[vpr.Exp]] = typeEncoding.triggerExprAlt(this).lift(x)
+
   def assertion(x: in.Assertion): CodeWriter[vpr.Exp] = typeEncoding.finalAssertion(this)(x)
 
   def invariant(x: in.Assertion): (CodeWriter[Unit], vpr.Exp) = typeEncoding.invariant(this)(x)

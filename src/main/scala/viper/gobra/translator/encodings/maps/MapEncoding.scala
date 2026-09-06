@@ -184,6 +184,50 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   /**
+    * Encodes a trigger expression a second time in terms of the underlying map, so that every
+    * trigger mentioning a map operation gets a second, equivalent Viper trigger:
+    *   { m[i] } -> { [ m ].underlyingMapField$K$V[ [ i ] ] }
+    *   { k in m }, { k in domain(m) } -> { [ k ] in domain([ m ].underlyingMapField$K$V) }
+    *   { k in range(m) } -> { [ k ] in range([ m ].underlyingMapField$K$V) }
+    *
+    * These are the terms Viper's own map axiomatization is phrased in, and they are the ones the
+    * previous encoding produced. Matching on them again is what keeps facts about a map usable
+    * across an update of it, and keeps a value obtained by a lookup connected to an assertion
+    * quantifying over the range of the map: both are steps Viper's map axioms take, and they take
+    * them between terms of the underlying map, never between applications of the functions this
+    * encoding generates. Supplying the alternative as a *trigger* rather than as an axiom relating
+    * the two forms is essential: an axiom in either direction feeds Viper's range Skolem function
+    * (`v in range(m) ==> v == m[witness(m, v)]`) new values, which yield new keys, which yield new
+    * values, and the prover diverges. A trigger only ever changes what an existing quantifier can
+    * be instantiated on.
+    */
+  override def triggerExprAlt(ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = {
+    case l@in.IndexedExp(m :: ctx.Map(keys, values), idx, _) =>
+      for {
+        vIdx <- ctx.expression(idx)
+        underlying <- getCorrespondingMap(m, keys, values)(ctx)
+      } yield withSrc(vpr.MapLookup(underlying, vIdx), l)
+
+    case l@in.Contains(key, m :: ctx.Map(keys, values)) =>
+      for {
+        vKey <- ctx.expression(key)
+        underlying <- getCorrespondingMap(m, keys, values)(ctx)
+      } yield withSrc(vpr.AnySetContains(vKey, withSrc(vpr.MapDomain(underlying), l)), l)
+
+    case l@in.Contains(key, in.MapKeys(m :: ctx.Map(keys, values), _)) =>
+      for {
+        vKey <- ctx.expression(key)
+        underlying <- getCorrespondingMap(m, keys, values)(ctx)
+      } yield withSrc(vpr.AnySetContains(vKey, withSrc(vpr.MapDomain(underlying), l)), l)
+
+    case l@in.Contains(key, in.MapValues(m :: ctx.Map(keys, values), _)) =>
+      for {
+        vKey <- ctx.expression(key)
+        underlying <- getCorrespondingMap(m, keys, values)(ctx)
+      } yield withSrc(vpr.AnySetContains(vKey, withSrc(vpr.MapRange(underlying), l)), l)
+  }
+
+  /**
     * Encodes the allocation of a new map
     *  [r := make(map[T1]T2, n)] ->
     *    asserts 0 <= [n]

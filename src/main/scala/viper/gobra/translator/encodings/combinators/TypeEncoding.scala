@@ -261,6 +261,18 @@ trait TypeEncoding extends Generator {
   def triggerExpr(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
+    * Encodes an expression occurring as the top-level expression in a trigger a second time,
+    * differently, whenever there is more than one sensible way of matching it. Every trigger
+    * for which at least one of its expressions has such an alternative encoding gives rise to
+    * a second Viper trigger, so that the quantifier can be instantiated either way (Viper
+    * triggers are alternatives: any one of them matching suffices).
+    *
+    * Only defined where an alternative is worth having; expressions it is not defined on are
+    * encoded by [[triggerExpr]] in both triggers.
+    */
+  def triggerExprAlt(@unused ctx: Context): in.TriggerExpr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+
+  /**
     * Encodes assertions.
     *
     * Constraints:

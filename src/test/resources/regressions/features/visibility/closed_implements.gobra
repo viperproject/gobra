@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Closed pure methods may implement interface methods: their bodies are still encoded (they
+// are only hidden from importing packages by being marked as opaque), so the call graph that
+// Gobra's termination checks rely on remains complete.
+
+type I interface {
+	decreases
+	pure Foo() int
+}
+
+type T struct{}
+
+closed
+decreases
+pure func (t T) Foo() int {
+	return 1
+}
+
+T implements I
+
+decreases
+func client(i I) {
+	assert i != nil ==> true
+	t := T{}
+	// within the declaring package, the body of a closed member is visible
+	assert t.Foo() == 1
+}

@@ -4,15 +4,15 @@
 package tutorial
 
 type stream interface {
-	pred mem()
+	pred Mem()
 
 	decreases
-	requires acc(mem(), 1/2)
-	pure hasNext() bool
+	requires acc(Mem(), 1/2)
+	pure HasNext() bool
 
-	requires mem() && hasNext()
-	ensures  mem()
-	next() interface{}
+	requires Mem() && HasNext()
+	ensures  Mem()
+	Next() interface{}
 }
 
 // implementation
@@ -20,32 +20,32 @@ type counter struct{ f, max int }
 
 requires acc(x, 1/2)
 decreases
-pure func (x *counter) hasNext() bool {
+pure func (x *counter) HasNext() bool {
 	return x.f < x.max
 }
 
 requires acc(&x.f) && acc(&x.max, 1/2)
-requires x.hasNext()
+requires x.HasNext()
 ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 
 ensures  typeOf(y) == type[int] && y.(int) == old(x.f)
-func (x *counter) next() (y interface{}) {
+func (x *counter) Next() (y interface{}) {
 	y = x.f
 	x.f += 1
 	return
 }
 
 // implementation proof
-pred (x *counter) mem() { acc(x) }
+pred (x *counter) Mem() { acc(x) }
 
 (*counter) implements stream {
-	pure (x *counter) hasNext() bool {
-		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+	pure (x *counter) HasNext() bool {
+		return unfolding acc(x.Mem(), 1/2) in x.HasNext()
 	}
 
-	(x *counter) next() (res interface{}) {
-		unfold x.mem()
-		res = x.next()
-		fold x.mem()
+	(x *counter) Next() (res interface{}) {
+		unfold x.Mem()
+		res = x.Next()
+		fold x.Mem()
 	}
 }
 
@@ -53,6 +53,6 @@ pred (x *counter) mem() { acc(x) }
 func client() {
 	x := &counter{0, 50}
 	var y stream = x
-	fold y.mem()
-	var z interface{} = y.next()
+	fold y.Mem()
+	var z interface{} = y.Next()
 }

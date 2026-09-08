@@ -8,7 +8,7 @@ type foo interface {
 
 	requires acc(Mem(), 1/2)
 	ensures acc(Mem(), 1/2)
-	f() int
+	F() int
 }
 
 type bar interface {
@@ -23,14 +23,14 @@ pred (x *test) Mem() { acc(x) }
 
 requires acc(x.Mem(), 1/2)
 ensures acc(x.Mem(), 1/2)
-func (x *test) f() (res int) {
+func (x *test) F() (res int) {
 	unfold acc(x.Mem(), 1/2)
 	res = x.n
 	fold acc(x.Mem(), 1/2)
 }
 
 (*test) implements foo {
-	(x *test) f() int {
-		return x.f()
+	(x *test) F() int {
+		return x.F()
 	}
 }

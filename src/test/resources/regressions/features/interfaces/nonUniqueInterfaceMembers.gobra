@@ -11,7 +11,7 @@ type C = int
 type mem int
 
 type I interface {
-    pred mem()
+    pred Mem()
 
     A()
     B()
@@ -20,7 +20,7 @@ type I interface {
     C() (res int)
 }
 
-pred (a *A) mem() { true }
+pred (a *A) Mem() { true }
 func (a *A) A() {}
 func (a *A) B() {}
 
@@ -32,7 +32,7 @@ func (a *A) C() (res int) {
 
 func client(a *A) {
   var i I = a
-  fold i.mem()
+  fold i.Mem()
   i.A()
   i.B()
   res := i.C()

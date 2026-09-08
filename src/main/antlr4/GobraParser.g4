@@ -185,10 +185,10 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false, boolean closed = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
   // The order of the alternatives matches the order of the attributes in the `returns` clause above.
-  ((specStatement | TRUSTED {$trusted = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | OPENSINV {$opensInv = true;} | ATOMIC {$atomic = true;} | OPAQUE {$opaque = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
+  ((specStatement | TRUSTED {$trusted = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | OPENSINV {$opensInv = true;} | ATOMIC {$atomic = true;} | OPAQUE {$opaque = true;} | CLOSED {$closed = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;
@@ -264,15 +264,22 @@ functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (s
 
 methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
+// A type declaration may be annotated as `comparable`, which is checked in the declaring
+// package and relied upon by importing packages. In a grouped declaration, the annotation
+// applies to all type specs of the group.
+typeDecl: COMPARABLE? TYPE (typeSpec | L_PAREN (typeSpec eos)* R_PAREN);
+
 
 
 explicitGhostMember: GHOST (specMember | declaration);
 
-fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
+// `closed` is lexed in NLSEMI mode, so a line break directly after it emits a
+// semicolon; the optional eos allows the modifier to be on its own line.
+fpredicateDecl: (CLOSED eos?)? PRED IDENTIFIER parameters predicateBody?;
 
 predicateBody: L_CURLY expression eos R_CURLY;
 
-mpredicateDecl: PRED receiver IDENTIFIER parameters predicateBody?;
+mpredicateDecl: (CLOSED eos?)? PRED receiver IDENTIFIER parameters predicateBody?;
 
 // Addressability
 

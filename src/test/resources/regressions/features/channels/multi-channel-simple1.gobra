@@ -46,13 +46,13 @@ func intChannel() {
     assert c.IsChannel()
     assert c.BufferSize() == 0
 
-    c.Init(f.vIsOne{_}, PredTrue{})
-    go f.send1(c)
+    c.Init(f.VIsOne{_}, PredTrue{})
+    go f.Send1(c)
 
     fold PredTrue{}()
     res, ok := <- c
     if (ok) {
-        unfold f.vIsOne{_}(res)
+        unfold f.VIsOne{_}(res)
         assert res == 1
     }
 }

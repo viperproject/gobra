@@ -18,5 +18,5 @@ type foo2 interface {
 }
 
 type foo3 interface {
-	f()
+	F()
 }

@@ -4,12 +4,12 @@
 package pkg
 
 type A interface {
-    pred mem()
+    pred Mem()
 }
 
 type B interface {
     A
 
-    requires mem()
-    f()
+    requires Mem()
+    F()
 }

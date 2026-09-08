@@ -113,14 +113,14 @@ func LowPost(sig ClassificationSpec)
 // NOTE: these are the low projections mentioned in the paper
 ghost
 decreases
-pure func pre_(spec Specification) Observation {
+pure func Pre_(spec Specification) Observation {
 	return match spec {
 		case Spec{?p, _}: p
 	} 
 }
 ghost
 decreases
-pure func post_(spec Specification) Observation {
+pure func Post_(spec Specification) Observation {
 	return match spec {
 		case Spec{_, ?q}: q
 	} 
@@ -132,7 +132,7 @@ requires sig != nil
 pure func Pre(sig ClassificationSpec, trace Trace) ObservationTrace {
 	return match trace {
 		case Empty{}: EmptyObs{}
-		case Snoc{?t, ?e}: SnocObs{Pre(sig, t), pre_(sig.Classification(e))}
+		case Snoc{?t, ?e}: SnocObs{Pre(sig, t), Pre_(sig.Classification(e))}
 	}
 }
 
@@ -142,7 +142,7 @@ requires sig != nil
 pure func Post(sig ClassificationSpec, trace Trace) ObservationTrace {
 	return match trace {
 		case Empty{}: EmptyObs{}
-		case Snoc{?t, ?e}: SnocObs{Post(sig, t), post_(sig.Classification(e))}
+		case Snoc{?t, ?e}: SnocObs{Post(sig, t), Post_(sig.Classification(e))}
 	}
 }
 
@@ -185,8 +185,8 @@ ghost type Restriction domain {
 type MWE1 struct {}
 
 type state struct {
-	key int
-	lastMsg int
+	Key int
+	LastMsg int
 }
 
 // We allow send, recv to happen at any point.
@@ -198,7 +198,7 @@ pure func (MWE1) Guard(s state, a Action) bool {
 	return match a {
 		// NOTE: This makes our IOD spec well-formed, as what is allowed to be
 		// declassified is now deterministic in the previous I/O actions.
-		case DeclassifyIO{?t}: t == MAC(s.key, s.lastMsg)
+		case DeclassifyIO{?t}: t == MAC(s.Key, s.LastMsg)
 		case _: true
 	}
 }
@@ -207,7 +207,7 @@ ghost
 decreases
 pure func (MWE1) Update(s state, a Action) state {
 	return match a {
-		case RecvIO{?m}: state { key: s.key, lastMsg: m }
+		case RecvIO{?m}: state { Key: s.Key, LastMsg: m }
 		case _: s
 	}
 }
@@ -260,9 +260,9 @@ func authenticate(s *state) {
 
 	m := Recv()
 	LowPost(DefaultClassification{})
-	s.lastMsg = m
+	s.LastMsg = m
 
-	t := MAC(s.key, m)
+	t := MAC(s.Key, m)
 
 	/* ghost */ Declassify(t)
 	/* ghost */ LowPost(DefaultClassification{})

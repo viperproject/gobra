@@ -7,24 +7,24 @@ package pkg
 
 type itfWithActualMethod interface {
     decreases
-    actualMethod() int
+    ActualMethod() int
 }
 
 type itfWithActualPureMethod interface {
     decreases
-    pure actualPureMethod() int
+    pure ActualPureMethod() int
 }
 
 type itfWithGhostMethod interface {
     ghost
     decreases
-    ghostMethod() int
+    GhostMethod() int
 }
 
 type itfWithGhostPureMethod interface {
     ghost
     decreases
-    pure ghostPureMethod() int
+    pure GhostPureMethod() int
 }
 
 type someImplementation struct {
@@ -44,22 +44,22 @@ type someImplementation struct {
 
 ghost
 decreases
-func (impl *someImplementation) actualMethod() int {
+func (impl *someImplementation) ActualMethod() int {
     return 42
 }
 
 ghost
 decreases
-pure func (impl *someImplementation) actualPureMethod() int {
+pure func (impl *someImplementation) ActualPureMethod() int {
     return 42
 }
 
 decreases
-func (impl *someImplementation) ghostMethod() int {
+func (impl *someImplementation) GhostMethod() int {
     return 42
 }
 
 decreases
-pure func (impl *someImplementation) ghostPureMethod() int {
+pure func (impl *someImplementation) GhostPureMethod() int {
     return 42
 }

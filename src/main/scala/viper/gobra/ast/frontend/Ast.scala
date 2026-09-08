@@ -201,7 +201,7 @@ sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostif
   def right: PType
 }
 
-case class PTypeDef(right: PType, left: PIdnDef) extends PTypeDecl
+case class PTypeDef(right: PType, left: PIdnDef, isComparable: Boolean = false) extends PTypeDecl
 
 case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
@@ -920,6 +920,7 @@ case class PFunctionSpec(
                           isAtomic: Boolean = false,
                           opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
+                          isClosed: Boolean = false,
                       ) extends PSpecification {
   /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
   def pres: Vector[PExpression] = clauses.collect {
@@ -962,14 +963,16 @@ case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMembe
 case class PFPredicateDecl(
                          id: PIdnDef,
                          args: Vector[PParameter],
-                         body: Option[PExpression]
+                         body: Option[PExpression],
+                         isClosed: Boolean = false
                          ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateDecl(
                           id: PIdnDef,
                           receiver: PReceiver,
                           args: Vector[PParameter],
-                          body: Option[PExpression]
+                          body: Option[PExpression],
+                          isClosed: Boolean = false
                           ) extends PGhostMember with PDependentDef with PScope with PCodeRoot
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PDependentDef with PScope with PCodeRoot

@@ -58,20 +58,20 @@ func test3() {
 
 
 type I interface {
-    pure res(int)int
+    pure Res(int)int
 }
 
 type S struct {}
-pure func (self S) res(int)int {
+pure func (self S) Res(int)int {
     return 10
 }
 
 decreases
 func test4() {
-    proof S{}.res implements generic {
-        return S{}.res(a)
+    proof S{}.Res implements generic {
+        return S{}.Res(a)
     }
     
     var i I = S{}
-    assert i.res implements generic
+    assert i.Res implements generic
 }

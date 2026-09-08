@@ -247,7 +247,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
         f.id.fold(noMessages)(id => wellDefID(id).out) ++
-        error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque)
+        error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque) ++
+        error(f, "Function literals cannot be closed.", f.spec.isClosed)
 
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)
@@ -272,13 +273,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             argWithinBounds
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
-          val (isOpaque, isMayInit, isImported, isPure, isGhost, opensInvs) = c.callee match {
+          val (isOpaque, isMayInit, isImported, isPure, isGhost, opensInvs, isClosed) = c.callee match {
             case base: ap.Symbolic => base.symb match {
               case f: st.Function =>
-                (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure, f.ghost, f.decl.spec.opensInvs)
+                (f.isOpaque, f.decl.spec.mayBeUsedInInit, f.context != this, f.isPure, f.ghost, f.decl.spec.opensInvs, f.isClosed)
               case m: st.MethodImpl =>
-                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure, m.ghost, m.decl.spec.opensInvs)
-              case _ => (false, true, false, false, false, true)
+                (m.isOpaque, m.decl.spec.mayBeUsedInInit, m.context != this, m.isPure, m.ghost, m.decl.spec.opensInvs, m.isClosed)
+              case _ => (false, true, false, false, false, true, false)
             }
           }
           // Ghost methods from a critical region must not be annotated with `opensInvariants` to avoid re-entrance.
@@ -302,7 +303,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               noMessages
           }
           val onlyRevealOpaqueFunc =
-            error(n, "Cannot reveal call to non-opaque function.", n.reveal && !isOpaque)
+            error(n, "Cannot reveal call to non-opaque function.", n.reveal && !isOpaque) ++
+            error(n, "Closed functions cannot be revealed outside their declaring package.", n.reveal && isClosed && isImported)
           val isCallToInit =
             error(n, s"${Constants.INIT_FUNC_NAME} function is not callable",
               c.callee.isInstanceOf[ap.Function] && c.callee.id.name == Constants.INIT_FUNC_NAME)

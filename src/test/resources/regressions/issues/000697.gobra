@@ -10,7 +10,7 @@ type Impl struct{
     x *int
 }
 
-pred (impl Impl) inv() {
+closed pred (impl Impl) Inv() {
     acc(impl.x)
 }
 
@@ -24,12 +24,12 @@ func main() {
             }
 
     proof cl implements pkg.ClosureSpec{Impl{&x}} {
-        unfold Impl{&x}.inv()
+        unfold Impl{&x}.Inv()
         res = cl() as closureImpl
-        fold Impl{&x}.inv()
+        fold Impl{&x}.Inv()
     }
 
     impl := Impl{&x}
-    fold impl.inv()
+    fold impl.Inv()
     pkg.Invoke(cl, impl)
 }

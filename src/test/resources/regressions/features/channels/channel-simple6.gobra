@@ -3,7 +3,7 @@
 
 package pkg
 
-pred vIsOne(v int) {
+pred VIsOne(v int) {
     v == 1
 }
 
@@ -20,10 +20,10 @@ func main() {
   // set channel invariants
   assert c.IsChannel()
   assert c.BufferSize() > 0 ==> PredTrue{} == PredTrue{}
-  c.Init(vIsOne{_}, PredTrue{})
+  c.Init(VIsOne{_}, PredTrue{})
   assert c.SendChannel() && c.RecvChannel()
-  assert c.SendGivenPerm() == vIsOne{_} && c.SendGotPerm() == PredTrue{}
-  assert c.RecvGivenPerm() == PredTrue{} && c.RecvGotPerm() == vIsOne{_}
+  assert c.SendGivenPerm() == VIsOne{_} && c.SendGotPerm() == PredTrue{}
+  assert c.RecvGivenPerm() == PredTrue{} && c.RecvGotPerm() == VIsOne{_}
 
   var x@ int = 0
   var p *int = &x
@@ -47,7 +47,7 @@ func main() {
   assert !ok ==> c.Closed() && res == 0
   // first receive should succeed (but we cannot prove it)
   if (ok) {
-    unfold vIsOne{_}(res)
+    unfold VIsOne{_}(res)
     assert res == 1
   }
 
@@ -73,16 +73,16 @@ func main() {
 }
 
 requires acc(c.SendChannel(), 1/2)
-requires c.SendGivenPerm() == vIsOne{_}
+requires c.SendGivenPerm() == VIsOne{_}
 requires c.SendGotPerm() == PredTrue{}
 requires v == 1
 requires someLocation{p}()
 requires c.ClosureDebt(someLocation{p}, 1, 2 /* 1/2 */)
 func foo(v int, c chan int, p *int) {
     // send something to main:
-    fold vIsOne{_}(v)
+    fold VIsOne{_}(v)
 
-    assert acc(c.SendChannel(), _) && vIsOne{_}(v)
+    assert acc(c.SendChannel(), _) && VIsOne{_}(v)
     c <- v
     assert acc(c.SendChannel(), _) && PredTrue{}()
 

@@ -19,13 +19,21 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
     case PExplicitGhostMember(_) => noMessages
 
-    case PFPredicateDecl(_, args, body) =>
-      body.fold(noMessages)(assignableToSpec) ++ nonVariadicArguments(args)
+    case n@ PFPredicateDecl(id, args, body, isClosed) =>
+      body.fold(noMessages)(assignableToSpec) ++ nonVariadicArguments(args) ++
+        error(n, s"Only predicates with exported names can be marked as closed.", isClosed && !isExportedName(id.name)) ++
+        (if (isExportedName(id.name) && !isClosed)
+          body.toVector.flatMap(privateMemberReferences(_, s"the body of fully-public predicate ${id.name} (consider marking the predicate as closed)"))
+        else noMessages)
 
-    case PMPredicateDecl(_, receiver, args, body) =>
+    case n@ PMPredicateDecl(id, receiver, args, body, isClosed) =>
       body.fold(noMessages)(assignableToSpec) ++
         isReceiverType.errors(miscType(receiver))(member) ++
-        nonVariadicArguments(args)
+        nonVariadicArguments(args) ++
+        error(n, s"Only predicates with exported names can be marked as closed.", isClosed && !isExportedName(id.name)) ++
+        (if (isExportedName(id.name) && hasExportedReceiver(receiver) && !isClosed)
+          body.toVector.flatMap(privateMemberReferences(_, s"the body of fully-public predicate ${id.name} (consider marking the predicate as closed)"))
+        else noMessages)
   }
 
   private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {

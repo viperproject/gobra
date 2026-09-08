@@ -6,26 +6,26 @@ package termination
 type IsEven interface {
 	requires n >= 0
 	decreases n
-	isEven(n int) bool
+	Even(n int) bool
 }
 
 type IsOdd interface {
 	requires n >= 0
 	decreases n
-	isOdd(n int) bool
+	Odd(n int) bool
 }
 
 type IsEvenImpl struct {}
 
 requires n >= 0
 decreases n
-func (y IsEvenImpl) isEven(n int) bool {
+func (y IsEvenImpl) Even(n int) bool {
 	if n == 0 {
 		return true
 	} else {
 		var y IsOdd = IsOddImpl{}
 		//:: ExpectedOutput(function_termination_error)
-		return !y.isOdd(n)
+		return !y.Odd(n)
 	}
 }
 
@@ -33,7 +33,7 @@ type IsOddImpl struct {}
 
 requires n >= 0
 decreases n
-func (y IsOddImpl) isOdd(n int) bool {
+func (y IsOddImpl) Odd(n int) bool {
 	if n == 0 {
 		return false
 	} else if n == 1 {
@@ -41,17 +41,17 @@ func (y IsOddImpl) isOdd(n int) bool {
 	} else {
 		var y IsEven = IsEvenImpl{}
 		//:: ExpectedOutput(function_termination_error)
-		return !y.isEven(n)
+		return !y.Even(n)
 	}
 }
 
 type Finite interface {
 	decreases n
-	infinite(n int) int
+	Infinite(n int) int
 }
 
 type BadFiniteImpl struct {}
 
-func (y BadFiniteImpl) infinite(n int) int {
-	return y.infinite(n)
+func (y BadFiniteImpl) Infinite(n int) int {
+	return y.Infinite(n)
 }

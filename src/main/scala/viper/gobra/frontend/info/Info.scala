@@ -257,8 +257,8 @@ object Info extends LazyLogging {
     // clause `A` collides with an mpredicate name (legal: clauses and mpredicates live in
     // different namespaces). ADTs are ghost, so unwrap `PExplicitGhostMember` too.
     val localAdtClauses: Map[String, Set[String]] = pkg.programs.flatMap(_.declarations.collect {
-      case PTypeDef(adt: PAdtType, id) => id.name -> adt.clauses.map(_.id.name).toSet
-      case PExplicitGhostMember(PTypeDef(adt: PAdtType, id)) => id.name -> adt.clauses.map(_.id.name).toSet
+      case PTypeDef(adt: PAdtType, id, _) => id.name -> adt.clauses.map(_.id.name).toSet
+      case PExplicitGhostMember(PTypeDef(adt: PAdtType, id, _)) => id.name -> adt.clauses.map(_.id.name).toSet
     }).toMap
 
     // Per-file (per-program) map: import qualifier -> *function*-predicate names declared at the

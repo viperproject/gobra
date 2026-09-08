@@ -4,7 +4,7 @@
 package pkg
 
 type Tree struct {
-    root *node
+    Root *node
 }
 
 type node struct {
@@ -13,27 +13,27 @@ type node struct {
     right *node
 }
 
-pred (t *Tree) tree() {
-    acc(&t.root) && (t.root != nil ==> t.root.tree())
+pred (t *Tree) TreeP() {
+    acc(&t.Root) && (t.Root != nil ==> t.Root.TreeP())
 }
 
-pred (n *node) tree() {
+pred (n *node) TreeP() {
     acc(&n.value) && acc(&n.left) && acc(&n.right) &&
-    (n.left != nil ==> n.left.tree()) &&
-    (n.right != nil ==> n.right.tree()) &&
+    (n.left != nil ==> n.left.TreeP()) &&
+    (n.right != nil ==> n.right.TreeP()) &&
     (n.left != nil ==> forall i int :: (0 <= i && i + 1 < len(n.left.orderedValues()) ==> (n.left.orderedValues())[i] < n.value)) &&
     (n.right != nil ==> forall i int :: (0 <= i && i + 1 < len(n.right.orderedValues()) ==> (n.right.orderedValues())[i] > n.value))
 }
 
 ghost
-requires n.tree()
+requires n.TreeP()
 pure func (n *node) orderedValues() (res seq[int]) {
-    return unfolding n.tree() in ((n.left == nil) ? seq[int] { } : n.left.orderedValues()) ++ seq[int] { n.value } ++ ((n.right == nil) ? seq[int] { } : n.right.orderedValues())
+    return unfolding n.TreeP() in ((n.left == nil) ? seq[int] { } : n.left.orderedValues()) ++ seq[int] { n.value } ++ ((n.right == nil) ? seq[int] { } : n.right.orderedValues())
 }
 
-ensures t.tree()
+ensures t.TreeP()
 func NewTree() (t *Tree) {
     t := new(Tree)
-    fold t.tree()
+    fold t.TreeP()
     return t
 }

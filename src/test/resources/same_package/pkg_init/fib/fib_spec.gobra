@@ -11,7 +11,7 @@ func FibSpec(n int) int {
 	return n <= 1 ? 1 : FibSpec(n-1) + FibSpec(n-2)
 }
 
-pred StaticInv() {
+closed pred StaticInv() {
 	acc(&cache, _)     &&
 	acc(cache)         &&
 	0 elem domain(cache) &&

@@ -8,23 +8,23 @@ package closuresCallDesc2
 
 type Calls interface {
     // The invariant and result might depends on the entire sequence of calls
-    pred inv(ghost seq[int])
+    pred Inv(ghost seq[int])
 
     ghost
     requires len(calls) > 0
-    pure res(ghost calls seq[int]) int
+    pure Res(ghost calls seq[int]) int
 }
 
 
 ghost
-requires cs != nil && cs.inv(prev)
-ensures cs.inv(prev ++ seq[int]{x}) && res == cs.res(prev ++ seq[int]{x})
+requires cs != nil && cs.Inv(prev)
+ensures cs.Inv(prev ++ seq[int]{x}) && res == cs.Res(prev ++ seq[int]{x})
 func spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
 
 requires f implements spec{cs}
-requires cs != nil && cs.inv(seq[int]{})
-ensures cs.inv(seq[int]{2,3,5})
-ensures res == cs.res(seq[int]{2}) + cs.res(seq[int]{2,3}) + cs.res(seq[int]{2,3,5})
+requires cs != nil && cs.Inv(seq[int]{})
+ensures cs.Inv(seq[int]{2,3,5})
+ensures res == cs.Res(seq[int]{2}) + cs.Res(seq[int]{2,3}) + cs.Res(seq[int]{2,3,5})
 func hof(ghost cs Calls, f func(ghost seq[int], int)int)(res int) {
     res = f(seq[int]{}, 2) as spec{cs}
     res += f(seq[int]{2}, 3) as spec{cs}
@@ -32,19 +32,19 @@ func hof(ghost cs Calls, f func(ghost seq[int], int)int)(res int) {
 }
 
 ghost
-ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + SeqSum(s[:(k-1)])
 decreases len(s)
-pure func seqSum(s seq[int]) (res int) {
-    return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
+pure func SeqSum(s seq[int]) (res int) {
+    return len(s) == 0 ? 0 : (s[len(s)-1] + SeqSum(s[:(len(s)-1)]))
 }
 
-type Acc struct { accum *int }
-pred (self Acc) inv(ghost calls seq[int]) {
-    acc(self.accum) && *self.accum == seqSum(calls)
+type Acc struct { Accum *int }
+pred (self Acc) Inv(ghost calls seq[int]) {
+    acc(self.Accum) && *self.Accum == SeqSum(calls)
 }
 ghost
-pure func (self Acc) res(ghost calls seq[int])int {
-    return seqSum(calls)
+pure func (self Acc) Res(ghost calls seq[int])int {
+    return SeqSum(calls)
 }
 
 func main() {
@@ -57,16 +57,16 @@ func main() {
             }
 
     proof cl implements spec{Acc{&accum}} {
-        unfold Acc{&accum}.inv(prev)
+        unfold Acc{&accum}.Inv(prev)
         res = cl(prev, x) as accumulate
         assert (prev ++ seq[int]{x})[:(len(prev))] == prev
-        fold Acc{&accum}.inv(prev ++ seq[int]{x})
+        fold Acc{&accum}.Inv(prev ++ seq[int]{x})
     }
 
-    fold Acc{&accum}.inv(seq[int]{})
+    fold Acc{&accum}.Inv(seq[int]{})
     r := hof(Acc{&accum}, cl)
     assert r == 2 + (2 + 3) + (2 + 3 + 5)
 
-    unfold Acc{&accum}.inv(seq[int]{2, 3, 5})
+    unfold Acc{&accum}.Inv(seq[int]{2, 3, 5})
     assert accum == 2 + 3 + 5
 }

@@ -6,18 +6,18 @@ package pkg
 
 type foo interface {
 	bar
-	f()
+	F()
 }
 
 type bar interface {
-	pure g()
+	pure G()
 }
 
 type test int
 
-func (x test) f()
+func (x test) F()
 
-func (x test) g()
+func (x test) G()
 
 //:: ExpectedOutput(type_error)
 test implements foo

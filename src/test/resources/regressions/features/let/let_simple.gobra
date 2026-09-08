@@ -16,19 +16,19 @@ func g(x int) (res int) {
 
 
 type A struct {
-	x *int
+	X *int
 }
 
 pred (a *A) Mem() {
-	acc(&a.x) && acc(a.x)
+	acc(&a.X) && acc(a.X)
 }
 
 requires a.Mem()
 ensures a.Mem()
-ensures let y := unfolding a.Mem() in *(a.x) in y > 0 && y < 4 && y != 2
+ensures let y := unfolding a.Mem() in *(a.X) in y > 0 && y < 4 && y != 2
 func (a *A) g(x int) {
 	unfold a.Mem()
-	*a.x = 3
+	*a.X = 3
 	fold a.Mem()
 }
 

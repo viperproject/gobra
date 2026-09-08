@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+closed
+decreases
+pure func Val() int {
+	return 42
+}
+
+closed pred Pos(x int) {
+	x > 0
+}
+
+requires x > 0
+ensures Pos(x)
+decreases
+func MkPos(x int) {
+	fold Pos(x)
+}
+
+// within the declaring package, the body of a closed member is visible
+decreases
+func localCheck() {
+	assert Val() == 42
+}

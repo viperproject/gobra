@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+comparable type Good struct {
+	X int
+	y int
+}
+
+// the comparable annotation is checked in the declaring package
+//:: ExpectedOutput(type_error)
+comparable type Bad struct {
+	S []int
+}
+
+decreases
+func cmp(a Good, b Good) {
+	c := a == b
+	_ = c
+}

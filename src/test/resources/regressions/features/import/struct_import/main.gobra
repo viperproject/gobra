@@ -8,7 +8,7 @@ import b "bar"
 
 func client() {
     c := b.BarCell{5};
-    assert c.val == 5;
+    assert c.Val == 5;
     d := &b.BarCell{10};
-    assert d.val == 10;
+    assert d.Val == 10;
 }

@@ -49,24 +49,24 @@ func callWithNilReceiver() {
 }
 
 type intf interface {
-	pred mem()
+	pred Mem()
 
-	requires mem()
-	foo()
+	requires Mem()
+	Foo()
 }
 
 type impl struct{}
 
-pred (i *impl) mem() {
+pred (i *impl) Mem() {
 	true
 }
 
-requires i.mem()
-func (i *impl) foo() {
+requires i.Mem()
+func (i *impl) Foo() {
 }
 *impl implements intf
 
-requires i.mem()
+requires i.Mem()
 func consumeInterfaceMem(i intf) {
 }
 
@@ -83,19 +83,19 @@ func callWithNilInterface() {
 func foldWithNilInterface() {
 	var i intf = nil
 	//:: ExpectedOutput(fold_error:permission_error)
-	fold i.mem()
+	fold i.Mem()
 }
 
 func foldWithNonNilInterface() {
 	var i intf = &impl{}
-	fold i.mem() // succeeds
-	i.foo()
+	fold i.Mem() // succeeds
+	i.Foo()
 }
 
 // calling a method on a nil interface value panics in Go (independently
 // of the callee's precondition):
-requires i.mem() // `i` might be nil
+requires i.Mem() // `i` might be nil
 func callMethodOnNilInterface(i intf) {
 	//:: ExpectedOutput(precondition_error:receiver_is_nil_error)
-	i.foo()
+	i.Foo()
 }

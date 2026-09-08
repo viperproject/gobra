@@ -12,7 +12,7 @@ import "shadowed_mpred"
 // `shadowed_mpred.T` -- it would be `shadowed_mpred.Holder.T`, which has three components and
 // doesn't fit the `qualifiedIdent` shape -- so the predicate-constructor rewrite must ignore
 // imported mpredicate names when disambiguating.
-ensures res.x == 42
+ensures res.X == 42
 func makeT() (res shadowed_mpred.T) {
 	return shadowed_mpred.T{42}
 }

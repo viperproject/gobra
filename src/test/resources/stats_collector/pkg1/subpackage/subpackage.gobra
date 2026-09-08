@@ -4,4 +4,4 @@
 package subpackage
 
 ensures ret < 0
-func test(d int) (ret int)
+func Test(d int) (ret int)

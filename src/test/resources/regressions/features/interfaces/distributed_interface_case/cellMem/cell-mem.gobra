@@ -7,4 +7,4 @@ package cellMem
 
 import "cell"
 
-pred cellMem(c *cell.cell) { acc(c) }
+pred CellMem(c *cell.Cell) { acc(c) }

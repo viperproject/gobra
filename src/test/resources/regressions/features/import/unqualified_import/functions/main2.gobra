@@ -9,5 +9,5 @@ import . "bar2_2"
 
 func foo() {
   //:: ExpectedOutput(type_error)
-  bar() // bar2_1 and bar2_2 both define a function bar
+  Bar() // bar2_1 and bar2_2 both define a function bar
 }

@@ -9,25 +9,25 @@ type foo interface {
 
 	preserves FooMem()
 	preserves Mem()
-	f()
+	F()
 }
 
 type bar interface {
 	pred Mem()
 
 	ensures res == 5
-	pure g() (res int)
+	pure G() (res int)
 }
 
 type test int
 
-func (x test) f()
+func (x test) F()
 
 pred (x test) Mem()
 
 pred (x test) FooMem()
 
 ensures res == 5
-pure func (x test) g() (res int)
+pure func (x test) G() (res int)
 
 test implements foo

@@ -4,17 +4,17 @@
 package pkg
 
 type AnInterface interface {
-    pure getVal() int
+    pure GetVal() int
 }
 
 type AnImplementation struct {}
 
-pure func (impl *AnImplementation) getVal() int {
+pure func (impl *AnImplementation) GetVal() int {
     return 42
 }
 
 pred somePredicate(param AnInterface) {
-    param != nil && param.getVal() == 42
+    param != nil && param.GetVal() == 42
 }
 
 func client() {

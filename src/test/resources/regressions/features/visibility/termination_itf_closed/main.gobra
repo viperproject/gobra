@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+// ##(-I ./)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+//:: ExpectedOutput(pure_function_termination_error:tuple_condition_false_error)
+//:: ExpectedOutput(pure_function_termination_error:tuple_decreases_false_error)
+package main
+
+// This test checks that mutual recursion through a `closed` pure function of an imported
+// package is detected by Gobra's termination checks. The body of a closed member is hidden
+// from importing packages, but it must still be encoded, as it contributes edges to the call
+// graph on which those checks rely.
+// The three annotations above match errors reported at line 7 of lib/lib.gobra (the interface
+// method M); the test framework matches expected outputs by line number only, so `package main`
+// must remain at line 7 of this file.
+
+import "lib"
+
+type TImpl struct{}
+
+requires t != nil
+decreases
+pure func (i TImpl) M(t lib.T) int {
+	//:: ExpectedOutput(pure_function_termination_error:tuple_condition_false_error)
+	return lib.Indirect(t)
+}
+
+decreases
+func trigger() lib.T {
+	return TImpl{}
+}

@@ -48,9 +48,22 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         error(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))
-      case s@PInterfaceType(_, methSpecs, _) =>
+      case s@PInterfaceType(_, methSpecs, predSpecs) =>
         methSpecs.flatMap(m => error(m, "Interface method signatures cannot be opaque.", m.spec.isOpaque)) ++
+        methSpecs.flatMap(m => error(m, "Interface method signatures cannot be closed.", m.spec.isClosed)) ++
+        // Private (non-exported) interface members would not be visible to implementations in
+        // other packages; supporting them is tricky and currently out of scope.
+        methSpecs.flatMap(m =>
+          error(m, s"Interface methods must have exported names, but got ${m.id.name}. Private interface members are not supported.", !isExportedName(m.id.name))) ++
+        predSpecs.flatMap(m =>
+          error(m, s"Interface predicates must have exported names, but got ${m.id.name}. Private interface members are not supported.", !isExportedName(m.id.name))) ++
         error(n, s"invalid recursive type ${n.left.name}", cyclicInterfaceDef(s, Some(n.left)))
+      case _ => noMessages
+    }) ++ (n match {
+      // the `comparable` annotation is checked in the declaring package (rather than assumed);
+      // importing packages may then rely on it without inspecting the type's structure
+      case d: PTypeDef if d.isComparable =>
+        error(n, s"type ${d.left.name} is marked as comparable, but its underlying type is not comparable", !comparableType(typeSymbType(d.right)))
       case _ => noMessages
     })
 
@@ -171,6 +184,13 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             val res = tryEnclosingCodeRootWithResult(n)
             if (res.isEmpty) return error(n, s"Statement does not root in a CodeRoot")
             if (!(res.get.result.outs forall wellDefMisc.valid)) return error(n, s"return cannot be checked because the enclosing signature is incorrect")
+          } else {
+            // the spec function of the enclosing proof may fail to resolve, e.g., because it is
+            // a non-exported member of another package
+            resolve(closureImplProof.get.impl.spec.func) match {
+              case Some(_: AstPattern.Function) | Some(_: AstPattern.Closure) => // ok
+              case _ => return error(n, s"return cannot be checked because the specification implemented by the enclosing proof is not well-defined")
+            }
           }
           multiAssignableTo.errors(exps map exprType, returnParamsAndTypes(n).map(_._1), mayInit)(n)
         } else noMessages // a return without arguments is always well-defined

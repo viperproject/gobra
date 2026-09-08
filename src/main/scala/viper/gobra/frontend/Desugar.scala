@@ -183,6 +183,14 @@ object Desugar extends LazyLogging {
 
   private class Desugarer(@unused pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector) {
 
+    /**
+      * True iff this desugarer processes an imported package. In that case, `closed` pure functions
+      * and methods are desugared as opaque members, i.e., their bodies are encoded (they are needed
+      * to obtain a complete call graph) but hidden from the package under verification.
+      * Set by [[packageD]].
+      */
+    private var isDesugaringImportedPackage: Boolean = false
+
     type Meta = Source.Parser.Info
 
     import viper.gobra.util.Violation._
@@ -407,6 +415,7 @@ object Desugar extends LazyLogging {
       * verification.
       */
     def packageD(p: PPackage, isImportedPkg: Boolean, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
+      isDesugaringImportedPackage = isImportedPkg
       // registers a package to generate proof obligations for its init code.
       registerPkgInitData(p, initSpecs, isImportedPkg)
       if (!isImportedPkg) {
@@ -731,7 +740,8 @@ object Desugar extends LazyLogging {
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
       in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
-        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body,
+        funcInfo.isOpaque || hidesBodyFromClients(decl.spec))(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -744,6 +754,15 @@ object Desugar extends LazyLogging {
                                         body: Option[in.Expr],
                                         isOpaque: Boolean)
 
+
+    /**
+      * The body of a `closed` pure member is not visible to importing packages. It is still encoded,
+      * as it is required to obtain a complete call graph for Viper's termination checks; the member
+      * is instead marked as opaque, which hides its body from the package under verification. The
+      * type checker rejects `reveal`s of imported closed members, so the body remains hidden.
+      */
+    private def hidesBodyFromClients(spec: PFunctionSpec): Boolean =
+      isDesugaringImportedPackage && spec.isClosed
 
     private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
       require(decl.spec.isPure)
@@ -969,7 +988,7 @@ object Desugar extends LazyLogging {
       assert(interfaceType(recv.typ).isEmpty)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
 
-      val isOpaque = decl.spec.isOpaque
+      val isOpaque = decl.spec.isOpaque || hidesBodyFromClients(decl.spec)
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>

@@ -12,8 +12,8 @@ package name
 // ##(-I ../..)
 
 type Name struct {
-	_start  int
-	_length int
+	Start  int
+	Length int
 }
 
 func init() {
@@ -21,25 +21,25 @@ func init() {
 }
 
 // @ ensures	acc(res)
-// @ ensures	res._length == length && res._start == start
+// @ ensures	res.Length == length && res.Start == start
 // @ decreases
 func New(start int, length int) (res *Name) {
 	res = new(Name)
-	res._start = start
-	res._length = length
+	res.Start = start
+	res.Length = length
 	return res
 }
 
 // @ pure
-// @ requires acc(&n._start, _)
+// @ requires acc(&n.Start, _)
 // @ decreases
 func (n *Name) start() int {
-	return n._start
+	return n.Start
 }
 
 // @ pure
-// @ requires acc(&n._length, _)
+// @ requires acc(&n.Length, _)
 // @ decreases
 func (n *Name) length() int {
-	return n._length
+	return n.Length
 }

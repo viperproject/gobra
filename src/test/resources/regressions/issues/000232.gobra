@@ -10,5 +10,5 @@ import "bug"
 requires x != nil
 ensures y >= 0
 func bar(x bug.I) (y int) {
-    return x.foo()
+    return x.Foo()
 }

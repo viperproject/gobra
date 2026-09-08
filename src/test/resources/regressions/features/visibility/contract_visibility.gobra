@@ -1,0 +1,49 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+decreases
+pure func fSpec(x int) int {
+	return x
+}
+
+// contracts of exported members may not reference non-exported members
+//:: ExpectedOutput(type_error)
+ensures res == fSpec(x)
+decreases
+func F(x int) (res int)
+
+// closed members may be referenced in contracts of exported members
+closed
+decreases
+pure func CSpec(x int) int {
+	return fSpec(x)
+}
+
+ensures res == CSpec(x)
+decreases
+func G(x int) (res int)
+
+// bodies of fully-public predicates may not reference non-exported members
+pred Mem(x int) {
+	//:: ExpectedOutput(type_error)
+	x == fSpec(x)
+}
+
+// bodies of closed predicates may reference non-exported members
+closed pred Mem2(x int) {
+	x == fSpec(x)
+}
+
+// bodies of fully-public pure functions may not reference non-exported members
+decreases
+pure func Open(x int) int {
+	//:: ExpectedOutput(type_error)
+	return fSpec(x)
+}
+
+// contracts of non-exported members may reference non-exported members
+ensures res == fSpec(x)
+decreases
+func g(x int) (res int)

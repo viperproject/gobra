@@ -73,6 +73,7 @@ object SymbolTable extends Environments[Entity] {
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
     def isOpaque: Boolean = decl.spec.isOpaque
+    def isClosed: Boolean = decl.spec.isClosed
   }
 
   case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
@@ -192,7 +193,7 @@ object SymbolTable extends Environments[Entity] {
     override val result: PResult = decl.result
     override val isAtomic: Boolean = decl.spec.isAtomic
     def isOpaque: Boolean = decl.spec.isOpaque
-
+    def isClosed: Boolean = decl.spec.isClosed
   }
 
   case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -225,6 +226,7 @@ object SymbolTable extends Environments[Entity] {
   case class FPredicate(decl: PFPredicateDecl, context: ExternalTypeInfo) extends Predicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
+    def isClosed: Boolean = decl.isClosed
   }
 
   sealed trait GhostConstant extends Constant with GhostDataEntity
@@ -243,6 +245,7 @@ object SymbolTable extends Environments[Entity] {
   case class MPredicateImpl(decl: PMPredicateDecl, context: ExternalTypeInfo) extends MPredicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
+    def isClosed: Boolean = decl.isClosed
   }
 
   case class MPredicateSpec(decl: PMPredicateSig, itfDef: PInterfaceType, context: ExternalTypeInfo) extends MPredicate {

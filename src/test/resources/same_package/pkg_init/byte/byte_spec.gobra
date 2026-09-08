@@ -3,7 +3,7 @@
 
 package byte
 
-pred StaticInv() {
+closed pred StaticInv() {
 	acc(&byteCache, _) &&
 	// for injectivity checks:
 	(forall j, k uint16 :: 0 <= j && j < k && k < 256  ==>

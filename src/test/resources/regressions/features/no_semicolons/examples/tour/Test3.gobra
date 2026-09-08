@@ -40,8 +40,8 @@ func pointer3() {
 }
 
 type Point struct {
-  x int
-  y int
+  X int
+  Y int
 }
 
 /* bug reported
@@ -52,25 +52,25 @@ func Origin() (r Point) {
 
 func mirror() {
   p := Point{5, 7}
-  assert p.x == 5
-  tmp := p.x
-  p.x = p.y
-  p.y = tmp
-  assert p.x == 7
+  assert p.X == 5
+  tmp := p.X
+  p.X = p.Y
+  p.Y = tmp
+  assert p.X == 7
 }
 
-ensures acc(&r.x) && r.x == 0
-ensures acc(&r.y) && r.y == 0
+ensures acc(&r.X) && r.X == 0
+ensures acc(&r.Y) && r.Y == 0
 func Origin() (r *Point) {
   r = &Point{0, 0}
 }
 
 /* not supported yet
 func init() {
-  a := Point{y: 5};
-  assert a.x == 0 && a.y == 5;
+  a := Point{Y: 5};
+  assert a.X == 0 && a.Y == 5;
 
   b := Point{};
-  assert b.x == 0 && b.y == 0;
+  assert b.X == 0 && b.Y == 0;
 };*/
 

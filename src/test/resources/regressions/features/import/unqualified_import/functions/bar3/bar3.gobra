@@ -4,7 +4,7 @@
 package bar3
 
 ensures res == 0
-func bar() (res int) {
+func Bar() (res int) {
     return 0
 }
 

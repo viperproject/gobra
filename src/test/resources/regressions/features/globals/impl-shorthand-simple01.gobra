@@ -4,12 +4,12 @@
 package pkg
 
 type Ifc interface {
-	f()
+	F()
 }
 
 type Impl *struct{}
 
-func (i Impl) f() {
+func (i Impl) F() {
 	return
 }
 

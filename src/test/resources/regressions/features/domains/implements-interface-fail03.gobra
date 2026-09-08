@@ -9,21 +9,21 @@ package ImplementsInterfaceFail03
 ghost type intPair domain {
     func fst(intPair) int
     func snd(intPair) int
-    func pair(int, int) intPair
+    func Pair(int, int) intPair
 
     axiom {
-      forall p intPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+      forall p intPair :: {fst(p)}{snd(p)} p == Pair(fst(p),snd(p))
     } // pair
 
     axiom {
-      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+      forall l, r int :: {Pair(l,r)} l == fst(Pair(l,r)) && r == snd(Pair(l,r))
     }
 }
 
 type Equality interface {
-    pure hash() int
+    pure Hash() int
 
-    isEqual(other Equality) bool
+    IsEqual(other Equality) bool
 }
 
 // the following clause should be permitted by the type-checker as intPair implements the interface:
@@ -31,13 +31,13 @@ intPair implements Equality
 
 decreases
 //:: ExpectedOutput(type_error)
-pure func (i intPair) hash() int { // receiver cannot be ghost
+pure func (i intPair) Hash() int { // receiver cannot be ghost
     return 42 // best implementation of a hash function
 }
 
 decreases
 //:: ExpectedOutput(type_error)
-func (i intPair) isEqual(other Equality) bool { // receiver cannot be ghost & ghost result cannot be assigned to actual result
+func (i intPair) IsEqual(other Equality) bool { // receiver cannot be ghost & ghost result cannot be assigned to actual result
     if typeOf(other) == intPair {
         return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair))
     }
@@ -46,6 +46,6 @@ func (i intPair) isEqual(other Equality) bool { // receiver cannot be ghost & gh
 
 func test() {
     ghost var x Equality
-    x = pair(1,2)
-    assert x.hash() == 42
+    x = Pair(1,2)
+    assert x.Hash() == 42
 }

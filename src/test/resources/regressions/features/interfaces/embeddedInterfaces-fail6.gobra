@@ -11,5 +11,5 @@ type foo interface {
 }
 
 type bar interface {
-	g()
+	G()
 }

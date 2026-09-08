@@ -6,16 +6,16 @@
 package mapVec
 
 type Inv interface {
-    pred inv(ghost seq[int])
+    pred Invariant(ghost seq[int])
 
     ghost
     requires len(calls) > 0
-    pure res(ghost calls seq[int]) int
+    pure Res(ghost calls seq[int]) int
 }
 
 ghost
-requires inv != nil && inv.inv(prev_calls)
-ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int]{x})
+requires inv != nil && inv.Invariant(prev_calls)
+ensures inv.Invariant(prev_calls ++ seq[int]{x}) && y == inv.Res(prev_calls ++ seq[int]{x})
 func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
 ghost
@@ -26,31 +26,31 @@ pure func toSeq(v []int) (s seq[int]) {
     return len(v) == 0 ? seq[int]{} : (toSeq(v[:len(v)-1]) ++ seq[int]{v[len(v)-1]})
 }
 
-requires inv != nil && inv.inv(seq[int]{}) && f implements fspec{inv}
+requires inv != nil && inv.Invariant(seq[int]{}) && f implements fspec{inv}
 requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i])
-ensures inv.inv(old(toSeq(v)))
-ensures forall i int :: i >= 0 && i < len(v) ==> acc(&v[i]) && v[i] == inv.res(old(toSeq(v))[:(i+1)])
+ensures inv.Invariant(old(toSeq(v)))
+ensures forall i int :: i >= 0 && i < len(v) ==> acc(&v[i]) && v[i] == inv.Res(old(toSeq(v))[:(i+1)])
 func mapVec(v []int, ghost inv Inv, f func(ghost seq[int], int)int) {
     ghost s := toSeq(v)
 
     invariant i >= 0 && i <= len(v)
-    invariant inv.inv(s[:i])
+    invariant inv.Invariant(s[:i])
     invariant forall j int :: j >= 0 && j < len(v) ==> acc(&v[j])
-    invariant forall j int :: j >= 0 && j < i ==> v[j] == inv.res(s[:(j+1)])
+    invariant forall j int :: j >= 0 && j < i ==> v[j] == inv.Res(s[:(j+1)])
     invariant forall j int :: j >= i && j < len(v) ==> v[j] == s[j]
     for i := 0; i < len(v); i += 1 {
         assert v[i] == s[i]
         v[i] = f(s[:i], v[i]) as fspec{inv}
         assert s[:(i+1)] == s[:i] ++ seq[int]{s[i]}
-        assert v[i] == inv.res(s[:(i+1)])
+        assert v[i] == inv.Res(s[:(i+1)])
     }
 }
 
 type Times3 struct{}
-pred (self Times3) inv(ghost seq[int]) { true }
+pred (self Times3) Invariant(ghost seq[int]) { true }
 ghost
 requires len(calls) > 0
-pure func (self Times3) res(ghost calls seq[int]) int {
+pure func (self Times3) Res(ghost calls seq[int]) int {
     return calls[len(calls)-1] * 3
 }
 
@@ -61,12 +61,12 @@ func test1() {
                 return x * 3
             }
     proof cl implements fspec{Times3{}} {
-        unfold Times3{}.inv(prev_calls)
+        unfold Times3{}.Invariant(prev_calls)
         y = cl(prev_calls, x) as t3
-        fold Times3{}.inv(prev_calls ++ seq[int]{x})
+        fold Times3{}.Invariant(prev_calls ++ seq[int]{x})
     }
 
-    fold Times3{}.inv(seq[int]{})
+    fold Times3{}.Invariant(seq[int]{})
     mapVec(v, Times3{}, cl)
 
     assert v[0] == 3
@@ -74,12 +74,12 @@ func test1() {
     assert v[2] == 9
 }
 
-type CntFrom struct { c *int; from int }
-pred (self CntFrom) inv(ghost calls seq[int]) { acc(self.c) && *self.c == self.from + len(calls) }
+type CntFrom struct { C *int; From int }
+pred (self CntFrom) Invariant(ghost calls seq[int]) { acc(self.C) && *self.C == self.From + len(calls) }
 ghost
 requires len(calls) > 0
-pure func (self CntFrom) res(ghost calls seq[int]) int {
-    return self.from + len(calls) - 1
+pure func (self CntFrom) Res(ghost calls seq[int]) int {
+    return self.From + len(calls) - 1
 }
 
 func test2() {
@@ -93,12 +93,12 @@ func test2() {
                 n += 1
             }
     proof cl implements fspec{CntFrom{&n, 7}} {
-        unfold CntFrom{&n, 7}.inv(prev_calls)
+        unfold CntFrom{&n, 7}.Invariant(prev_calls)
         y = cl(prev_calls, x) as ctr
-        fold CntFrom{&n, 7}.inv(prev_calls ++ seq[int]{x})
+        fold CntFrom{&n, 7}.Invariant(prev_calls ++ seq[int]{x})
     }
 
-    fold CntFrom{&n, 7}.inv(seq[int]{})
+    fold CntFrom{&n, 7}.Invariant(seq[int]{})
     ghost s := toSeq(v)
     mapVec(v, CntFrom{&n, 7}, cl)
 
@@ -106,23 +106,23 @@ func test2() {
     assert v[1] == 8
     assert v[2] == 9
 
-    unfold CntFrom{&n, 7}.inv(s)
+    unfold CntFrom{&n, 7}.Invariant(s)
     assert n == 10
 }
 
 ghost
-ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + seqSum(s[:(k-1)])
+ensures forall k int :: k > 0 && len(s) == k ==> res == s[k-1] + SeqSum(s[:(k-1)])
 decreases len(s)
-pure func seqSum(s seq[int]) (res int) {
-    return len(s) == 0 ? 0 : (s[len(s)-1] + seqSum(s[:(len(s)-1)]))
+pure func SeqSum(s seq[int]) (res int) {
+    return len(s) == 0 ? 0 : (s[len(s)-1] + SeqSum(s[:(len(s)-1)]))
 }
 
-type Acc struct { s *int; from int }
-pred (self Acc) inv(ghost calls seq[int]) { acc(self.s) && *self.s == seqSum(calls) + self.from }
+type Acc struct { S *int; From int }
+pred (self Acc) Invariant(ghost calls seq[int]) { acc(self.S) && *self.S == SeqSum(calls) + self.From }
 ghost
 requires len(calls) > 0
-pure func (self Acc) res(ghost calls seq[int]) int {
-    return self.from + seqSum(calls)
+pure func (self Acc) Res(ghost calls seq[int]) int {
+    return self.From + SeqSum(calls)
 }
 
 func test3() {
@@ -136,14 +136,14 @@ func test3() {
                 return a
             }
     proof cl implements fspec{Acc{&a, 2}} {
-        unfold Acc{&a, 2}.inv(prev_calls)
+        unfold Acc{&a, 2}.Invariant(prev_calls)
         y = cl(prev_calls, x) as accumulate
         assert (prev_calls ++ seq[int]{x})[:(len(prev_calls))] == prev_calls
-        fold Acc{&a, 2}.inv(prev_calls ++ seq[int]{x})
+        fold Acc{&a, 2}.Invariant(prev_calls ++ seq[int]{x})
     }
     
 
-    fold Acc{&a, 2}.inv(seq[int]{})
+    fold Acc{&a, 2}.Invariant(seq[int]{})
     
     ghost s := toSeq(v)
     mapVec(v, Acc{&a, 2}, cl)

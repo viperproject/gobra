@@ -6,8 +6,8 @@ package pkg
 import "sync"
 
 type Accum struct {
-	sum *int
-	m *sync.Mutex
+	SumP *int
+	M *sync.Mutex
 }
 
 pred AccInv(x *int, ghost seenSlice ghost []int) {
@@ -15,15 +15,15 @@ pred AccInv(x *int, ghost seenSlice ghost []int) {
 }
 
 ghost
-requires acc(c) && acc(c.sum) && acc(c.m) && c.m.state == 0 && c.m.stema == 0
-requires *c.sum == 0
+requires acc(c) && acc(c.SumP) && acc(c.M) && *c.M === sync.Mutex{}
+requires *c.SumP == 0
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> seenSlice[i] == 0
-ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv{c.sum, seenSlice})
+ensures acc(c) && c.M.LockP() && c.M.LockInv() == (AccInv{c.SumP, seenSlice})
 func (c *Accum) Init(ghost seenSlice ghost []int) {
 	assume GhostSum(seenSlice) == 0
-	fold AccInv{c.sum, seenSlice}()
-	c.m.SetInv(AccInv{c.sum, seenSlice})
+	fold AccInv{c.SumP, seenSlice}()
+	c.M.SetInv(AccInv{c.SumP, seenSlice})
 }
 
 /* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
@@ -36,7 +36,7 @@ func ParallelSum(s []int) (res int) {
 
 	count@ := 0
 	m := &sync.Mutex{}
-	c := &Accum{sum: &count, m: m}
+	c := &Accum{SumP: &count, M: m}
 	ghost seenSlice := make(ghost []int, len(s))
 	c.Init(seenSlice)
 	w := &sync.WaitGroup{}
@@ -56,7 +56,7 @@ func ParallelSum(s []int) (res int) {
 	invariant forall j int :: 0 <= j && j < i ==> w.TokenById(tokens[j], j)
 	invariant !w.WaitMode()
 	invariant acc(c, _)
-	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv{c.sum, seenSlice}
+	invariant acc(c.M.LockP(), _) && c.M.LockInv() == AccInv{c.SumP, seenSlice}
 	invariant forall j int :: i <= j && j < n ==> acc(&seenSlice[j], 1/2)
 	invariant forall j int :: i <= j && j < n ==> seenSlice[j] == 0
 	for i := 0; i < n; i++ {
@@ -84,11 +84,11 @@ func ParallelSum(s []int) (res int) {
 		}
 	}
 
-	c.m.Lock()
-	unfold AccInv{c.sum, seenSlice}()
-	res = *(c.sum)
-	fold AccInv{c.sum, seenSlice}()
-	c.m.Unlock()
+	c.M.Lock()
+	unfold AccInv{c.SumP, seenSlice}()
+	res = *(c.SumP)
+	fold AccInv{c.SumP, seenSlice}()
+	c.M.Unlock()
 	sumExtensional(s, seenSlice)
 	return res
 }
@@ -141,17 +141,17 @@ func update(ghost s ghost []int, ghost pos, val int) {
 
 requires acc(accum, _)
 requires acc(&seenSlice[pos], 1/2) && seenSlice[pos] == 0
-requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv{accum.sum, seenSlice}
+requires acc(accum.M.LockP(), _) && accum.M.LockInv() == AccInv{accum.SumP, seenSlice}
 requires 0 <= pos && pos < len(seenSlice)
 // we forget to specify the worker's debt (seeded bug):
 // requires w.UnitDebt(locHasVal{&seenSlice[pos],val})
 func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice ghost []int, ghost pos int) {
-	accum.m.Lock()
-	unfold AccInv{accum.sum, seenSlice}()
-	*(accum.sum) += val
+	accum.M.Lock()
+	unfold AccInv{accum.SumP, seenSlice}()
+	*(accum.SumP) += val
 	update(seenSlice, pos, val)
-	fold AccInv{accum.sum, seenSlice}()
-	accum.m.Unlock()
+	fold AccInv{accum.SumP, seenSlice}()
+	accum.M.Unlock()
 	fold locHasVal{&seenSlice[pos],val}()
 	//:: ExpectedOutput(precondition_error:permission_error)
 	w.PayDebt(locHasVal{&seenSlice[pos],val})

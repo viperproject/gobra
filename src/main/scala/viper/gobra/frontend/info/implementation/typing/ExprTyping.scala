@@ -247,7 +247,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       capturedLocalVariables(f.decl).flatMap(v => addressable.errors(enclosingExpr(v).get)(v)) ++
         wellDefVariadicArgs(f.args) ++
         f.id.fold(noMessages)(id => wellDefID(id).out) ++
-        error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque)
+        error(f, "Opaque function literals are not yet supported.", f.spec.isOpaque) ++
+        wellDefIfPureClosure(f)
 
     case n: PInvoke =>
       val mayInit = isEnclosingMayInit(n)

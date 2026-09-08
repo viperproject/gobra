@@ -57,7 +57,9 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
       cacheParserAndTypeChecker = cacheParserAndTypeChecker,
       z3Exe = z3Exe,
       // termination checks in functions are currently disabled in the tests. This can be enabled in the future,
-      // but requires some work to add termination measures all over the test suite.
+      // but requires some work to add termination measures all over the test suite. Test files that are about
+      // that requirement belong to `GobraCheckTerminationTests`, which overrides this setting; an in-file
+      // configuration cannot, as `Config.merge` only ever turns boolean flags on.
       disableCheckTerminationPureFns = true,
       // Bound how long the prover may spend on a single assertion. Without a bound, a test whose
       // proof the prover cannot find does not fail: it makes the prover grow until the whole test

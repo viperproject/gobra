@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package interface_sig_measures_fail
+
+// The well-definedness checks that Gobra performs on a specification are reported on the
+// specification itself. This used to crash the type checker for the specifications of interface
+// method signatures, because those were the only `PFunctionSpec` nodes without a position.
+
+type I interface {
+	// Type error, a specification can contain at most one non-conditional termination measure.
+	//:: ExpectedOutput(type_error)
+	decreases
+	decreases n
+	M(n int)
+}
+
+type J interface {
+	// Type error, all termination measures of a specification must have the same type.
+	//:: ExpectedOutput(type_error)
+	decreases n if n >= 0
+	decreases b if b
+	N(n int, b bool)
+}
+
+type K interface {
+	// Type error, wildcard termination measures are not allowed on interface methods.
+	//:: ExpectedOutput(type_error)
+	decreases _
+	O(n int)
+}

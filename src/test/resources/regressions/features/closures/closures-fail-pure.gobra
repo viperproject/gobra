@@ -1,0 +1,86 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closures_fail_pure
+
+// Pure closure literals must satisfy the same requirements as pure functions and pure methods. Note
+// that the requirement of carrying a termination measure is gated behind
+// `disableCheckTerminationPureFns`, which this test suite enables; that case is covered by the tests
+// in `src/test/resources/check_termination` instead.
+
+func twoResults() {
+	// Type error, a pure member must have exactly one result parameter.
+	//:: ExpectedOutput(type_error)
+	cl := decreases
+		// Type error, the body of a pure member must be a single return of a pure expression.
+		//:: ExpectedOutput(type_error)
+		pure func g() (x int, y int) {
+			return 1, 2
+		}
+	_ = cl
+}
+
+func noResult() {
+	// Type error, a pure member must have exactly one result parameter.
+	//:: ExpectedOutput(type_error)
+	cl := decreases
+		// Type error, the body of a pure member must be a single return of a pure expression.
+		//:: ExpectedOutput(type_error)
+		pure func g() {
+		}
+	_ = cl
+}
+
+func variadicArgs() {
+	cl := decreases
+		// Type error, a pure member cannot have variadic parameters.
+		//:: ExpectedOutput(type_error)
+		pure func g(a ...int) (x int) {
+			return 0
+		}
+	_ = cl
+}
+
+func preservesClause() {
+	// Type error, a pure member cannot have preserves clauses.
+	//:: ExpectedOutput(type_error)
+	cl := preserves true
+		decreases
+		pure func g() (x int) {
+			return 0
+		}
+	_ = cl
+}
+
+func impurePostcondition() {
+	y@ := 0
+	// Type error, the postconditions of a pure member must be pure.
+	//:: ExpectedOutput(type_error)
+	cl := ensures acc(&y)
+		decreases
+		pure func g() (x int) {
+			return 0
+		}
+	_ = cl
+}
+
+func statementInBody() {
+	cl := decreases
+		// Type error, the body of a pure member must be a single return of a pure expression.
+		//:: ExpectedOutput(type_error)
+		pure func g() (x int) {
+			x = 0
+			return x
+		}
+	_ = cl
+}
+
+// A pure closure literal that satisfies all of the requirements above is accepted.
+func wellFormed() {
+	cl := ensures res == 0
+		decreases
+		pure func g() (res int) {
+			return 0
+		}
+	assert cl() as g == 0
+}

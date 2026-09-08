@@ -6,8 +6,8 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import viper.gobra.ast.frontend.{PFunctionSpec, PNode, PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 /**
@@ -39,12 +39,42 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => false
     }
 
+  /**
+    * The semantics of wildcard termination measures in interface method specifications is not clear.
+    * Thus, they are rejected.
+    */
+  private[typing] def noWildcardMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
+    measures.flatMap {
+      case w: PWildcardMeasure =>
+        error(w, "Wildcard termination measures are not allowed in the specifications of interface methods.")
+      case _ => noMessages
+    }
+
   private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
     measures.flatMap { m =>
       error(m,
         "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
         isConditional(m))
     }
+
+  /**
+    * Checks that `spec` guarantees that the member it belongs to terminates on every call, as Gobra
+    * requires of all ghost and pure members: functions, methods, and interface method signatures alike.
+    * The missing-measure error is reported on `node`, which should be the member or signature that
+    * `spec` specifies.
+    *
+    * Ghost and pure members are held to a stricter rule than `measuresGuaranteeTermination`: they may
+    * not carry a conditional measure at all because we do not check that the conditions of conditional
+    * measures cover all inputs. The two problems are therefore reported separately, the missing
+    * measure on `node` and each conditional measure on the measure itself, and only the former
+    * is subject to `disableCheckTerminationPureFns`.
+    */
+  private[typing] def mustTerminateErrors(node: PNode, spec: PFunctionSpec): Messages = {
+    val missingMeasureError = error(node,
+      "Ghost and pure functions, methods, and interface methods must have termination measures, but none was found.",
+      !config.disableCheckTerminationPureFns && spec.terminationMeasures.isEmpty)
+    missingMeasureError ++ noConditionalMeasureErrors(spec.terminationMeasures)
+  }
 
   private[typing] def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
     val tupleMeasureTypes = measures

@@ -301,7 +301,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PConstSpec(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case PShortForRange(range, shorts, _, _, _) => getBlankAssigneeTypeRange(w, shorts, range)
-        case PRange(exp, enumerated) => if (w eq enumerated) rangeEnumeratorType(underlyingType(exprType(exp)))
+        case PRange(exp, _, enumerated) => if (w eq enumerated) rangeEnumeratorType(underlyingType(exprType(exp)))
           else violation("did not find expression corresponding to " + w)
         case _ => ???
       }

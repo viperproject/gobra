@@ -842,7 +842,13 @@ sealed trait PMisc extends PNode
 
 sealed trait PActualMisc extends PMisc
 
-case class PRange(exp: PExpression, enumerated: PUnkLikeId) extends PActualMisc
+/**
+  * Range clause of a for statement, i.e. `range exp(, perm)?( with enumerated)?`.
+  * `perm` is the (optional) amount of permission to `exp` that is exhaled while iterating over it.
+  * It is only supported for maps, where it defaults to a very small, but positive, amount.
+  * As in an `acc` expression, the blank identifier denotes a wildcard amount.
+  */
+case class PRange(exp: PExpression, perm: Option[PExpression], enumerated: PUnkLikeId) extends PActualMisc
 
 sealed trait PParameter extends PMisc {
   def typ: PType

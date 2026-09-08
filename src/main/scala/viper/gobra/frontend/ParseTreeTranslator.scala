@@ -2065,17 +2065,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val post = visitNodeOrNone[PSimpleStmt](ctx.forClause().postStmt)
       PForStmt(pre, cond, post, spec, block).at(specCtx)
     } else if (has(ctx.rangeClause())) {
-      // for <assignees (:= | =)>? range <expr> (with enumerated)?
-      val expr = visitNode[PExpression](ctx.rangeClause().expression()).at(ctx.rangeClause())
+      // for <assignees (:= | =)>? range <expr> (, <perm>)? (with enumerated)?
+      val expr = visitNode[PExpression](ctx.rangeClause().rangeExp).at(ctx.rangeClause())
+      val perm = if (has(ctx.rangeClause().perm)) {
+        val permCtx = ctx.rangeClause().perm
+        // as in an 'acc' expression, the blank identifier denotes a wildcard permission
+        val amount = visitNode[PExpression](permCtx) match {
+          case blank: PBlankIdentifier => PWildcardPerm().at(blank)
+          case exp => exp
+        }
+        Some(amount).pos()
+      } else None
       // enumerated will be used no matter what, so we just make it a wildcard if it is not
       // present in the range clause
-      val enumerated = visitChildren(ctx.rangeClause()) match {
-        case Vector(_, _, "range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
-        case Vector("range", _, "with", i) if i.toString() == "_" => PWildcard().at(ctx.rangeClause().IDENTIFIER())
-        case Vector(_, _, "range", _) | Vector("range", _) => PWildcard().at(ctx.rangeClause())
-        case _ => idnUnk.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause.IDENTIFIER())
-      }
-      val range = PRange(expr, enumerated).at(ctx.rangeClause())
+      val enumerated: PUnkLikeId = if (has(ctx.rangeClause().IDENTIFIER())) {
+        // 'idnUnkLike' maps the blank identifier to a wildcard
+        idnUnkLike.get(ctx.rangeClause().IDENTIFIER()).at(ctx.rangeClause().IDENTIFIER())
+      } else PWildcard().at(ctx.rangeClause())
+      val range = PRange(expr, perm, enumerated).at(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
         // :=
         val (idnUnkLikeList(vars), addressable) = visitMaybeAddressableIdentifierList(ctx.rangeClause().maybeAddressableIdentifierList())

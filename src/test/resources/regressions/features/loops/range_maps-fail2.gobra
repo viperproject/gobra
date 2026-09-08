@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// The permission amount exhaled by a range loop must be strictly positive, otherwise it
+// does not guarantee that the range expression is not modified by the loop body.
+
+requires p >= noPerm
+requires acc(x, p)
+ensures acc(x, p)
+decreases
+func mightBeNone(x map[int]int, ghost p perm) {
+	invariant acc(x, p)
+	decreases len(domain(x)) - len(visited)
+	//:: ExpectedOutput(non_positive_permission_to_range_expression)
+	for k := range x, p with visited {
+	}
+}
+
+decreases
+func isNone() {
+	x := map[int]int{1: 1, 2: 2}
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	//:: ExpectedOutput(non_positive_permission_to_range_expression)
+	for k := range x, noPerm with visited {
+	}
+}

@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Only the encoding of ranging over a map exhales permission to the range expression,
+// so a permission amount may not be provided for other rangeable types.
+
+func slicePerm() {
+	x := []int{1, 2, 3}
+	invariant acc(x)
+	//:: ExpectedOutput(type_error)
+	for i := range x, 1/2 with i0 {
+	}
+}

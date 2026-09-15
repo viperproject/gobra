@@ -9,7 +9,7 @@ type BoundedMonotonicSet struct {
 
 pred (b BoundedMonotonicSet) Inv() {
 	forall i uint16 :: 0 <= i && i < 256 ==>
-		(i elem domain(b.valuesMap) && acc(b.valuesMap[i], 1/2))
+		(i elem domain(b.valuesMap) && acc(b.valuesMap[i], perm(1, 2)))
 }
 
 ghost
@@ -52,13 +52,13 @@ func (b BoundedMonotonicSet) ContainsIsDup(i uint16) {
 pred (b BoundedMonotonicSet) DoesNotContain(i uint16) {
 	0 <= i && i < 256 &&
 	i elem domain(b.valuesMap) &&
-	acc(b.valuesMap[i], 1/2) &&
+	acc(b.valuesMap[i], perm(1, 2)) &&
 	!(*b.valuesMap[i])
 }
 
 ghost
-preserves acc(b.Inv(), 1/4)
-preserves acc(b.DoesNotContain(i), 1/4)
+preserves acc(b.Inv(), perm(1, 4))
+preserves acc(b.DoesNotContain(i), perm(1, 4))
 ensures   0 <= i && i < 256
 ensures   !b.FContains(i)
 decreases
@@ -69,7 +69,7 @@ func (b BoundedMonotonicSet) DoesNotContainImpliesNotFContains(i uint16) {
 }
 
 ghost
-preserves acc(b.Inv(), 1/4)
+preserves acc(b.Inv(), perm(1, 4))
 preserves b.Contains(i)
 ensures   0 <= i && i < 256
 ensures   b.FContains(i)
@@ -126,9 +126,9 @@ func Alloc() (res BoundedMonotonicSet) {
 	invariant forall j1, j2 uint16 :: { b.valuesMap[j1], b.valuesMap[j2] } 0 <= j1 && j1 < j2 && j2 < i ==>
 		b.valuesMap[j1] != b.valuesMap[j2]
 	invariant forall j uint16 :: { b.valuesMap[j] } i <= j && j < 256 ==>
-		acc(b.valuesMap[j], 3/4) && !(*b.valuesMap[j])
+		acc(b.valuesMap[j], perm(3, 4)) && !(*b.valuesMap[j])
 	invariant forall j uint16 :: { b.valuesMap[j] } 0 <= j && j < i ==>
-		acc(b.valuesMap[j], 1/4)
+		acc(b.valuesMap[j], perm(1, 4))
 	invariant forall j uint16 :: { b.DoesNotContain(j) } 0 <= j && j < i ==>
 		b.DoesNotContain(j)
 	invariant b.fnotcontainshelperUpTo(i)
@@ -162,7 +162,7 @@ pure func (b BoundedMonotonicSet) toSetAux(start uint16) set[uint16] {
 }
 
 ghost
-requires 0 < p
+requires p > noPerm
 requires acc(b.Inv(), p)
 requires b.Contains(v)
 ensures  acc(b.Inv(), p)
@@ -176,7 +176,7 @@ func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 
 	assert unfolding b.Contains(v) in 0 <= v && v < 256
 
-	invariant acc(b.Inv(), p/2)
+	invariant acc(b.Inv(), perm(p, 2))
 	invariant b.Contains(v)
 	invariant 0 <= i && i <= 256
 	invariant v < i ==> found
@@ -203,7 +203,7 @@ func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v uint16, p perm) {
 }
 
 ghost
-requires  0 < p
+requires  p > noPerm
 preserves acc(b.Inv(), p)
 preserves b.DoesNotContain(v)
 ensures   !(v elem b.ToSet())
@@ -216,7 +216,7 @@ func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v uint
 
 	assert unfolding b.DoesNotContain(v) in 0 <= v && v < 256
 
-	invariant acc(b.Inv(), p/2)
+	invariant acc(b.Inv(), perm(p, 2))
 	invariant b.DoesNotContain(v)
 	invariant 0 <= i && i <= 256
 	invariant !found

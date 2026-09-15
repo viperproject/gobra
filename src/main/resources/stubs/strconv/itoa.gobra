@@ -54,7 +54,7 @@ func AppendInt(dst []byte, i int64, base int) (res []byte) {
 	if fastSmalls && 0 <= i && i < nSmalls && base == 10 {
 		// (Gobra) unpacking strings is not yet supported. The conversion
 		// to []byte was introduced to overcome that
-		return append(perm(1/2), dst, []byte(small(int(i)))...)
+		return append(perm(1, 2), dst, []byte(small(int(i)))...)
 	}
 	dst, _ = formatBits(dst, uint64(i), base, i < 0, true)
 	return dst
@@ -73,7 +73,7 @@ func AppendUint(dst []byte, i uint64, base int) (res []byte) {
 	if fastSmalls && i < nSmalls && base == 10 {
 		// (Gobra) unpacking strings is not yet supported. The conversion
 		// to []byte was introduced to overcome that
-		return append(perm(1/2), dst, []byte(small(int(i)))...)
+		return append(perm(1, 2), dst, []byte(small(int(i)))...)
 	}
 	dst, _ = formatBits(dst, i, base, false, true)
 	return dst

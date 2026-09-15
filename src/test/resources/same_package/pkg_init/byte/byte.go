@@ -16,10 +16,10 @@ func init() {
 	// @ invariant (forall j, k int :: 0 <= j && j < k && k < i  ==>
 	// @ 	byteCache[j] != byteCache[k])
 	// @ invariant (forall j int :: 0 <= j && j < i ==>
-	// @ 	acc(byteCache[j]) && byteCache[j].value == byte(j) - 128)
+	// @ 	acc(byteCache[j]) && byteCache[j].value == byte(j))
 	// @ decreases 256 - i
 	for i := 0; i < 256; i++ {
-		byteCache[i] = alloc(byte(i) - 128)
+		byteCache[i] = alloc(byte(i))
 	}
 	// @ fold StaticInv()
 }
@@ -44,10 +44,10 @@ func (b *Byte) ByteValue() byte {
 // @ ensures res.ByteValue() == val
 // @ decreases
 func ToVal(val byte) (res *Byte) {
-	// @ assume -128 <= val && val <= 127
+	// @ assume 0 <= val && val <= 255
 	// @ openDupPkgInv
 	// @ unfold acc(StaticInv(), _)
-	res = byteCache[val+128]
+	res = byteCache[val]
 	// @ fold acc(res.Mem(), _)
 	return res
 }

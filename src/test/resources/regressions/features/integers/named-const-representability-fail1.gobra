@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// An untyped named constant used where the context imposes a type must be
+// representable in that type, exactly like a literal (Go spec, Representability).
+
+const c = 300
+const neg = -1
+
+//:: ExpectedOutput(type_error)
+var x uint8 = c
+
+//:: ExpectedOutput(type_error)
+var y uint8 = neg
+
+func g(u uint8) {}
+
+func useInContexts(u uint8) {
+	//:: ExpectedOutput(type_error)
+	var v uint8 = c
+	//:: ExpectedOutput(type_error)
+	g(c)
+	//:: ExpectedOutput(type_error)
+	assert u == c
+	//:: ExpectedOutput(type_error)
+	assert c > u
+	//:: ExpectedOutput(type_error)
+	assert u + c > 0
+	//:: ExpectedOutput(type_error)
+	v = c
+}
+
+func ret() (res uint8) {
+	//:: ExpectedOutput(type_error)
+	return c
+}

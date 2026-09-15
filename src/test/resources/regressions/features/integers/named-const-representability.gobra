@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// An untyped named constant is representable in the type imposed by its context,
+// or is part of a larger constant expression whose result is.
+
+const c = 300
+const d = 200
+const e = c - d
+
+var x uint8 = c - 100
+var y uint8 = e
+var z int16 = c
+
+func g(u uint8) {}
+
+func useInContexts(u uint8, i int16) {
+	var v uint8 = d
+	g(d)
+	g(c - 100)
+	assert (u != d || d == u) && (u < c - 45 || u >= c - 45) && (i < c || i >= c)
+	assert c == 300 && c > d && e + 100 == d
+	w := c
+	assert w == 300 && v == 200
+}
+
+ensures res == d
+func ret() (res uint8) {
+	return d
+}

@@ -27,7 +27,7 @@ func bar() {
 
     // we declare variables as non-ghost:
     var res3, res4, res5 int
-    ghost var gRes3, gRes4, gRes5 int
+    ghost var gRes3, gRes4, gRes5 integer
 
     //:: ExpectedOutput(type_error)
     res3 = test3(s) // fails as result is not assignable to actual variable
@@ -57,21 +57,21 @@ pure func test1(s seq[int]) int { // parameter has to be ghost
 }
 
 //:: ExpectedOutput(type_error)
-pure func test2(ghost s seq[int]) int { // result has to be ghost
+pure func test2(ghost s seq[int]) integer { // result has to be ghost
     return len(s)
 }
 
-func test3(ghost s seq[int]) (ghost res int) {
-    return len(s)
-}
-
-// this function is fine as parameter and result are implicitly ghost
-ghost func test4(s seq[int]) int {
+func test3(ghost s seq[int]) (ghost res integer) {
     return len(s)
 }
 
 // this function is fine as parameter and result are implicitly ghost
-ghost pure func test5(s seq[int]) int {
+ghost func test4(s seq[int]) integer {
+    return len(s)
+}
+
+// this function is fine as parameter and result are implicitly ghost
+ghost pure func test5(s seq[int]) integer {
     return len(s)
 }
 

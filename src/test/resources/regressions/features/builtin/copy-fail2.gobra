@@ -6,7 +6,7 @@ package builtin
 func test0() {
 	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
 	var s = make([]int, 6)
-	p := perm(1/2)
+	p := perm(1, 2)
 
 	n1 := copy(s, a[0:], p)
 	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
@@ -18,7 +18,7 @@ func test1() {
 	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
 	var s = make([]int, 6)
 	
-	p := perm(1/2)
+	p := perm(1, 2)
 	n1 := copy(s, a[0:], p)
 	//:: ExpectedOutput(assert_error)
 	assert n1 == 3
@@ -27,7 +27,7 @@ func test1() {
 func test2() {
 	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
 	var s = make([]int, 6)
-	p := perm(1/2)
+	p := perm(1, 2)
 	n1 := copy(s, a[0:], p)
 	//:: ExpectedOutput(assert_error)
 	assert s[2] == 3

@@ -34,7 +34,7 @@ pure func head(ptr *node) int {
 	return unfolding list(ptr) in ptr.value
 }
 
-requires p > 0
+requires p > noPerm
 requires acc(list(ptr), p)
 decreases acc(list(ptr), p)
 pure func (ptr *node) contains(value int, ghost p perm) bool {

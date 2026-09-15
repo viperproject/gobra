@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// Regression test: integer literal operands of comparison operators should
+// have their type inferred from the sibling operand. Literals that overflow
+// the sibling's type must be rejected, consistent with Go's compiler behavior.
+// E.g. `x < 1000` where x: uint8 is rejected because 1000 overflows uint8.
+
+const (
+	// 1000 overflows uint8
+	//:: ExpectedOutput(type_error)
+	C1 = uint8(4) < 1000
+
+	// 256 overflows uint8
+	//:: ExpectedOutput(type_error)
+	C2 = uint8(4) == 256
+
+	// -1 overflows uint8
+	//:: ExpectedOutput(type_error)
+	C3 = uint8(4) >= -1
+
+	// 128 overflows int8
+	//:: ExpectedOutput(type_error)
+	C4 = int8(4) <= 128
+
+	// -129 overflows int8
+	//:: ExpectedOutput(type_error)
+	C5 = int8(4) != -129
+)

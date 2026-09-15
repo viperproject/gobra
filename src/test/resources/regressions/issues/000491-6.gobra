@@ -1,0 +1,113 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue491_6
+
+// Tests that usages of long L-value chains are rejected when they may dereference nil.
+//
+// Every dereference along a chain must be safe, but only the outermost one gives rise to a
+// nil-ness proof obligation. The pointers dereferenced before it are read out of memory to
+// form the chain, and reading them requires permission to the corresponding fields, which
+// entails that they are non-nil; the outermost dereference is the only one without such a
+// witness, as the memory it refers to is not necessarily read.
+//
+// Consequently, the two mechanisms reject with different errors, as documented per test
+// below: an unsafe outermost dereference fails the nil check, whereas an unsafe dereference
+// earlier in the chain fails to obtain the permission needed to read the pointer following
+// it. Both reject the program, but only the former mentions nil.
+
+type LList struct {
+	Val  int
+	Next *LList
+}
+
+pred P(l *LList) { acc(&l.Val) }
+
+// In the three tests below, every pointer up to the outermost dereference is owned, so the
+// chain is read safely, and only the pointer of the outermost dereference is unconstrained:
+// the permission to the field behind it is wrapped in a predicate, which does not entail
+// that the pointer is non-nil. These are the cases that the nil check rejects, and they
+// fail with a nil error at increasing depths.
+requires acc(&l.Next) && P(l.Next)
+func chain1(l *LList) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &l.Next.Val
+	return
+}
+
+requires acc(&l.Next) && acc(&l.Next.Next) && P(l.Next.Next)
+func chain2(l *LList) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &l.Next.Next.Val
+	return
+}
+
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+requires P(l.Next.Next.Next)
+func chain3(l *LList) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &l.Next.Next.Next.Val
+	return
+}
+
+// Nothing constrains l.Next.Next here, so the dereference in the middle of the chain may
+// be unsafe. It is rejected, but by the permission required to read l.Next.Next.Next out
+// of memory, and thus with a permission error instead of a nil error: holding that
+// permission is what would have entailed that l.Next.Next is non-nil.
+requires acc(&l.Next) && acc(&l.Next.Next)
+func middleOfChain(l *LList) (r *int) {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	r = &l.Next.Next.Next.Val
+	return
+}
+
+// Reading through a chain is rejected for the same reason. Here the permission that is
+// missing is the one for the field that is read, l.Next.Next.Next.Val.
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+func readChain(l *LList) (v int) {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	v = l.Next.Next.Next.Val
+	return
+}
+
+// The base of an index expression is not always a location: a slice expression is not one.
+// An L-value whose base is a slice expression has no outermost dereference of its own, but
+// slicing an array pointer does dereference it, and that dereference is checked when the
+// slice expression itself is encoded.
+func sliceOfArrayPointer(p *[10]int) (r *int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	r = &p[0:5][0]
+	return
+}
+
+preserves p != nil ==> acc(p)
+func readSliceOfArrayPointer(p *[10]int) (v int) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	v = p[0:5][0]
+	return
+}
+
+// A slice value carries its own backing array, so slicing and indexing it dereferences
+// nothing and no obligation is generated.
+requires len(s) > 3 && acc(&s[2])
+func sliceOfSliceValue(s []int) (r *int) {
+	r = &s[2:4][0]
+	return
+}
+
+// With permissions to every link, all dereferences are witnessed and the chain verifies.
+// These cases guard against the checks becoming vacuous: they must keep verifying, so that
+// a change that rejects them shows up here rather than as an incompleteness in a client.
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+requires acc(&l.Next.Next.Next.Val)
+func chainOk(l *LList) (r *int) {
+	r = &l.Next.Next.Next.Val
+	return
+}
+
+// Assigning through a long chain is safe once every link is owned.
+requires acc(&l.Next) && acc(&l.Next.Next) && acc(&l.Next.Next.Next)
+requires acc(&l.Next.Next.Next.Val)
+func assignChainOk(l *LList) {
+	l.Next.Next.Next.Val = 42
+}

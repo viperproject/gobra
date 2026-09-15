@@ -15,6 +15,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.library.Generator
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
@@ -337,17 +338,23 @@ trait TypeEncoding extends Generator {
   }
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
-    * Instead of checking that a dereference is safe immediately, the encoding checks that usages of l-values are safe.
+    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing
+    * nil or accessing an index out of bounds.
+    * Instead of checking that a dereference or an indexed access is safe immediately, the encoding
+    * checks that usages of l-values are safe.
     * Usages of L-values are: (1) taking a reference, (2) taking a slice, (3) converting to R-value
     *
-    * SafeRef[loc: T@] => assert [&loc != nil: *T°]; Ref[loc]
+    * SafeRef[loc: T@] => assert [p != nil]; assert [0 <= idx_k && idx_k < length_k]; Ref[loc]
+    *   where *p is the outermost dereference of loc, i.e. the last one evaluated when evaluating
+    *   loc, if loc has one (see checkNotNil),
+    *   and idx_k are the indices of the indexed accesses of loc (see checkIndicesInBounds)
     */
   final def safeReference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     val r = reference(ctx); { case loc@r(w) =>
       for {
         vprLoc <- w
-        checked <- checkNotNil(loc, vprLoc)(ctx)
+        checkedNil <- checkNotNil(loc, vprLoc)(ctx)
+        checked <- checkIndicesInBounds(loc, checkedNil)(ctx)
       } yield checked
     }
   }
@@ -374,10 +381,10 @@ trait TypeEncoding extends Generator {
     * An encoding for type T should be defined at all shared locations of type T.
     *
     * The default implements:
-    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]
+    * Footprint[loc: T@ if sizeOf(T) == 0] -> [&loc != nil: *T°]   (see addressNotNil)
     */
   def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
-    case (loc :: (t@ctx.ZeroSize()) / Shared, _) if typ(ctx).isDefinedAt(t) => checkNotNil(loc)(ctx)
+    case (loc :: (t@ctx.ZeroSize()) / Shared, _) if typ(ctx).isDefinedAt(t) => addressNotNil(loc)(ctx)
   }
 
   /**
@@ -505,28 +512,155 @@ object TypeEncoding {
   import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl}
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Checks that using `loc` does not dereference nil.
     *
-    * assert [&loc != nil: *T°]; res
+    * assert [p != nil]; res    where *p is the outermost dereference of loc
     *
+    * The outermost dereference is the one that is not nested inside another dereference of loc,
+    * i.e. the last one evaluated when evaluating loc: for `l.next.val`, it is the dereference of
+    * `l.next` (see outermostDeref).
+    *
+    * Only the outermost dereference has to be checked. The dereferences nested inside it read
+    * their pointers from memory, which requires permission to the fields holding them, and
+    * permission to a field entails that its receiver is non-nil. The outermost dereference has no
+    * such witness, as the memory it refers to is not necessarily read.
+    *
+    * Checking `p` instead of the address of `loc` keeps the obligation independent of the address
+    * arithmetic of composite types (see PR #531).
     */
   final def checkNotNil(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
-    if (cannotBeNil(loc)) cl.unit(res)
-    else {
-      for {
-        cond <- checkNotNil(loc)(ctx)
-        checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
-      } yield checked
+    outermostDeref(loc) match {
+      case Some(d) if ctx.emitPanicChecks =>
+        for {
+          cond <- dereferencedPointerNotNil(d)(ctx)
+          checked <- cl.assertWithDefaultReason(cond, res, LoadError)(ctx)
+        } yield checked
+      case _ => cl.unit(res)
     }
   }
 
   /**
-    * Checks whether an L-value is safe, i.e. does not cause a runtime panic due to dereferencing nil.
+    * Encodes that the pointer dereferenced by `d` is not nil: [ d.exp != nil ].
     *
-    * [&loc != nil: *T°]
-    *
+    * The annotation is attached to `d.exp` and not to `d`, so that the error names the pointer:
+    * the position of an implicit dereference, as in `p.f`, spans the entire selector.
     */
-  final def checkNotNil(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
+  private def dereferencedPointerNotNil(d: in.Deref)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val annotatedInfo = d.exp.info match {
+      case s: Source.Parser.Single => s.createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
+      case i => i
+    }
+    ctx.expression(in.UneqCmp(
+      d.exp,
+      in.NilLit(in.PointerT(d.typ, Exclusive))(annotatedInfo)
+    )(annotatedInfo))
+  }
+
+  /**
+    * Checks that the indices on the access path of `l` are within bounds.
+    *
+    * assert [0 <= idx && idx < length]; res    for every indexed access `base[idx]` of loc
+    *
+    * Reads and writes of indexed elements are already guarded without an explicit obligation:
+    * their permission footprints range over the in-bounds indices only, and exclusive arrays are
+    * read with Viper's sequence indexing, which carries its own bounds conditions. Taking the
+    * address of an element, however, is encoded with total domain functions and, thus, requires
+    * an explicit obligation (in Go, indexing panics if the index is out of range).
+    */
+  final def checkIndicesInBounds(loc: in.Location, res: vpr.Exp)(ctx: Context): CodeWriter[vpr.Exp] = {
+    if (!ctx.emitPanicChecks) cl.unit(res) // the obligation only applies to actual code
+    else {
+      // The conditions are emitted innermost-first and every condition is guarded by the
+      // conjunction of the inner conditions: the well-definedness of an outer condition may
+      // depend on the inner indices being in bounds (e.g., reading the length of `s[i]` for the
+      // bound of `j` in `&s[i][j]` requires permission, which the caller only holds for an
+      // in-bounds `i`) and an out-of-bounds inner index should be reported as such.
+      indexedExps(loc).reverse.foldLeft(cl.unit((res, None: Option[vpr.Exp]))){ case (w, e) =>
+        for {
+          rg <- w
+          (r, guard) = rg
+          c <- indexInBounds(e)(ctx)
+          // the wrappers reuse the condition's meta such that its annotation is preserved:
+          guarded = guard.fold(c)(g => vpr.Implies(g, c)(c.pos, c.info, c.errT))
+          checked <- cl.assertWithDefaultReason(guarded, r, LoadError)(ctx)
+        } yield (checked, Some(guard.fold(c)(g => vpr.And(g, c)(c.pos, c.info, c.errT))))
+      }.map(_._1)
+    }
+  }
+
+  /**
+    * Returns the indexed accesses on the access path of `l`, outermost first. Only accesses that
+    * can panic in Go are returned, i.e. indexed accesses of (pointers to) arrays and of slices;
+    * reading a missing map key, e.g., yields the zero value instead of panicking. The operand of
+    * a dereference is not part of the access path: it is read as an expression, whose own
+    * obligations arise from the expression encoding. A non-location base (e.g. a slice expression)
+    * ends the access path but the indexed access itself is still checked.
+    */
+  private def indexedExps(l: in.Location): List[in.IndexedExp] = l match {
+    case e: in.IndexedExp =>
+      val rest = e.base match {
+        case base: in.Location => indexedExps(base)
+        case _ => Nil
+      }
+      e.baseUnderlyingType match {
+        case _: in.ArrayT | _: in.SliceT => e :: rest
+        case _ => rest
+      }
+    case in.FieldRef(recv: in.Location, _) => indexedExps(recv)
+    case _ => Nil
+  }
+
+  /**
+    * Encodes that the index of `e` is within bounds: [ 0 <= e.index && e.index < length ], where
+    * `length` is the array type's length for (pointers to) arrays and the slice's length for
+    * slices (in Go, indexing is bounded by the length; only slicing is bounded by the capacity).
+    *
+    * The annotation is attached to `e.index` such that the error names the index.
+    */
+  private def indexInBounds(e: in.IndexedExp)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val annotatedInfo = e.index.info match {
+      case s: Source.Parser.Single => s.createAnnotatedInfo(Source.IndexInBoundsCheckAnnotation)
+      case i => i
+    }
+    val length: in.Expr = e.baseUnderlyingType match {
+      case t: in.ArrayT => in.IntLit(t.length)(annotatedInfo)
+      case _: in.SliceT => in.Length(e.base)(annotatedInfo)
+      case t => Violation.violation(s"unexpected base type $t of an indexed location")
+    }
+    ctx.expression(in.And(
+      in.AtMostCmp(in.IntLit(0)(annotatedInfo), e.index)(annotatedInfo),
+      in.LessCmp(e.index, length)(annotatedInfo)
+    )(annotatedInfo))
+  }
+
+  /**
+    * Returns the outermost dereference of `l`, i.e. the one that is not nested inside another
+    * dereference of `l`, if `l` has one. For `l.next.val`, this is the dereference of `l.next`.
+    */
+  @tailrec
+  private def outermostDeref(l: in.Location): Option[in.Deref] = l match {
+    case d: in.Deref => Some(d)
+    case in.FieldRef(recv: in.Location, _) => outermostDeref(recv)
+    case in.IndexedExp(base: in.Location, _, _) => outermostDeref(base)
+    // The receiver of a field access and the base of an index expression are exclusive values,
+    // which are not dereferenced. An in-bounds index implies that an element exists.
+    case _: in.FieldRef | _: in.IndexedExp => None
+    // Variables are not dereferenced.
+    case _: in.Var => None
+  }
+
+  /**
+    * Encodes that the address of an L-value is not nil: [&loc != nil: *T°].
+    *
+    * Unlike [[checkNotNil]], this is not an obligation imposed on a usage of `loc`, but an
+    * assertion describing the memory of `loc`: it is the footprint of a location of a zero-sized
+    * type (see [[addressFootprint]]). Such a location occupies no memory, so no permission could
+    * constitute its footprint, and the non-nilness of its address is all that is left to tell an
+    * allocated location from a nil pointer. It is inhaled and exhaled exactly where the permissions
+    * of a non-zero-sized type would be, e.g., inhaled when the location is allocated and exhaled
+    * whenever `acc(loc)` is exhaled.
+    */
+  final def addressNotNil(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     val annotatedInfo = loc.info.asInstanceOf[Source.Parser.Single].createAnnotatedInfo(Source.ReceiverNotNilCheckAnnotation)
     val (pos, info, errT) = loc.vprMeta
@@ -540,6 +674,11 @@ object TypeEncoding {
     }
   }
 
+  /**
+    * Returns whether the address of `l` is necessarily non-nil, which is the case if `l` is a
+    * variable or a field or element thereof: a variable is always allocated and no dereference
+    * occurs on the way to `l`.
+    */
   private def cannotBeNil(l: in.Location): Boolean = {
     @tailrec
     def aux(e: in.Expr): Boolean = e match {

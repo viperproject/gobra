@@ -1,0 +1,208 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type node interface {
+    pred mem()
+
+    requires  @dependencyInfo("label:L1")(1 <= u)
+    requires  @dependencyInfo("label:L2")(acc(mem(), 1/u))
+    requires  @dependencyInfo("label:L3")(acc(v.mem2(), 1/u))
+    requires  @dependencyInfo("label:L4")(v != nil)
+    pure accept(v visitor, ghost u int) int
+}
+
+// variable
+
+type variable struct {
+  id int
+}
+
+requires  @dependencyInfo("label:L5")(1 <= u)
+requires  @dependencyInfo("label:L6")(acc(self.mem(), 1/u))
+requires  @dependencyInfo("label:L7")(acc(v.mem2(), 1/u))
+requires  @dependencyInfo("label:L8")(v != nil)
+pure func (self *variable) accept(v visitor, ghost u int) int {
+  return  @dependencyInfo("label:L9")(v.visitVariable(self, u))
+}
+
+pred (self *variable) mem() { acc(self) && 0 <= self.id && self.id < 10 }
+
+
+
+// constant
+
+type constant struct {
+  value int
+}
+
+requires  @dependencyInfo("label:L10")(1 <= u)
+requires  @dependencyInfo("label:L11")(acc(self.mem(), 1/u))
+requires  @dependencyInfo("label:L12")(acc(v.mem2(), 1/u))
+requires  @dependencyInfo("label:L13")(v != nil)
+pure func (self *constant) accept(v visitor, ghost u int) int {
+  return  @dependencyInfo("label:L14")(v.visitConstant(self, u))
+}
+
+pred (self *constant) mem() { acc(self) }
+
+
+// addition
+
+
+type addition struct {
+  left, right node
+}
+
+requires  @dependencyInfo("label:L15")(1 <= u)
+requires  @dependencyInfo("label:L16")(acc(self.mem(), 1/u))
+requires  @dependencyInfo("label:L17")(acc(v.mem2(), 1/u))
+requires  @dependencyInfo("label:L18")(v != nil)
+pure func (self *addition) accept(v visitor, ghost u int) int {
+  return  @dependencyInfo("label:L19")(v.visitAddition(self, u))
+}
+
+pred (self *addition) mem() { acc(self) && self.left.mem() && self.right.mem() && self.left != nil && self.right != nil }
+
+
+// visitor
+
+type visitor interface {
+  pred mem2()
+
+  requires  @dependencyInfo("label:L20")(1 <= u)
+  requires  @dependencyInfo("label:L21")(acc(mem2(), 1/u))
+  requires  @dependencyInfo("label:L22")(acc(v.mem(), 1/u))
+  pure visitVariable(v *variable, ghost u int) int
+
+  requires @dependencyInfo("label:L23")(1 <= u)
+  requires  @dependencyInfo("label:L24")(acc(mem2(), 1/u))
+  requires  @dependencyInfo("label:L25")(acc(c.mem(), 1/u))
+  pure visitConstant(c *constant, ghost u int) int
+
+  requires @dependencyInfo("label:L26")(1 <= u)
+  requires  @dependencyInfo("label:L27")(acc(mem2(), 1/u))
+  requires  @dependencyInfo("label:L28")(acc(a.mem(), 1/u))
+  pure visitAddition(a *addition, ghost u int) int
+}
+
+// children count
+
+type childrenCounter struct{ f int }
+
+pred (self *childrenCounter) mem2() { true }
+
+pure func (self *childrenCounter) visitVariable(v *variable, ghost u int) int {
+  return  @dependencyInfo("label:L29")(1)
+}
+
+pure func (self *childrenCounter) visitConstant(c *constant, ghost u int) int {
+  return @dependencyInfo("label:L30")(1)
+}
+
+requires @dependencyInfo("label:L31")(1 <= u)
+requires @dependencyInfo("label:L32")(acc(self.mem2(), 1/u))
+requires @dependencyInfo("label:L33")(acc(a.mem(), 1/u))
+pure func (self *childrenCounter) visitAddition(a *addition, ghost u int) int {
+  return @dependencyInfo("label:L34")(unfolding acc(a.mem(), 1/u) in (a.left.accept(self, u) + a.right.accept(self, u)))
+}
+
+func childrenCounter_client() {
+
+  @dependencyInfo("label:L35")
+  ev := &childrenCounter{}
+  @dependencyInfo("label:L36")
+  fold ev.mem2()
+
+  @dependencyInfo("label:L37")
+  var a node = &variable{0}
+  @dependencyInfo("label:L38")
+  fold a.mem()
+
+  @dependencyInfo("label:L39")
+  var b node = &constant{42}
+  @dependencyInfo("label:L40")
+  fold b.mem()
+
+  @dependencyInfo("label:L41")
+  c := &addition{a, b}
+  @dependencyInfo("label:L42")
+  fold c.mem()
+
+  @dependencyInfo("label:L44")
+  res := ev.visitAddition(c, 2)
+}
+
+
+// evaluator
+
+type evaluator struct {
+    store [10]int
+}
+
+pred (self *evaluator) mem2() { acc(self) }
+
+requires @dependencyInfo("label:L45")(1 <= u)
+requires @dependencyInfo("label:L46")(acc(self.mem2(), 1/u))
+requires @dependencyInfo("label:L47")(acc(v.mem(), 1/u))
+pure func (self *evaluator) visitVariable(v *variable, ghost u int) int {
+  return @dependencyInfo("label:L48")(unfolding acc(self.mem2(), 1/u) in (self.store)[unfolding acc(v.mem(), 1/u) in v.id])
+}
+
+requires @dependencyInfo("label:L49")(1 <= u)
+requires @dependencyInfo("label:L50")(acc(c.mem(), 1/u))
+pure func (self *evaluator) visitConstant(c *constant, ghost u int) int {
+  return @dependencyInfo("label:L51")(unfolding acc(c.mem(), 1/u) in c.value)
+}
+
+
+requires @dependencyInfo("label:L52")(1 <= u)
+requires @dependencyInfo("label:L53")(acc(self.mem2(), 1/u))
+requires @dependencyInfo("label:L54")(acc(a.mem(), 1/u))
+pure func (self *evaluator) visitAddition(a *addition, ghost u int) int {
+  return @dependencyInfo("label:L55")(unfolding acc(a.mem(), 1/(u+1)) in (a.left.accept(self, u+1) + a.right.accept(self, u+1)))
+}
+
+func evaluator_client() {
+
+  @dependencyInfo("label:L56")
+  ev := &evaluator{store: [10]int{0: 7, 4: 99}}
+  @dependencyInfo("label:L57")
+  fold ev.mem2()
+
+  @dependencyInfo("label:L58")
+  var a node = &variable{0}
+  @dependencyInfo("label:L59")
+  fold a.mem()
+
+  @dependencyInfo("label:L60")
+  var b node = &constant{42}
+  @dependencyInfo("label:L61")
+  fold b.mem()
+
+  @dependencyInfo("label:L62")
+  c := &addition{a, b}
+  @dependencyInfo("label:L63")
+  fold c.mem()
+
+  @dependencyInfo("label:L64")
+  res := ev.visitAddition(c, 2)
+  @dependencyInfo("label:L65, expectedDependencies:[L1,L2,L3,L4,L5,L6,L7,L8,L9,L10,L11,L12,L13,L14,L20,L21,L22,L23,L24,L25,L26,L27,L28,L45,L46,L47,L48,L49,L50,L51,L52,L53,L54,L55,L56,L57,L58,L59,L60,L61,L62,L63,L64]")
+  assert res == 49
+}
+
+
+
+ensures @dependencyInfo("label:L66")(res ==> (typeOf(n) == type[*variable] || typeOf(n) == type[*constant] || typeOf(n) == type[*addition]))
+func isAstNode(n node) (res bool) {
+  if v, ok := @dependencyInfo("label:L67")(n.(*variable)); ok {
+    return @dependencyInfo("label:L68")(true)
+  } else if c, ok := @dependencyInfo("label:L69")(n.(*constant)); ok {
+    return @dependencyInfo("label:L70")(true)
+  } else if a, ok := @dependencyInfo("label:L71")(n.(*addition)); ok {
+    return @dependencyInfo("label:L72")(true)
+  } else {
+    return @dependencyInfo("label:L73")(false)
+  }
+}

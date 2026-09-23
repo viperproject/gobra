@@ -159,14 +159,12 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val idSymType: Typing[PIdnNode] = createTyping { id =>
     entity(id) match {
-      case NamedType(decl, _, context) => DeclaredT(decl, context)
+      case NamedType(decl, _, context) => context.declaredSymbType(decl)
       case TypeAlias(decl, _, context) => context.symbType(decl.right)
       case Import(decl, _) => ImportT(decl)
 
       // ADT clause is special since it is a type with a name that is not a named type
-      case a: AdtClause =>
-        val fields = a.fields.map(f => f.id.name -> a.context.symbType(f.typ))
-        AdtClauseT(a.getName, fields, a.decl, a.typeDecl, a.context)
+      case a: AdtClause => a.context.adtClauseSymbType(a.decl)
 
       case BuiltInType(tag, _, _) => tag.typ
       case _ => violation(s"expected type, but got $id")

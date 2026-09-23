@@ -201,7 +201,8 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
     override val isAtomic: Boolean = spec.spec.isAtomic
-    val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
+    // lazy, since the entity is created before typing and the context's attributes may not be evaluated yet
+    lazy val itfType: Type.InterfaceT = context.interfaceSymbType(itfDef)
   }
 
   case class Import(decl: PImport, context: ExternalTypeInfo) extends ActualRegular with TypeEntity {
@@ -248,7 +249,8 @@ object SymbolTable extends Environments[Entity] {
   case class MPredicateSpec(decl: PMPredicateSig, itfDef: PInterfaceType, context: ExternalTypeInfo) extends MPredicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
-    val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
+    // lazy, since the entity is created before typing and the context's attributes may not be evaluated yet
+    lazy val itfType: Type.InterfaceT = context.interfaceSymbType(itfDef)
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember

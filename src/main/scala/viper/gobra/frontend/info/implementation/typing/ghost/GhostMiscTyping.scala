@@ -145,7 +145,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: SymbolTable.GhostStructMember => ???
     case dest: SymbolTable.AdtDestructor => dest.context.symbType(dest.decl.typ)
     case _: SymbolTable.AdtDiscriminator => BooleanT
-    case const: SymbolTable.AdtClause => DeclaredT(const.typeDecl, const.context)
+    case const: SymbolTable.AdtClause => const.context.declaredSymbType(const.typeDecl)
     case BuiltInMPredicate(tag, _, _) => typ(tag)
     case f: SymbolTable.DomainFunction => FunctionT(f.args map f.context.typ, f.context.typ(f.result))
   }

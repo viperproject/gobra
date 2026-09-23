@@ -6,11 +6,11 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PAdtClause, PCodeRoot, PEmbeddedDecl, PExpression, PFieldDecl, PFunctionDecl, PFunctionOrMethodDecl, PGeneralForStmt, PIdnNode, PIdnUse, PInterfaceType, PKeyedElement, PLabelUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType, PTypeDecl}
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
-import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{AbstractType, AdtClauseT, DeclaredT, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
@@ -63,6 +63,21 @@ trait ExternalTypeInfo {
   def typ(misc: PMisc): Type
 
   def symbType(typ: PType): Type
+
+  /** Returns the canonical declared type for a type declaration owned by this context.
+    * Kiama's attribute caches are keyed on reference identity, thus, only this canonical instance
+    * (as opposed to a freshly constructed, structurally equal one) benefits from caching.
+    **/
+  def declaredSymbType(decl: PTypeDecl): DeclaredT
+
+  /** Returns the canonical symbolic type for an interface declaration owned by this context.
+    * In contrast to [[symbType]], the result is not gated on well-definedness of the declaration
+    * and can therefore be used from within well-definedness checks without creating attribute cycles.
+    **/
+  def interfaceSymbType(decl: PInterfaceType): InterfaceT
+
+  /** Returns the canonical symbolic type for an ADT clause declaration owned by this context. */
+  def adtClauseSymbType(decl: PAdtClause): AdtClauseT
 
   def typ(typ: PIdnNode): Type
 

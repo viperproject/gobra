@@ -57,17 +57,23 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PPredType(args) => PredT(args map typeSymbType)
   }
 
-  /** Requires that the parent of a is PTypeDef. */
-  private def adtSymbType(a: PAdtType): Type = {
-    a match {
-      case tree.parent(decl: PTypeDef) =>
-        val clauses = a.clauses.map { clause =>
-          val fields = clause.args.flatMap(_.fields.map(f => f.id.name -> typeSymbType(f.typ)))
-          AdtClauseT(clause.id.name, fields, clause, decl, this)
-        }
-        AdtT(clauses, decl, this)
-
-      case _ => Violation.violation(s"$a is not within a type declaration")
+  /** Canonical [[AdtT]] per ADT declaration. Requires that the parent of a is PTypeDef. */
+  private lazy val adtSymbType: PAdtType => Type =
+    attr {
+      case a@tree.parent(decl: PTypeDef) => AdtT(a.clauses.map(adtClauseSymbType), decl, this)
+      case a => Violation.violation(s"$a is not within a type declaration")
     }
-  }
+
+  override def adtClauseSymbType(clause: PAdtClause): AdtClauseT = adtClauseSymbTypeAttr(clause)
+
+  /** Canonical [[AdtClauseT]] per ADT clause declaration. Requires that the clause is part of an
+    * ADT declaration nested within a type definition.
+    **/
+  private lazy val adtClauseSymbTypeAttr: PAdtClause => AdtClauseT =
+    attr {
+      case clause@tree.parent(tree.parent.pair(_: PAdtType, decl: PTypeDef)) =>
+        val fields = clause.args.flatMap(_.fields.map(f => f.id.name -> typeSymbType(f.typ)))
+        AdtClauseT(clause.id.name, fields, clause, decl, this)
+      case clause => Violation.violation(s"$clause is not within a type declaration")
+    }
 }

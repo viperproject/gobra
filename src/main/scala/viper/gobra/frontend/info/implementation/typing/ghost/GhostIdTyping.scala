@@ -45,9 +45,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
     case func: DomainFunction => FunctionT(func.args map func.context.typ, func.context.typ(func.result.outs.head))
 
-    case c: AdtClause =>
-      val fields = c.fields.map(f => f.id.name -> c.context.symbType(f.typ))
-      AdtClauseT(c.getName, fields, c.decl, c.typeDecl, c.context)
+    case c: AdtClause => c.context.adtClauseSymbType(c.decl)
 
     case MatchVariable(decl, p, context) => p match {
       case PMatchAdt(clause, fields) =>

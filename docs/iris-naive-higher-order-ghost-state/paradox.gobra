@@ -1,0 +1,134 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Gobra rendition of the "naive higher-order ghost state" paradox from
+// "Iris from the Ground Up" (Jung et al., JFP 2018).
+//
+// The idea of the paradox: if ghost state may store propositions *and* the
+// content stored at a ghost name may mention that very name (no "later"
+// guarding the recursion), then one can derive False.
+//
+// Propositions are modelled by Gobra predicate values (`pred()`).
+// The naive rules of the paradox are axiomatized below; everything after
+// the axioms is an ordinary Gobra proof. Hence the function `Paradox`
+// shows: naive rules  ==>  False.
+//
+// The point of the file is to make it explicit *which* rule is unsound:
+// it is `NaiveAlloc`, an allocation whose content (`A{g}`) depends on the
+// freshly allocated name `g`. gobra-libs' `resalgebra.Alloc(ra, e)` does
+// not offer such a rule: `e` has to be chosen before the location name exists.
+
+package paradox
+
+/*** Naive saved propositions ***/
+
+// `Saved(g, p)` stands for `own g (ag p)`: ownership of the (agreement) ghost
+// state at name `g` that records the proposition `p`. It is only ever used
+// with a wildcard permission, i.e., it is persistent.
+pred Saved(g int, p pred())
+
+// Agreement: two recordings at the same name agree on the proposition.
+// (In Iris this is validity of `ag p ⋅ ag q`; Iris actually derives `▷ (p ≡ q)`
+// once the later modality is added, which is exactly what blocks the paradox.)
+ghost
+requires acc(Saved(g, p), _) && acc(Saved(g, q), _)
+ensures  p == q
+decreases
+func SavedAgree(g int, p pred(), q pred())
+
+// The naive allocation rule: the proposition to be saved may depend on the name
+// that is being allocated. Corresponds to `⊢ |==> ∃γ. own γ (ag (Φ γ))` for an arbitrary
+// `Φ`, here instantiated with the proposition `A` defined below.
+ghost
+ensures acc(Saved(g, A{g}), _)
+decreases
+func NaiveAlloc() (g int)
+
+/*** Persistent negation ***/
+
+// `Never(p)` stands for `□ ¬p`: `p` is refutable, and this is a persistent fact.
+// It is realized by a ghost closure that turns any `p()` into False.
+ghost
+requires p()
+ensures  false
+decreases
+func absurd(ghost p pred())
+
+type Refutation = ghost func()
+
+/*** The paradoxical proposition ***/
+
+// A(g) = ∃p. Saved(g, p) ∗ □ ¬p
+//
+// Gobra cannot existentially quantify over resources, so we use the same
+// witness-based trick as gobra-libs: `AW` is the version with an explicit witness
+// and the (abstract) `A` is related to it by introduction/elimination functions
+// that simply express the semantics of ∃.
+pred AW(g int, p pred(), r Refutation) {
+	acc(Saved(g, p), _) && r implements absurd{p}
+}
+
+pred A(g int)
+
+ghost
+requires AW(g, p, r)
+ensures  A(g)
+decreases
+func IntroA(g int, p pred(), r Refutation)
+
+ghost
+requires A(g)
+ensures  AW(g, p, r)
+decreases
+func ElimA(g int) (p pred(), r Refutation)
+
+/*** The derivation of False ***/
+
+// Step 1: A(g) is contradictory. The proposition recorded in A(g) is, by agreement,
+// A(g) itself, and it is refuted.
+ghost
+requires acc(Saved(g, A{g}), _)
+requires A(g)
+ensures  false
+decreases
+func notA(g int) {
+	p, r := ElimA(g)
+	unfold AW(g, p, r)
+	SavedAgree(g, p, A{g})
+	// Because A(g) is persistent we can keep a second copy around:
+	// re-introduce it from the witness and use it to run the refutation.
+	fold AW(g, p, r)
+	IntroA(g, p, r)
+	// now: A(g), and r implements absurd{A{g}}
+	unfold AW(g, p, r)
+	// `A{g}()` is the same resource as `A(g)`
+	r() as absurd{p}
+}
+
+// Step 2: A(g) holds: it is recorded at g, and its negation is established by Step 1.
+// The refutation closure `r` has to satisfy `r implements absurd{A{g}}`; its body
+// is precisely `notA(g)`, which only needs the persistent `Saved(g, A{g})`.
+ghost
+requires acc(Saved(g, A{g}), _)
+ensures  A(g)
+decreases
+func isA(g int) {
+	r := ghost func() {
+		notA(g)
+	}
+	proof r implements absurd{A{g}} {
+		notA(g)
+	}
+	fold AW(g, A{g}, r)
+	IntroA(g, A{g}, r)
+}
+
+// Step 3: put everything together.
+ghost
+ensures false
+decreases
+func Paradox() {
+	g := NaiveAlloc()
+	isA(g)
+	notA(g)
+}

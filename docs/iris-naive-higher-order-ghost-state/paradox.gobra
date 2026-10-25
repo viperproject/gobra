@@ -16,7 +16,7 @@
 // `Never(p)` = `□ ¬p`. Gobra has no persistent magic wands, so these two rules
 // are the (only) assumptions under which the function `Paradox` derives False.
 //
-// Verify with: java -Xss128m -jar gobra.jar -i paradox.gobra
+// Verify with: java -Xss128m -jar gobra.jar --checkConsistency -i paradox.gobra
 
 package paradox
 
@@ -73,6 +73,11 @@ func NaiveAlloc() (g Name) {
 // on the (single) use of `NeverIntro` below.
 //
 // These two rules cannot be given bodies: they are the assumptions of the paradox.
+// (If both had verified bodies, Gobra itself would prove False.) The obvious model
+// `pred Never(p pred()) { p() --* false }`, held with a wildcard permission, verifies
+// without `--checkConsistency`, but only because the wand then becomes duplicable;
+// with `--checkConsistency` it is rejected ("Magic wands are not supported in
+// predicates").
 pred Never(p pred())
 
 ghost

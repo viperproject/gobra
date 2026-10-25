@@ -10,8 +10,14 @@
 //
 // Propositions are modelled by Gobra predicate values (`pred()`).
 // The naive rules of the paradox are axiomatized below; everything after
-// the axioms is an ordinary Gobra proof. Hence the function `Paradox`
-// shows: naive rules  ==>  False.
+// the axioms is an ordinary Gobra proof, checked by Gobra. Hence the function
+// `Paradox` shows: naive rules  ==>  False.
+//
+// Trusted (bodyless) ghost functions: SavedAgree, NaiveAlloc, NeverElim, NeverIntro,
+// IntroA, ElimA, ToInst, FromInst. Only NaiveAlloc is the genuinely unsound ingredient;
+// the others are definitional (Never/A are abstract, the lemmas are their rules).
+//
+// Verify with: java -Xss128m -jar gobra.jar -i paradox.gobra
 //
 // The point of the file is to make it explicit *which* rule is unsound:
 // it is `NaiveAlloc`, an allocation whose content (`A{g}`) depends on the
@@ -46,15 +52,25 @@ func NaiveAlloc() (g int)
 
 /*** Persistent negation ***/
 
-// `Never(p)` stands for `□ ¬p`: `p` is refutable, and this is a persistent fact.
-// It is realized by a ghost closure that turns any `p()` into False.
+// `Never(p)` stands for `□ ¬p`, i.e., `□ (p -∗ False)`: `p` is refutable, and this is a
+// persistent fact. As in Iris, it can only be introduced from a refutation whose
+// footprint is itself persistent (otherwise duplicating `Never(p)` would be unsound).
+// This side condition cannot be expressed in Gobra and is thus a proof obligation
+// on the (single) use of `NeverIntro` below.
+pred Never(p pred())
+
 ghost
+requires acc(Never(p), _)
 requires p()
 ensures  false
 decreases
-func absurd(ghost p pred())
+func NeverElim(p pred())
 
-type Refutation = ghost func()
+ghost
+requires p() --* false
+ensures  acc(Never(p), _)
+decreases
+func NeverIntro(p pred())
 
 /*** The paradoxical proposition ***/
 
@@ -64,63 +80,74 @@ type Refutation = ghost func()
 // witness-based trick as gobra-libs: `AW` is the version with an explicit witness
 // and the (abstract) `A` is related to it by introduction/elimination functions
 // that simply express the semantics of ∃.
-pred AW(g int, p pred(), r Refutation) {
-	acc(Saved(g, p), _) && r implements absurd{p}
+pred AW(g int, p pred()) {
+	acc(Saved(g, p), _) && acc(Never(p), _)
 }
 
 pred A(g int)
 
 ghost
-requires AW(g, p, r)
+requires AW(g, p)
 ensures  A(g)
 decreases
-func IntroA(g int, p pred(), r Refutation)
+func IntroA(g int, p pred())
 
 ghost
 requires A(g)
-ensures  AW(g, p, r)
+ensures  AW(g, p)
 decreases
-func ElimA(g int) (p pred(), r Refutation)
+func ElimA(g int) (p pred())
+
+// Gobra treats the instance `A{g}()` of the predicate *value* `A{g}` as a resource
+// that is distinct from `A(g)`, although they denote the same assertion. The following
+// two (trusted) lemmas bridge the gap.
+ghost
+requires A(g)
+ensures  A{g}()
+decreases
+func ToInst(g int)
+
+ghost
+requires A{g}()
+ensures  A(g)
+decreases
+func FromInst(g int)
 
 /*** The derivation of False ***/
 
 // Step 1: A(g) is contradictory. The proposition recorded in A(g) is, by agreement,
-// A(g) itself, and it is refuted.
+// A(g) itself, and it is refuted. (A(g) is persistent, so it can be used twice.)
 ghost
 requires acc(Saved(g, A{g}), _)
 requires A(g)
 ensures  false
 decreases
 func notA(g int) {
-	p, r := ElimA(g)
-	unfold AW(g, p, r)
+	p := ElimA(g)
+	unfold AW(g, p)
 	SavedAgree(g, p, A{g})
-	// Because A(g) is persistent we can keep a second copy around:
-	// re-introduce it from the witness and use it to run the refutation.
-	fold AW(g, p, r)
-	IntroA(g, p, r)
-	// now: A(g), and r implements absurd{A{g}}
-	unfold AW(g, p, r)
-	// `A{g}()` is the same resource as `A(g)`
-	r() as absurd{p}
+	assert p == A{g}
+	// second copy of A(g)
+	fold AW(g, p)
+	IntroA(g, p)
+	ToInst(g)
+	NeverElim(A{g})
 }
 
 // Step 2: A(g) holds: it is recorded at g, and its negation is established by Step 1.
-// The refutation closure `r` has to satisfy `r implements absurd{A{g}}`; its body
-// is precisely `notA(g)`, which only needs the persistent `Saved(g, A{g})`.
 ghost
 requires acc(Saved(g, A{g}), _)
 ensures  A(g)
 decreases
 func isA(g int) {
-	r := ghost func() {
+	// the footprint of this wand is only the persistent `Saved(g, A{g})`
+	package A{g}() --* false {
+		FromInst(g)
 		notA(g)
 	}
-	proof r implements absurd{A{g}} {
-		notA(g)
-	}
-	fold AW(g, A{g}, r)
-	IntroA(g, A{g}, r)
+	NeverIntro(A{g})
+	fold AW(g, A{g})
+	IntroA(g, A{g})
 }
 
 // Step 3: put everything together.

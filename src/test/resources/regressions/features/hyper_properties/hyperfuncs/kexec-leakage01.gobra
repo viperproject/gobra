@@ -1,0 +1,65 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 3)
+
+// Bounded leakage: for each choice of the public inputs, the output takes at most two values, i.e., the program
+// leaks at most one bit (its channel capacity is at most log2(2) = 1, Smith FoSSaCS'09). This is a 3-safety
+// property: among any three executions that agree on the public inputs, two produce the same output.
+package kexecleakage01
+
+ghost
+decreases
+hyper pure func AtMostTwoValues(x any) bool {
+	return rel(x, 1) === rel(x, 2) || rel(x, 1) === rel(x, 3) || rel(x, 2) === rel(x, 3)
+}
+
+type Catalog struct {
+	base, premium int
+}
+
+pred (c *Catalog) Mem() {
+	acc(c)
+}
+
+ghost
+requires c.Mem()
+decreases
+hyper pure func (c *Catalog) Public() bool {
+	return unfolding c.Mem() in low(c.base) && low(c.premium)
+}
+
+// The price shown to a user reveals whether the user is premium (secret), but nothing else, although the result
+// ranges over all prices of the catalogue.
+requires acc(c.Mem(), 1/2) && c.Public()
+ensures  acc(c.Mem(), 1/2) && AtMostTwoValues(res)
+func Price(c *Catalog, isPremium bool) (res int) {
+	unfold acc(c.Mem(), 1/2)
+	res = c.base + (c.premium - c.base) * ind(isPremium)
+	fold acc(c.Mem(), 1/2)
+	return res
+}
+
+// A secret discount can take arbitrarily many values: three executions may produce three different prices.
+requires acc(c.Mem(), 1/2) && c.Public()
+ensures  acc(c.Mem(), 1/2)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  AtMostTwoValues(res)
+func DiscountedPrice(c *Catalog, discount int) (res int) {
+	unfold acc(c.Mem(), 1/2)
+	res = c.base - discount
+	fold acc(c.Mem(), 1/2)
+	return res
+}
+
+// Boolean results leak at most one bit by the pigeonhole principle.
+ensures AtMostTwoValues(res)
+func IsAdult(age int) (res bool) {
+	return age >= 18
+}
+
+// 1 if b holds, and 0 otherwise (abstract, to keep the caller free of secret-dependent branches)
+ensures b ==> r == 1
+ensures !b ==> r == 0
+decreases
+func ind(b bool) (r int)

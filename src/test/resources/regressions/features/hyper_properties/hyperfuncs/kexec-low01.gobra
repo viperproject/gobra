@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 3)
+
+package kexeclow01
+
+// With three executions, `low(e)` states that `e` agrees in all three executions.
+requires low(x)
+ensures  rel(res, 1) == rel(res, 3) && rel(res, 2) == rel(res, 3)
+func f(x int) (res int) {
+	return x * 2
+}
+
+// pairwise relations do not imply lowness of all three executions
+requires rel(x, 1) == rel(x, 2)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  low(res)
+func g(x int) (res int) {
+	return x
+}
+
+// heap: three copies of each field; loops are aligned in all three executions
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+requires low(len(s)) && forall i int :: { &s[i] } 0 <= i && i < len(s) ==> low(s[i])
+ensures  forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+ensures  low(res)
+func sum(s []int) (res int) {
+	invariant 0 <= i && i <= len(s) && low(i) && low(res)
+	invariant forall j int :: { &s[j] } 0 <= j && j < len(s) ==> acc(&s[j], 1/2)
+	invariant forall j int :: { &s[j] } 0 <= j && j < len(s) ==> low(s[j])
+	for i := 0; i < len(s); i++ {
+		res += s[i]
+	}
+	return res
+}
+
+// relational predicates are k-ary as well
+pred cell(p *int) {
+	acc(p) && low(*p)
+}
+
+requires cell(p)
+ensures  cell(p) && low(res)
+func read(p *int) (res int) {
+	unfold cell(p)
+	res = *p
+	fold cell(p)
+	return res
+}

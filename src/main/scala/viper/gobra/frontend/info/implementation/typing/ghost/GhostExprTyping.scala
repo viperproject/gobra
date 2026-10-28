@@ -133,7 +133,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PRel =>
       error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.Enabled.name}' is used, or if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.",
         config.hyperModeOrDefault == Hyper.EnabledExtended && !config.enableExperimentalHyperFeatures) ++
-      error(n, s"currently, only 1 and 2 are valid execution identifiers, but ${n.lit.lit} was provided. ", n.lit.lit < 1 || 2 < n.lit.lit) ++
+      error(n, s"executions are numbered from 1 to ${config.hyperExecutionsOrDefault} (see option --hyperExecutions), but ${n.lit.lit} was provided. ",
+        n.lit.lit < 1 || config.hyperExecutionsOrDefault < n.lit.lit) ++
       relationalPositionMessages(n)
 
     case n: PGhostEquals =>
@@ -273,7 +274,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * them by `true` (see issue #846).
     */
   private[typing] def relationalPositionMessages(n: PNode): Messages =
-    relationalPositionError(n).map(msg => error(n, msg)).getOrElse(noMessages)
+    relationalPositionError(n).map(msg => error(n, msg)).getOrElse(noMessages) ++
+    error(n, s"relating more than two executions is only supported in hyperMode '${Hyper.Enabled.name}'",
+      config.hyperModeOrDefault == Hyper.EnabledExtended && config.hyperExecutionsOrDefault != 2)
 
   private def relationalPositionError(n: PNode): Option[String] = {
     val valuePositionMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) are only supported " +

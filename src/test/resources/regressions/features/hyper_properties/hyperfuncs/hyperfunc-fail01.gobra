@@ -1,0 +1,118 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncfail01
+
+// ##(--hyperMode on)
+
+// Relational expressions denote a single value for all executions. Positions in which they were silently
+// replaced by `true` (issue 846) are now rejected.
+
+// low as the result of a ghost function
+ghost
+ensures res
+decreases
+func test(x int) (res bool) {
+	//:: ExpectedOutput(type_error)
+	return low(x)
+}
+
+// low in the body of a non-hyper pure function
+ghost
+decreases
+pure func IsLow(x int) bool {
+	//:: ExpectedOutput(type_error)
+	return low(x)
+}
+
+// low in the contract of a non-hyper pure function
+requires acc(x)
+//:: ExpectedOutput(type_error)
+ensures  low(r)
+decreases
+pure func Read(x *int) (r int) {
+	return *x
+}
+
+// hyper requires pure
+ghost
+//:: ExpectedOutput(type_error)
+decreases
+hyper
+func NotPure(x int) bool
+
+// hyper requires ghost
+//:: ExpectedOutput(type_error)
+decreases
+hyper pure func NotGhost(x int) bool
+
+// the body of a non-boolean hyper function must denote a single value
+ghost
+decreases
+hyper pure func NotSingleValued(x int) int {
+	//:: ExpectedOutput(type_error)
+	return x + 1
+}
+
+ghost
+decreases
+hyper pure func H(x int) bool {
+	return low(x)
+}
+
+// calls to hyper functions in the body of a non-hyper pure function
+ghost
+decreases
+pure func CallsH(x int) bool {
+	//:: ExpectedOutput(type_error)
+	return H(x)
+}
+
+ghost
+decreases
+pure func Id(b bool) bool {
+	return b
+}
+
+// relational arguments to non-hyper functions
+//:: ExpectedOutput(type_error)
+requires Id(low(x))
+func useId(x int)
+
+// nested relational expressions
+//:: ExpectedOutput(type_error)
+requires low(rel(x, 1))
+func nested(x int)
+
+// relational values assigned to ghost variables
+func ghostVar(x int) {
+	//:: ExpectedOutput(type_error)
+	ghost b := low(x)
+}
+
+type Itf interface {
+	ghost
+	decreases
+	hyper pure M() bool
+}
+
+type Impl struct{}
+
+// the hyper modifiers of interface and implementation must match
+ghost
+decreases
+pure func (i Impl) M() bool {
+	return true
+}
+
+func useItf() {
+	//:: ExpectedOutput(type_error)
+	var x Itf = Impl{}
+}
+
+// relational conditions are only allowed in ghost if-statements
+func nonGhostIf(t int) {
+	//:: ExpectedOutput(type_error)
+	if low(t) {
+	}
+}

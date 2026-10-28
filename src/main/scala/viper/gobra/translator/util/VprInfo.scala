@@ -17,6 +17,33 @@ object VprInfo {
     }
   }
 
+  /** Key of the annotation marking Viper functions that encode hyper functions, see [[SIFLowGuardTransformer]]. */
+  val hyperFuncAnnotationKey: String = "hyperFunc"
+
+  def maybeAttachHyperFunc(info: vpr.Info, isHyper: Boolean): vpr.Info = {
+    if (isHyper) {
+      attachBackendAnnotation(info, hyperFuncAnnotationKey)
+    } else {
+      info
+    }
+  }
+
+  def isHyperFunc(info: vpr.Info): Boolean =
+    info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains(hyperFuncAnnotationKey))
+
+  /** Removes the annotation marking hyper functions, which is only used internally by Gobra. */
+  def removeHyperFunc(info: vpr.Info): vpr.Info = info match {
+    case vpr.ConsInfo(head, tail) => (removeHyperFunc(head), removeHyperFunc(tail)) match {
+      case (vpr.NoInfo, t) => t
+      case (h, vpr.NoInfo) => h
+      case (h, t) => vpr.ConsInfo(h, t)
+    }
+    case a: vpr.AnnotationInfo if a.values.contains(hyperFuncAnnotationKey) =>
+      val remaining = a.values - hyperFuncAnnotationKey
+      if (remaining.isEmpty) vpr.NoInfo else vpr.AnnotationInfo(remaining)
+    case i => i
+  }
+
   def maybeAttachReveal(info: vpr.Info, reveal: Boolean): vpr.Info = {
     if (reveal) {
       attachBackendAnnotation(info, "reveal")

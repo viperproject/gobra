@@ -1,0 +1,58 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncsimple01
+
+// ##(--hyperMode on)
+
+// Hyper functions abstract over several executions. Non-interference is defined once and reused.
+// `low` compares values with mathematical equality, so no comparability side conditions are needed
+// for arguments of interface type.
+ghost
+decreases
+hyper pure func NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+ensures NonInterf(input, output)
+func F(input int) (output int) {
+	output = input * 2 + 1
+	return
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures NonInterf(input, output)
+func Bad(input int, secret int) (output int) {
+	output = input + secret
+	return
+}
+
+// A hyper function's precondition and postcondition can be relational, too.
+ghost
+requires low(x)
+ensures  res
+decreases
+hyper pure func LowImpliesLowSquare(x int) (res bool) {
+	return low(x * x)
+}
+
+requires low(x)
+ensures  low(res)
+func Square(x int) (res int) {
+	assert LowImpliesLowSquare(x)
+	return x * x
+}
+
+// The modifier may also precede `pure` on a separate line, like `opaque`.
+ghost
+decreases
+hyper
+pure func LowBoth(x, y int) bool {
+	return low(x) && low(y)
+}
+
+requires LowBoth(x, y)
+ensures  low(res)
+func Add(x, y int) (res int) {
+	return x + y
+}

@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BoundVariable, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.{Config, Hyper}
@@ -128,11 +128,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
 
-    case PLow(e) => isExpr(e).out
-    case _: PLowContext => noMessages
+    case n@PLow(e) => isExpr(e).out ++ relationalPositionMessages(n)
+    case n: PLowContext => relationalPositionMessages(n)
     case n: PRel =>
-      error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.", config.hyperModeOrDefault != Hyper.EnabledExtended || !config.enableExperimentalHyperFeatures) ++
-      error(n, s"currently, only 0 and 1 are valid execution identifiers, but ${n.lit.lit} was provided. ", n.lit.lit < 0 || 1 < n.lit.lit)
+      error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.Enabled.name}' is used, or if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.",
+        config.hyperModeOrDefault == Hyper.EnabledExtended && !config.enableExperimentalHyperFeatures) ++
+      error(n, s"currently, only 1 and 2 are valid execution identifiers, but ${n.lit.lit} was provided. ", n.lit.lit < 1 || 2 < n.lit.lit) ++
+      relationalPositionMessages(n)
 
     case n: PGhostEquals =>
       val lType = typ(n.left)
@@ -250,6 +252,87 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFullPerm() => noMessages
       case PWildcardPerm() => noMessages
       case PNoPerm() => noMessages
+    }
+  }
+
+  /** Returns whether `n` is a call to a hyper function or a hyper method. */
+  private[typing] def isHyperCall(n: PInvoke): Boolean = resolve(n) match {
+    case Some(ap.FunctionCall(callee, _)) => callee.symb match {
+      case f: Function => f.isHyper
+      case m: Method => m.isHyper
+      case _ => false
+    }
+    case _ => false
+  }
+
+  /**
+    * Relational constructs (`low`, `lowContext`, `rel`, and calls to hyper functions) denote a single value for all
+    * executions under consideration. Thus, they may only occur in positions where such a value is meaningful:
+    * bodies and contracts of hyper functions, contracts and assertions of non-pure members, loop invariants,
+    * predicate bodies, and conditions of ghost if-statements. Elsewhere, the SIF encodings used to silently replace
+    * them by `true` (see issue #846).
+    */
+  private[typing] def relationalPositionMessages(n: PNode): Messages =
+    relationalPositionError(n).map(msg => error(n, msg)).getOrElse(noMessages)
+
+  private def relationalPositionError(n: PNode): Option[String] = {
+    val valuePositionMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) are only supported " +
+      "in assertions and in conditions of ghost if-statements, but not as values of (ghost) variables or of " +
+      "conditions of non-ghost statements; consider using a hyper function"
+    val nonHyperPureMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) cannot occur in " +
+      "the body of a non-hyper pure function or method; consider marking it as 'hyper'"
+    val nonHyperPureContractMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) are not " +
+      "yet supported in the contracts of non-hyper pure functions and methods"
+    def isNonHyperPure(spec: PFunctionSpec): Boolean = spec.isPure && !spec.isHyper
+
+    @scala.annotation.tailrec
+    def go(child: PNode): Option[String] = tree.parent(child).headOption match {
+      case None => None
+      case Some(p) => p match {
+        case _: PLow | _: PRel => Some("relational expressions cannot be nested inside 'low' or 'rel'")
+        case inv: PInvoke if inv.args.contains(child) && !isHyperCall(inv) =>
+          Some("relational expressions cannot be passed as arguments to non-hyper functions, methods, or predicates")
+        case spec: PFunctionSpec => tree.parent(spec).headOption match {
+          case Some(d: PFunctionDecl) if isNonHyperPure(d.spec) => Some(nonHyperPureContractMsg)
+          case Some(d: PMethodDecl) if isNonHyperPure(d.spec) => Some(nonHyperPureContractMsg)
+          case Some(d: PMethodSig) if isNonHyperPure(d.spec) => Some(nonHyperPureContractMsg)
+          case _ => None
+        }
+        case _: PReturn => tryEnclosingFunctionOrMethod(p) match {
+          case Some(d: PFunctionDecl) if d.spec.isPure => if (d.spec.isHyper) None else Some(nonHyperPureMsg)
+          case Some(d: PMethodDecl) if d.spec.isPure => if (d.spec.isHyper) None else Some(nonHyperPureMsg)
+          case _ => Some(valuePositionMsg)
+        }
+        case _: PLoopSpec => None
+        // a relational condition denotes the same value in all executions. Thus, branching on it in ghost code
+        // amounts to a case split in the proof that does not require the branch condition to be low.
+        case c: PIfClause if c.condition == child && isEnclosingGhost(c) => None
+        case _: PAssignment | _: PAssignmentWithOp | _: PShortVarDecl | _: PVarDecl | _: PIfClause | _: PForStmt |
+             _: PExpressionStmt | _: PSendStmt => Some(valuePositionMsg)
+        case _: PStatement | _: PMember => None
+        case _ => go(p)
+      }
+    }
+    go(n)
+  }
+
+  /**
+    * Returns whether `e` denotes a single value for all executions, i.e., whether it does not depend on the
+    * value of a program variable in a particular execution, except through `rel`, `low`, or hyper function calls.
+    * Boolean expressions are always accepted, as they are lifted to hold in all executions.
+    */
+  private[typing] def isSingleValued(e: PExpression): Boolean = e match {
+    case _: PRel | _: PLow | _: PLowContext => true
+    case n: PInvoke if isHyperCall(n) => true
+    case _ if underlyingType(exprType(e)) == BooleanT => true
+    case n: PNamedOperand => entity(n.id) match {
+      case _: BoundVariable | _: Constant => true
+      case _ => false
+    }
+    case _: PBasicLiteral => true
+    case n => tree.child(n).forall {
+      case c: PExpression => isSingleValued(c)
+      case _ => true
     }
   }
 

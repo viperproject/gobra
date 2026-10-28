@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on)
+
+// A small library of security definitions, defined once as hyper functions and reused by clients.
+package security
+
+// Non-interference: if the inputs agree in both executions, so do the outputs.
+ghost
+decreases
+hyper pure func NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+// Delimited release: the outputs may depend on the secrets only via the escape hatch.
+ghost
+decreases
+hyper pure func DelimitedRelease(input, escapeHatch, output any) bool {
+	return low(input) && low(escapeHatch) ==> low(output)
+}
+
+// Value-dependent classification in the style of SecCSL: `x` is low whenever the classification `isLow` says so.
+ghost
+decreases
+hyper pure func Sens(x any, isLow bool) bool {
+	return low(isLow) && (isLow ==> low(x))
+}

@@ -5,14 +5,14 @@ package relsimple01
 
 // ##(--hyperMode extended --enableExperimentalHyperFeatures)
 
-requires rel(i, 0) == rel(i, 1)
+requires rel(i, 1) == rel(i, 2)
 ensures  low(res)
 func foo(i int) (res int) {
     return i + 42
 }
 
-requires rel(i, 0) < rel(i, 1)
-ensures  rel(res, 0) < rel(res, 1)
+requires rel(i, 1) < rel(i, 2)
+ensures  rel(res, 1) < rel(res, 2)
 func bar(i int) (res int) {
     return i + 42
 }

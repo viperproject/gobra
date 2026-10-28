@@ -319,7 +319,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          ghostCallsOpensInvOutsideOpen ++ callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation
+          val hyperCallPosition = if (isHyperCall(n)) relationalPositionMessages(n) else noMessages
+          ghostCallsOpensInvOutsideOpen ++ callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation ++ hyperCallPosition
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++

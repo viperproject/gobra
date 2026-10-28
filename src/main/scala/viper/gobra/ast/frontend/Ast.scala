@@ -920,6 +920,7 @@ case class PFunctionSpec(
                           isAtomic: Boolean = false,
                           opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
+                          isHyper: Boolean = false,
                       ) extends PSpecification {
   /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
   def pres: Vector[PExpression] = clauses.collect {

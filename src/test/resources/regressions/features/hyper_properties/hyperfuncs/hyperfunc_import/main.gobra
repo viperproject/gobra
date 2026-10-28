@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ./ --hyperMode on)
+
+import "security"
+
+ensures security.NonInterf(input, output)
+func F(input int) (output int) {
+	return input + 1
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures security.NonInterf(input, output)
+func Leak(input, secret int) (output int) {
+	return input + secret
+}
+
+// releasing the average of two salaries, but nothing else about them
+ensures security.DelimitedRelease(dept, (s1 + s2) / 2, output)
+func Average(dept, s1, s2 int) (output int) {
+	return dept + (s1 + s2) / 2
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures security.DelimitedRelease(dept, (s1 + s2) / 2, output)
+func ReleaseFirst(dept, s1, s2 int) (output int) {
+	return s1
+}
+
+type Account struct {
+	public  bool
+	balance int
+}
+
+// the balance is classified by the `public` flag
+requires acc(a, 1/2) && security.Sens(a.balance, a.public)
+ensures  acc(a, 1/2) && security.Sens(res, a.public)
+func (a *Account) Balance() (res int) {
+	return a.balance
+}

@@ -73,6 +73,7 @@ object SymbolTable extends Environments[Entity] {
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
     def isOpaque: Boolean = decl.spec.isOpaque
+    def isHyper: Boolean = decl.spec.isHyper
   }
 
   case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
@@ -183,6 +184,7 @@ object SymbolTable extends Environments[Entity] {
   sealed trait Method extends MethodLike with ActualTypeMember with WithResult {
     def isPure: Boolean
     def isAtomic: Boolean
+    def isHyper: Boolean
   }
 
   case class MethodImpl(decl: PMethodDecl, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -191,6 +193,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
     override val isAtomic: Boolean = decl.spec.isAtomic
+    override def isHyper: Boolean = decl.spec.isHyper
     def isOpaque: Boolean = decl.spec.isOpaque
 
   }
@@ -201,6 +204,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
     override val isAtomic: Boolean = spec.spec.isAtomic
+    override def isHyper: Boolean = spec.spec.isHyper
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 

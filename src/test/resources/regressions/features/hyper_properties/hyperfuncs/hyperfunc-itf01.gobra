@@ -1,0 +1,95 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncitf01
+
+// ##(--hyperMode on)
+
+// Data abstraction for security specs: each implementation defines what "low" means for it.
+type Container interface {
+	pred Mem()
+
+	ghost
+	requires Mem()
+	decreases
+	hyper pure LowContents() bool
+
+	requires acc(Mem(), 1/2) && LowContents()
+	ensures  acc(Mem(), 1/2) && low(res)
+	Size() (res int)
+}
+
+type Pair struct {
+	a, b int
+}
+
+pred (p *Pair) Mem() {
+	acc(p)
+}
+
+ghost
+requires p.Mem()
+decreases
+hyper pure func (p *Pair) LowContents() bool {
+	return unfolding p.Mem() in low(p.a) && low(p.b)
+}
+
+requires acc(p.Mem(), 1/2) && p.LowContents()
+ensures  acc(p.Mem(), 1/2) && low(res)
+func (p *Pair) Size() (res int) {
+	return unfolding acc(p.Mem(), 1/2) in p.a + p.b
+}
+
+// Pair implements Container
+func test() {
+	p := &Pair{1, 2}
+	fold p.Mem()
+	var c Container = p
+	assert c.LowContents()  // the dynamic type is the same in both executions here
+	r := c.Size()
+	assert low(r)
+}
+
+// recursion over a linked list whose shape may differ between executions
+type List struct {
+	val  int
+	next *List
+}
+
+pred (l *List) Mem() {
+	acc(l) && (l.next != nil ==> l.next.Mem())
+}
+
+ghost
+requires l.Mem()
+decreases l.Mem()
+hyper pure func (l *List) LowElems() bool {
+	return unfolding l.Mem() in
+		low(l.val) && low(l.next == nil) && (l.next != nil ==> l.next.LowElems())
+}
+
+requires l.Mem() && l.LowElems()
+ensures  l.Mem() && l.LowElems() && low(res)
+decreases l.Mem()
+func (l *List) Head() (res int) {
+	unfold l.Mem()
+	res = l.val
+	fold l.Mem()
+	return res
+}
+
+func testHigh(x int) {
+	p := &Pair{1, x}
+	fold p.Mem()
+	var c Container = p
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert c.LowContents()
+}
+
+// The dynamic type of the receiver may differ between executions. Then, the result of a hyper interface method is
+// unspecified, and it cannot be used to prove anything about the executions.
+requires c != nil && c.Mem()
+func testDispatch(c Container) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert c.LowContents()
+}

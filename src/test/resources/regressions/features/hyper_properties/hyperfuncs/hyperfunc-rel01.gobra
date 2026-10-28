@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncrel01
+
+// ##(--hyperMode on)
+
+// Relations other than equality: monotonicity and sensitivity.
+ghost
+decreases
+hyper pure func Monotone(x, y int) bool {
+	return rel(x, 1) <= rel(x, 2) ==> rel(y, 1) <= rel(y, 2)
+}
+
+// A non-boolean hyper function: the distance between the two executions.
+ghost
+decreases
+hyper pure func Dist(x int) int {
+	return rel(x, 1) - rel(x, 2) >= 0 ? rel(x, 1) - rel(x, 2) : rel(x, 2) - rel(x, 1)
+}
+
+ghost
+decreases
+hyper pure func Lipschitz(x, y int, c int) bool {
+	return low(c) && Dist(y) <= rel(c, 1) * Dist(x)
+}
+
+ensures Monotone(x, res)
+func Double(x int) (res int) {
+	return 2 * x + 7
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures Monotone(x, res)
+func Neg(x int) (res int) { // not monotone
+	return -x
+}
+
+ensures Lipschitz(x, res, 3)
+func Triple(x int) (res int) {
+	return 3 * x - 1
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures Lipschitz(x, res, 2)
+func TripleBad(x int) (res int) { // sensitivity 3 > 2
+	return 3 * x - 1
+}

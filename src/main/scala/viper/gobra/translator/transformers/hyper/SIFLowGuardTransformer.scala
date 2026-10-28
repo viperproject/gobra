@@ -10,6 +10,7 @@ import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.reporting.Source
 import viper.gobra.translator.transformers.ViperTransformer
+import viper.gobra.translator.util.VprInfo
 import viper.gobra.util.Violation
 import viper.silver.ast._
 import viper.silver.ast.utility.Simplifier
@@ -28,9 +29,10 @@ trait SIFLowGuardTransformer {
                  noMinor: Boolean,
                ): Program = {
 
-    val relPreds = relationalPredicates(p)
+    val hyperFuncs = hyperFunctions(p)
+    val relPreds = relationalPredicates(p, hyperFuncs)
     val noDups = noDuplicates(p)
-    val ctx = newContext(relPreds, noDups, onlyMajor, noMinor)
+    val ctx = newContext(relPreds, noDups, onlyMajor, noMinor, hyperFuncs, Set.empty)
 
     val members =
       p.methods.flatMap(method(_, ctx)) ++
@@ -73,9 +75,24 @@ trait SIFLowGuardTransformer {
   }
 
   def function(f: Function, ctx: Context): Vector[Member] = {
-    if (ctx.hasNoDuplicates(f.name) || ctx.onlyMajor(f.name)) {
+    if (ctx.isHyperFunction(f.name)) {
+      Vector(hyperFunction(f, ctx))
+    } else if (ctx.hasNoDuplicates(f.name) || ctx.onlyMajor(f.name)) {
       Vector(runFunction(f, ctx.major))
     } else Vector(runFunction(f, ctx.major), runFunction(f, ctx.minor))
+  }
+
+  /**
+    * A hyper function abstracts over both executions. It is encoded as a single function that takes the arguments
+    * of both executions and whose contract and body are relational. Its result is a single value for both executions.
+    */
+  def hyperFunction(f: Function, ctx: Context): Function = {
+    f.copy(
+      formalArgs = f.formalArgs.map(runLocalVarDecl(_, ctx.major)) ++ f.formalArgs.map(runLocalVarDecl(_, ctx.minor)),
+      pres = f.pres.map(assertion(_, ctx)),
+      posts = f.posts.map(assertion(_, ctx)),
+      body = f.body.map(relationalExp(_, ctx)),
+    )(f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
   }
 
   def runFunction(f: Function, ctx: RunContext): Function = {
@@ -163,11 +180,12 @@ trait SIFLowGuardTransformer {
     )(d.pos,d.info,d.errT))
   }
 
-  def directlyRelational(e: Exp): Boolean = {
+  def directlyRelational(e: Exp, hyperFuncs: String => Boolean): Boolean = {
     e.exists {
       case _: SIFLowExp => true
       case _: SIFRelExp => true
       case f: DomainFuncApp => isRelationalTrigger(f.funcname)
+      case f: FuncApp => hyperFuncs(f.funcname)
       case _ => false
     }
   }
@@ -177,14 +195,18 @@ trait SIFLowGuardTransformer {
       case _: SIFLowExp => true
       case _: SIFRelExp => true
       case f: DomainFuncApp => isRelationalTrigger(f.funcname)
+      case f: FuncApp => ctx.isHyperFunction(f.funcname)
       case p: PredicateAccess => ctx.isRelationalPredicate(p.predicateName)
       case _ => false
     }
   }
 
-  // TODO (joao): do sth similar for functions
-  def relationalPredicates(p: Program): String => Boolean = {
-    val (directlyRelationalPredicates, other) = p.predicates.partition(_.body.exists(directlyRelational))
+  /** Viper functions that encode hyper functions are marked with an annotation, see [[VprInfo.maybeAttachHyperFunc]]. */
+  def hyperFunctions(p: Program): String => Boolean =
+    p.functions.collect{ case f if VprInfo.isHyperFunc(f.info) => f.name }.toSet.contains _
+
+  def relationalPredicates(p: Program, hyperFuncs: String => Boolean): String => Boolean = {
+    val (directlyRelationalPredicates, other) = p.predicates.partition(_.body.exists(directlyRelational(_, hyperFuncs)))
 
     @tailrec
     def iterate(acc: Set[String], other: Seq[Predicate]): Set[String] = {
@@ -204,7 +226,7 @@ trait SIFLowGuardTransformer {
 
 
   def assertion(e: Exp, ctx: Context): Exp = {
-    def positiveUnary(e: Exp): Exp = {
+    def positiveUnary(e: Exp, ctx: Context): Exp = {
       e match {
         case d: DecreasesClause =>
           d match {
@@ -236,57 +258,143 @@ trait SIFLowGuardTransformer {
     assertionWithPositiveUnary(e, ctx, positiveUnary)
   }
 
-  def assertionWithPositiveUnary(e: Exp, ctx: Context, positiveUnary: Exp => Exp): Exp = {
+  def assertionWithPositiveUnary(e: Exp, ctx: Context, positiveUnary: (Exp, Context) => Exp): Exp =
+    Simplifier.simplify(relationalAssertion(e, ctx, isPositive = true, positiveUnary))
+
+  /**
+    * Translates a relational assertion, i.e., an assertion that may contain `low`, `rel`, calls to hyper functions,
+    * and relational predicates. Maximal non-relational subexpressions are lifted to hold in both executions.
+    * Variables bound by quantifiers with a relational body are rigid, i.e., they denote the same value in both
+    * executions. For instance, `forall i :: low(s[i])` states that `s` agrees element-wise in both executions.
+    */
+  def relationalAssertion(e: Exp, ctx: Context, isPositive: Boolean, positiveUnary: (Exp, Context) => Exp): Exp = {
     def negativeUnary(e: Exp): Exp = And(runExp(e, ctx.major), runExp(e, ctx.minor))(e.pos, e.info, e.errT)
+    def go(e: Exp, isPositive: Boolean): Exp = relationalAssertion(e, ctx, isPositive, positiveUnary)
 
-    def go(e: Exp, isPositive: Boolean): Exp = {
-      e match {
-        case e: Exp if !isRelational(e, ctx) =>
-          if (isPositive) positiveUnary(e) else negativeUnary(e)
+    e match {
+      case e: Exp if !isRelational(e, ctx) =>
+        if (isPositive) positiveUnary(e, ctx) else negativeUnary(e)
 
-        case l: SIFLowExp => comparison(l, ctx)
-        case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
-        case SIFRelExp(e, lit) if lit.i == 0 => runExp(e, ctx.major)
-        case SIFRelExp(e, lit) if lit.i == 1 => runExp(e, ctx.minor)
+      case l: SIFLowExp => comparison(l, ctx)
+      case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
+      case r: SIFRelExp => relationalExp(r, ctx)
+      case f: FuncApp if ctx.isHyperFunction(f.funcname) => hyperFuncApp(f, ctx)
 
-        case a: DomainFuncApp =>
-          assert(isRelationalTrigger(a.funcname), s"Expected relational trigger, but got $a.")
-          a.copy(
-            funcname = ctx.predicateFunctionName(a.funcname),
-            args = a.args.map(runExp(_, ctx.major)) ++ a.args.map(runExp(_, ctx.minor)),
-          )(a.pos, a.info, a.typ, a.domainName, a.errT)
+      case a: DomainFuncApp =>
+        assert(isRelationalTrigger(a.funcname), s"Expected relational trigger, but got $a.")
+        a.copy(
+          funcname = ctx.predicateFunctionName(a.funcname),
+          args = a.args.map(runExp(_, ctx.major)) ++ a.args.map(runExp(_, ctx.minor)),
+        )(a.pos, a.info, a.typ, a.domainName, a.errT)
 
-        case p: PredicateAccess =>
-          assert(isPositive)
-          And(positiveUnary(p), predicateAccess(p.predicateName, p.args, ctx)(p.pos, p.info, p.errT))(p.pos, p.info, p.errT)
-        case p: PredicateAccessPredicate =>
-          assert(isPositive)
-          And(positiveUnary(p), predicateAccess(p.loc.predicateName, p.loc.args, ctx)(p.pos, p.info, p.errT))(p.pos, p.info, p.errT)
+      case p: PredicateAccess =>
+        assert(isPositive)
+        And(positiveUnary(p, ctx), predicateAccess(p.predicateName, p.args, ctx)(p.pos, p.info, p.errT))(p.pos, p.info, p.errT)
+      case p: PredicateAccessPredicate =>
+        assert(isPositive)
+        And(positiveUnary(p, ctx), predicateAccess(p.loc.predicateName, p.loc.args, ctx)(p.pos, p.info, p.errT))(p.pos, p.info, p.errT)
 
-        case f: Forall =>
-          Forall(
-            variables = f.variables.map(runLocalVarDecl(_, ctx.major)) ++ f.variables.map(runLocalVarDecl(_, ctx.minor)),
-            triggers = f.triggers.flatMap(trigger(_, ctx)),
-            exp = go(f.exp, isPositive),
-          )(f.pos, f.info, f.errT).autoTrigger
+      case f: Forall =>
+        val rigidCtx = ctx.withRigidVariables(f.variables.map(_.name))
+        Forall(
+          variables = f.variables,
+          triggers = f.triggers.flatMap(trigger(_, rigidCtx)),
+          exp = relationalAssertion(f.exp, rigidCtx, isPositive, positiveUnary),
+        )(f.pos, f.info, f.errT).autoTrigger
 
-        case a: And => And(go(a.left, isPositive), go(a.right, isPositive))(a.pos, a.info, a.errT)
-        case i: Implies => Implies(go(i.left, !isPositive), go(i.right, isPositive))(i.pos, i.info, i.errT)
-        case c: CondExp => CondExp(go(c.cond, !isPositive), go(c.thn, isPositive), go(c.els, isPositive))(c.pos, c.info, c.errT)
-        case e: EqCmp => EqCmp(go(e.left, isPositive), go(e.right, isPositive))(e.pos, e.info, e.errT)
+      case f: Exists =>
+        val rigidCtx = ctx.withRigidVariables(f.variables.map(_.name))
+        Exists(
+          variables = f.variables,
+          triggers = f.triggers.flatMap(trigger(_, rigidCtx)),
+          exp = relationalAssertion(f.exp, rigidCtx, isPositive, positiveUnary),
+        )(f.pos, f.info, f.errT).autoTrigger
 
-        case u: Unfolding =>
-          Unfolding(runExp(u.acc, ctx.major).asInstanceOf[PredicateAccessPredicate],
-            Unfolding(runExp(u.acc, ctx.minor).asInstanceOf[PredicateAccessPredicate], go(u.body, isPositive))(u.pos, u.info, u.errT)
-          )(u.pos, u.info, u.errT)
+      case a: And => And(go(a.left, isPositive), go(a.right, isPositive))(a.pos, a.info, a.errT)
+      case i: Implies => Implies(go(i.left, !isPositive), go(i.right, isPositive))(i.pos, i.info, i.errT)
+      case c: CondExp => CondExp(go(c.cond, !isPositive), go(c.thn, isPositive), go(c.els, isPositive))(c.pos, c.info, c.errT)
 
-        case e => throw new IllegalArgumentException(
-          s"Encountered unexpected node during product-program transformation of assertions: $e"
-        )
-      }
+      case u: Unfolding =>
+        Unfolding(runExp(u.acc, ctx.major).asInstanceOf[PredicateAccessPredicate],
+          Unfolding(runExp(u.acc, ctx.minor).asInstanceOf[PredicateAccessPredicate], go(u.body, isPositive))(u.pos, u.info, u.errT)
+        )(u.pos, u.info, u.errT)
+
+      case _: AccessPredicate | _: MagicWand => throw new IllegalArgumentException(
+        s"Encountered unexpected node during product-program transformation of assertions: $e"
+      )
+
+      // All other boolean operators (e.g., `!`, `||`, comparisons). If their non-boolean operands denote the same value
+      // in both executions (e.g., `rel(x, 1) < rel(x, 2)`), the operator is applied once. Otherwise, the expression
+      // mixes relational and per-execution values (e.g., `rel(j, 1) < i`): it is evaluated in each execution, with
+      // the relational subexpressions shared, and lifted to hold in both executions.
+      case e if nonBooleanOperands(e).forall(isSingleValued(_, ctx)) => mapRelationalOperands(e, ctx, (b: Exp) => go(b, isPositive))
+      case e => And(runWithRelational(e, ctx, ctx.major), runWithRelational(e, ctx, ctx.minor))(e.pos, e.info, e.errT)
     }
+  }
 
-    Simplifier.simplify(go(e, isPositive = true))
+  /**
+    * Evaluates `e` in the execution described by `run`, where `e` may contain relational subexpressions. These denote
+    * the same value in both executions and are translated once; all other parts of `e` are evaluated in `run`.
+    */
+  def runWithRelational(e: Exp, ctx: Context, run: RunContext): Exp = e match {
+    case e if !isRelational(e, ctx) => runExp(e, run)
+    case r: SIFRelExp => relationalExp(r, ctx)
+    case f: FuncApp if ctx.isHyperFunction(f.funcname) => hyperFuncApp(f, ctx)
+    case l: SIFLowExp => comparison(l, ctx)
+    case l: SIFLowEventExp => TrueLit()(l.pos, l.info, l.errT)
+    case q: QuantifiedExp => assertion(q, ctx)
+    case e => e.withChildren(e.children.map {
+      case c: Exp => runWithRelational(c, ctx, run)
+      case cs: Seq[_] => cs.map { case c: Exp => runWithRelational(c, ctx, run); case c => c }
+      case c => c
+    })
+  }
+
+  /** Returns whether `e` denotes the same value in both executions, e.g., `rel(x, 1)`, a literal, or a rigid variable. */
+  private def isSingleValued(e: Exp, ctx: Context): Boolean =
+    runWithRelational(e, ctx, ctx.major) == runWithRelational(e, ctx, ctx.minor)
+
+  private def nonBooleanOperands(e: Exp): Seq[Exp] = e.children.flatMap {
+    case c: Exp => Seq(c)
+    case cs: Seq[_] => cs.collect { case c: Exp => c }
+    case _ => Seq.empty
+  }.filter(_.typ != Bool)
+
+  /**
+    * Translates a relational expression, i.e., an expression that denotes a single value for both executions.
+    * Boolean expressions are translated as relational assertions.
+    */
+  def relationalExp(e: Exp, ctx: Context): Exp = e match {
+    case SIFRelExp(e, lit) if lit.i == 0 => runExp(e, ctx.major)
+    case SIFRelExp(e, lit) if lit.i == 1 => runExp(e, ctx.minor)
+    case r: SIFRelExp => throw new IllegalArgumentException(s"Unsupported execution identifier in $r")
+    case f: FuncApp if ctx.isHyperFunction(f.funcname) => hyperFuncApp(f, ctx)
+    case e if e.typ == Bool => assertion(e, ctx)
+    case e if !isRelational(e, ctx) =>
+      // e must not depend on the execution, e.g., a literal, `result`, or a rigid variable
+      val (major, minor) = (runExp(e, ctx.major), runExp(e, ctx.minor))
+      if (major == minor) major
+      else throw new IllegalArgumentException(s"Expected an expression that denotes the same value in both executions, but got $e")
+    case e => mapRelationalOperands(e, ctx, (b: Exp) => assertion(b, ctx))
+  }
+
+  /** Rebuilds `e` with its operands translated: boolean operands with `bool`, all others as relational expressions. */
+  private def mapRelationalOperands(e: Exp, ctx: Context, bool: Exp => Exp): Exp = {
+    def operand(c: Exp): Exp = if (c.typ == Bool) bool(c) else relationalExp(c, ctx)
+    e.withChildren(e.children.map {
+      case c: Exp => operand(c)
+      case cs: Seq[_] => cs.map { case c: Exp => operand(c); case c => c }
+      case c => c
+    })
+  }
+
+  /**
+    * A call to a hyper function receives the arguments of both executions. Relational (sub)expressions of the arguments
+    * denote the same value in both executions.
+    */
+  def hyperFuncApp(f: FuncApp, ctx: Context): FuncApp = {
+    def args(run: RunContext): Seq[Exp] = f.args.map(runWithRelational(_, ctx, run))
+    f.copy(args = args(ctx.major) ++ args(ctx.minor))(f.pos, f.info, f.typ, f.errT)
   }
 
   def trigger(t: Trigger, ctx: Context): Vector[Trigger] = {
@@ -323,7 +431,7 @@ trait SIFLowGuardTransformer {
   }
 
   def assertionToRelational(e: Exp, ctx: Context): Exp = {
-    def positiveUnary(e: Exp): Exp = TrueLit()(e.pos, e.info, e.errT)
+    def positiveUnary(e: Exp, @unused ctx: Context): Exp = TrueLit()(e.pos, e.info, e.errT)
     assertionWithPositiveUnary(e, ctx, positiveUnary)
   }
 
@@ -337,6 +445,8 @@ trait SIFLowGuardTransformer {
       case v: LocalVar => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case v: LocalVarDecl => v.copy(name = ctx.rename(v.name))(v.pos, v.info, v.errT)
       case f: Field => runField(f, ctx)
+      case f: FuncApp if ctx.isHyperFunction(f.funcname) =>
+        Violation.violation(s"Unexpected call to hyper function in a non-relational position: $f")
       case f: FuncApp => f.copy(funcname = ctx.rename(f.funcname), args = f.args.map(go))(f.pos, f.info, f.typ, f.errT)
       case p: PredicateAccess => runPredicateAccess(p.predicateName, p.args, ctx)(p.pos, p.info, p.errT)
       case p: PredicateInstance => runPredicateInstance(p.p, p.args, ctx)(p.pos, p.info, p.errT)
@@ -448,6 +558,15 @@ trait SIFLowGuardTransformer {
         }
         Seqn(s.ss.map(statement(_, ctx)), declarations)(s.pos, s.info, s.errT)
 
+      // A relational condition denotes the same value in both executions (e.g., `ghost if low(x)`). Thus, both
+      // executions take the same branch, and the branch condition does not have to be checked to be low.
+      case s: If if isRelational(s.cond, ctx) =>
+        If(
+          cond = assertion(s.cond, ctx),
+          thn = toSeqn(statement(s.thn, ctx)),
+          els = toSeqn(statement(s.els, ctx))
+        )(s.pos, s.info, s.errT)
+
       case s: If =>
         Seqn(Seq(
           Assert(comparison(SIFLowExp(s.cond)(s.pos, s.info, s.errT), ctx))(s.pos, s.info, s.errT),
@@ -494,7 +613,17 @@ trait SIFLowGuardTransformer {
     else Seqn(Seq.empty, Seq.empty)(s.pos, s.info, s.errT)
   }
 
-  def removeLow[N <: Node](n: N): Either[Seq[AbstractError], N] = {
+  /**
+    * Verification without hyper properties: hyper functions are dropped, and calls to them are treated like `low`,
+    * i.e., they are replaced by `true` and an error is reported if this changes the proof obligations.
+    */
+  def removeHyper(p: Program): Either[Seq[AbstractError], Program] = {
+    val hyperFuncs = hyperFunctions(p)
+    val withoutHyperFuncs = p.copy(functions = p.functions.filterNot(f => hyperFuncs(f.name)))(p.pos, p.info, p.errT)
+    removeLow(withoutHyperFuncs, hyperFuncs)
+  }
+
+  def removeLow[N <: Node](n: N, hyperFuncs: String => Boolean = _ => false): Either[Seq[AbstractError], N] = {
     def memberHasProofObligations(m: Member): Boolean = m match {
       case m: Method => m.body.nonEmpty
       case m: Function => m.body.nonEmpty
@@ -503,7 +632,7 @@ trait SIFLowGuardTransformer {
 
     var errs: Seq[AbstractError] = Seq.empty
 
-    def removeNodeAndReportErrorIfProofObligationsChange(n: ExtensionExp, optMember: Option[Member], message: String): (Node, Option[Member]) = {
+    def removeNodeAndReportErrorIfProofObligationsChange(n: Exp, optMember: Option[Member], message: String): (Node, Option[Member]) = {
       if (optMember.forall(memberHasProofObligations)) {
         errs = errs :+ ConsistencyError(message, n.pos)
       }
@@ -515,6 +644,12 @@ trait SIFLowGuardTransformer {
         removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Low expression found: ${n.exp}")
       case (n: SIFLowEventExp, optMember) =>
         removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Low context expression found")
+      case (n: FuncApp, optMember) if hyperFuncs(n.funcname) =>
+        if (n.typ != Bool) {
+          // a non-boolean hyper function cannot be replaced while preserving well-typedness
+          errs = errs :+ ConsistencyError(s"Call to hyper function found: $n", n.pos)
+          (n, optMember)
+        } else removeNodeAndReportErrorIfProofObligationsChange(n, optMember, s"Call to hyper function found: $n")
       case (n: SIFRelExp, optMember) =>
         // it's unclear how to remove a `rel(_, _)` expressions while preserving well-typedness. Thus,
         // we always report an error:
@@ -530,18 +665,20 @@ trait SIFLowGuardTransformer {
                   _noDups: String => Boolean,
                   _onlyMajor: String => Boolean,
                   _noMinor: Boolean,
+                  _hyperFuncs: String => Boolean,
+                  _rigidVars: Set[String],
                 ): Context = {
 
     trait MajorContext extends RunContext { self: Context =>
       override val removeMinor: Boolean = _noMinor
       override def rename(n: String): String =
-        if (hasNoDuplicates(n)) n else s"${n}0"
+        if (hasNoDuplicates(n) || isRigidVariable(n)) n else s"${n}0"
     }
 
     trait MinorContext extends RunContext { self: Context =>
       override val removeMinor: Boolean = true
       override def rename(n: String): String =
-        if (hasNoDuplicates(n)) n else s"${n}1"
+        if (hasNoDuplicates(n) || isRigidVariable(n)) n else s"${n}1"
     }
 
     trait ContextImpl extends Context {
@@ -550,6 +687,10 @@ trait SIFLowGuardTransformer {
       override def isRelationalPredicate(p: String): Boolean = _relPreds(p)
       override def predicateFunctionName(n: String): String = s"${n}F"
       override def hasNoDuplicates(n: String): Boolean = _noDups(n)
+      override def isHyperFunction(n: String): Boolean = _hyperFuncs(n)
+      override def isRigidVariable(n: String): Boolean = _rigidVars.contains(n)
+      override def withRigidVariables(ns: Seq[String]): Context =
+        newContext(_relPreds, _noDups, _onlyMajor, _noMinor, _hyperFuncs, _rigidVars ++ ns)
 
       override def major: RunContext = new ContextImpl with MajorContext
       override def minor: RunContext = new ContextImpl with MinorContext
@@ -572,6 +713,10 @@ trait Context {
   def isRelationalPredicate(@unused p: String): Boolean
   def predicateFunctionName(@unused n: String): String
   def hasNoDuplicates(@unused n: String): Boolean
+  def isHyperFunction(@unused n: String): Boolean
+  /** Rigid variables are bound by quantifiers in relational assertions and denote the same value in both executions. */
+  def isRigidVariable(@unused n: String): Boolean
+  def withRigidVariables(ns: Seq[String]): Context
 
   def major: RunContext
   def minor: RunContext
@@ -643,7 +788,7 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false), task.backtrack))
 
       case Hyper.Disabled =>
-        removeLow(task.program).map(BackendVerifier.Task(_, task.backtrack))
+        removeHyper(task.program).map(BackendVerifier.Task(_, task.backtrack))
 
       case Hyper.NoMajor =>
         Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = true), task.backtrack))

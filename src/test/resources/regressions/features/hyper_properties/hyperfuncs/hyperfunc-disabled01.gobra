@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncdisabled01
+
+// Without hyper mode, hyper functions are dropped and calls to them are treated like `low`: they are accepted in
+// members without proof obligations.
+// ##(--hyperMode off)
+
+ghost
+decreases
+hyper pure func NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+ensures NonInterf(input, output)
+func Abstract(input int) (output int)
+
+func client() {
+	x := Abstract(1)
+}
+
+// Note: in members with proof obligations, calls to hyper functions are reported as consistency errors (like `low`).

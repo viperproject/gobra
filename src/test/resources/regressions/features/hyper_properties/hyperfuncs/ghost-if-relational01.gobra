@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ghostifrelational01
+
+// ##(--hyperMode on)
+
+// A ghost if-statement with a relational condition is a case split in the relational proof: the condition denotes
+// the same value in both executions, so both executions take the same branch.
+
+ghost
+decreases
+hyper pure func NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+requires NonInterf(x, y)
+func caseSplit(x, y int) {
+	ghost if low(x) {
+		assert low(y)
+	} else {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert low(y)
+	}
+}
+
+func relCondition(t int) {
+	ghost if rel(t, 1) < rel(t, 2) {
+		assert !low(t)
+	} else {
+		assert rel(t, 2) <= rel(t, 1)
+	}
+}

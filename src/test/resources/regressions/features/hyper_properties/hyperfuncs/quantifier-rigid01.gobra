@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package quantifierrigid01
+
+// ##(--hyperMode on)
+
+// Variables bound by quantifiers in relational assertions denote the same value in both executions.
+// Thus, element-wise lowness does not imply that different elements are equal.
+ghost
+requires len(s) == 2
+requires forall i int :: { s[i] } 0 <= i && i < 2 ==> low(s[i])
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  low(s[0]) && low(s[1]) && s[0] == s[1]
+decreases
+func f(s seq[int]) {
+}
+
+ghost
+requires len(s) == 2 && s[0] == 1 && s[1] == 2
+requires forall i int :: { s[i] } 0 <= i && i < 2 ==> low(s[i])
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  false
+decreases
+func caller(s seq[int]) {
+	assert low(s[0]) && low(s[1])
+}
+
+ghost
+requires low(len(s)) && forall i int :: { s[i] } 0 <= i && i < len(s) ==> low(s[i])
+ensures  low(s)
+decreases
+func elementwise(s seq[int]) {
+	assert forall i int :: { s[i] } 0 <= i && i < len(s) ==> rel(s, 1)[i] == rel(s, 2)[i]
+}
+
+ghost
+requires low(len(s))
+requires exists i int :: { s[i] } 0 <= i && i < len(s) && low(s[i]) && s[i] > 0
+ensures  exists j int :: { s[j] } 0 <= j && j < len(s) && rel(s[j], 1) == rel(s[j], 2)
+decreases
+func exist(s seq[int]) {
+}

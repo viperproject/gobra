@@ -149,6 +149,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
+  def showHyper: Doc = "hyper" <> line
   def showOpensInvs: Doc = "opensInvariants" <> line
   def showAtomic: Doc = "atomic" <> line
   def showTrusted: Doc = "trusted" <> line
@@ -172,9 +173,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit) =>
+    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit, isHyper) =>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
+      (if (isHyper) showHyper else emptyDoc) <>
       (if (opensInvs) showOpensInvs else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
       (if (mayInit) showMayInit else emptyDoc) <>

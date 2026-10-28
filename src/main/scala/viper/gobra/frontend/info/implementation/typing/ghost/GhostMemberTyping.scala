@@ -7,7 +7,8 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
+import viper.gobra.frontend.Hyper
+import viper.gobra.ast.frontend.{PBlock, PBodyParameterInfo, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -60,6 +61,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
+      hyperMemberIsWellFormed(member, member.spec, member.body) ++
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
@@ -87,6 +89,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
+      hyperMemberIsWellFormed(member, member.spec, member.body) ++
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
@@ -120,6 +123,25 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       spec.isAtomic && !measuresGuaranteeTermination(spec.terminationMeasures)
     )
     atomicsAreAbstract ++ atomicsAreActual ++ atomicMethodsTerminate
+  }
+
+  /**
+    * Hyper functions and methods abstract over several executions. They are ghost, and their body must denote a
+    * single value for all executions (boolean bodies are lifted to hold in every execution).
+    */
+  private def hyperMemberIsWellFormed(member: PMember, spec: PFunctionSpec, body: Option[(PBodyParameterInfo, PBlock)]): Messages = {
+    if (spec.isHyper) {
+      val mustBeGhost = error(member, "Hyper functions and methods must be ghost.", !isEnclosingGhost(member))
+      val supportedMode = error(member, s"Hyper functions and methods are not yet supported in hyperMode '${Hyper.EnabledExtended.name}'.",
+        config.hyperModeOrDefault == Hyper.EnabledExtended)
+      val singleValuedBody = body.map(_._2.nonEmptyStmts) match {
+        case Some(Vector(PReturn(Vector(ret)))) =>
+          error(ret, "The body of a hyper function of non-boolean type must denote a single value for all executions; " +
+            "use rel(e, i) to refer to the value of e in execution i.", !isSingleValued(ret))
+        case _ => noMessages
+      }
+      mustBeGhost ++ supportedMode ++ singleValuedBody
+    } else noMessages
   }
 
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {

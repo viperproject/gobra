@@ -133,8 +133,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PRel =>
       error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.Enabled.name}' is used, or if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.",
         config.hyperModeOrDefault == Hyper.EnabledExtended && !config.enableExperimentalHyperFeatures) ++
-      error(n, s"executions are numbered from 1 to ${config.hyperExecutionsOrDefault} (see option --hyperExecutions), but ${n.lit.lit} was provided. ",
-        n.lit.lit < 1 || config.hyperExecutionsOrDefault < n.lit.lit) ++
+      error(n, s"executions are numbered from 0 to ${config.hyperExecutionsOrDefault - 1} (see option --hyperExecutions), but ${n.lit.lit} was provided. ",
+        n.lit.lit < 0 || config.hyperExecutionsOrDefault <= n.lit.lit) ++
       relationalPositionMessages(n)
 
     case n: PGhostEquals =>
@@ -256,7 +256,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  /** Returns whether `n` is a call to a hyper function or a hyper method. */
+  /** Returns whether `n` is a call to a hyper function or a hyper method, i.e., to a hyperfunc. */
   private[typing] def isHyperCall(n: PInvoke): Boolean = resolve(n) match {
     case Some(ap.FunctionCall(callee, _)) => callee.symb match {
       case f: Function => f.isHyper
@@ -267,9 +267,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Relational constructs (`low`, `lowContext`, `rel`, and calls to hyper functions) denote a single value for all
+    * Relational constructs (`low`, `lowContext`, `rel`, and calls to hyperfuncs) denote a single value for all
     * executions under consideration. Thus, they may only occur in positions where such a value is meaningful:
-    * bodies and contracts of hyper functions, contracts and assertions of non-pure members, loop invariants,
+    * bodies and contracts of hyperfuncs, contracts and assertions of non-pure members, loop invariants,
     * predicate bodies, and conditions of ghost if-statements. Elsewhere, the SIF encodings used to silently replace
     * them by `true` (see issue #846).
     */
@@ -279,13 +279,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       config.hyperModeOrDefault == Hyper.EnabledExtended && config.hyperExecutionsOrDefault != 2)
 
   private def relationalPositionError(n: PNode): Option[String] = {
-    val valuePositionMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) are only supported " +
+    val valuePositionMsg = "relational expressions (low, lowContext, rel, calls to hyperfuncs) are only supported " +
       "in assertions and in conditions of ghost if-statements, but not as values of (ghost) variables or of " +
-      "conditions of non-ghost statements; consider using a hyper function"
-    val nonHyperPureMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) cannot occur in " +
-      "the body of a non-hyper pure function or method; consider marking it as 'hyper'"
-    val nonHyperPureContractMsg = "relational expressions (low, lowContext, rel, calls to hyper functions) are not " +
-      "yet supported in the contracts of non-hyper pure functions and methods"
+      "conditions of non-ghost statements; consider using a hyperfunc"
+    val nonHyperPureMsg = "relational expressions (low, lowContext, rel, calls to hyperfuncs) cannot occur in " +
+      "the body of a pure function or method; consider declaring it as a hyperfunc"
+    val nonHyperPureContractMsg = "relational expressions (low, lowContext, rel, calls to hyperfuncs) are not " +
+      "yet supported in the contracts of pure functions and methods"
     def isNonHyperPure(spec: PFunctionSpec): Boolean = spec.isPure && !spec.isHyper
 
     @scala.annotation.tailrec
@@ -294,7 +294,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(p) => p match {
         case _: PLow | _: PRel => Some("relational expressions cannot be nested inside 'low' or 'rel'")
         case inv: PInvoke if inv.args.contains(child) && !isHyperCall(inv) =>
-          Some("relational expressions cannot be passed as arguments to non-hyper functions, methods, or predicates")
+          Some("relational expressions cannot be passed as arguments to functions, methods, or predicates other than hyperfuncs")
         case spec: PFunctionSpec => tree.parent(spec).headOption match {
           case Some(d: PFunctionDecl) if isNonHyperPure(d.spec) => Some(nonHyperPureContractMsg)
           case Some(d: PMethodDecl) if isNonHyperPure(d.spec) => Some(nonHyperPureContractMsg)

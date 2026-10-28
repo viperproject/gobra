@@ -126,21 +126,21 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Hyper functions and methods abstract over several executions. They are ghost, and their body must denote a
-    * single value for all executions (boolean bodies are lifted to hold in every execution).
+    * Hyper functions and hyper methods (hyperfuncs) abstract over several executions. They are ghost and pure by
+    * construction, and their body must denote a single value for all executions (boolean bodies are lifted to hold
+    * in every execution).
     */
   private def hyperMemberIsWellFormed(member: PMember, spec: PFunctionSpec, body: Option[(PBodyParameterInfo, PBlock)]): Messages = {
     if (spec.isHyper) {
-      val mustBeGhost = error(member, "Hyper functions and methods must be ghost.", !isEnclosingGhost(member))
-      val supportedMode = error(member, s"Hyper functions and methods are not yet supported in hyperMode '${Hyper.EnabledExtended.name}'.",
+      val supportedMode = error(member, s"hyperfuncs are not yet supported in hyperMode '${Hyper.EnabledExtended.name}'.",
         config.hyperModeOrDefault == Hyper.EnabledExtended)
       val singleValuedBody = body.map(_._2.nonEmptyStmts) match {
         case Some(Vector(PReturn(Vector(ret)))) =>
-          error(ret, "The body of a hyper function of non-boolean type must denote a single value for all executions; " +
+          error(ret, "The body of a hyperfunc of non-boolean type must denote a single value for all executions; " +
             "use rel(e, i) to refer to the value of e in execution i.", !isSingleValued(ret))
         case _ => noMessages
       }
-      mustBeGhost ++ supportedMode ++ singleValuedBody
+      supportedMode ++ singleValuedBody
     } else noMessages
   }
 

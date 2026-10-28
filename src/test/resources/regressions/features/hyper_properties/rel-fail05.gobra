@@ -7,9 +7,9 @@ package relfail05
 // ##(--hyperMode extended)
 
 //:: ExpectedOutput(type_error)
-requires rel(b, 1)
+requires rel(b, 0)
 //:: ExpectedOutput(type_error)
-requires rel(b, 2)
+requires rel(b, 1)
 func foo(b bool) {
     return
 }

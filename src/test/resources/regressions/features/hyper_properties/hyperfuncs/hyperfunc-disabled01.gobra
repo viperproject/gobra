@@ -3,13 +3,12 @@
 
 package hyperfuncdisabled01
 
-// Without hyper mode, hyper functions are dropped and calls to them are treated like `low`: they are accepted in
+// Without hyper mode, hyperfuncs are dropped and calls to them are treated like `low`: they are accepted in
 // members without proof obligations.
 // ##(--hyperMode off)
 
-ghost
 decreases
-hyper pure func NonInterf(input, output any) bool {
+hyperfunc NonInterf(input, output any) bool {
 	return low(input) ==> low(output)
 }
 
@@ -20,4 +19,4 @@ func client() {
 	x := Abstract(1)
 }
 
-// Note: in members with proof obligations, calls to hyper functions are reported as consistency errors (like `low`).
+// Note: in members with proof obligations, calls to hyperfuncs are reported as consistency errors (like `low`).

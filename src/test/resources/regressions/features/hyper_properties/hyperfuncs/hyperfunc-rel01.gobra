@@ -6,23 +6,20 @@ package hyperfuncrel01
 // ##(--hyperMode on)
 
 // Relations other than equality: monotonicity and sensitivity.
-ghost
 decreases
-hyper pure func Monotone(x, y int) bool {
-	return rel(x, 1) <= rel(x, 2) ==> rel(y, 1) <= rel(y, 2)
+hyperfunc Monotone(x, y int) bool {
+	return rel(x, 0) <= rel(x, 1) ==> rel(y, 0) <= rel(y, 1)
 }
 
-// A non-boolean hyper function: the distance between the two executions.
-ghost
+// A non-boolean hyperfunc: the distance between the two executions.
 decreases
-hyper pure func Dist(x int) int {
-	return rel(x, 1) - rel(x, 2) >= 0 ? rel(x, 1) - rel(x, 2) : rel(x, 2) - rel(x, 1)
+hyperfunc Dist(x int) int {
+	return rel(x, 0) - rel(x, 1) >= 0 ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0)
 }
 
-ghost
 decreases
-hyper pure func Lipschitz(x, y int, c int) bool {
-	return low(c) && Dist(y) <= rel(c, 1) * Dist(x)
+hyperfunc Lipschitz(x, y int, c int) bool {
+	return low(c) && Dist(y) <= rel(c, 0) * Dist(x)
 }
 
 ensures Monotone(x, res)

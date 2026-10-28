@@ -6,7 +6,7 @@ package issue9911
 // ##(--hyperMode extended --enableExperimentalHyperFeatures)
 
 func relGhostIf(t uint64) {
-    ghost if rel(t, 1) < rel(t, 2) {
+    ghost if rel(t, 0) < rel(t, 1) {
         //:: ExpectedOutput(assert_error:assertion_error)
 		assert false
 	}

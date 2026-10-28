@@ -56,7 +56,8 @@ member: specMember | declaration | ghostMember;
 ghostMember: implementationProof
   | fpredicateDecl
   | mpredicateDecl
-  | explicitGhostMember;
+  | explicitGhostMember
+  | hyperMember;
 
 // Ghost statements
 
@@ -185,10 +186,10 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false, boolean hyper = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
   // The order of the alternatives matches the order of the attributes in the `returns` clause above.
-  ((specStatement | TRUSTED {$trusted = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | OPENSINV {$opensInv = true;} | ATOMIC {$atomic = true;} | OPAQUE {$opaque = true;} | HYPER {$hyper = true;}) eos)*? (HYPER {$hyper = true;})? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
+  ((specStatement | TRUSTED {$trusted = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | OPENSINV {$opensInv = true;} | ATOMIC {$atomic = true;} | OPAQUE {$opaque = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;
@@ -267,6 +268,13 @@ methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIF
 
 
 explicitGhostMember: GHOST (specMember | declaration);
+
+// Hyper functions (hyperfuncs) and hyper methods abstract over several executions. They are always ghost and pure.
+hyperMember: specification (hyperFunctionDecl[$specification.trusted] | hyperMethodDecl[$specification.trusted]);
+
+hyperFunctionDecl[boolean trusted]: HYPERFUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+
+hyperMethodDecl[boolean trusted]: HYPERFUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
@@ -446,8 +454,13 @@ interfaceType:
 
 predicateSpec: PRED IDENTIFIER parameters;
 
+// The alternative for hyper methods must come first: during prediction, ANTLR treats the predicate of `eos` as
+// true and an assertion may be empty, so `requires Mem() hyperfunc M() bool` may also be read as a method `Mem()`
+// (with the precondition `requires <empty>`) followed by another member. ANTLR resolves this by choosing the first
+// alternative.
 methodSpec:
-  GHOST? specification IDENTIFIER parameters result
+  specification HYPERFUNC IDENTIFIER parameters result
+  | GHOST? specification IDENTIFIER parameters result
   | GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals

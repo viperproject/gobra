@@ -3,31 +3,31 @@
 
 package relsimple02
 
-// hyperMode "on" (the low-guard encoding) supports rel expressions; executions are numbered 1 and 2
+// hyperMode "on" (the low-guard encoding) supports rel expressions; executions are numbered 0 and 1
 // ##(--hyperMode on)
 
-requires rel(i, 1) == rel(i, 2)
+requires rel(i, 0) == rel(i, 1)
 ensures  low(res)
 func foo(i int) (res int) {
     return i + 42
 }
 
-requires rel(i, 1) < rel(i, 2)
-ensures  rel(res, 1) < rel(res, 2)
+requires rel(i, 0) < rel(i, 1)
+ensures  rel(res, 0) < rel(res, 1)
 func bar(i int) (res int) {
     return i + 42
 }
 
-requires rel(i, 1) < rel(i, 2)
+requires rel(i, 0) < rel(i, 1)
 //:: ExpectedOutput(postcondition_error:assertion_error)
-ensures  rel(res, 1) < rel(res, 2)
+ensures  rel(res, 0) < rel(res, 1)
 func baz(i int) (res int) {
     return -i
 }
 
 // relations can mix both executions arbitrarily
-requires rel(x, 1) == rel(y, 2) && rel(y, 1) == rel(x, 2)
-ensures  rel(res, 1) == rel(res, 2)
+requires rel(x, 0) == rel(y, 1) && rel(y, 0) == rel(x, 1)
+ensures  rel(res, 0) == rel(res, 1)
 func swapInvariant(x, y int) (res int) {
     return x + y
 }

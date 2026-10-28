@@ -107,5 +107,5 @@ CRITICAL    : 'critical';
 OPENSINV    : 'opensInvariants' -> mode(NLSEMI);
 FRIENDPKG   : 'friendPkg';
 REL         : 'rel';
-HYPER       : 'hyper' -> mode(NLSEMI);
+HYPERFUNC   : 'hyperfunc';
 // NOTE: if you append a new token, do not forget to update InformativeErrorListener.LAST_GOBRA_TOKEN

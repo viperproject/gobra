@@ -2776,4 +2776,40 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case Left(Vector(ParserError(msg, _))) if msg contains "Unexpected reserved word proof" =>
     }
   }
+
+  test("Parser: should parse a hyperfunc as a ghost, pure, and hyper function") {
+    val modes: Set[Boolean] = Set(false, true)
+    modes.foreach(specOnly => {
+      frontend.parseMemberOrFail("decreases; hyperfunc NonInterf(x, y int) bool { return low(x) ==> low(y) }", specOnly) should matchPattern {
+        case Vector(PExplicitGhostMember(PFunctionDecl(PIdnDef("NonInterf"), Vector(_, _), PResult(Vector(PUnnamedParameter(PBoolType()))), PFunctionSpec(Vector(), Vector(_), Vector(), true, false, false, false, false, false, true), Some((_, PBlock(Vector(PReturn(Vector(PImplication(PLow(_), PLow(_))))))))))) =>
+      }
+    })
+  }
+
+  test("Parser: should parse a hyper method") {
+    frontend.parseMemberOrFail("requires p.Mem(); hyperfunc (p *P) LowData() bool") should matchPattern {
+      case Vector(PExplicitGhostMember(PMethodDecl(PIdnDef("LowData"), PNamedReceiver(PIdnDef("p"), PMethodReceiveActualPointer(PNamedOperand(PIdnUse("P"))), _), Vector(), _, PFunctionSpec(Vector(_), Vector(), Vector(), true, false, false, false, false, false, true), None))) =>
+    }
+  }
+
+  test("Parser: should not translate the body of a trusted hyperfunc") {
+    frontend.parseMemberOrFail("trusted; hyperfunc H(x int) bool { return low(x) }") should matchPattern {
+      case Vector(PExplicitGhostMember(PFunctionDecl(PIdnDef("H"), _, _, PFunctionSpec(_, _, _, true, true, false, false, false, false, true), None))) =>
+    }
+  }
+
+  test("Parser: should parse a hyperfunc in an interface") {
+    frontend.parseTypeOrFail("interface { pred Mem(); requires Mem(); hyperfunc LowContents() bool; Size() int }") should matchPattern {
+      case PInterfaceType(Vector(), Vector(
+        PMethodSig(PIdnDef("LowContents"), Vector(), _, PFunctionSpec(Vector(_), Vector(), Vector(), true, false, false, false, false, false, true), true),
+        PMethodSig(PIdnDef("Size"), Vector(), _, PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), false)
+      ), Vector(_)) =>
+    }
+  }
+
+  test("Parser: 'hyperfunc' is a keyword") {
+    frontend.parseMember("func hyperfunc()") should matchPattern {
+      case Left(_) =>
+    }
+  }
 }

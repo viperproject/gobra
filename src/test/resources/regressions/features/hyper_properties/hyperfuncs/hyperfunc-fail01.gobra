@@ -17,7 +17,7 @@ func test(x int) (res bool) {
 	return low(x)
 }
 
-// low in the body of a non-hyper pure function
+// low in the body of a pure function
 ghost
 decreases
 pure func IsLow(x int) bool {
@@ -25,7 +25,7 @@ pure func IsLow(x int) bool {
 	return low(x)
 }
 
-// low in the contract of a non-hyper pure function
+// low in the contract of a pure function (not yet supported)
 requires acc(x)
 //:: ExpectedOutput(type_error)
 ensures  low(r)
@@ -34,33 +34,19 @@ pure func Read(x *int) (r int) {
 	return *x
 }
 
-// hyper requires pure
-ghost
-//:: ExpectedOutput(type_error)
+// the body of a non-boolean hyperfunc must denote a single value
 decreases
-hyper
-func NotPure(x int) bool
-
-// hyper requires ghost
-//:: ExpectedOutput(type_error)
-decreases
-hyper pure func NotGhost(x int) bool
-
-// the body of a non-boolean hyper function must denote a single value
-ghost
-decreases
-hyper pure func NotSingleValued(x int) int {
+hyperfunc NotSingleValued(x int) int {
 	//:: ExpectedOutput(type_error)
 	return x + 1
 }
 
-ghost
 decreases
-hyper pure func H(x int) bool {
+hyperfunc H(x int) bool {
 	return low(x)
 }
 
-// calls to hyper functions in the body of a non-hyper pure function
+// calls to hyperfuncs in the body of a pure function
 ghost
 decreases
 pure func CallsH(x int) bool {
@@ -74,14 +60,14 @@ pure func Id(b bool) bool {
 	return b
 }
 
-// relational arguments to non-hyper functions
+// relational arguments to functions other than hyperfuncs
 //:: ExpectedOutput(type_error)
 requires Id(low(x))
 func useId(x int)
 
 // nested relational expressions
 //:: ExpectedOutput(type_error)
-requires low(rel(x, 1))
+requires low(rel(x, 0))
 func nested(x int)
 
 // relational values assigned to ghost variables
@@ -91,14 +77,13 @@ func ghostVar(x int) {
 }
 
 type Itf interface {
-	ghost
 	decreases
-	hyper pure M() bool
+	hyperfunc M() bool
 }
 
 type Impl struct{}
 
-// the hyper modifiers of interface and implementation must match
+// an interface hyperfunc must be implemented by a hyperfunc
 ghost
 decreases
 pure func (i Impl) M() bool {

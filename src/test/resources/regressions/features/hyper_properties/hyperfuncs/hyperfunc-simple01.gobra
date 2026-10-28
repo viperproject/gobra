@@ -5,12 +5,11 @@ package hyperfuncsimple01
 
 // ##(--hyperMode on)
 
-// Hyper functions abstract over several executions. Non-interference is defined once and reused.
+// Hyperfuncs abstract over several executions. Non-interference is defined once and reused.
 // `low` compares values with mathematical equality, so no comparability side conditions are needed
 // for arguments of interface type.
-ghost
 decreases
-hyper pure func NonInterf(input, output any) bool {
+hyperfunc NonInterf(input, output any) bool {
 	return low(input) ==> low(output)
 }
 
@@ -27,12 +26,11 @@ func Bad(input int, secret int) (output int) {
 	return
 }
 
-// A hyper function's precondition and postcondition can be relational, too.
-ghost
+// A hyperfunc's precondition and postcondition can be relational, too.
 requires low(x)
 ensures  res
 decreases
-hyper pure func LowImpliesLowSquare(x int) (res bool) {
+hyperfunc LowImpliesLowSquare(x int) (res bool) {
 	return low(x * x)
 }
 
@@ -43,11 +41,9 @@ func Square(x int) (res int) {
 	return x * x
 }
 
-// The modifier may also precede `pure` on a separate line, like `opaque`.
-ghost
+// Hyperfuncs are implicitly ghost and pure.
 decreases
-hyper
-pure func LowBoth(x, y int) bool {
+hyperfunc LowBoth(x, y int) bool {
 	return low(x) && low(y)
 }
 

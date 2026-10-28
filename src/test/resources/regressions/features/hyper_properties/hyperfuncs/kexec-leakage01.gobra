@@ -8,10 +8,9 @@
 // property: among any three executions that agree on the public inputs, two produce the same output.
 package kexecleakage01
 
-ghost
 decreases
-hyper pure func AtMostTwoValues(x any) bool {
-	return rel(x, 1) === rel(x, 2) || rel(x, 1) === rel(x, 3) || rel(x, 2) === rel(x, 3)
+hyperfunc AtMostTwoValues(x any) bool {
+	return rel(x, 0) === rel(x, 1) || rel(x, 0) === rel(x, 2) || rel(x, 1) === rel(x, 2)
 }
 
 type Catalog struct {
@@ -22,10 +21,9 @@ pred (c *Catalog) Mem() {
 	acc(c)
 }
 
-ghost
 requires c.Mem()
 decreases
-hyper pure func (c *Catalog) Public() bool {
+hyperfunc (c *Catalog) Public() bool {
 	return unfolding c.Mem() in low(c.base) && low(c.premium)
 }
 

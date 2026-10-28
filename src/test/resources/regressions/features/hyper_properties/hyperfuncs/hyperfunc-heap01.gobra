@@ -16,10 +16,9 @@ pred (p *Person) Mem() {
 	acc(p)
 }
 
-ghost
 requires p.Mem()
 decreases
-hyper pure func (p *Person) LowData() bool {
+hyperfunc (p *Person) LowData() bool {
 	return unfolding p.Mem() in low(p.id)
 }
 
@@ -31,7 +30,7 @@ func (p *Person) GetID() (id int) {
 	return unfolding acc(p.Mem(), 1/2) in p.id
 }
 
-// Updating a field that the hyper function does not constrain preserves it.
+// Updating a field that the hyperfunc does not constrain preserves it.
 requires p.Mem() && p.LowData()
 ensures  p.Mem() && p.LowData()
 func (p *Person) UpdateName(name string) {
@@ -51,10 +50,9 @@ func (p *Person) UpdateIDBad(id int) {
 }
 
 // The contents of a slice are low. The quantified variable `i` denotes the same index in both executions.
-ghost
 requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], _)
 decreases
-hyper pure func LowContents(s []int) bool {
+hyperfunc LowContents(s []int) bool {
 	return low(len(s)) &&
 		forall i int :: { &s[i] } 0 <= i && i < len(s) ==> low(s[i])
 }

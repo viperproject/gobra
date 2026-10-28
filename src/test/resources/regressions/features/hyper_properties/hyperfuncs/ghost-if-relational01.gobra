@@ -8,9 +8,8 @@ package ghostifrelational01
 // A ghost if-statement with a relational condition is a case split in the relational proof: the condition denotes
 // the same value in both executions, so both executions take the same branch.
 
-ghost
 decreases
-hyper pure func NonInterf(input, output any) bool {
+hyperfunc NonInterf(input, output any) bool {
 	return low(input) ==> low(output)
 }
 
@@ -25,9 +24,9 @@ func caseSplit(x, y int) {
 }
 
 func relCondition(t int) {
-	ghost if rel(t, 1) < rel(t, 2) {
+	ghost if rel(t, 0) < rel(t, 1) {
 		assert !low(t)
 	} else {
-		assert rel(t, 2) <= rel(t, 1)
+		assert rel(t, 1) <= rel(t, 0)
 	}
 }

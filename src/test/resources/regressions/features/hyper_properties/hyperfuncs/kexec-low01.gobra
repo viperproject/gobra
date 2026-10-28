@@ -7,13 +7,13 @@ package kexeclow01
 
 // With three executions, `low(e)` states that `e` agrees in all three executions.
 requires low(x)
-ensures  rel(res, 1) == rel(res, 3) && rel(res, 2) == rel(res, 3)
+ensures  rel(res, 0) == rel(res, 2) && rel(res, 1) == rel(res, 2)
 func f(x int) (res int) {
 	return x * 2
 }
 
 // pairwise relations do not imply lowness of all three executions
-requires rel(x, 1) == rel(x, 2)
+requires rel(x, 0) == rel(x, 1)
 //:: ExpectedOutput(postcondition_error:assertion_error)
 ensures  low(res)
 func g(x int) (res int) {

@@ -5,9 +5,10 @@
 
 package kexecfail01
 
-requires rel(x, 3) == 0
+// with three executions, the execution indices are 0, 1, and 2
+requires rel(x, 2) == 0
 func ok(x int)
 
 //:: ExpectedOutput(type_error)
-requires rel(x, 4) == 0
+requires rel(x, 3) == 0
 func outOfRange(x int)

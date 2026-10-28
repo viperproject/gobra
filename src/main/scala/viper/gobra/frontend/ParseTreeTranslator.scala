@@ -434,7 +434,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
-    val ghost = has(ctx.GHOST())
+    // hyper methods (`hyperfunc` members) are always ghost
+    val ghost = has(ctx.GHOST()) || has(ctx.HYPERFUNC())
     val spec = if (ctx.specification() != null)
       visitSpecification(ctx.specification())
     else
@@ -929,17 +930,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         Right(visitTerminationMeasure(s.terminationMeasure()))
     }
 
+    // hyper functions and hyper methods (declared with `hyperfunc`) are always pure
+    val isHyper = ctx.getParent match {
+      case _: HyperMemberContext => true
+      case m: MethodSpecContext => has(m.HYPERFUNC())
+      case _ => false
+    }
+
     PFunctionSpec(
       clauses,
       terms,
       annotations,
-      isPure = ctx.pure,
+      isPure = ctx.pure || isHyper,
       isTrusted = ctx.trusted,
       isOpaque = ctx.opaque,
       isAtomic = ctx.atomic,
       opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
-      isHyper = ctx.hyper,
+      isHyper = isHyper,
     )
   }
 
@@ -986,6 +994,36 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitExplicitGhostMember(ctx: ExplicitGhostMemberContext): Vector[PExplicitGhostMember] = super.visitExplicitGhostMember(ctx) match {
     case Vector("ghost", decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl).at(ctx))
     case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
+  }
+
+  /**
+    * Visits the rule
+    * hyperMember: specification (hyperFunctionDecl | hyperMethodDecl);
+    *
+    * Hyper functions and hyper methods (hyperfuncs) are ghost and pure. Their specification is marked as hyper and
+    * pure by [[visitSpecification]].
+    */
+  override def visitHyperMember(ctx: HyperMemberContext): Vector[PExplicitGhostMember] = super.visitHyperMember(ctx) match {
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
+      Vector(PExplicitGhostMember(PFunctionDecl(id, args, result, spec, body).at(ctx)).at(ctx))
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
+      Vector(PExplicitGhostMember(PMethodDecl(id, receiver, args, result, spec, body).at(ctx)).at(ctx))
+  }
+
+  override def visitHyperFunctionDecl(ctx: HyperFunctionDeclContext): (PIdnDef, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val sig = visitNode[Signature](ctx.signature())
+    // hyperfuncs are pure, so their bodies are translated unless they are trusted
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, sig._1, sig._2, body)
+  }
+
+  override def visitHyperMethodDecl(ctx: HyperMethodDeclContext): (PIdnDef, PReceiver, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val recv = visitNode[PReceiver](ctx.receiver())
+    val sig = visitNode[Signature](ctx.signature())
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, recv, sig._1, sig._2, body)
   }
 
   override def visitSingleBackendAnnotation(ctx: SingleBackendAnnotationContext): PBackendAnnotation = {

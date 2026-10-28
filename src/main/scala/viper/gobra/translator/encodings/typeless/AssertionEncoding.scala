@@ -82,9 +82,8 @@ class AssertionEncoding extends Encoding {
     case n: in.LowContext => unit(withSrc(SIFLowEventExp(), n))
     case n@ in.Rel(e, i) => for {
       ve <- ctx.expression(e)
-      // executions are numbered from 1 in Gobra, but from 0 in Viper's SIF extension
-      vi = vpr.IntLit(i.v - 1)(ve.pos, ve.info, ve.errT)
-    } yield withSrc(SIFRelExp(ve, vi), n)
+      vi <- ctx.expression(i)
+    } yield withSrc(SIFRelExp(ve, vi.asInstanceOf[vpr.IntLit]), n)
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {

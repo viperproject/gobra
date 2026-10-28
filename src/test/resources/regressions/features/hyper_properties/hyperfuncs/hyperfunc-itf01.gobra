@@ -9,10 +9,9 @@ package hyperfuncitf01
 type Container interface {
 	pred Mem()
 
-	ghost
 	requires Mem()
 	decreases
-	hyper pure LowContents() bool
+	hyperfunc LowContents() bool
 
 	requires acc(Mem(), 1/2) && LowContents()
 	ensures  acc(Mem(), 1/2) && low(res)
@@ -27,10 +26,9 @@ pred (p *Pair) Mem() {
 	acc(p)
 }
 
-ghost
 requires p.Mem()
 decreases
-hyper pure func (p *Pair) LowContents() bool {
+hyperfunc (p *Pair) LowContents() bool {
 	return unfolding p.Mem() in low(p.a) && low(p.b)
 }
 
@@ -60,10 +58,9 @@ pred (l *List) Mem() {
 	acc(l) && (l.next != nil ==> l.next.Mem())
 }
 
-ghost
 requires l.Mem()
 decreases l.Mem()
-hyper pure func (l *List) LowElems() bool {
+hyperfunc (l *List) LowElems() bool {
 	return unfolding l.Mem() in
 		low(l.val) && low(l.next == nil) && (l.next != nil ==> l.next.LowElems())
 }
@@ -86,7 +83,7 @@ func testHigh(x int) {
 	assert c.LowContents()
 }
 
-// The dynamic type of the receiver may differ between executions. Then, the result of a hyper interface method is
+// The dynamic type of the receiver may differ between executions. Then, the result of an interface hyperfunc is
 // unspecified, and it cannot be used to prove anything about the executions.
 requires c != nil && c.Mem()
 func testDispatch(c Container) {

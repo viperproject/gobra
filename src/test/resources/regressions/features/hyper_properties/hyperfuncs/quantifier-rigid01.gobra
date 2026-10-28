@@ -31,13 +31,13 @@ requires low(len(s)) && forall i int :: { s[i] } 0 <= i && i < len(s) ==> low(s[
 ensures  low(s)
 decreases
 func elementwise(s seq[int]) {
-	assert forall i int :: { s[i] } 0 <= i && i < len(s) ==> rel(s, 1)[i] == rel(s, 2)[i]
+	assert forall i int :: { s[i] } 0 <= i && i < len(s) ==> rel(s, 0)[i] == rel(s, 1)[i]
 }
 
 ghost
 requires low(len(s))
 requires exists i int :: { s[i] } 0 <= i && i < len(s) && low(s[i]) && s[i] > 0
-ensures  exists j int :: { s[j] } 0 <= j && j < len(s) && rel(s[j], 1) == rel(s[j], 2)
+ensures  exists j int :: { s[j] } 0 <= j && j < len(s) && rel(s[j], 0) == rel(s[j], 1)
 decreases
 func exist(s seq[int]) {
 }

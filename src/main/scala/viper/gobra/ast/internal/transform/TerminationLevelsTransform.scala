@@ -35,7 +35,7 @@ import scala.annotation.tailrec
   *
   * The atoms of the package under verification are ordered by the strongly connected components of its dependency
   * graph, where callees are below callers, a type is above its methods, and a member is above the types that it
-  * converts to interfaces and the function literals that it creates. The atoms of imported packages are below the
+  * converts to interfaces or whose method values it creates, and above the function literals that it creates. The atoms of imported packages are below the
   * atoms of their importers, but the order among the atoms of an imported package is not exposed. The order does not
   * depend on the textual order of declarations.
   *
@@ -62,7 +62,10 @@ object TerminationLevelsTransform extends InternalTransform {
   override def transform(p: in.Program): in.Program = {
     val seed = p.table.getTerminationOrder
     val (components, componentLt) = mainComponents(p, seed)
-    val order = seed.copy(mainComponent = components, componentLt = componentLt)
+    val methodOwner = p.members.collect {
+      case m: in.MethodMember if !isInterfaceMethod(m) => namedTypeOf(m.receiver.typ).map(t => TerminationAtom.method(m.name) -> TerminationAtom.namedType(t))
+    }.flatten.toMap
+    val order = seed.copy(mainComponent = components, componentLt = componentLt, methodOwner = methodOwner)
 
     val newMembers = p.members.map(m => addLevels(m, order)(p.table))
 
@@ -135,7 +138,9 @@ object TerminationLevelsTransform extends InternalTransform {
           case in.MethodCall(_, recv, meth, _) if !isInterface(recv.typ) => Vector(TerminationAtom.method(meth))
           case in.PureMethodCall(recv, meth, _, _, _) if !isInterface(recv.typ) => Vector(TerminationAtom.method(meth))
           case in.FunctionObject(func, _) => Vector(TerminationAtom.function(func))
-          case in.MethodObject(recv, meth, _) if !isInterface(recv.typ) => Vector(TerminationAtom.method(meth))
+          // the level of a method object is the level of its receiver, which includes the atom of the receiver's type
+          case in.MethodObject(recv, meth, _) if !isInterface(recv.typ) =>
+            TerminationAtom.method(meth) +: namedTypeOf(recv.typ).map(TerminationAtom.namedType).toVector
           case in.ClosureObject(func, _) => Vector(TerminationAtom.literal(func))
           case in.ToInterface(e, _) => namedTypeOf(e.typ).map(TerminationAtom.namedType).toVector
           case _ => Vector.empty

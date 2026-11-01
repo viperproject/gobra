@@ -31,9 +31,11 @@ class TerminationEncoding extends Encoding {
         /**
          * The last element of every tuple termination measure records whether the measure belongs to an interface
          * method (resp. closure spec), to an implementation proof, or to an implementation. These elements are ordered
-         * as follows: NonItfMethodMeasure < ProofMeasure < ItfMethodMeasure. Implementation proofs call the
-         * implementation and are called from the interface method, which turns the strict decrease required at these
-         * calls into a non-strict one: the measure of the implementation may be at most the measure of the interface.
+         * as follows: NonItfMethodMeasure < ProofMeasure < ItfMethodMeasure < ClosureProofMeasure. Implementation
+         * proofs call the implementation and are called from the interface method, which turns the strict decrease
+         * required at these calls into a non-strict one: the measure of the implementation may be at most the measure
+         * of the interface. Similarly, the call in a closure implementation proof (which may be the call of an
+         * interface method) may have at most the measure of the implemented spec.
          *
          * Termination measures of members of imported packages are marked, as their termination has already been
          * checked when verifying their package (see [[viper.gobra.translator.transformers.ModularTerminationTransformer]]).
@@ -104,9 +106,11 @@ class TerminationEncoding extends Encoding {
   )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
   private def nonItfMethodApp(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos) =
     vpr.DomainFuncApp(func = nonItfMethod, args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
+  private def closureProofApp(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos) =
+    vpr.DomainFuncApp(func = TerminationEncoding.closureProofMethod, args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
   private val termDomain = vpr.Domain(
     name = domainName,
-    functions = Seq(itfMethod, TerminationEncoding.proofMethod, nonItfMethod),
+    functions = Seq(itfMethod, TerminationEncoding.proofMethod, nonItfMethod, TerminationEncoding.closureProofMethod),
     axioms = Seq.empty,
     typVars = Seq.empty,
     interpretations = None
@@ -126,14 +130,28 @@ class TerminationEncoding extends Encoding {
    *    }
    *
    *    axiom {
+   *        decreasing(NonItfMethodMeasure(), ClosureProofMeasure()) && decreasing(ProofMeasure(), ClosureProofMeasure()) &&
+   *          decreasing(ItfMethodMeasure(), ClosureProofMeasure())
+   *    }
+   *
+   *    axiom {
    *        bounded(NonItfMethodMeasure())
    *    }
    *
    *    axiom {
    *        bounded(ItfMethodMeasure())
    *    }
+   *
+   *    axiom {
+   *        bounded(ClosureProofMeasure())
+   *    }
    * }
    */
+  private def decreasingApp(l: vpr.Exp, r: vpr.Exp): vpr.Exp = vpr.DomainFuncApp(
+    funcname = "decreasing",
+    args = Seq(l, r),
+    typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
+  )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
   private val wfOrderDomainName = "WellFoundedOrder"
   private val termDomainWFOrderName = domainName + "WellFoundedOrder"
   private val termDomainWFOrder = vpr.Domain(
@@ -162,6 +180,21 @@ class TerminationEncoding extends Encoding {
             typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
           )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
         )()
+      )(domainName = termDomainWFOrderName),
+      // decreasing(nonItfMethod, closureProof) && decreasing(proof, closureProof) && decreasing(itfMethod, closureProof)
+      vpr.AnonymousDomainAxiom(
+        exp = vpr.And(
+          decreasingApp(nonItfMethodApp(), closureProofApp()),
+          vpr.And(decreasingApp(proofApp(), closureProofApp()), decreasingApp(itfMethodApp(), closureProofApp()))()
+        )()
+      )(domainName = termDomainWFOrderName),
+      // bounded(closureProof)
+      vpr.AnonymousDomainAxiom(
+        exp = vpr.DomainFuncApp(
+          funcname = "bounded",
+          args = Seq(closureProofApp()),
+          typVarMap = Map(vpr.TypeVar("T") -> vpr.DomainType(termDomain, Map.empty))
+        )(vpr.NoPosition, vpr.NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, vpr.NoTrafos)
       )(domainName = termDomainWFOrderName),
       // bounded(proof)
       vpr.AnonymousDomainAxiom(
@@ -209,6 +242,13 @@ object TerminationEncoding {
     interpretation = None
   )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
 
+  private[typeless] val closureProofMethod = vpr.DomainFunc(
+    name = "ClosureProofMeasure",
+    formalArgs = Seq.empty,
+    typ = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty),
+    interpretation = None
+  )(vpr.NoPosition, vpr.NoInfo, domainName, vpr.NoTrafos)
+
   /** Marks the termination measures of members of imported packages. */
   case object ImportedMeasureInfo extends vpr.Info {
     override val comment: Seq[String] = Nil
@@ -219,11 +259,19 @@ object TerminationEncoding {
     * Turns the termination measures in `exp` (stemming from an interface method or closure spec) into measures of an
     * implementation proof by replacing their last element with `ProofMeasure()`.
     */
-  def toProofMeasure(exp: vpr.Exp, imported: Boolean): vpr.Exp = exp.transform {
+  def toProofMeasure(exp: vpr.Exp, imported: Boolean): vpr.Exp = replaceLastElement(exp, imported, proofMethod)
+
+  /**
+    * Turns the termination measure `exp` of a closure spec into the measure of a closure implementation proof by
+    * replacing its last element with `ClosureProofMeasure()`, which is above the last element of every other measure.
+    */
+  def toClosureProofMeasure(exp: vpr.Exp): vpr.Exp = replaceLastElement(exp, imported = false, closureProofMethod)
+
+  private def replaceLastElement(exp: vpr.Exp, imported: Boolean, last: vpr.DomainFunc): vpr.Exp = exp.transform {
     case t: termination.DecreasesTuple =>
       val newTuple = t.tupleExpressions.map(_.transform {
         case app: vpr.DomainFuncApp if app.funcname == "ItfMethodMeasure" || app.funcname == "NonItfMethodMeasure" =>
-          vpr.DomainFuncApp(proofMethod, Seq.empty, Map.empty)(app.pos, app.info, app.errT)
+          vpr.DomainFuncApp(last, Seq.empty, Map.empty)(app.pos, app.info, app.errT)
       })
       termination.DecreasesTuple(newTuple, t.condition)(t.pos, withImportedMarker(t.info, imported), t.errT)
     case w: termination.DecreasesWildcard =>

@@ -210,9 +210,13 @@ protected class ClosureSpecsEncoder {
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val notNil = in.ExprAssertion(in.UneqCmp(result, in.NilLit(genericFuncType)(info))(info))(info)
-    // the termination level of a closure is fixed when the closure is created
-    val level = in.ExprAssertion(in.EqCmp(in.LevelOf(result)(info), in.LevelAtom(ownAtom(func))(info))(info))(info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil :+ level, Vector.empty, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
+    // the termination level of a closure is fixed when the closure is created. Only terminating closures need a level,
+    // as only they can implement terminating specs; omitting the level for other closures keeps their encoding small
+    val member = memberOrLit(ctx)(func)
+    val level = Option.when(member.terminationMeasures.nonEmpty)(
+      in.ExprAssertion(in.EqCmp(in.LevelOf(result)(info), in.LevelAtom(ownAtom(func))(info))(info))(info)
+    )
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, (Vector(satisfiesSpec) ++ captAssertions :+ notNil) ++ level, Vector.empty, Vector.empty, None, false)(member.info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 

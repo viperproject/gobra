@@ -1779,8 +1779,11 @@ object TerminationAtom {
   *  - the atoms of the package under verification are grouped into the strongly connected components of its
   *    dependency graph (see [[viper.gobra.ast.internal.transform.TerminationLevelsTransform]]), which are ordered such
   *    that callees are below callers.
-  * Nothing else is known. In particular, the order among the atoms of an imported package is not known, which ensures
-  * that the termination specifications of imported packages do not depend on how these packages are implemented.
+  * Nothing else is known, except that the atom of a method is at most the atom of its receiver type. This holds in
+  * every package, because a type is above its methods in every dependency graph, and reveals nothing about how
+  * members are implemented. In particular, the order among the other atoms of an imported package is not known, which
+  * ensures that the termination specifications of imported packages do not depend on how these packages are
+  * implemented.
   *
   * @param mainPackage    the package under verification
   * @param atomPackage    maps the key of every known atom to the package declaring it
@@ -1789,6 +1792,7 @@ object TerminationAtom {
   * @param componentLt    the transitively closed strict order on the components of the package under verification
   * @param importedMembers keys (see [[TerminationAtom.member]]) of the members that stem from imported packages. The
   *                        termination of these members has been checked when verifying their package.
+  * @param methodOwner    maps the atoms of methods of named types to the atoms of their receiver types
   */
 case class TerminationOrder(
                              mainPackage: String,
@@ -1797,6 +1801,7 @@ case class TerminationOrder(
                              mainComponent: Map[String, Int],
                              componentLt: Set[(Int, Int)],
                              importedMembers: Set[String],
+                             methodOwner: Map[String, String] = Map.empty,
                            ) {
   def isMainAtom(key: String): Boolean = mainComponent.contains(key)
 
@@ -1810,6 +1815,14 @@ case class TerminationOrder(
       case _ => false
     }
   }
+
+  /**
+    * Returns true if `l` is known to be at most `r` but neither known to be strictly below `r` nor known to be equal to
+    * `r`, i.e., if `l` is the atom of a method of the type whose atom is `r` and the two atoms stem from an imported
+    * package (the components of the package under verification already account for these facts).
+    */
+  def atomAtMostOnly(l: String, r: String): Boolean =
+    methodOwner.get(l).contains(r) && !(isMainAtom(l) && isMainAtom(r)) && !atomLt(l, r)
 }
 
 object TerminationOrder {

@@ -40,12 +40,56 @@ class ModularTerminationTransformer extends ViperTransformer {
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     var errors: Seq[AbstractError] = Seq.empty
     val checks = new ModularTerminationChecks(task.program, e => errors :+= e)
-    val newProgram = checks.transformedProgram
+    val newProgram = ModularTerminationTransformer.pruneLevelEncoding(checks.transformedProgram)
     if (errors.nonEmpty) Left(errors) else Right(task.copy(program = newProgram))
   }
 }
 
 object ModularTerminationTransformer {
+  /**
+    * Removes the parts of the encoding of termination levels that the program does not use. The measures of members
+    * are encoded with levels, but many of these measures are hidden from the termination plugin and never used by
+    * a check. The unused declarations and axioms (in particular, the multiset theory of atoms) would only burden the
+    * SMT solver when verifying unrelated members.
+    */
+  def pruneLevelEncoding(p: vpr.Program): vpr.Program = {
+    val levelDomainNames = Set(LevelEncoding.levelDomainName, LevelEncoding.atomDomainName, s"${LevelEncoding.levelDomainName}WellFoundedOrder")
+    val (levelDomains, otherDomains) = p.domains.partition(d => levelDomainNames.contains(d.name))
+    if (levelDomains.isEmpty) return p
+
+    def mentionsLevelType(t: vpr.Type): Boolean = t match {
+      case vpr.DomainType(name, typVarsMap) => levelDomainNames.contains(name) || typVarsMap.values.exists(mentionsLevelType)
+      case vpr.MultisetType(e) => mentionsLevelType(e)
+      case vpr.SetType(e) => mentionsLevelType(e)
+      case vpr.SeqType(e) => mentionsLevelType(e)
+      case vpr.MapType(k, v) => mentionsLevelType(k) || mentionsLevelType(v)
+      case _ => false
+    }
+    val levelFuncNames = levelDomains.flatMap(_.functions.map(_.name)).toSet
+    val otherNodes: Seq[vpr.Node] = otherDomains ++ p.fields ++ p.functions ++ p.predicates ++ p.methods ++ p.extensions
+    val usedLevelFuncs = otherNodes.flatMap(_.deepCollect { case app: vpr.DomainFuncApp if levelFuncNames.contains(app.funcname) => app.funcname }).toSet
+    val usesLevelType = p.fields.exists(f => mentionsLevelType(f.typ)) || p.functions.exists(f => mentionsLevelType(f.typ)) ||
+      otherDomains.exists(_.functions.exists(f => mentionsLevelType(f.typ) || f.formalArgs.exists(a => mentionsLevelType(a.typ)))) ||
+      otherNodes.exists(_.existsDefined {
+      case e: vpr.Exp if mentionsLevelType(e.typ) =>
+      case d: vpr.LocalVarDecl if mentionsLevelType(d.typ) =>
+    })
+
+    if (usedLevelFuncs.isEmpty && !usesLevelType) {
+      p.copy(domains = otherDomains)(p.pos, p.info, p.errT)
+    } else {
+      // the functions relating types and closures to their levels are only needed if they are used
+      val unused = Set("$typeLevel", "$closureLevel").filterNot(usedLevelFuncs.contains)
+      def mentionsUnused(n: vpr.Node): Boolean = n.existsDefined { case app: vpr.DomainFuncApp if unused.contains(app.funcname) => }
+      val prunedLevelDomains = levelDomains.map { d =>
+        d.copy(functions = d.functions.filterNot(f => unused.contains(f.name)), axioms = d.axioms.filterNot(mentionsUnused))(d.pos, d.info, d.errT)
+      }
+      // keep the original order of the domains
+      val pruned = prunedLevelDomains.map(d => d.name -> d).toMap
+      p.copy(domains = p.domains.map(d => pruned.getOrElse(d.name, d)))(p.pos, p.info, p.errT)
+    }
+  }
+
   /** Attached to the loop encoding a closure implementation proof; `tuple` is the measure of the implemented spec. */
   case class ClosureProofTermination(tuple: DecreasesTuple) extends vpr.Info {
     override val comment: Seq[String] = Nil

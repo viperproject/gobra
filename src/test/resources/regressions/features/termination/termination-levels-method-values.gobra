@@ -1,0 +1,55 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Method values are closures whose level is the level of their receiver. Thus, they can implement terminating specs,
+// and calls through them are charged like calls of the method.
+
+type Counter struct{ n int }
+
+decreases
+func (c Counter) Get() int { return c.n }
+
+decreases
+func getSpec() int
+
+decreases
+func useMethodValue() int {
+	c := Counter{3}
+	f := c.Get
+	proof c.Get implements getSpec {
+		return c.Get()
+	}
+	return f() as getSpec
+}
+
+type Getter interface {
+	decreases
+	Get() int
+}
+
+Counter implements Getter
+
+requires g != nil
+decreases
+func useInterfaceMethodValue(g Getter) int {
+	f := g.Get
+	proof g.Get implements getSpec {
+		return g.Get()
+	}
+	return f() as getSpec
+}
+
+// A method value of the caller's own receiver type calls back into the caller.
+type Loop struct{}
+
+decreases
+func (l Loop) Run() int {
+	f := l.Run
+	proof l.Run implements getSpec {
+		return l.Run()
+	}
+	//:: ExpectedOutput(function_termination_error)
+	return f() as getSpec
+}

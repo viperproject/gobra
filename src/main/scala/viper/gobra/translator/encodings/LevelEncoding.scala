@@ -78,6 +78,8 @@ class LevelEncoding extends LeafTypeEncoding {
     }
   }
 
+  private val interfaces = new viper.gobra.translator.encodings.interfaces.InterfaceComponentImpl
+
   private def levelOf(e: in.Expr, src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = src.vprMeta
     ctx.underlyingType(e.typ) match {
@@ -86,7 +88,10 @@ class LevelEncoding extends LeafTypeEncoding {
         registerTypeLevels(ctx)
         val levelMethod = ctx.table.lookup(itf, TerminationLevelsTransform.levelMethodName).collect { case m: in.MethodProxy => m }
         for {
-          dynType <- ctx.expression(in.TypeOf(e)(src.info))
+          // the dynamic type is projected directly from the interface value, as `typeOf` would introduce a function
+          // and a type constant for the interface even if the level is never used
+          itfValue <- ctx.expression(e)
+          dynType = interfaces.dynTypeOf(itfValue)(pos, info, errT)(ctx)
           typeLevel = vpr.DomainFuncApp(typeLevelFunc(dynType.typ), Seq(dynType), Map.empty)(pos, info, errT)
           res <- levelMethod match {
             case Some(proxy) =>
@@ -157,14 +162,15 @@ class LevelEncoding extends LeafTypeEncoding {
   private def registerTypeLevels(ctx: Context): Unit = if (!typeLevelsRegistered) {
     typeLevelsRegistered = true
     val src = in.LevelEmpty()(viper.gobra.reporting.Source.Parser.Internal)
-    val namedImpls = ctx.table.getImplementations.values.flatten.toSet.flatMap((t: in.Type) => TerminationLevelsTransform.namedTypeOf(t).map(_ -> t))
-    typeLevelAxioms = namedImpls.map(_._1).toVector.sorted.flatMap { name =>
+    // only the types that implement interfaces (named types and pointers to named types) can be dynamic types
+    val namedImpls: Vector[(String, in.TypeExpr)] = ctx.table.getImplementations.values.flatten.toVector.distinct.collect {
+      case d: in.DefinedT => d.name -> (in.DefinedTExpr(d.name)(src.info): in.TypeExpr)
+      case in.PointerT(d: in.DefinedT, _) => d.name -> (in.PointerTExpr(in.DefinedTExpr(d.name)(src.info))(src.info): in.TypeExpr)
+    }
+    typeLevelAxioms = namedImpls.sortBy(i => (i._1, i._2.isInstanceOf[in.PointerTExpr])).map { case (name, te) =>
       val level = atomLevel(in.TerminationAtom.namedType(name), src)(ctx)
-      val typeExprs = Vector(in.DefinedTExpr(name)(src.info), in.PointerTExpr(in.DefinedTExpr(name)(src.info))(src.info))
-      typeExprs.map { te =>
-        val vTe = ctx.expression(te).res
-        vpr.EqCmp(vpr.DomainFuncApp(typeLevelFunc(vTe.typ), Seq(vTe), Map.empty)(), level)(): vpr.Exp
-      }
+      val vTe = ctx.expression(te).res
+      vpr.EqCmp(vpr.DomainFuncApp(typeLevelFunc(vTe.typ), Seq(vTe), Map.empty)(), level)(): vpr.Exp
     }
   }
 
@@ -193,12 +199,21 @@ class LevelEncoding extends LeafTypeEncoding {
         (r, fr) <- atoms
         if fl != fr && order.atomLt(l, r)
       } yield vpr.DomainFuncApp(atomLtFunc, Seq(vpr.DomainFuncApp(fl, Seq.empty, Map.empty)(), vpr.DomainFuncApp(fr, Seq.empty, Map.empty)()), Map.empty)()
+      // the atom of a method of an imported type is at most the atom of the type
+      val atMostAxioms = for {
+        (l, fl) <- atoms
+        (r, fr) <- atoms
+        if fl != fr && order.atomAtMostOnly(l, r)
+      } yield {
+        val (al, ar) = (vpr.DomainFuncApp(fl, Seq.empty, Map.empty)(), vpr.DomainFuncApp(fr, Seq.empty, Map.empty)())
+        vpr.Or(vpr.DomainFuncApp(atomLtFunc, Seq(al, ar), Map.empty)(), vpr.EqCmp(al, ar)())(): vpr.Exp
+      }
       // the nil closure cannot be called; its level is empty
       val nilClosureAxiom = closureLevelFuncOpt.map { f =>
         val nil = vpr.DomainFuncApp(Names.closureNilFunc, Seq.empty, Map.empty)(vpr.NoPosition, vpr.NoInfo, f.formalArgs.head.typ, Names.closureDomain, vpr.NoTrafos)
         vpr.EqCmp(vpr.DomainFuncApp(f, Seq(nil), Map.empty)(), vpr.DomainFuncApp(lvlFunc, Seq(vpr.EmptyMultiset(atomType)()), Map.empty)())()
       }
-      val axioms = (orderAxioms.distinct ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
+      val axioms = (orderAxioms.distinct ++ atMostAxioms.distinct ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
       val functions = (mainAtoms.values ++ importedAtoms.values).toVector.sortBy(_.name) ++ typeLevelFuncOpt ++ closureLevelFuncOpt
       addMemberFn(vpr.Domain(atomDomainName, functions, axioms)())
     }

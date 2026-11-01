@@ -195,7 +195,7 @@ class ClosureEncoding(config: Config) extends LeafTypeEncoding {
           specMeasures <- cl.sequence(proof.terminationMeasures.map(ctx.assertion))
           // calls in the proof are compared with the termination measure of the spec (see [[ModularTerminationTransformer]])
           proofInfo = specMeasures.collectFirst { case t: termination.DecreasesTuple =>
-            ModularTerminationTransformer.ClosureProofTermination(TerminationEncoding.toProofMeasure(t, imported = false).asInstanceOf[termination.DecreasesTuple])
+            ModularTerminationTransformer.ClosureProofTermination(TerminationEncoding.toClosureProofMeasure(t).asInstanceOf[termination.DecreasesTuple])
           }.fold(info)(vpr.MakeInfoPair(_, info))
         } yield vpr.While(numIterationsGT0, Seq(invNumIterationsIsLow, terminationMeasure), whileBody)(pos, proofInfo, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()(pos, info, errT))(pos, info, errT)

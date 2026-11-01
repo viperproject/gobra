@@ -18,7 +18,6 @@ import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResu
 import scala.concurrent.{Await, Future, Promise}
 import viper.gobra.util.{AbortSignal, GobraExecutionContext}
 import viper.server.core.{CarbonConfig, SiliconConfig, VerificationExecutionContext, ViperBackendConfig, ViperCoreServer, ViperServerBackendNotFoundException}
-import viper.server.frontends.lsp.ViperServerService
 
 import scala.concurrent.duration.Duration
 
@@ -109,12 +108,7 @@ class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig, a
     // interrupt this backend verification as soon as the verification is aborted. The listener is
     // registered only after the message stream has been attached. Note that the listener is invoked
     // immediately in case the verification was aborted since the check above:
-    abortSignal.onAbort(() => server match {
-      case service: ViperServerService => service.stopVerification(handle)
-      case _ =>
-        // the underlying server does not expose an API to interrupt single jobs -- the job keeps
-        // running but its result is suppressed by the caller
-    })
+    abortSignal.onAbort(() => server.interruptVerification(handle))
     EitherT.rightT(promise.future)
   }
 }

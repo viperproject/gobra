@@ -47,6 +47,13 @@ class ModularTerminationTransformer extends ViperTransformer {
 
 object ModularTerminationTransformer {
   /**
+    * Part of the names of the methods that check the termination of functions. The checks are not relational, which
+    * is why hyper-property verification only considers one execution of these methods (see
+    * [[viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl]]).
+    */
+  val checkMethodMarker: String = "termination_levels"
+
+  /**
     * Removes the parts of the encoding of termination levels that the program does not use. The measures of members
     * are encoded with levels, but many of these measures are hidden from the termination plugin and never used by
     * a check. The unused declarations and axioms (in particular, the multiset theory of atoms) would only burden the
@@ -244,7 +251,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == LevelEncoding.atomType => a
     }
     def count(atom: vpr.Exp, level: vpr.Exp): vpr.Exp =
-      vpr.GeCmp(vpr.AnySetContains(atom, vpr.DomainFuncApp(LevelEncoding.atomsFunc, Seq(level), Map.empty)())(), vpr.IntLit(0)())()
+      vpr.GeCmp(vpr.DomainFuncApp(LevelEncoding.countFunc, Seq(atom, level), Map.empty)(), vpr.IntLit(0)())()
     if (callerLevel.typ != LevelEncoding.levelType || calleeLevel.typ != LevelEncoding.levelType) Seq.empty
     else (atoms(callerLevel) ++ atoms(calleeLevel)).distinct.map { atom =>
       vpr.Assert(vpr.And(count(atom, calleeLevel), count(atom, callerLevel))())()
@@ -287,7 +294,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       val simplified = Simplifier.simplify(check)
       val withNested = if (containsPredicateInstances(spec.spec)) addNestedPredicateInformation.execute[vpr.Stmt](simplified) else simplified
       if (isEmptyStatement(withNested)) None
-      else Some(vpr.Method(uniqueName(s"${f.name}_$suffix"), f.formalArgs, Nil, methodPres, Nil,
+      else Some(vpr.Method(uniqueName(s"${f.name}_${suffix}_$checkMethodMarker"), f.formalArgs, Nil, methodPres, Nil,
         Some(vpr.Seqn(Seq(withNested), decls)()))(f.pos, f.info, f.errT))
     }
 
@@ -296,21 +303,21 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
 
     val bodyCheck = f.body.flatMap { body =>
       val context = FunctionContext(f, oldTuple, oldCondition)
-      method("termination_levels", pres, transformExp(body, context, inhaleExp = false), context.conditionInEx.toSeq)
+      method("body", pres, transformExp(body, context, inhaleExp = false), context.conditionInEx.toSeq)
     }
 
     val postsCheck = if (posts.isEmpty) None else {
       val context = FunctionContext(f, oldTuple, oldCondition)
       val result = vpr.LocalVarDecl(uniqueName("$result"), f.typ)()
       val conjunction = posts.map(_.transform({ case vpr.Result(_) => result.localVar }, Traverse.BottomUp)).reduce[vpr.Exp](vpr.And(_, _)())
-      method("posts_termination_levels", pres, transformExp(conjunction, context, inhaleExp = false), result +: context.conditionInEx.toSeq)
+      method("posts", pres, transformExp(conjunction, context, inhaleExp = false), result +: context.conditionInEx.toSeq)
     }
 
     // in preconditions, the caller's measure is evaluated at the call, as the precondition is not yet established
     val presCheck = if (pres.isEmpty) None else {
       val context = FunctionContext(f, tuple.tupleExpressions, tuple.condition)
       val conjunction = pres.reduce[vpr.Exp](vpr.And(_, _)())
-      method("pres_termination_levels", Seq.empty, transformExp(conjunction, context, inhaleExp = true), context.conditionInEx.toSeq)
+      method("pres", Seq.empty, transformExp(conjunction, context, inhaleExp = true), context.conditionInEx.toSeq)
     }
 
     bodyCheck.toSeq ++ postsCheck ++ presCheck

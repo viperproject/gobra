@@ -29,11 +29,21 @@ import viper.silver.{ast => vpr}
   *   function $atomLt(a: $Atom, b: $Atom): Bool
   *   axiom { forall a :: { $atomLt(a, a) } !$atomLt(a, a) }
   *
+  *   function $union(l: $Level, r: $Level): $Level
+  *   axiom { forall l, r :: { $union(l, r) } $atoms($union(l, r)) == $atoms(l) union $atoms(r) }
+  *
+  *   // multiplicities: $cnt triggers the definition of the order, $cntW (for witnesses) does not
+  *   function $cnt(x: $Atom, l: $Level): Int
+  *   function $cntW(x: $Atom, l: $Level): Int
+  *   axiom { forall x, l :: { $cnt(x, l) } $cnt(x, l) == (x in $atoms(l)) }
+  *   axiom { forall x, l :: { $cntW(x, l) } $cntW(x, l) == (x in $atoms(l)) }
+  *   axiom { forall x, l, r :: { $cnt(x, $union(l, r)) } $cnt(x, $union(l, r)) == $cnt(x, l) + $cnt(x, r) }
+  *
   *   // Huet-Oppen characterization of the multiset ordering
   *   function $levelLt(l: $Level, r: $Level): Bool
   *   axiom { forall l, r :: { $levelLt(l, r) } $levelLt(l, r) <==> $atoms(l) != $atoms(r) &&
-  *             forall x :: { x in $atoms(l) } { x in $atoms(r) } (x in $atoms(l)) > (x in $atoms(r)) ==>
-  *               exists y :: { $atomLt(x, y) } $atomLt(x, y) && (y in $atoms(r)) > (y in $atoms(l)) }
+  *             forall x :: { $cnt(x, l) } { $cnt(x, r) } $cnt(x, l) > $cnt(x, r) ==>
+  *               exists y :: { $atomLt(x, y) } $atomLt(x, y) && $cntW(y, r) > $cntW(y, l) }
   *
   *   // the greater of two levels w.r.t. some (unknown) linearization of the order
   *   function $levelMax(l: $Level, r: $Level): $Level
@@ -236,10 +246,7 @@ class LevelEncoding extends LeafTypeEncoding {
     app(lvlFunc, Seq(vpr.EmptyMultiset(atomType)(pos, info, errT)), src)
   }
 
-  private def union(l: vpr.Exp, r: vpr.Exp, src: in.Node): vpr.Exp = {
-    val (pos, info, errT) = src.vprMeta
-    app(lvlFunc, Seq(vpr.AnySetUnion(app(atomsFunc, Seq(l), src), app(atomsFunc, Seq(r), src))(pos, info, errT)), src)
-  }
+  private def union(l: vpr.Exp, r: vpr.Exp, src: in.Node): vpr.Exp = app(unionFunc, Seq(l, r), src)
 
   private def sanitize(key: String): String = key.map(c => if (c.isLetterOrDigit || c == '_') c else '_')
 }
@@ -257,6 +264,11 @@ object LevelEncoding {
   private val atomLtFunc = vpr.DomainFunc("$atomLt", Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelLtFunc = vpr.DomainFunc("$levelLt", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelMaxFunc = vpr.DomainFunc("$levelMax", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
+  private val unionFunc = vpr.DomainFunc("$union", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
+  /** The multiplicity of an atom in a level; its applications trigger the definition of the order on levels. */
+  val countFunc: vpr.DomainFunc = vpr.DomainFunc("$cnt", Seq(vpr.LocalVarDecl("x", atomType)(), vpr.LocalVarDecl("l", levelType)()), vpr.Int)(domainName = levelDomainName)
+  /** The multiplicity of an atom in a level, used for the witnesses of the order; it triggers nothing (see below). */
+  private val witnessCountFunc = vpr.DomainFunc("$cntW", Seq(vpr.LocalVarDecl("x", atomType)(), vpr.LocalVarDecl("l", levelType)()), vpr.Int)(domainName = levelDomainName)
 
   private def call(f: vpr.DomainFunc, args: vpr.Exp*): vpr.DomainFuncApp = vpr.DomainFuncApp(f, args, Map.empty)()
 
@@ -277,10 +289,31 @@ object LevelEncoding {
     val irreflexive = vpr.Forall(Seq(a), Seq(vpr.Trigger(Seq(call(atomLtFunc, a.localVar, a.localVar)))()),
       vpr.Not(call(atomLtFunc, a.localVar, a.localVar))())()
 
-    val xInL = count(x, atoms(l))
-    val xInR = count(x, atoms(r))
-    val yInL = count(y, atoms(l))
-    val yInR = count(y, atoms(r))
+    val unionLR = call(unionFunc, l.localVar, r.localVar)
+    val unionDef = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(unionLR))()),
+      vpr.EqCmp(call(atomsFunc, unionLR), vpr.AnySetUnion(atoms(l), atoms(r))())())()
+
+    // both count functions are the multiplicity of an atom in a level
+    val countDef = vpr.Forall(Seq(x, l), Seq(vpr.Trigger(Seq(call(countFunc, x.localVar, l.localVar)))()),
+      vpr.EqCmp(call(countFunc, x.localVar, l.localVar), count(x, atoms(l)))())()
+    val witnessCountDef = vpr.Forall(Seq(x, l), Seq(vpr.Trigger(Seq(call(witnessCountFunc, x.localVar, l.localVar)))()),
+      vpr.EqCmp(call(witnessCountFunc, x.localVar, l.localVar), count(x, atoms(l)))())()
+    // the multiplicities in a union are the sums of the multiplicities in its operands, which exposes the
+    // multiplicities in the operands to the definition of the order
+    val countUnion = vpr.Forall(Seq(x, l, r), Seq(vpr.Trigger(Seq(call(countFunc, x.localVar, unionLR)))()),
+      vpr.EqCmp(call(countFunc, x.localVar, unionLR), vpr.Add(call(countFunc, x.localVar, l.localVar), call(countFunc, x.localVar, r.localVar))())())()
+
+    /*
+     * Huet-Oppen characterization of the multiset ordering. The universally quantified atom `x` is matched via `$cnt`,
+     * whereas the witnesses `y` are stated with `$cntW`. Both are the multiplicity of an atom, but only the former
+     * triggers the quantifier. Otherwise, each witness would trigger the quantifier again, whose instantiation would
+     * produce a new witness, and so on (a matching loop that occurs as soon as some `l < r` is assumed, e.g., after a
+     * termination check).
+     */
+    val xInL = call(countFunc, x.localVar, l.localVar)
+    val xInR = call(countFunc, x.localVar, r.localVar)
+    val yInL = call(witnessCountFunc, y.localVar, l.localVar)
+    val yInR = call(witnessCountFunc, y.localVar, r.localVar)
     val dominated = vpr.Exists(Seq(y), Seq(vpr.Trigger(Seq(call(atomLtFunc, x.localVar, y.localVar)))()),
       vpr.And(call(atomLtFunc, x.localVar, y.localVar), vpr.GtCmp(yInR, yInL)())())()
     val huetOppen = vpr.Forall(Seq(x), Seq(vpr.Trigger(Seq(xInL))(), vpr.Trigger(Seq(xInR))()),
@@ -300,8 +333,8 @@ object LevelEncoding {
 
     vpr.Domain(
       levelDomainName,
-      Seq(lvlFunc, atomsFunc, atomLtFunc, levelLtFunc, levelMaxFunc),
-      Seq(lvlInj, atomsInj, irreflexive, ltDef, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
+      Seq(lvlFunc, atomsFunc, atomLtFunc, levelLtFunc, levelMaxFunc, unionFunc, countFunc, witnessCountFunc),
+      Seq(lvlInj, atomsInj, irreflexive, unionDef, countDef, witnessCountDef, countUnion, ltDef, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
     )()
   }
 

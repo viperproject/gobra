@@ -25,7 +25,7 @@ calls. With the default levels, `decreases` and `decreases n` keep their meaning
 makes static calls needs no new annotations. Contracts reveal only what [JBK] argues no modular approach
 can hide:
 
-* whether a member makes its arguments call each other (§3.2);
+* whether a member makes its arguments call each other (§3.3);
 * how wrapper objects relate to the objects they call. This goes through an abstract `TerminationLevel()`
   method (§4).
 
@@ -272,12 +272,20 @@ SCC atoms, adds the levels of §3.1 as the first measure component, and marks im
 ```
 domain $Atom   { unique-per-SCC functions $atom_c<i> for the package; non-unique ones for imported atoms;
                  $atomLt facts: SCC DAG (transitively closed), imported < main, import order }
-domain $Level  { $lvl(Multiset[$Atom]) / $atoms(l) bijection;
+domain $Level  { $lvl(Multiset[$Atom]) / $atoms(l) bijection; $union(l, r);
+                 $cnt(x, l), $cntW(x, l): multiplicities, $cnt decomposes over $union;
                  $levelLt: Huet–Oppen characterization of the multiset order;
                  $levelMax: one of its arguments, and at least both }
 $typeLevel(t)    the atom of a dynamic type, axiomatized for the package's named types
 $closureLevel(c) the level of a closure value
 ```
+
+The universally quantified atom of the Huet–Oppen characterization is matched through `$cnt`. The
+existential witness is stated with `$cntW`. Both are the multiset count, but only `$cnt` triggers the
+quantifier. With a single count function, every assumed `l < r` would start a matching loop, because
+each witness re-triggers the quantifier and produces a new witness. Every check that passes is
+afterwards assumed, so this happened routinely. A five-method test drove Z3 past 7 GB before the split
+and verifies in 10 s after it.
 
 Termination measures get a `WellFoundedOrder` instance for `$Level`. Before each comparison, Gobra emits
 *level hints*: the multiplicities of the syntactically occurring atoms. These let Z3 decide the typical

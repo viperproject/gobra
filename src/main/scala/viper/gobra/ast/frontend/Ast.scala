@@ -681,6 +681,8 @@ case class PBoolType() extends PActualPredeclaredType("bool")
 case class PStringType() extends PActualPredeclaredType("string")
 case class PPermissionType() extends PGhostPredeclaredType("perm")
 case class PIntegerGhostType() extends PGhostPredeclaredType("integer") with PIntegerType
+/** Termination levels (finite multisets of termination atoms) used to state termination measures modularly */
+case class PLevelType() extends PGhostPredeclaredType("level")
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PActualPredeclaredType("int") with PIntegerType

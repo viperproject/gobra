@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Regression test for https://github.com/viperproject/gobra/issues/1105: a cycle through a dynamically bound call
+// in an imported package is detected in the package that closes the cycle, without access to the imported bodies.
+
+// ##(-I ./)
+import "util"
+
+type T struct{}
+
+decreases
+func (t T) M() {
+	// T.M -> util.Loop -> i.M() -> T.M: the level of the call includes the level of `t`, which is not below T.M
+	//:: ExpectedOutput(function_termination_error)
+	util.Loop(t)
+}
+
+T implements util.I
+
+type U struct{}
+
+decreases
+func (u U) M() {}
+
+U implements util.I
+
+type V struct{}
+
+// Passing an object whose methods do not call back is fine: U is below V.M as V.M converts U to util.I.
+decreases
+func (v V) M() {
+	util.Loop(U{})
+}
+
+V implements util.I
+
+decreases
+func client() {
+	var i util.I = V{}
+	i.M()
+	util.Loop(i)
+}
+
+func main() {
+	var i util.I = T{}
+	i.M()
+}

@@ -179,6 +179,9 @@ object Type {
 
   case object PermissionT extends PrettyType(s"perm") with GhostType
 
+  /** Termination levels, i.e., finite multisets of termination atoms ordered by the multiset ordering */
+  case object LevelT extends PrettyType(s"level") with GhostType
+
   @tailrec
   def source(t: Type): Option[(PNode, ExternalTypeInfo)] = {
     t match {

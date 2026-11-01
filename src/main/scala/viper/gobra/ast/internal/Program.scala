@@ -49,6 +49,7 @@ class LookupTable(
                    */
                    private[internal] val directInterfaceImplementations: Map[InterfaceT, SortedSet[Type]] = Map.empty,
                    private[internal] val implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = Map.empty,
+                   private[internal] val terminationOrder: Option[TerminationOrder] = None,
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
@@ -73,6 +74,8 @@ class LookupTable(
     }
   }
 
+  def getTerminationOrder: TerminationOrder = terminationOrder.getOrElse(TerminationOrder.empty)
+
   def getImplementations: Map[InterfaceT, SortedSet[Type]] = transitiveInterfaceImplementations
   def getMembers: Map[Type, SortedSet[MemberProxy]] = transitiveMemberProxies
 
@@ -86,6 +89,7 @@ class LookupTable(
     directMemberProxies ++ other.directMemberProxies,
     directInterfaceImplementations ++ other.directInterfaceImplementations,
     implementationProofPredicateAliases ++ other.implementationProofPredicateAliases,
+    other.terminationOrder.orElse(terminationOrder),
   )
 
   private lazy val (transitiveInterfaceImplementations, transitiveMemberProxies) = {
@@ -1220,6 +1224,44 @@ case class PureFunctionLit(
   require(results.size <= 1)
 }
 
+/** The level containing exactly the termination atom with key `key` (see [[TerminationAtom]]). */
+case class LevelAtom(key: String)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
+/** The empty level, which is below every other level. */
+case class LevelEmpty()(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
+/** Multiset union of two levels. */
+case class LevelUnion(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
+/** The greater of two levels (with respect to a fixed linearization of the order on levels). */
+case class LevelMax(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
+/** Strict multiset ordering on levels. */
+case class LevelLess(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.rValue)
+}
+
+/** Reflexive closure of [[LevelLess]]. */
+case class LevelAtMost(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.rValue)
+}
+
+/**
+  * The termination level of `exp`, which is an interface value, a function value (closure), or a value of a named type.
+  * The level bounds the calls that can be performed through `exp`.
+  */
+case class LevelOf(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
 case class ClosureImplements(closure: Expr, spec: ClosureSpec)(override val info: Source.Parser.Info) extends Expr {
   override def typ: Type = BoolT(Addressability.rValue)
 }
@@ -1229,7 +1271,12 @@ case class ClosureSpec(func: FunctionMemberOrLitProxy, params: Map[Int, Expr])(o
     if (params.isEmpty) Vector.empty else (1 to params.keySet.max).map(idx => params.get(idx)).toVector
 }
 
-case class SpecImplementationProof(closure: Expr, spec: ClosureSpec, body: Block, pres: Vector[Assertion], posts: Vector[Assertion])
+/**
+  * Proof that `closure` implements `spec`. `terminationMeasures` are the termination measures of `spec` instantiated
+  * for the proof, whose arguments are `args`.
+  */
+case class SpecImplementationProof(closure: Expr, spec: ClosureSpec, body: Block, pres: Vector[Assertion], posts: Vector[Assertion],
+                                   terminationMeasures: Vector[TerminationMeasure], args: Vector[Expr])
                                   (override val info: Source.Parser.Info) extends Stmt
 
 case class ClosureObject(func: FunctionLitProxy, override val typ: Type)(override val info: Source.Parser.Info) extends Expr
@@ -1415,6 +1462,12 @@ case class FunctionT(args: Vector[Type], res: Vector[Type], addressability: Addr
   }
 
   override def withAddressability(newAddressability: Addressability): FunctionT = FunctionT(args, res, newAddressability)
+}
+
+/** Termination levels, i.e., finite multisets of termination atoms (see [[TerminationOrder]]). */
+case class LevelT(addressability: Addressability) extends PrettyType("level") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[LevelT]
+  override def withAddressability(newAddressability: Addressability): LevelT = LevelT(newAddressability)
 }
 
 case class PermissionT(addressability: Addressability) extends PrettyType("perm") {
@@ -1699,3 +1752,66 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 case class GlobalVarProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+
+/**
+  * Identifies the termination atom of a declaration. Every function, method, function literal, and named type
+  * declared in a package has an atom. Atoms are compared by the order described in [[TerminationOrder]].
+  */
+object TerminationAtom {
+  def function(f: FunctionProxy): String = s"f:${f.name}"
+  def method(m: MethodProxy): String = s"m:${m.uniqueName}"
+  def literal(l: FunctionLitProxy): String = s"l:${l.name}"
+  def namedType(name: String): String = s"t:$name"
+
+  /** Key identifying a member across the packages of a program, if the member can carry a termination measure. */
+  def member(m: Member): Option[String] = m match {
+    case f: FunctionMember => Some(function(f.name))
+    case m: MethodMember => Some(method(m.name))
+    case p: MethodSubtypeProof => Some(s"p:${p.subProxy.uniqueName}:${p.superProxy.uniqueName}")
+    case p: PureMethodSubtypeProof => Some(s"p:${p.subProxy.uniqueName}:${p.superProxy.uniqueName}")
+    case _ => None
+  }
+}
+
+/**
+  * The order on termination atoms that the encoding of the package under verification may assume:
+  *  - every atom of a package `p` is below every atom of each package that (transitively) imports `p`, and
+  *  - the atoms of the package under verification are grouped into the strongly connected components of its
+  *    dependency graph (see [[viper.gobra.ast.internal.transform.TerminationLevelsTransform]]), which are ordered such
+  *    that callees are below callers.
+  * Nothing else is known. In particular, the order among the atoms of an imported package is not known, which ensures
+  * that the termination specifications of imported packages do not depend on how these packages are implemented.
+  *
+  * @param mainPackage    the package under verification
+  * @param atomPackage    maps the key of every known atom to the package declaring it
+  * @param packageImports maps every package to the packages that it transitively imports
+  * @param mainComponent  maps the atoms of the package under verification to their strongly connected component
+  * @param componentLt    the transitively closed strict order on the components of the package under verification
+  * @param importedMembers keys (see [[TerminationAtom.member]]) of the members that stem from imported packages. The
+  *                        termination of these members has been checked when verifying their package.
+  */
+case class TerminationOrder(
+                             mainPackage: String,
+                             atomPackage: Map[String, String],
+                             packageImports: Map[String, Set[String]],
+                             mainComponent: Map[String, Int],
+                             componentLt: Set[(Int, Int)],
+                             importedMembers: Set[String],
+                           ) {
+  def isMainAtom(key: String): Boolean = mainComponent.contains(key)
+
+  def isImported(m: Member): Boolean = TerminationAtom.member(m).exists(importedMembers.contains)
+
+  /** Returns true if `l` is known to be strictly below `r`. */
+  def atomLt(l: String, r: String): Boolean = (mainComponent.get(l), mainComponent.get(r)) match {
+    case (Some(cl), Some(cr)) => componentLt.contains((cl, cr))
+    case _ => (atomPackage.get(l), atomPackage.get(r)) match {
+      case (Some(pl), Some(pr)) => pl != pr && packageImports.getOrElse(pr, Set.empty).contains(pl)
+      case _ => false
+    }
+  }
+}
+
+object TerminationOrder {
+  val empty: TerminationOrder = TerminationOrder("", Map.empty, Map.empty, Map.empty, Set.empty, Set.empty)
+}

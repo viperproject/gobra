@@ -505,6 +505,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             } else noMessages
             assignable ++ applicable
           case (_: PAdd, StringT, StringT) => noMessages
+          case (_: PAdd, LevelT, LevelT) => noMessages
+          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == LevelT || r == LevelT =>
+            error(n, s"levels can only be combined with '+' (multiset union) and with other levels, but got $l and $r")
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(UnboundedFloatT, Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)

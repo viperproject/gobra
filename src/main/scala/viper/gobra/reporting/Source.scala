@@ -34,6 +34,8 @@ object Source {
   case class InsufficientPermissionToRangeExpressionAnnotation() extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
   case class InvalidImplTermMeasureAnnotation() extends Annotation
+  /** Marks the termination measures of members of imported packages, whose termination has already been checked. */
+  case object ImportedTerminationMeasureAnnotation extends Annotation
   case class IsInvariantAnnotation() extends Annotation
   case class InvariantMightBeOpenAnnotation() extends Annotation
   case class InvariantNotRestoredAnnotation() extends Annotation

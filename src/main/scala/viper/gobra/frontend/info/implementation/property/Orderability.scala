@@ -15,6 +15,7 @@ trait Orderability extends BaseProperty { this: TypeInfoImpl =>
     case Single(st) => underlyingType(st) match {
       case _: IntT => true
       case PermissionT => true
+      case LevelT => true
       case _: FloatT => true
       case StringT => true
       case _ => false

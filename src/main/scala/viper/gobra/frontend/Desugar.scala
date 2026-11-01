@@ -13,6 +13,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
+import viper.gobra.ast.internal.transform.TerminationLevelsTransform
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
@@ -41,12 +42,15 @@ object Desugar extends LazyLogging {
     val packageInitCollector = new PackageInitSpecCollector
 
     val importedDesugaringDurationMs = new AtomicLong(0)
+    // the package (identified by its Viper id) that each desugarer desugars
+    var packageOfDesugarer: Map[Desugarer, String] = Map.empty
     val importedPrograms = info.getTransitiveTypeInfos(includeThis = false).toSeq.map { tI =>
       val importedDesugaringStartMs = System.currentTimeMillis()
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector)
       val res = (d, d.packageD(importedPackage, isImportedPkg  = true))
+      packageOfDesugarer += d -> tI.pkgInfo.viperId
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
     }
@@ -69,20 +73,43 @@ object Desugar extends LazyLogging {
       s"desugaring imported packages done, took ${importedDurationS}s"
     }
 
+    packageOfDesugarer += mainDesugarer -> info.pkgInfo.viperId
+    val packageImports = info.getTransitiveTypeInfos().toSeq.map { tI =>
+      tI.pkgInfo.viperId -> tI.getTransitiveTypeInfos(includeThis = false).map(_.pkgInfo.viperId)
+    }.toMap
+
     // combine all desugared results into one Viper program:
-    val internalProgram = combine(mainDesugarer, mainProgram, importedPrograms)
+    val internalProgram = combine(mainDesugarer, mainProgram, importedPrograms, packageOfDesugarer, packageImports)
     config.reporter report DesugaredMessage(config.packageInfoInputMap(pkg.info).map(_.name), () => internalProgram)
     internalProgram
   }
 
-  private def combine(mainDesugarer: Desugarer, mainProgram: in.Program, imported: Iterable[(Desugarer, in.Program)]): in.Program = {
+  private def combine(mainDesugarer: Desugarer, mainProgram: in.Program, imported: Iterable[(Desugarer, in.Program)], packageOfDesugarer: Map[Desugarer, String], packageImports: Map[String, Set[String]]): in.Program = {
     val importedDesugarers = imported.map(_._1)
     val importedPrograms = imported.map(_._2)
     val types = mainProgram.types ++ importedPrograms.flatMap(_.types)
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
     val (table, builtInMembers) = combineLookupTable(mainDesugarer +: importedDesugarers.toSeq)
-    in.Program(types, builtInMembers.toVector ++ members, table)(mainProgram.info)
+    val terminationOrder = terminationOrderSeed(mainDesugarer, mainProgram, imported, packageOfDesugarer, packageImports)
+    val tableWithOrder = table.merge(new in.LookupTable(terminationOrder = Some(terminationOrder)))
+    in.Program(types, builtInMembers.toVector ++ members, tableWithOrder)(mainProgram.info)
   }
+
+  /**
+    * Records which package declares each termination atom and which packages are imported by which. The order among
+    * the atoms of the main package is computed by [[viper.gobra.ast.internal.transform.TerminationLevelsTransform]].
+    */
+  private def terminationOrderSeed(mainDesugarer: Desugarer, mainProgram: in.Program, imported: Iterable[(Desugarer, in.Program)], packageOfDesugarer: Map[Desugarer, String], packageImports: Map[String, Set[String]]): in.TerminationOrder = {
+    val programs = (mainDesugarer, mainProgram) +: imported.toSeq
+    val atomPackage = programs.flatMap { case (d, prog) =>
+      val pkg = packageOfDesugarer(d)
+      val typeAtoms = d.definedTypes.keys.map { case (name, _) => in.TerminationAtom.namedType(name) }
+      (TerminationLevelsTransform.declaredAtoms(prog.members) ++ typeAtoms).map(_ -> pkg)
+    }.toMap
+    val importedMembers = imported.flatMap(_._2.members).flatMap(in.TerminationAtom.member).toSet
+    in.TerminationOrder(packageOfDesugarer(mainDesugarer), atomPackage, packageImports, Map.empty, Set.empty, importedMembers)
+  }
+
 
   /**
     * Combines the lookup tables of multiple desugarers incl. taking built-in members into account.
@@ -2315,6 +2342,12 @@ object Desugar extends LazyLogging {
       }
 
       p.callee match {
+        case ap.BuiltInFunction(_, symb) if symb.tag == LevelOfFunctionTag =>
+          for {
+            args <- dArgs
+          } yield Right(in.LevelOf(args.head)(src))
+        case ap.BuiltInFunction(_, symb) if symb.tag == EmptyLevelFunctionTag =>
+          unit(Right(in.LevelEmpty()(src)))
         case base: ap.FunctionKind => base match {
           case _: ap.Function | _: ap.BuiltInFunction =>
             if (isPure) {
@@ -2774,6 +2807,8 @@ object Desugar extends LazyLogging {
           case PLess(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLtCmp(l, r)(src)
+            } else if (info.typ(left) == Type.LevelT) {
+              for {l <- go(left); r <- go(right)} yield in.LevelLess(l, r)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
             }
@@ -2781,6 +2816,8 @@ object Desugar extends LazyLogging {
           case PAtMost(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermLeCmp(l, r)(src)
+            } else if (info.typ(left) == Type.LevelT) {
+              for {l <- go(left); r <- go(right)} yield in.LevelAtMost(l, r)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
             }
@@ -2788,6 +2825,8 @@ object Desugar extends LazyLogging {
           case PGreater(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermGtCmp(l, r)(src)
+            } else if (info.typ(left) == Type.LevelT) {
+              for {l <- go(left); r <- go(right)} yield in.LevelLess(r, l)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)
             }
@@ -2795,6 +2834,8 @@ object Desugar extends LazyLogging {
           case PAtLeast(left, right) =>
             if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
               for {l <- permissionD(ctx, info)(left); r <- permissionD(ctx, info)(right)} yield in.PermGeCmp(l, r)(src)
+            } else if (info.typ(left) == Type.LevelT) {
+              for {l <- go(left); r <- go(right)} yield in.LevelAtMost(r, l)(src)
             } else {
               for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
             }
@@ -2847,6 +2888,7 @@ object Desugar extends LazyLogging {
               } yield res
             }
 
+          case PAdd(left, right) if info.typ(left) == Type.LevelT => for {l <- go(left); r <- go(right)} yield in.LevelUnion(l, r)(src)
           case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
           case PMul(left, right) => for {l <- go(left); r <- go(right)} yield in.Mul(l, r)(src)
@@ -4062,6 +4104,8 @@ object Desugar extends LazyLogging {
 
       case Type.PermissionT => in.PermissionT(addrMod)
 
+      case Type.LevelT => in.LevelT(addrMod)
+
       case _ => Violation.violation(s"got unexpected type $t")
     }
 
@@ -4526,6 +4570,7 @@ object Desugar extends LazyLogging {
           replaceRecvOrClosure(exp)
       })
       val posts = fSpec.posts map specificationD(postsCtx, funcTypeInfo)
+      val measures = fSpec.terminationMeasures map (m => terminationMeasureD(newCtx, funcTypeInfo, occursInItfMethodSpec = false)(m).res)
 
       // Desugar the proof as a block containing all the aliases declarations and assignments, and
       // the corresponding internal proof node.
@@ -4535,7 +4580,7 @@ object Desugar extends LazyLogging {
           spec = closureSpecD(newCtx, info)(proof.impl.spec)
           body <- stmtD(newCtx, info)(proof.block)
           block = in.Block(Vector.empty, Vector(oldLabel, body))(meta(proof.block, info))
-        } yield in.SpecImplementationProof(closure, spec, block, pres, posts)(src)
+        } yield in.SpecImplementationProof(closure, spec, block, pres, posts, measures, argSubs)(src)
       } yield in.Block(declarations ++ Vector(oldLabelProxy), assignments ++ Vector(proof))(src)
     }
 

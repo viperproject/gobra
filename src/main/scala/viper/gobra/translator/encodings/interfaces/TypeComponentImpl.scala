@@ -40,6 +40,7 @@ class TypeComponentImpl extends TypeComponent {
     case NilHD => "nil"
     case UnitHD => "unit"
     case PermHD => "perm"
+    case LevelHD => "level"
     case SortHD => "sort"
     case SeqHD => "seq"
     case SetHD => "set"

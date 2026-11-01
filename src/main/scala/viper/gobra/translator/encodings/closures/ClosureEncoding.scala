@@ -17,6 +17,8 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
+import viper.gobra.translator.encodings.typeless.TerminationEncoding
+import viper.gobra.translator.transformers.ModularTerminationTransformer
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors, reasons}
@@ -190,7 +192,12 @@ class ClosureEncoding(config: Config) extends LeafTypeEncoding {
           whileBody = vu.seqn(Vector(inhalePres, body, exhalePosts, decreaseNumIterations))(pos, info, errT)
           invNumIterationsIsLow <- ctx.expression(lowExprOrTrue(in.Low(numIterations)(src)))
           terminationMeasure <- ctx.assertion(in.NonItfTupleTerminationMeasure(Vector(numIterations), None)(src))
-        } yield vpr.While(numIterationsGT0, Seq(invNumIterationsIsLow, terminationMeasure), whileBody)(pos, info, errT)
+          specMeasures <- cl.sequence(proof.terminationMeasures.map(ctx.assertion))
+          // calls in the proof are compared with the termination measure of the spec (see [[ModularTerminationTransformer]])
+          proofInfo = specMeasures.collectFirst { case t: termination.DecreasesTuple =>
+            ModularTerminationTransformer.ClosureProofTermination(TerminationEncoding.toProofMeasure(t, imported = false).asInstanceOf[termination.DecreasesTuple])
+          }.fold(info)(vpr.MakeInfoPair(_, info))
+        } yield vpr.While(numIterationsGT0, Seq(invNumIterationsIsLow, terminationMeasure), whileBody)(pos, proofInfo, errT)
         assumeFalse = vpr.Assume(vpr.FalseLit()(pos, info, errT))(pos, info, errT)
         ifThen = vu.seqn(Vector(assignNumIterations, assumeNumIterLow, whileStmt, assumeFalse))(pos, info, errT)
         ifElse = vu.nop(pos, info, errT)

@@ -326,7 +326,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(closure) <> parens(showExprList(args)) <+> "as" <+> showClosureSpec(spec)
 
-    case SpecImplementationProof(closure, spec, body, _, _) =>
+    case SpecImplementationProof(closure, spec, body, _, _, _, _) =>
       "proof" <+> showExpr(closure) <+> "implements" <+> show(spec) <+> block(showStmt(body))
 
     case GoFunctionCall(func, args) => "go" <+> func.name <> parens(showExprList(args))
@@ -525,6 +525,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MethodObject(recv, meth, _) => showExpr(recv) <> dot <> meth.name
 
     case ClosureImplements(closure, spec) => showExpr(closure) <+> "implements" <+> showClosureSpec(spec)
+
+    case LevelAtom(key) => "levelAtom" <> parens(key)
+    case LevelEmpty() => "emptyLevel"
+    case LevelUnion(left, right) => parens(showExpr(left) <+> "+" <+> showExpr(right))
+    case LevelMax(left, right) => "maxLevel" <> parens(showExpr(left) <> comma <+> showExpr(right))
+    case LevelLess(left, right) => parens(showExpr(left) <+> "<" <+> showExpr(right))
+    case LevelAtMost(left, right) => parens(showExpr(left) <+> "<=" <+> showExpr(right))
+    case LevelOf(exp) => "levelOf" <> parens(showExpr(exp))
 
     case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
@@ -791,7 +799,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case _: FunctionCall | _: MethodCall | _: ClosureCall => super.showStmt(s)
 
-    case SpecImplementationProof(closure, spec, _, _, _) =>
+    case SpecImplementationProof(closure, spec, _, _, _, _, _) =>
       "proof" <+> showExpr(closure) <+> "implements" <+> show(spec)
 
     case GoFunctionCall(func, args) =>

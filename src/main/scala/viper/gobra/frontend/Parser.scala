@@ -131,7 +131,7 @@ object Parser extends LazyLogging {
         val startMs = System.currentTimeMillis()
         for {
           parsedProgram <- Parser.process(preprocessedSources, pkgInfo, specOnly = specOnly)(config)
-          postprocessedProgram <- Parser.postprocess(Right((preprocessedSources, parsedProgram)), specOnly = specOnly)(config)
+          postprocessedProgram <- Parser.postprocess(Right((preprocessedSources, parsedProgram)))(config)
           _ = logger.trace {
             val parsingDurationMs = System.currentTimeMillis() - startMs
             val parsingDurationS = f"${parsingDurationMs / 1000f}%.1f"
@@ -233,13 +233,14 @@ object Parser extends LazyLogging {
     parseSources(preprocessedInputs, pkgInfo, specOnly = specOnly)(config)
   }
 
-  private def postprocess(processResult: Either[Vector[ParserError], (Vector[Source], PPackage)], specOnly: Boolean)(config: Config): Either[Vector[ParserError], (Vector[Source], PPackage)] = {
+  private def postprocess(processResult: Either[Vector[ParserError], (Vector[Source], PPackage)])(config: Config): Either[Vector[ParserError], (Vector[Source], PPackage)] = {
     for {
       successfulProcessResult <- processResult
       (preprocessedInputs, parseAst) = successfulProcessResult
+      // Termination measures of imported packages are kept: they determine the termination levels of calls into these
+      // packages. Termination of imported members is not checked again (see `ModularTerminationTransformer`).
       postprocessors = Seq(
         new ImportPostprocessor(parseAst.positions.positions),
-        new TerminationMeasurePostprocessor(parseAst.positions.positions, specOnly = specOnly),
       )
       postprocessedAst <- postprocessors.foldLeft[Either[Vector[ParserError], PPackage]](Right(parseAst)) {
         case (Right(ast), postprocessor) => postprocessor.postprocess(ast)(config)
@@ -468,51 +469,6 @@ object Parser extends LazyLogging {
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)
       else Left(failedNodes)
-    }
-  }
-
-  private class TerminationMeasurePostprocessor(override val positions: Positions, specOnly: Boolean) extends Postprocessor {
-    /**
-      * if `specOnly` is set to true, this postprocessor replaces all tuple termination measures specified for pure functions
-      * or pure methods by wildcard termination measures while maintaining their condition (if any). Note that termination
-      * measures specified for interface methods remain untouched.
-      *
-      * These steps ensure that termination of imported pure functions and pure methods is not checked again (in case
-      * a decreases measure has been provided) and instead gets simply assumed.
-      *
-      * Note that we do not transform the body of pure functions and pure methods (e.g. by turning the body into a
-      * postcondition) because this would result in a matching loop for recursive functions.
-      */
-    def postprocess(pkg: PPackage)(config: Config): Either[Vector[ParserError], PPackage] = {
-      if (specOnly) replaceTerminationMeasures(pkg) else Right(pkg)
-    }
-
-    private def replaceTerminationMeasures(pkg: PPackage): Either[Vector[ParserError], PPackage] = {
-      def replace(spec: PFunctionSpec): PFunctionSpec = {
-        val replacedMeasures = spec.terminationMeasures.map {
-          case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
-          case t => t
-        }
-        spec.copy(terminationMeasures = replacedMeasures)
-      }
-
-      val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =
-        strategyWithName[Any]("replaceTerminationMeasuresForFunctionsAndMethods", {
-          // apply transformation only to the specification of function or method declaration (in particular, do not
-          // apply the transformation to method signatures in interface declarations)
-          case n: PFunctionDecl => Some(PFunctionDecl(n.id, n.args, n.result, replace(n.spec), n.body))
-          case n: PMethodDecl => Some(PMethodDecl(n.id, n.receiver, n.args, n.result, replace(n.spec), n.body))
-          case n: PMember => Some(n)
-        })
-
-      val updatedProgs = pkg.programs.map(prog => {
-        // apply the replaceTerminationMeasuresForFunctionsAndMethods to declarations until the strategy has succeeded
-        // (i.e. has reached PMember nodes) and stop then
-        val updatedDecls = rewrite(alltd(replaceTerminationMeasuresForFunctionsAndMethods))(prog.declarations)
-        PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls).at(prog)
-      })
-      // create a new package node with the updated programs
-      Right(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info).at(pkg))
     }
   }
 

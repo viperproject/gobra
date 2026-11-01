@@ -1,0 +1,103 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Objects built from other objects (cf. Jacobs et al., "Modular Termination Verification of Single-Threaded and
+// Multithreaded Programs", Figs. 9 and 18). The level of a `Func` value is the atom of its dynamic type plus the
+// result of its `TerminationLevel` method, which accounts for the objects that the value calls.
+
+type Func interface {
+	pred Mem()
+
+	ghost
+	requires acc(Mem(), _)
+	decreases Mem()
+	pure TerminationLevel() level
+
+	// calls of `Apply` preserve the level, which callers need when calling the object again
+	requires acc(Mem(), 1/2)
+	ensures  acc(Mem(), 1/2) && TerminationLevel() == old(TerminationLevel())
+	decreases
+	Apply(x int) int
+}
+
+type Zero struct{}
+
+pred (z Zero) Mem() { true }
+
+ghost
+requires acc(z.Mem(), _)
+decreases z.Mem()
+pure func (z Zero) TerminationLevel() level { return emptyLevel() }
+
+requires acc(z.Mem(), 1/2)
+ensures  acc(z.Mem(), 1/2) && z.TerminationLevel() == old(z.TerminationLevel())
+decreases
+func (z Zero) Apply(x int) int { return 0 }
+
+Zero implements Func
+
+type Plus1 struct{ f Func }
+
+pred (p Plus1) Mem() { p.f != nil && p.f.Mem() }
+
+ghost
+requires acc(p.Mem(), _)
+decreases p.Mem()
+pure func (p Plus1) TerminationLevel() level {
+	return unfolding acc(p.Mem(), _) in levelOf(p.f)
+}
+
+requires acc(p.Mem(), 1/2)
+ensures  acc(p.Mem(), 1/2) && p.TerminationLevel() == old(p.TerminationLevel())
+decreases
+func (p Plus1) Apply(x int) int {
+	unfold acc(p.Mem(), 1/2)
+	r := p.f.Apply(x) + 1
+	fold acc(p.Mem(), 1/2)
+	return r
+}
+
+Plus1 implements Func
+
+// The level of `Deriv` is its own atom plus the level of `f`. Its specification does not reveal what it calls.
+requires f != nil && acc(f.Mem(), 1/2)
+ensures  acc(f.Mem(), 1/2)
+decreases
+func Deriv(f Func, x int) int {
+	return f.Apply(x+1) - f.Apply(x)
+}
+
+decreases
+func client() int {
+	z := Zero{}
+	fold z.Mem()
+	var fz Func = z
+	// unfolds the level of `fz`, which `Deriv(fz, 0)` adds to its level
+	assert fz.TerminationLevel() == emptyLevel()
+	return Deriv(fz, 0)
+}
+
+// A wrapper whose level does not account for the object it calls.
+type Bad struct{ f Func }
+
+pred (b Bad) Mem() { b.f != nil && b.f.Mem() }
+
+ghost
+requires acc(b.Mem(), _)
+decreases b.Mem()
+pure func (b Bad) TerminationLevel() level { return emptyLevel() }
+
+requires acc(b.Mem(), 1/2)
+ensures  acc(b.Mem(), 1/2) && b.TerminationLevel() == old(b.TerminationLevel())
+decreases
+func (b Bad) Apply(x int) int {
+	unfold acc(b.Mem(), 1/2)
+	//:: ExpectedOutput(function_termination_error)
+	r := b.f.Apply(x)
+	fold acc(b.Mem(), 1/2)
+	return r
+}
+
+Bad implements Func

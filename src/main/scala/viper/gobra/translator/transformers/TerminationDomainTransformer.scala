@@ -6,6 +6,7 @@
 
 package viper.gobra.translator.transformers
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.translator.encodings.LevelEncoding
 import viper.silicon.Silicon
 import viper.silver.ast.utility.FileLoader
 import viper.silver.frontend.{DefaultStates, ViperAstProvider}
@@ -37,6 +38,8 @@ class TerminationDomainTransformer extends ViperTransformer {
       case vpr.SeqType(_) => "decreases/seq.vpr"
       case vpr.SetType(_) => "decreases/set.vpr"
       case vpr.DomainType(name, _) if name == PredicateInstanceDomainName => "decreases/predicate_instance.vpr"
+      // the well-founded order on termination levels is defined by the level encoding
+      case vpr.DomainType(name, _) if name == LevelEncoding.levelDomainName || name == "TerminationDomain" => declarationImport
       case _ => allImport // fallback
     }
 

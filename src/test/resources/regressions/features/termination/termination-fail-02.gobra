@@ -6,8 +6,7 @@
 package termination
 
 type Func interface {
-	//:: ExpectedOutput(pure_function_termination_error)
-	//:: ExpectedOutput(postcondition_error:assertion_error)
+	// Termination errors are reported where a cycle is closed (see `FuncImpl.fun` below), not at interface methods.
 	pure
 	decreases n
 	requires a != nil

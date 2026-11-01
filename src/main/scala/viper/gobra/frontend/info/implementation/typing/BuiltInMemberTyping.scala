@@ -17,6 +17,16 @@ import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
 
 trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
+
+  /** Returns true iff values of type `t` carry a termination level, i.e., if `levelOf` is defined on them. */
+  private def hasTerminationLevel(t: Type): Boolean = t match {
+    case _: DeclaredT => true
+    case p: ActualPointerT => p.elem.isInstanceOf[DeclaredT]
+    case _ => underlyingType(t) match {
+      case _: InterfaceT | _: FunctionT => true
+      case _ => false
+    }
+  }
   /** abstract type for BuiltInMemberTag tag */
   def typ(tag: BuiltInMemberTag): AbstractType = tag match {
     case t: BuiltInFunctionTag => t match {
@@ -79,6 +89,25 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             case ts@Vector(t1, t2, PermissionT) if validArgTypes(t1, t2) => FunctionT(ts, INT_TYPE)
           })
       }
+      case LevelOfFunctionTag => AbstractType(
+        {
+          case (n, Vector(t)) =>
+            error(n, s"Function ${LevelOfFunctionTag.identifier} expects a value of an interface type, a function type, or a named type, but got $t.",
+              !hasTerminationLevel(t))
+          case (n, ts) =>
+            error(n, s"Function ${LevelOfFunctionTag.identifier} expects exactly one argument, but got ${ts.length}.")
+        },
+        {
+          case args@Vector(_) => FunctionT(args, LevelT)
+        })
+      case EmptyLevelFunctionTag => AbstractType(
+        {
+          case (_, Vector()) => noMessages
+          case (n, ts) => error(n, s"Function ${EmptyLevelFunctionTag.identifier} does not expect arguments, but got ${ts.length}.")
+        },
+        {
+          case args@Vector() => FunctionT(args, LevelT)
+        })
       case InvariantFunctionTag => AbstractType(
         {
           case (n, t) =>
@@ -189,6 +218,12 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case InvariantFunctionTag =>
       GhostType.ghostTuple(Vector(true))
 
+    case LevelOfFunctionTag =>
+      GhostType.ghostTuple(Vector(true))
+
+    case EmptyLevelFunctionTag =>
+      GhostType.ghostTuple(Vector.empty)
+
     case t: GhostBuiltInMember => t match {
       case _ =>
         if (typ(t).typing.isDefinedAt(args)) {
@@ -212,6 +247,11 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
     // `Invariant` is a ghost function returning a single (ghost) boolean
     case InvariantFunctionTag => ghostArgs(1)
+
+    // `levelOf` is a ghost function returning a single (ghost) level
+    case LevelOfFunctionTag => ghostArgs(1)
+
+    case EmptyLevelFunctionTag => ghostArgs(1)
 
     case t: GhostBuiltInMember => t match {
       case _ =>

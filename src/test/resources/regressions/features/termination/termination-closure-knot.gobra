@@ -1,0 +1,62 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Regression test for https://github.com/viperproject/gobra/issues/1106: calls through closure specs are checked
+// against the level of the called closure, which is fixed when the closure is created.
+
+type Box struct {
+	f func(Box) int
+}
+
+requires b.f implements spec1
+decreases
+func spec1(b Box) (r int) {
+	return 0
+}
+
+decreases
+func run() int {
+	c := requires b.f implements spec1
+	     decreases
+	     func rec(b Box) (r int) {
+	         // the level of `b.f` is unknown, hence, it might be the level of `rec` itself
+	         //:: ExpectedOutput(function_termination_error)
+	         r = b.f(b) as spec1
+	         return r
+	     }
+	proof c implements spec1 {
+		r = c(b) as rec
+	}
+	return c(Box{f: c}) as spec1
+}
+
+// A terminating variant: the spec charges callers with the level of the closure stored in the box, and the
+// closure calls the closure in the box with an empty box. Thus, the knot-shaped call below terminates and verifies.
+
+type Box2 struct {
+	f func(Box2) int
+}
+
+requires b.f != nil ==> b.f implements spec2
+decreases levelOf(b.f)
+func spec2(b Box2) (r int) {
+	return 0
+}
+
+decreases
+func run2() int {
+	c := requires b.f != nil ==> b.f implements spec2
+	     decreases levelOf(b.f)
+	     func rec2(b Box2) (r int) {
+	         if b.f != nil {
+	             r = b.f(Box2{}) as spec2
+	         }
+	         return r
+	     }
+	proof c implements spec2 {
+		r = c(b) as rec2
+	}
+	return c(Box2{f: c}) as spec2
+}

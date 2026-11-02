@@ -291,6 +291,16 @@ Termination measures get a `WellFoundedOrder` instance for `$Level`. Before each
 *level hints*: the multiplicities of the syntactically occurring atoms. These let Z3 decide the typical
 obligations `X < {f} + X` and `{g} + X < {f} + X` without instantiating the inner quantifier blindly.
 
+**Static comparisons.** Most calls compare levels made of atoms only. Calls to lower SCCs or imported
+members, and recursion within an SCC, are like this. The transformer decides these itself. Write
+`callee = C + E1` and `caller = C + E2`, where `C` is the syntactically common part. The levels are equal
+if `E1` and `E2` are both empty; then only the rest of the tuple is checked. The callee level is smaller
+if `E2` is nonempty and every atom of `E1` has an axiomatized `$atomLt` fact to some atom of `E2`. That
+holds in every model, even when atom names alias. The level theory then never reaches Z3 for programs
+without dynamically bound calls. This matters because Z3 is sensitive to unrelated declarations: a
+magic-wand proof (`wands/ghost-list.gobra`) went from 12 s to 90 s and timed out with the level domain
+merely present.
+
 **`ModularTerminationTransformer`** (Viper level). Adds the (CALL) checks: assertions before method calls,
 and check methods for function bodies and contracts. The checks reuse the plugin's
 `DecreasesCheck`/`ExpTransformer` machinery. For the plugin itself, measures that start with a level are

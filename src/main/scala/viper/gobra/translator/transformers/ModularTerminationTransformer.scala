@@ -236,9 +236,64 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       val conditionCheck = createConditionCheck(callerCondition, calleeTuple.condition.map(_.replace(substitution)),
         errTrafo, reasonTrafoFactory.generateTupleConditionFalse(calleeTuple))
       val calleeExps = calleeTuple.tupleExpressions.map(_.replace(substitution))
-      val tupleCheck = createTupleCheck(callerCondition, callerTuple, calleeExps, errTrafo, reasonTrafoFactory)
-      Seq(conditionCheck) ++ levelHints(callerTuple.head, calleeExps.head) :+ tupleCheck
+      compareLevels(calleeExps.head, callerTuple.head) match {
+        case LevelLess =>
+          // the measure decreases in its first component
+          Seq(conditionCheck)
+        case LevelsEqual =>
+          Seq(conditionCheck, createTupleCheck(callerCondition, callerTuple.tail, calleeExps.tail, errTrafo, reasonTrafoFactory))
+        case LevelsUnknown =>
+          val tupleCheck = createTupleCheck(callerCondition, callerTuple, calleeExps, errTrafo, reasonTrafoFactory)
+          Seq(conditionCheck) ++ levelHints(callerTuple.head, calleeExps.head) :+ tupleCheck
+      }
     }
+  }
+
+  /*
+   * Static comparison of levels. Most calls compare levels that consist of atoms only, e.g., calls to members of lower
+   * strongly connected components or of imported packages, and recursive calls within a component. These comparisons
+   * are decided here, which keeps the theory of levels out of the SMT solver's way for programs without dynamically
+   * bound calls (the unused parts of the encoding are pruned, see [[ModularTerminationTransformer.pruneLevelEncoding]]).
+   * The decisions only use the order facts that the encoding axiomatizes and hold in every model of these facts.
+   */
+
+  private sealed trait LevelComparison
+  private case object LevelLess extends LevelComparison
+  private case object LevelsEqual extends LevelComparison
+  private case object LevelsUnknown extends LevelComparison
+
+  /** The strict order facts between atoms that the encoding axiomatizes. */
+  private lazy val atomLtFacts: Set[(String, String)] = program.domains.filter(_.name == LevelEncoding.atomDomainName).flatMap(_.axioms).map(_.exp).collect {
+    case vpr.DomainFuncApp(LevelEncoding.atomLtFuncName, Seq(l: vpr.DomainFuncApp, r: vpr.DomainFuncApp), _) if l.args.isEmpty && r.args.isEmpty =>
+      (l.funcname, r.funcname)
+  }.toSet
+
+  /** Returns the multiset of atoms denoted by `e` if `e` is built from atoms, the empty level, and unions only. */
+  private def staticLevel(e: vpr.Exp): Option[Map[String, Int]] = e match {
+    case vpr.Old(inner) => staticLevel(inner)
+    case vpr.DomainFuncApp(LevelEncoding.lvlFuncName, Seq(vpr.ExplicitMultiset(elems)), _) =>
+      val atoms = elems.collect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == LevelEncoding.atomType => a.funcname }
+      if (atoms.size == elems.size) Some(atoms.groupMapReduce(identity)(_ => 1)(_ + _)) else None
+    case vpr.DomainFuncApp(LevelEncoding.lvlFuncName, Seq(_: vpr.EmptyMultiset), _) => Some(Map.empty)
+    case vpr.DomainFuncApp(LevelEncoding.unionFuncName, Seq(l, r), _) =>
+      for { a <- staticLevel(l); b <- staticLevel(r) } yield (a.keySet ++ b.keySet).map(k => k -> (a.getOrElse(k, 0) + b.getOrElse(k, 0))).toMap
+    case _ => None
+  }
+
+  /**
+    * Compares `callee` with `caller`. With `common` being their common atoms, `callee` = `common + e1` and `caller` =
+    * `common + e2`. If both `e1` and `e2` are empty, the levels are equal. If `e2` is non-empty and every atom of `e1`
+    * is known to be below some atom of `e2`, then `callee` is smaller than `caller` in the multiset ordering (replace
+    * `e2` by `e1`). This holds even if distinct atom names denote the same atom.
+    */
+  private def compareLevels(callee: vpr.Exp, caller: vpr.Exp): LevelComparison = (staticLevel(callee), staticLevel(caller)) match {
+    case (Some(l1), Some(l2)) =>
+      def excess(a: Map[String, Int], b: Map[String, Int]): Set[String] = a.collect { case (k, n) if n > b.getOrElse(k, 0) => k }.toSet
+      val (e1, e2) = (excess(l1, l2), excess(l2, l1))
+      if (e1.isEmpty && e2.isEmpty) LevelsEqual
+      else if (e2.nonEmpty && e1.forall(x => e2.exists(y => atomLtFacts.contains((x, y))))) LevelLess
+      else LevelsUnknown
+    case _ => LevelsUnknown
   }
 
   /**
@@ -293,7 +348,8 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
     def method(suffix: String, methodPres: Seq[vpr.Exp], check: vpr.Stmt, decls: Seq[vpr.Declaration]): Option[vpr.Method] = {
       val simplified = Simplifier.simplify(check)
       val withNested = if (containsPredicateInstances(spec.spec)) addNestedPredicateInformation.execute[vpr.Stmt](simplified) else simplified
-      if (isEmptyStatement(withNested)) None
+      // a check method without assertions checks nothing
+      if (isEmptyStatement(withNested) || !withNested.existsDefined { case _: vpr.Assert => }) None
       else Some(vpr.Method(uniqueName(s"${f.name}_${suffix}_$checkMethodMarker"), f.formalArgs, Nil, methodPres, Nil,
         Some(vpr.Seqn(Seq(withNested), decls)()))(f.pos, f.info, f.errT))
     }

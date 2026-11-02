@@ -259,12 +259,16 @@ object LevelEncoding {
   val levelType: vpr.DomainType = vpr.DomainType(levelDomainName, Map.empty)(Seq.empty)
   private val atomMultisetType: vpr.Type = vpr.MultisetType(atomType)
 
-  private val lvlFunc = vpr.DomainFunc("$lvl", Seq(vpr.LocalVarDecl("m", atomMultisetType)()), levelType)(domainName = levelDomainName)
+  val lvlFuncName: String = "$lvl"
+  val atomLtFuncName: String = "$atomLt"
+  val unionFuncName: String = "$union"
+
+  private val lvlFunc = vpr.DomainFunc(lvlFuncName, Seq(vpr.LocalVarDecl("m", atomMultisetType)()), levelType)(domainName = levelDomainName)
   val atomsFunc: vpr.DomainFunc = vpr.DomainFunc("$atoms", Seq(vpr.LocalVarDecl("l", levelType)()), atomMultisetType)(domainName = levelDomainName)
-  private val atomLtFunc = vpr.DomainFunc("$atomLt", Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
+  private val atomLtFunc = vpr.DomainFunc(atomLtFuncName, Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelLtFunc = vpr.DomainFunc("$levelLt", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelMaxFunc = vpr.DomainFunc("$levelMax", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
-  private val unionFunc = vpr.DomainFunc("$union", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
+  private val unionFunc = vpr.DomainFunc(unionFuncName, Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
   /** The multiplicity of an atom in a level; its applications trigger the definition of the order on levels. */
   val countFunc: vpr.DomainFunc = vpr.DomainFunc("$cnt", Seq(vpr.LocalVarDecl("x", atomType)(), vpr.LocalVarDecl("l", levelType)()), vpr.Int)(domainName = levelDomainName)
   /** The multiplicity of an atom in a level, used for the witnesses of the order; it triggers nothing (see below). */

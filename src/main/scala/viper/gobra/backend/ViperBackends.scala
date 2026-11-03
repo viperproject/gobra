@@ -68,6 +68,9 @@ trait SiliconBasedBackend extends ViperBackend {
     if (config.unsafeWildcardOptimization) {
       options ++= Vector(s"--unsafeWildcardOptimization")
     }
+    if (config.enableAutomaticFolding) {
+      options ++= Vector("--enableAutomaticFolding")
+    }
     options ++= Vector(s"--moreJoins=${config.moreJoins.viperValue}")
     val mceSiliconOpt = config.mceMode match {
       case MCE.Disabled => "0"

@@ -79,6 +79,7 @@ object ConfigDefaults {
   val DefaultDisableSetAxiomatization: Boolean = false
   val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
+  val DefaultEnableAutomaticFolding: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
@@ -243,6 +244,7 @@ case class Config(
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                    disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                   enableAutomaticFolding: Boolean = ConfigDefaults.DefaultEnableAutomaticFolding,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
@@ -297,6 +299,7 @@ case class Config(
       disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
       disableCheckTerminationPureFns = disableCheckTerminationPureFns || input.disableCheckTerminationPureFns.value.contains(true),
       unsafeWildcardOptimization = unsafeWildcardOptimization || input.unsafeWildcardOptimization.value.contains(true),
+      enableAutomaticFolding = enableAutomaticFolding || input.enableAutomaticFolding.value.contains(true),
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
@@ -348,6 +351,7 @@ case class Config(
       "disableSetAxiomatization" -> disableSetAxiomatization,
       "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
+      "enableAutomaticFolding" -> enableAutomaticFolding,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
       "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
@@ -427,6 +431,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
                       disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
+                      enableAutomaticFolding: Boolean = ConfigDefaults.DefaultEnableAutomaticFolding,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
@@ -502,6 +507,7 @@ case class InputConfig(
   z3APIMode: InputConfigOption[Boolean] = InputConfigOption("z3APIMode", None),
   disableNL: InputConfigOption[Boolean] = InputConfigOption("disableNL", None),
   unsafeWildcardOptimization: InputConfigOption[Boolean] = InputConfigOption("unsafeWildcardOptimization", None),
+  enableAutomaticFolding: InputConfigOption[Boolean] = InputConfigOption("enableAutomaticFolding", None),
   moreJoins: InputConfigOption[MoreJoins.Mode] = InputConfigOption("moreJoins", None),
   mceMode: InputConfigOption[MCE.Mode] = InputConfigOption("mceMode", None),
   respectFunctionPrePermAmounts: InputConfigOption[Boolean] = InputConfigOption("respectFunctionPrePermAmounts", None),
@@ -564,6 +570,7 @@ case class InputConfig(
     z3APIMode = z3APIMode orElse other.z3APIMode,
     disableNL = disableNL orElse other.disableNL,
     unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
+    enableAutomaticFolding = enableAutomaticFolding orElse other.enableAutomaticFolding,
     moreJoins = moreJoins orElse other.moreJoins,
     mceMode = mceMode orElse other.mceMode,
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts orElse other.respectFunctionPrePermAmounts,
@@ -663,6 +670,7 @@ case class InputConfig(
       z3APIMode = z3APIMode orElse other.z3APIMode,
       disableNL = disableNL orElse other.disableNL,
       unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
+      enableAutomaticFolding = enableAutomaticFolding orElse other.enableAutomaticFolding,
       moreJoins = InputConfigOption(moreJoins.name, (moreJoins.value, other.moreJoins.value) match {
         case (Some(l), Some(r)) => Some(MoreJoins.merge(l, r))
         case (l, None) => l
@@ -745,6 +753,11 @@ case class InputConfig(
       },
       if (unsafeWildcardOptimization.value.isDefined && !isSiliconBasedBackend) {
         Left(Vector(ConfigError("The flag --unsafeWildcardOptimization can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      if (enableAutomaticFolding.value.contains(true) && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The flag --enableAutomaticFolding can only be used with Silicon or ViperServer with Silicon.")))
       } else {
         Right(())
       },
@@ -987,6 +1000,7 @@ case class InputConfig(
     disableSetAxiomatization = disableSetAxiomatization.value.getOrElse(ConfigDefaults.DefaultDisableSetAxiomatization),
     disableCheckTerminationPureFns = disableCheckTerminationPureFns.value.getOrElse(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
     unsafeWildcardOptimization = unsafeWildcardOptimization.value.getOrElse(ConfigDefaults.DefaultUnsafeWildcardOptimization),
+    enableAutomaticFolding = enableAutomaticFolding.value.getOrElse(ConfigDefaults.DefaultEnableAutomaticFolding),
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
@@ -1113,6 +1127,7 @@ trait RawConfig {
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
     disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
+    enableAutomaticFolding = baseConfig.enableAutomaticFolding,
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
@@ -1653,6 +1668,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val enableAutomaticFolding: ScallopOption[Boolean] = opt[Boolean]("enableAutomaticFolding",
+    descr = "Let Silicon automatically fold and unfold predicate instances when verification would otherwise fail due to insufficient permissions.",
+    default = Some(false),
+    noshort = true
+  )
+
   val moreJoins: ScallopOption[MoreJoins.Mode] = {
     choice(
       choices = MoreJoinsConverter.values.map(_.value),
@@ -1805,6 +1826,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3APIMode = toInputConfigOption(z3APIMode),
     disableNL = toInputConfigOption(disableNL),
     unsafeWildcardOptimization = toInputConfigOption(unsafeWildcardOptimization),
+    enableAutomaticFolding = toInputConfigOption(enableAutomaticFolding),
     moreJoins = toInputConfigOption(moreJoins),
     mceMode = toInputConfigOption(mceMode),
     respectFunctionPrePermAmounts = toInputConfigOption(respectFunctionPrePermAmounts),

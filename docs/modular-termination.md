@@ -418,10 +418,16 @@ interface method.
   the heap, so they cannot implement terminating specs.
 * **Standard-library stubs** do not declare `TerminationLevel`, so wrapper implementations of `io.Reader`
   and similar interfaces cannot verify yet.
-* **Objects stored in globals or containers** (registries) must have their level bounded by an
-  invariant before they can be called. VerifiedSCION's `path.NewPath` calls a constructor closure read
-  from the global `registeredPaths`; its level is unknown without such an invariant. [JBK] §3.3 requires
-  the same for any modular approach.
+* **Objects stored in globals or fields** must have their level bounded by an invariant before they can
+  be called; [JBK] §3.3 requires the same of any modular approach. Two cases occur in VerifiedSCION:
+  * `path.NewPath` calls constructor closures that higher packages register in the global
+    `registeredPaths`: an up-call. These constructors only allocate a path, so they and `NewPathSpec` fit
+    the bottom stratum (`decreases bottomLevel()`), which solves this case.
+  * The methods of `slayers.SCION` call methods of the field `s.Path`, whose dynamic type comes from the
+    registry. Any package above `slayers` could store a `path.Path` whose methods call back into
+    `slayers`, so these calls genuinely depend on how clients use the registry. A modular proof needs
+    a level bound carried from the registry through `NewPath` into `SCION`'s invariant, with callers of
+    `SCION` paying for it. This is not done yet; four calls in `pkg/slayers` fail.
 * **Chained bounds.** The encoding supports chaining two "below" facts per comparison (§3.5), not more.
 * **SMT cost.** The multiset order is quantified. Comparisons of atom-only levels are decided by Gobra,
   and the level theory is removed from programs that do not need it. Where it is needed, Z3 is

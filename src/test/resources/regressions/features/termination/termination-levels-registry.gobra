@@ -1,0 +1,70 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// A registry of constructors (cf. `path.RegisterPath` and `path.NewPath` in VerifiedSCION). The constructors are
+// closures stored in the heap, whose levels are unknown when they are called. Constructors that only allocate can be
+// placed in the bottom stratum, which makes calling them from anywhere safe.
+
+type Obj interface {
+	pred Mem()
+}
+
+type Impl struct{ x int }
+
+pred (i *Impl) Mem() { acc(&i.x) }
+
+*Impl implements Obj
+
+ensures p != nil && p.Mem()
+decreases bottomLevel()
+func NewSpec() (p Obj)
+
+type Registry struct {
+	New func() Obj
+}
+
+requires acc(&r.New, 1/2) && r.New implements NewSpec
+ensures  acc(&r.New, 1/2) && p != nil && p.Mem()
+decreases
+func Make(r *Registry) (p Obj) {
+	return r.New() as NewSpec
+}
+
+ensures acc(&r.New) && r.New implements NewSpec
+decreases
+func register() (r *Registry) {
+	f := ensures p != nil && p.Mem()
+		decreases bottomLevel()
+		func newImpl() (p Obj) {
+			i := &Impl{}
+			fold i.Mem()
+			return i
+		}
+	proof f implements NewSpec {
+		return f() as newImpl
+	}
+	r = &Registry{New: f}
+	return r
+}
+
+// Clients only see the registry.
+decreases
+func client() (p Obj) {
+	r := register()
+	return Make(r)
+}
+
+// A constructor spec outside the bottom stratum: calls through it are charged with the unknown level of the closure.
+ensures p != nil && p.Mem()
+decreases
+func NewSpec2() (p Obj)
+
+requires acc(&r.New, 1/2) && r.New implements NewSpec2
+ensures  acc(&r.New, 1/2) && p != nil && p.Mem()
+decreases
+func Make2(r *Registry) (p Obj) {
+	//:: ExpectedOutput(function_termination_error)
+	return r.New() as NewSpec2
+}

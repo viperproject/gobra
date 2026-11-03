@@ -254,6 +254,29 @@ object BuiltInMemberTag {
     override def isPure: Boolean = true
   }
 
+  /**
+    * `bottomLevel()` denotes the empty level as well. As the first component of a termination measure, it places the
+    * member in the bottom stratum: the member has the empty level (without an atom of its own), may only call members of
+    * the bottom stratum, and terminates by its remaining measures.
+    */
+  case object BottomLevelFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "bottomLevel"
+    override def name: String = "BottomLevelFunctionTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
+  /**
+    * `ownLevel()` denotes the termination level of the member in whose contract it occurs (in the member's pre-state),
+    * e.g., to state that a member returns objects below its own level: `ensures levelOf(res) < ownLevel()`.
+    */
+  case object OwnLevelFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "ownLevel"
+    override def name: String = "OwnLevelFunctionTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
   /** Built-in FPredicate Tags */
 
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
@@ -391,6 +414,8 @@ object BuiltInMemberTag {
     InvariantFunctionTag,
     LevelOfFunctionTag,
     EmptyLevelFunctionTag,
+    BottomLevelFunctionTag,
+    OwnLevelFunctionTag,
     // methods
     BufferSizeMethodTag,
     SendGivenPermMethodTag,

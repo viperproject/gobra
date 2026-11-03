@@ -1,0 +1,109 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// The bottom stratum (`decreases bottomLevel(), ...`): members without an atom of their own, which may only call members
+// of the bottom stratum and terminate by their remaining measures. The ghost methods `IsDuplicableMem` and `Duplicate`
+// of the built-in `error` interface are in the bottom stratum, which allows error wrappers to recurse into their causes,
+// whose dynamic types are unknown (cf. `scmpError` in VerifiedSCION's router).
+
+type wrapError struct {
+	Code  int
+	Cause error
+}
+
+pred (err wrapError) ErrorMem() {
+	err.Cause != nil ==> err.Cause.ErrorMem()
+}
+
+wrapError implements error
+
+trusted
+preserves e.ErrorMem()
+ensures   e.IsDuplicableMem() == old(e.IsDuplicableMem())
+decreases e.ErrorMem()
+func (e wrapError) Error() string
+
+ghost
+requires err.ErrorMem()
+decreases bottomLevel(), err.ErrorMem()
+pure func (err wrapError) IsDuplicableMem() bool {
+	return unfolding err.ErrorMem() in
+		err.Cause == nil || err.Cause.IsDuplicableMem()
+}
+
+ghost
+preserves err.ErrorMem()
+ensures   err.IsDuplicableMem() == old(err.IsDuplicableMem())
+ensures   err.IsDuplicableMem() ==> err.ErrorMem()
+decreases bottomLevel(), err.ErrorMem()
+func (err wrapError) Duplicate() {
+	if err.IsDuplicableMem() {
+		unfold err.ErrorMem()
+		if err.Cause != nil {
+			err.Cause.Duplicate()
+		}
+		fold err.ErrorMem()
+		fold err.ErrorMem()
+	}
+}
+
+// Members of the bottom stratum can be called from anywhere.
+ghost
+requires e != nil && acc(e.ErrorMem(), _)
+decreases
+pure func duplicable(e error) bool {
+	return e.IsDuplicableMem()
+}
+
+ghost
+decreases
+pure func helper(x int) int { return x }
+
+// Members of the bottom stratum cannot call members with an atom of their own.
+ghost
+decreases bottomLevel()
+pure func bottomCallsHelper(x int) int {
+	//:: ExpectedOutput(pure_function_termination_error)
+	return helper(x)
+}
+
+// A recursive call in the bottom stratum has to decrease the remaining measure.
+ghost
+requires err.ErrorMem()
+decreases bottomLevel(), err.ErrorMem()
+pure func noDecrease(err wrapError) bool {
+	//:: ExpectedOutput(pure_function_termination_error)
+	return noDecrease(err)
+}
+
+// An implementation of a method of the bottom stratum has to be in the bottom stratum as well.
+type plainError struct{}
+
+pred (e plainError) ErrorMem() { true }
+
+trusted
+preserves e.ErrorMem()
+ensures   e.IsDuplicableMem() == old(e.IsDuplicableMem())
+decreases e.ErrorMem()
+func (e plainError) Error() string
+
+ghost
+//:: ExpectedOutput(generated_implementation_proof:pure_function_termination_error)
+requires acc(e.ErrorMem(), _)
+decreases
+pure func (e plainError) IsDuplicableMem() bool { return true }
+
+ghost
+preserves e.ErrorMem()
+ensures   e.IsDuplicableMem() == old(e.IsDuplicableMem())
+ensures   e.IsDuplicableMem() ==> e.ErrorMem()
+decreases bottomLevel()
+func (e plainError) Duplicate() {
+	unfold e.ErrorMem()
+	fold e.ErrorMem()
+	fold e.ErrorMem()
+}
+
+plainError implements error

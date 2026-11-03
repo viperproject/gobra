@@ -9,7 +9,7 @@ package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.TerminationAtom
 import viper.gobra.reporting.Source
-import viper.gobra.reporting.Source.ImportedTerminationMeasureAnnotation
+import viper.gobra.reporting.Source.{ImportedTerminationMeasureAnnotation, InterfaceMethodRankAnnotation}
 import viper.gobra.theory.Addressability
 
 import scala.annotation.tailrec
@@ -24,24 +24,28 @@ import scala.annotation.tailrec
   * and closure specs are handled like any other member: their level is the level of the receiver (resp. closure),
   * i.e., of the object whose implementation is invoked. Thus, no call graph of the whole program is needed.
   *
-  * The levels of members are as follows (`dyn` is the maximum level of the arguments whose type is an interface or
-  * a function type, or the level given by the user as the first component of a termination measure):
+  * The levels of members are as follows (`dyn` is the maximum level of the arguments whose type is a function type or
+  * an interface type with methods, or the level given by the user as the first component of a termination measure):
   *  - function `f`:                       `{f} + dyn`
   *  - method `T.M` of a non-interface type: `{T.M} + T.TerminationLevel(recv) + dyn` (the second summand is only
   *                                          present if `T` declares a method `TerminationLevel`)
   *  - interface method:                   `levelOf(recv) + dyn`
   *  - function literal `l`:               `{l} + dyn`
-  *  - `TerminationLevel` methods:         the empty level (they may only call other `TerminationLevel` methods)
+  *  - `TerminationLevel` methods and members whose measure starts with `bottomLevel()`: the empty level. These members
+  *    form the bottom stratum: they may only call members of the bottom stratum and terminate by their remaining
+  *    measures (typically predicate instances, whose order does not depend on any package).
   *
   * The atoms of the package under verification are ordered by the strongly connected components of its dependency
   * graph, where callees are below callers, a type is above its methods, and a member is above the types that it
-  * converts to interfaces or whose method values it creates, and above the function literals that it creates. The atoms of imported packages are below the
-  * atoms of their importers, but the order among the atoms of an imported package is not exposed. The order does not
-  * depend on the textual order of declarations.
+  * converts to interfaces with methods or whose method values it creates, and above the function literals that it
+  * creates. The atoms of imported packages are below the atoms of their importers, but the order among the atoms of an
+  * imported package is not exposed. The order does not depend on the textual order of declarations.
   *
-  * Finally, the transformation marks the measures of members of imported packages (whose termination was checked
-  * when their package was verified) and hides the local measures of imported members without bodies, as these
-  * measures only matter for calls within their package.
+  * Interface methods additionally get a rank, which orders calls between methods of the same object in contracts (see
+  * [[interfaceMethodRanks]]).
+  *
+  * Finally, the transformation marks the measures of members of imported packages, whose termination was checked
+  * when their package was verified.
   */
 object TerminationLevelsTransform extends InternalTransform {
   override def name(): String = "add_termination_levels"
@@ -67,7 +71,8 @@ object TerminationLevelsTransform extends InternalTransform {
     }.flatten.toMap
     val order = seed.copy(mainComponent = components, componentLt = componentLt, methodOwner = methodOwner)
 
-    val newMembers = p.members.map(m => addLevels(m, order)(p.table))
+    val ranks = interfaceMethodRanks(p)
+    val newMembers = p.members.map(m => addLevels(m, order, ranks)(p.table))
 
     val definedMethods = newMembers.collect { case m: in.MethodLikeMember if !m.isInstanceOf[in.BuiltInMember] => m.name -> m }.toMap
     val definedFunctions = newMembers.collect { case f: in.FunctionLikeMember if !f.isInstanceOf[in.BuiltInMember] => f.name -> f }.toMap
@@ -142,7 +147,8 @@ object TerminationLevelsTransform extends InternalTransform {
           case in.MethodObject(recv, meth, _) if !isInterface(recv.typ) =>
             TerminationAtom.method(meth) +: namedTypeOf(recv.typ).map(TerminationAtom.namedType).toVector
           case in.ClosureObject(func, _) => Vector(TerminationAtom.literal(func))
-          case in.ToInterface(e, _) => namedTypeOf(e.typ).map(TerminationAtom.namedType).toVector
+          // converting a value to an interface allows calling its methods; interfaces without methods do not
+          case in.ToInterface(e, itf) if callableInterface(itf, table) => namedTypeOf(e.typ).map(TerminationAtom.namedType).toVector
           case _ => Vector.empty
         }
         here.map(_ -> None) ++ n.subnodes.flatMap(go)
@@ -215,28 +221,36 @@ object TerminationLevelsTransform extends InternalTransform {
    * Levels of members.
    */
 
-  private def addLevels(m: in.Member, order: in.TerminationOrder)(table: in.LookupTable): in.Member = {
+  private def addLevels(m: in.Member, order: in.TerminationOrder, ranks: Map[in.MethodProxy, Int])(table: in.LookupTable): in.Member = {
     val imported = order.isImported(m)
     val withMeasures = m match {
       case f: in.Function =>
-        val measures = withLevel(f.terminationMeasures, in.LevelAtom(TerminationAtom.function(f.name))(f.info), f.args, imported, hide = f.body.isEmpty)(table)
-        f.copy(terminationMeasures = measures)(f.info)
+        val measures = withLevel(f.terminationMeasures, in.LevelAtom(TerminationAtom.function(f.name))(f.info), f.args, imported)(table)
+        val (pres, posts) = resolveOwnLevel(f.pres, f.posts, measures, TerminationAtom.function(f.name))
+        f.copy(pres = pres, posts = posts, terminationMeasures = measures)(f.info)
       case f: in.PureFunction =>
-        val measures = withLevel(f.terminationMeasures, in.LevelAtom(TerminationAtom.function(f.name))(f.info), f.args, imported, hide = f.body.isEmpty)(table)
-        f.copy(terminationMeasures = measures)(f.info)
+        val measures = withLevel(f.terminationMeasures, in.LevelAtom(TerminationAtom.function(f.name))(f.info), f.args, imported)(table)
+        val (pres, posts) = resolveOwnLevel(f.pres, f.posts, measures, TerminationAtom.function(f.name))
+        f.copy(pres = pres, posts = posts, terminationMeasures = measures)(f.info)
       case m: in.Method =>
-        val measures = withLevel(m.terminationMeasures, methodOwnLevel(m)(table), methodArgs(m), imported, hide = m.body.isEmpty && !isInterfaceMethod(m))(table)
-        m.copy(terminationMeasures = measures)(m.info)
+        val measures = withLevel(m.terminationMeasures, methodOwnLevel(m)(table), methodArgs(m), imported, ranks.get(m.name))(table)
+        val (pres, posts) = resolveOwnLevel(m.pres, m.posts, measures, TerminationAtom.method(m.name))
+        m.copy(pres = pres, posts = posts, terminationMeasures = measures)(m.info)
       case m: in.PureMethod =>
-        val measures = withLevel(m.terminationMeasures, methodOwnLevel(m)(table), methodArgs(m), imported, hide = m.body.isEmpty && !isInterfaceMethod(m))(table)
-        m.copy(terminationMeasures = measures)(m.info)
+        val measures = withLevel(m.terminationMeasures, methodOwnLevel(m)(table), methodArgs(m), imported, ranks.get(m.name))(table)
+        val (pres, posts) = resolveOwnLevel(m.pres, m.posts, measures, TerminationAtom.method(m.name))
+        m.copy(pres = pres, posts = posts, terminationMeasures = measures)(m.info)
       case other => other
     }
     withMeasures.transform({
       case l: in.FunctionLit =>
-        l.copy(terminationMeasures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported, hide = false)(table))(l.info)
+        val measures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported)(table)
+        val (pres, posts) = resolveOwnLevel(l.pres, l.posts, measures, TerminationAtom.literal(l.name))
+        l.copy(pres = pres, posts = posts, terminationMeasures = measures)(l.info)
       case l: in.PureFunctionLit =>
-        l.copy(terminationMeasures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported, hide = false)(table))(l.info)
+        val measures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported)(table)
+        val (pres, posts) = resolveOwnLevel(l.pres, l.posts, measures, TerminationAtom.literal(l.name))
+        l.copy(pres = pres, posts = posts, terminationMeasures = measures)(l.info)
       case p: in.SpecImplementationProof =>
         // the implementation of a spec may have at most the level with which calls through the spec are charged:
         // the level of the closure for specs given by functions and the atom of the literal for literal specs
@@ -244,8 +258,62 @@ object TerminationLevelsTransform extends InternalTransform {
           case _: in.FunctionProxy => in.LevelOf(p.closure)(p.info)
           case l: in.FunctionLitProxy => in.LevelAtom(TerminationAtom.literal(l))(p.info)
         }
-        p.copy(terminationMeasures = withLevel(p.terminationMeasures, own, p.args, imported = false, hide = false)(table))(p.info)
+        p.copy(terminationMeasures = withLevel(p.terminationMeasures, own, p.args, imported = false)(table))(p.info)
     }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
+  }
+
+  /**
+    * Ranks of interface methods. Methods of the same object have the same level, so calls between them have to be
+    * ordered differently. This matters for the contracts of interface methods, which commonly call other (pure) methods
+    * of the receiver, e.g., `requires IsElem(e)`. The rank of an interface method is one plus the maximum rank of the
+    * interface methods called in its contract (and the same for all methods of a cycle). The rank is part of the kind
+    * marker that ends the measures of interface methods and of their implementation proofs (see `TerminationEncoding`),
+    * which is only compared if the levels and local measures of two members are equal. The rank only depends on the
+    * declarations of interfaces, which every importing package sees as well, so all packages agree on it.
+    */
+  def interfaceMethodRanks(p: in.Program): Map[in.MethodProxy, Int] = {
+    val itfMethods: Vector[(in.MethodProxy, Vector[in.Assertion])] = p.members.collect {
+      case m: in.Method if isInterfaceMethod(m) => m.name -> (m.pres ++ m.posts)
+      case m: in.PureMethod if isInterfaceMethod(m) => m.name -> (m.pres ++ m.posts)
+    }
+    val known = itfMethods.map(_._1).toSet
+    val key = (m: in.MethodProxy) => m.uniqueName
+    val edges: Set[(String, String)] = itfMethods.flatMap { case (m, contract) =>
+      contract.flatMap(_.deepCollect {
+        case in.PureMethodCall(recv, meth, _, _, _) if known.contains(meth) && underlying(recv.typ, p.table).isInstanceOf[in.InterfaceT] => meth
+      }).map(callee => key(m) -> key(callee))
+    }.toSet
+    val component = stronglyConnectedComponents(itfMethods.map(m => key(m._1)).sorted.distinct, edges)
+    val successors: Map[Int, Set[Int]] = edges.toVector.collect {
+      case (l, r) if component(l) != component(r) => component(l) -> component(r)
+    }.groupMap(_._1)(_._2).map { case (k, v) => k -> v.toSet }
+    var rankOf: Map[Int, Int] = Map.empty
+    def rank(c: Int): Int = rankOf.getOrElse(c, {
+      val r = 1 + successors.getOrElse(c, Set.empty).map(rank).maxOption.getOrElse(0)
+      rankOf += c -> r
+      r
+    })
+    itfMethods.map { case (m, _) => m -> rank(component(key(m))) }.toMap
+  }
+
+  /**
+    * Replaces `ownLevel()` in the contract of a member by the member's level, i.e., the first component of its (first)
+    * termination measure, evaluated in the pre-state. A member without a termination measure has no level; there,
+    * `ownLevel()` denotes an atom about which nothing is known, which makes facts about it useless but harmless.
+    */
+  private def resolveOwnLevel(pres: Vector[in.Assertion], posts: Vector[in.Assertion], measures: Vector[in.TerminationMeasure],
+                              key: String): (Vector[in.Assertion], Vector[in.Assertion]) = {
+    val level: Option[in.Expr] = measures.collectFirst {
+      case t: in.TupleTerminationMeasure if t.tuple.headOption.exists(_.isInstanceOf[in.Expr]) => t.tuple.head.asInstanceOf[in.Expr]
+    }
+    def replace(a: in.Assertion, inPost: Boolean): in.Assertion = a.transform {
+      case o: in.LevelOwn => level match {
+        case Some(l) if inPost => in.Old(l)(o.info)
+        case Some(l) => l
+        case None => in.LevelAtom(s"own:$key")(o.info)
+      }
+    }
+    (pres.map(replace(_, inPost = false)), posts.map(replace(_, inPost = true)))
   }
 
   private def isLevelMethod(m: in.MethodMember): Boolean = m.name.name == levelMethodName
@@ -289,23 +357,28 @@ object TerminationLevelsTransform extends InternalTransform {
     }
   }
 
-  private def withLevel(measures: Vector[in.TerminationMeasure], own: in.Expr, args: Vector[in.Expr], imported: Boolean, hide: Boolean)(table: in.LookupTable): Vector[in.TerminationMeasure] = {
-    def info(m: in.TerminationMeasure): Source.Parser.Info =
-      if (!imported) m.info else m.info match {
-        case s: Source.Parser.Single => s.createAnnotatedInfo(ImportedTerminationMeasureAnnotation)
-        case other => other
-      }
+  private def withLevel(measures: Vector[in.TerminationMeasure], own: in.Expr, args: Vector[in.Expr], imported: Boolean,
+                        rank: Option[Int] = None)(table: in.LookupTable): Vector[in.TerminationMeasure] = {
+    def annotate(i: Source.Parser.Info, annotation: Source.Annotation): Source.Parser.Info = i match {
+      case s: Source.Parser.Single => s.createAnnotatedInfo(annotation)
+      case other => other
+    }
+    def info(m: in.TerminationMeasure): Source.Parser.Info = {
+      val withImport = if (imported) annotate(m.info, ImportedTerminationMeasureAnnotation) else m.info
+      rank.fold(withImport)(r => annotate(withImport, InterfaceMethodRankAnnotation(r)))
+    }
 
     def tuple(t: Vector[in.Node]): Vector[in.Node] = {
       val (level, local) = t match {
+        // bottom stratum: the empty level, without an atom of its own and without the levels of the arguments
+        case (b: in.LevelBottom) +: rest => (in.LevelEmpty()(b.info), rest)
         case (l: in.Expr) +: rest if l.typ.isInstanceOf[in.LevelT] => (in.LevelUnion(own, l)(own.info), rest)
         case _ =>
           val dyn = args.filter(a => isDynamic(a.typ, table)).map(a => in.LevelOf(a)(a.info): in.Expr)
           val level = dyn.reduceOption[in.Expr](in.LevelMax(_, _)(own.info)).fold(own)(d => in.LevelUnion(own, d)(own.info))
           (level, t)
       }
-      // the local measures of imported members without bodies only matter for calls within their package
-      if (imported && hide) Vector(level) else level +: local
+      level +: local
     }
 
     measures.map {
@@ -316,10 +389,37 @@ object TerminationLevelsTransform extends InternalTransform {
     }
   }
 
-  /** Values of interface and function types carry levels; calls through them are dynamically bound. */
+  /**
+    * Values of interface types with methods and values of function types carry levels; calls through them are
+    * dynamically bound. Values of interfaces without methods (e.g., `interface{}`) cannot be called.
+    */
   private def isDynamic(t: in.Type, table: in.LookupTable): Boolean = underlying(t, table) match {
-    case _: in.InterfaceT | _: in.FunctionT => true
+    case itf: in.InterfaceT => hasMethods(itf, table)
+    case _: in.FunctionT => true
     case _ => false
+  }
+
+  private def hasMethods(itf: in.InterfaceT, table: in.LookupTable): Boolean = interfacesWithMethods(table).contains(itf.name)
+
+  /** Names of the interfaces with methods, per lookup table (computing them is linear in the number of methods). */
+  private val interfacesWithMethodsCache = scala.collection.concurrent.TrieMap.empty[in.LookupTable, Set[String]]
+
+  /**
+    * Returns the names of the interfaces that declare methods, or that embed such interfaces (an embedding interface
+    * implements the embedded one).
+    */
+  private def interfacesWithMethods(table: in.LookupTable): Set[String] = interfacesWithMethodsCache.getOrElseUpdate(table, {
+    val direct = table.getMethods.collect { case m: in.MethodMember if isInterfaceMethod(m) => m.receiver.typ.asInstanceOf[in.InterfaceT].name }.toSet
+    val embedding = table.getImplementations.toVector.collect {
+      case (itf, impls) if direct.contains(itf.name) => impls.collect { case i: in.InterfaceT => i.name }
+    }.flatten
+    direct ++ embedding
+  })
+
+  /** Returns false only for interface types without methods. */
+  private def callableInterface(t: in.Type, table: in.LookupTable): Boolean = underlying(t, table) match {
+    case itf: in.InterfaceT => hasMethods(itf, table)
+    case _ => true
   }
 
   @tailrec

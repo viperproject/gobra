@@ -2348,6 +2348,10 @@ object Desugar extends LazyLogging {
           } yield Right(in.LevelOf(args.head)(src))
         case ap.BuiltInFunction(_, symb) if symb.tag == EmptyLevelFunctionTag =>
           unit(Right(in.LevelEmpty()(src)))
+        case ap.BuiltInFunction(_, symb) if symb.tag == BottomLevelFunctionTag =>
+          unit(Right(in.LevelBottom()(src)))
+        case ap.BuiltInFunction(_, symb) if symb.tag == OwnLevelFunctionTag =>
+          unit(Right(in.LevelOwn()(src)))
         case base: ap.FunctionKind => base match {
           case _: ap.Function | _: ap.BuiltInFunction =>
             if (isPure) {

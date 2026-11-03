@@ -100,10 +100,10 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         {
           case args@Vector(_) => FunctionT(args, LevelT)
         })
-      case EmptyLevelFunctionTag => AbstractType(
+      case t@(EmptyLevelFunctionTag | BottomLevelFunctionTag | OwnLevelFunctionTag) => AbstractType(
         {
           case (_, Vector()) => noMessages
-          case (n, ts) => error(n, s"Function ${EmptyLevelFunctionTag.identifier} does not expect arguments, but got ${ts.length}.")
+          case (n, ts) => error(n, s"Function ${t.identifier} does not expect arguments, but got ${ts.length}.")
         },
         {
           case args@Vector() => FunctionT(args, LevelT)
@@ -221,7 +221,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case LevelOfFunctionTag =>
       GhostType.ghostTuple(Vector(true))
 
-    case EmptyLevelFunctionTag =>
+    case EmptyLevelFunctionTag | BottomLevelFunctionTag | OwnLevelFunctionTag =>
       GhostType.ghostTuple(Vector.empty)
 
     case t: GhostBuiltInMember => t match {
@@ -251,7 +251,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     // `levelOf` is a ghost function returning a single (ghost) level
     case LevelOfFunctionTag => ghostArgs(1)
 
-    case EmptyLevelFunctionTag => ghostArgs(1)
+    case EmptyLevelFunctionTag | BottomLevelFunctionTag | OwnLevelFunctionTag => ghostArgs(1)
 
     case t: GhostBuiltInMember => t match {
       case _ =>

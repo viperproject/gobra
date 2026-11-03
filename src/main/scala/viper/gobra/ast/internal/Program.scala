@@ -1234,6 +1234,22 @@ case class LevelEmpty()(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = LevelT(Addressability.rValue)
 }
 
+/**
+  * The empty level, written as `bottomLevel()`. As the first component of a termination measure, it places the member in
+  * the bottom stratum (see [[viper.gobra.ast.internal.transform.TerminationLevelsTransform]]).
+  */
+case class LevelBottom()(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
+/**
+  * The level of the member in whose contract it occurs, written as `ownLevel()`. It is replaced by the member's level
+  * (see [[viper.gobra.ast.internal.transform.TerminationLevelsTransform]]).
+  */
+case class LevelOwn()(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = LevelT(Addressability.rValue)
+}
+
 /** Multiset union of two levels. */
 case class LevelUnion(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = LevelT(Addressability.rValue)

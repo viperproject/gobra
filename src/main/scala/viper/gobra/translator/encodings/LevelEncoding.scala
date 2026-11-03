@@ -14,6 +14,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
 /**
@@ -77,13 +78,16 @@ class LevelEncoding extends LeafTypeEncoding {
     default(super.expression(ctx)) {
       case (e: in.DfltVal) :: ctx.Level() / Exclusive => unit(emptyLevel(e))
       case e: in.LevelEmpty => unit(emptyLevel(e))
+      case e: in.LevelBottom => unit(emptyLevel(e))
+      case e: in.LevelOwn => violation(s"ownLevel() may only occur in contracts, but found it at ${e.info}")
       case a: in.LevelAtom => unit(atomLevel(a.key, a)(ctx))
       case u@in.LevelUnion(l, r) => for { vl <- goE(l); vr <- goE(r) } yield union(vl, vr, u)
       case m@in.LevelMax(l, r) => for { vl <- goE(l); vr <- goE(r) } yield app(levelMaxFunc, Seq(vl, vr), m)
-      case lt@in.LevelLess(l, r) => for { vl <- goE(l); vr <- goE(r) } yield app(levelLtFunc, Seq(vl, vr), lt)
+      case lt@in.LevelLess(l, r) =>
+        for { vl <- goE(l); vr <- goE(r) } yield withHints(vl, vr, app(levelLtFunc, Seq(vl, vr), lt), lt)
       case le@in.LevelAtMost(l, r) =>
         val (pos, info, errT) = le.vprMeta
-        for { vl <- goE(l); vr <- goE(r) } yield vpr.Or(vpr.EqCmp(vl, vr)(pos, info, errT), app(levelLtFunc, Seq(vl, vr), le))(pos, info, errT)
+        for { vl <- goE(l); vr <- goE(r) } yield withHints(vl, vr, vpr.Or(vpr.EqCmp(vl, vr)(pos, info, errT), app(levelLtFunc, Seq(vl, vr), le))(pos, info, errT), le)
       case lo@in.LevelOf(e) => levelOf(e, lo)(ctx)
     }
   }
@@ -144,7 +148,7 @@ class LevelEncoding extends LeafTypeEncoding {
     val func = order.mainComponent.get(key) match {
       case Some(component) =>
         mainAtoms.getOrElse(component, {
-          val f = vpr.DomainFunc(s"$$atom_c$component", Seq.empty, atomType)(domainName = atomDomainName)
+          val f = vpr.DomainFunc(s"$mainAtomPrefix$component", Seq.empty, atomType)(domainName = atomDomainName)
           mainAtoms += component -> f
           f
         })
@@ -223,7 +227,16 @@ class LevelEncoding extends LeafTypeEncoding {
         val nil = vpr.DomainFuncApp(Names.closureNilFunc, Seq.empty, Map.empty)(vpr.NoPosition, vpr.NoInfo, f.formalArgs.head.typ, Names.closureDomain, vpr.NoTrafos)
         vpr.EqCmp(vpr.DomainFuncApp(f, Seq(nil), Map.empty)(), vpr.DomainFuncApp(lvlFunc, Seq(vpr.EmptyMultiset(atomType)()), Map.empty)())()
       }
-      val axioms = (orderAxioms.distinct ++ atMostAxioms.distinct ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
+      // transitivity of the order on atoms. It is needed to compare levels that are only known to be below some level
+      // (e.g., by a postcondition `levelOf(res) < ownLevel()`). Its instances only relate existing atom terms.
+      val transitivityAxiom = {
+        val (a, b, c) = (vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)(), vpr.LocalVarDecl("c", atomType)())
+        val ab = vpr.DomainFuncApp(atomLtFunc, Seq(a.localVar, b.localVar), Map.empty)()
+        val bc = vpr.DomainFuncApp(atomLtFunc, Seq(b.localVar, c.localVar), Map.empty)()
+        val ac = vpr.DomainFuncApp(atomLtFunc, Seq(a.localVar, c.localVar), Map.empty)()
+        vpr.Forall(Seq(a, b, c), Seq(vpr.Trigger(Seq(ab, bc))()), vpr.Implies(vpr.And(ab, bc)(), ac)())(): vpr.Exp
+      }
+      val axioms = (orderAxioms.distinct ++ atMostAxioms.distinct ++ Seq(transitivityAxiom) ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
       val functions = (mainAtoms.values ++ importedAtoms.values).toVector.sortBy(_.name) ++ typeLevelFuncOpt ++ closureLevelFuncOpt
       addMemberFn(vpr.Domain(atomDomainName, functions, axioms)())
     }
@@ -248,6 +261,21 @@ class LevelEncoding extends LeafTypeEncoding {
 
   private def union(l: vpr.Exp, r: vpr.Exp, src: in.Node): vpr.Exp = app(unionFunc, Seq(l, r), src)
 
+  /**
+    * Conjoins `comparison` with the (trivially true) facts that the multiplicities of the atoms occurring in `l` and `r`
+    * are non-negative. Mentioning these multiplicities triggers the axioms needed to find the dominating atoms of the
+    * multiset ordering (as the hints of [[viper.gobra.translator.transformers.ModularTerminationTransformer]] do for
+    * the termination checks).
+    */
+  private def withHints(l: vpr.Exp, r: vpr.Exp, comparison: vpr.Exp, src: in.Node): vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+    val atoms = (l.deepCollect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == atomType => a } ++
+      r.deepCollect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == atomType => a }).distinct
+    val hints = atoms.flatMap(a => Seq(l, r).map(level =>
+      vpr.GeCmp(vpr.DomainFuncApp(countFunc, Seq(a, level), Map.empty)(pos, info, errT), vpr.IntLit(0)(pos, info, errT))(pos, info, errT): vpr.Exp))
+    hints.foldRight(comparison)((h, acc) => vpr.And(h, acc)(pos, info, errT))
+  }
+
   private def sanitize(key: String): String = key.map(c => if (c.isLetterOrDigit || c == '_') c else '_')
 }
 
@@ -260,6 +288,8 @@ object LevelEncoding {
   private val atomMultisetType: vpr.Type = vpr.MultisetType(atomType)
 
   val lvlFuncName: String = "$lvl"
+  /** Prefix of the atoms of the package under verification; all other atoms stem from imported packages. */
+  val mainAtomPrefix: String = "$atom_c"
   val atomLtFuncName: String = "$atomLt"
   val unionFuncName: String = "$union"
 

@@ -300,6 +300,14 @@ protected class ClosureSpecsEncoder {
       measures.map(_.transform { case a@in.LevelAtom(`key`) => in.LevelOf(closure)(a.info) })
   }
 
+  /** Like [[closureMeasures]], for contracts mentioning the level of the spec (via `ownLevel()`). */
+  private def closureContract(assertions: Vector[in.Assertion], func: in.FunctionMemberOrLitProxy, closure: in.Expr): Vector[in.Assertion] = func match {
+    case _: in.FunctionLitProxy => assertions
+    case f: in.FunctionProxy =>
+      val key = in.TerminationAtom.function(f)
+      assertions.map(_.transform { case a@in.LevelAtom(`key`) => in.LevelOf(closure)(a.info) })
+  }
+
   private def callableMemberWithClosure(spec: in.ClosureSpec)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureCallProxy(spec)(spec.info)
     val func = memberOrLit(ctx)(spec.func)
@@ -312,7 +320,7 @@ protected class ClosureSpecsEncoder {
         in.PureFunctionCall(closureGetterFunctionProxy(spec.func), captArgs, genericFuncType, false)(spec.info))(spec.info)
       )(spec.info)) else None
     val args = Vector(closurePar) ++ captArgs ++ func.args
-    val pres = implementsAssertion.toVector ++ fromClosureGetter ++ func.pres
+    val pres = implementsAssertion.toVector ++ fromClosureGetter ++ closureContract(func.pres, spec.func, closurePar)
     val annotations = func.backendAnnotations
 
     // Store the origin of the spec; if the first precondition fails, we use this to recognise and transform the error message
@@ -320,14 +328,14 @@ protected class ClosureSpecsEncoder {
 
     func match {
       case _: in.Function =>
-        val m = in.Function(proxy, args, func.results, pres, func.posts, closureMeasures(func.terminationMeasures, spec.func, closurePar), annotations, None)(spec.info)
+        val m = in.Function(proxy, args, func.results, pres, closureContract(func.posts, spec.func, closurePar), closureMeasures(func.terminationMeasures, spec.func, closurePar), annotations, None)(spec.info)
         ctx.defaultEncoding.function(m)(ctx)
       case lit: in.FunctionLit =>
         val body = if (spec.params.isEmpty) lit.body else None
         val func = in.Function(proxy, args, lit.results, pres, lit.posts, closureMeasures(lit.terminationMeasures, spec.func, closurePar), annotations, body)(lit.info)
         ctx.defaultEncoding.function(func)(ctx)
       case f: in.PureFunction =>
-        val posts = func.posts ++ assertionFromPureFunctionBody(f.body, f.results.head)
+        val posts = closureContract(func.posts, spec.func, closurePar) ++ assertionFromPureFunctionBody(f.body, f.results.head)
         val m = in.PureFunction(proxy, args, f.results, pres, posts, closureMeasures(f.terminationMeasures, spec.func, closurePar), annotations, None, f.isOpaque)(spec.info)
         ctx.defaultEncoding.pureFunction(m)(ctx)
       case lit: in.PureFunctionLit =>

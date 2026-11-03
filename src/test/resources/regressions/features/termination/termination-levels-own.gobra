@@ -1,0 +1,79 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// `ownLevel()` denotes the level of the member in whose contract it occurs. A member can thus promise that the
+// objects it returns are below its own level (cf. abstract object construction, Jacobs et al., Section 2.2.3), which
+// allows callers to call the methods of these objects without knowing what the member does.
+
+type Shower interface {
+	decreases
+	Show() int
+}
+
+type Lit struct{}
+
+decreases
+func (l Lit) Show() int { return 0 }
+
+Lit implements Shower
+
+ensures res != nil
+ensures levelOf(res) < ownLevel()
+decreases
+func makeShower() (res Shower) {
+	return Lit{}
+}
+
+// Returning an argument is fine: its level is below the level of the member, which includes the level of the argument.
+requires s != nil
+ensures  res != nil
+ensures  levelOf(res) < ownLevel()
+decreases
+func passThrough(s Shower) (res Shower) {
+	return s
+}
+
+decreases
+func useShower() int {
+	s := makeShower()
+	// levelOf(s) < {makeShower} < {useShower}
+	return s.Show()
+}
+
+requires s != nil
+ensures  res === s
+decreases
+func identity(s Shower) (res Shower) {
+	return s
+}
+
+decreases
+func useBoth() int {
+	s := identity(makeShower())
+	return s.Show()
+}
+
+// The level of an object read from the heap is unknown.
+requires acc(p) && *p != nil
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  levelOf(res) < ownLevel()
+decreases
+func fromHeap(p *Shower) (res Shower) {
+	return *p
+}
+
+// Without the postcondition, callers know nothing about the level of the result.
+ensures res != nil
+decreases
+func makeUnknown() (res Shower) {
+	return Lit{}
+}
+
+decreases
+func useUnknown() int {
+	s := makeUnknown()
+	//:: ExpectedOutput(function_termination_error)
+	return s.Show()
+}

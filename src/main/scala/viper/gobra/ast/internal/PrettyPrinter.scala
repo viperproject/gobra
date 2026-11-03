@@ -528,6 +528,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case LevelAtom(key) => "levelAtom" <> parens(key)
     case LevelEmpty() => "emptyLevel"
+    case LevelBottom() => "bottomLevel"
+    case LevelOwn() => "ownLevel"
     case LevelUnion(left, right) => parens(showExpr(left) <+> "+" <+> showExpr(right))
     case LevelMax(left, right) => "maxLevel" <> parens(showExpr(left) <> comma <+> showExpr(right))
     case LevelLess(left, right) => parens(showExpr(left) <+> "<" <+> showExpr(right))

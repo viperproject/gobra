@@ -236,17 +236,90 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       val conditionCheck = createConditionCheck(callerCondition, calleeTuple.condition.map(_.replace(substitution)),
         errTrafo, reasonTrafoFactory.generateTupleConditionFalse(calleeTuple))
       val calleeExps = calleeTuple.tupleExpressions.map(_.replace(substitution))
+      if (isInterfaceContext(callerTuple) && staticLevel(calleeExps.head).exists(_.keys.forall(a => !a.startsWith(LevelEncoding.mainAtomPrefix)))) {
+        // see [[isInterfaceContext]]
+        return Seq(conditionCheck)
+      }
       compareLevels(calleeExps.head, callerTuple.head) match {
         case LevelLess =>
           // the measure decreases in its first component
           Seq(conditionCheck)
         case LevelsEqual =>
-          Seq(conditionCheck, createTupleCheck(callerCondition, callerTuple.tail, calleeExps.tail, errTrafo, reasonTrafoFactory))
+          Seq(conditionCheck, tupleCheck(callerCondition, callerTuple.tail, calleeExps.tail, errTrafo, reasonTrafoFactory))
         case LevelsUnknown =>
-          val tupleCheck = createTupleCheck(callerCondition, callerTuple, calleeExps, errTrafo, reasonTrafoFactory)
-          Seq(conditionCheck) ++ levelHints(callerTuple.head, calleeExps.head) :+ tupleCheck
+          val check = tupleCheck(callerCondition, callerTuple, calleeExps, errTrafo, reasonTrafoFactory)
+          Seq(conditionCheck) ++ levelHints(callerTuple.head, calleeExps.head) :+ check
       }
     }
+  }
+
+  /**
+    * Returns true if `callerTuple` is the measure of an interface method or of an implementation proof, i.e., if the
+    * checked calls occur in the contract of an interface method. The level of an interface method is the level of its
+    * receiver, which is unknown. A call in such a contract to a member whose level consists of atoms of imported
+    * packages only (in particular, members of the bottom stratum) is safe nevertheless: such a member can neither name
+    * the interface (which is declared in the package under verification or in a package importing these packages)
+    * nor receive objects through which it could call back, as its level does not depend on any object.
+    */
+  private def isInterfaceContext(callerTuple: Seq[vpr.Exp]): Boolean = callerTuple.lastOption.exists { e =>
+    val marker = e match {
+      case vpr.Old(inner) => inner
+      case other => other
+    }
+    marker match {
+      case app: vpr.DomainFuncApp => app.funcname.startsWith("ItfMethodMeasure") || app.funcname.startsWith("ProofMeasure")
+      case _ => false
+    }
+  }
+
+  /** The last element of every leveled termination tuple records the kind of member (see [[TerminationEncoding]]). */
+  private def isKindMarker(e: vpr.Exp): Boolean = e.typ match {
+    case vpr.DomainType(name, _) => name == TerminationEncoding.domainName
+    case _ => false
+  }
+
+  /**
+    * Checks that `smaller` is below `bigger` in the lexicographic order. This differs from the plugin's check (see
+    * `DecreasesCheck.createTupleCheck`) in how tuples of different lengths are compared: if `smaller` ends (i.e., reaches
+    * its kind marker) where `bigger` continues with local measures, then `smaller` is below `bigger`. This is sound:
+    * a member whose tuple ends after its level cannot call any member of the same level, as such a call would have to
+    * decrease the (absent) local measures. Thus, it can only make finitely many calls at its level, all of which
+    * decrease the kind marker. The plugin, in contrast, considers the shorter tuple to be bigger, which would reject,
+    * e.g., an implementation without local measures of an interface method with local measures at the same level.
+    */
+  private def tupleCheck(tupleCondition: Option[vpr.Exp], bigger: Seq[vpr.Exp], smaller: Seq[vpr.Exp],
+                         errTrafo: vpr.ErrTrafo, reasonTrafoFactory: ReasonTrafoFactory): vpr.Stmt = {
+    if (decreasingFunc.isEmpty || boundedFunc.isEmpty) return createTupleCheck(tupleCondition, bigger, smaller, errTrafo, reasonTrafoFactory)
+    val decreasesReTrafo = reasonTrafoFactory.generateTupleDecreasesFalse()
+    val simpleReTrafo = reasonTrafoFactory.generateTupleSimpleFalse()
+    val boundReTrafo = reasonTrafoFactory.generateTupleBoundedFalse()
+    val decrTypeVars = decreasingFunc.get.formalArgs.flatMap(_.typ.typeVariables)
+    val boundTypeVars = boundedFunc.get.formalArgs.flatMap(_.typ.typeVariables)
+
+    def lex(b: Seq[vpr.Exp], s: Seq[vpr.Exp]): vpr.Exp = (b, s) match {
+      case (_, Seq()) => vpr.FalseLit()(errT = decreasesReTrafo)
+      case (Seq(), _) => vpr.TrueLit()(errT = simpleReTrafo)
+      case (bh +: _, sh +: _) if isKindMarker(sh) && !isKindMarker(bh) =>
+        // `smaller` ended, `bigger` continues
+        vpr.TrueLit()(errT = simpleReTrafo)
+      case (bh +: _, sh +: _) if !isKindMarker(sh) && isKindMarker(bh) =>
+        vpr.FalseLit()(errT = decreasesReTrafo)
+      case (bh +: bt, sh +: st) =>
+        if (!(bh.isSubtype(sh) || sh.isSubtype(bh))) vpr.FalseLit()(errT = decreasesReTrafo)
+        else {
+          val dec = vpr.DomainFuncApp(decreasingFunc.get, Seq(sh, bh), Map(decrTypeVars.head -> sh.typ, decrTypeVars.last -> bh.typ))(errT = decreasesReTrafo)
+          val bound = vpr.DomainFuncApp(boundedFunc.get, Seq(bh), Map(boundTypeVars.head -> bh.typ))(errT = boundReTrafo)
+          val eq = vpr.EqCmp(sh, bh)(errT = decreasesReTrafo)
+          vpr.Or(vpr.And(dec, bound)(errT = simpleReTrafo), vpr.And(eq, lex(bt, st))(errT = simpleReTrafo))(errT = simpleReTrafo)
+        }
+    }
+
+    val check = lex(bigger, smaller)
+    val implied = tupleCondition match {
+      case Some(c) => vpr.Implies(c, check)(errT = simpleReTrafo)
+      case None => check
+    }
+    vpr.Assert(implied)(errT = errTrafo)
   }
 
   /*

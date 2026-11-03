@@ -56,14 +56,17 @@ real program is visible in that one Viper program, and it often isn't:
 | `levelOf(x)` | the level of the object `x` (interface value, closure, value of a named type, §4–5) |
 | `decreases L, m1, …, mk` | if the first component `L` has type `level`, it is the member's *dynamic level* (§3) |
 | `ghost pure TerminationLevel() level` | optional method by which a type, or an interface, defines the level of its values (§4) |
+| `decreases bottomLevel(), m…` | places the member in the *bottom stratum* (§3.4) |
+| `ownLevel()` | in a member's contract: the member's own level, in its pre-state (§3.5) |
 
 **Atoms.** Every function, method, function literal and named type has an atom. Atoms are never
 written by users. For the package being verified, Gobra builds a dependency graph over its declarations:
 
 * `f → g` if `f`'s body or contract statically calls `g`, or uses `g` as a function or method value;
 * `f → lit` if `f` creates the function literal `lit`;
-* `f → T` if `f` converts a value of named type `T` (or `*T`) to an interface, or creates a method value
-  `x.M` with `x` of type `T`;
+* `f → T` if `f` converts a value of named type `T` (or `*T`) to an interface with methods, or creates a
+  method value `x.M` with `x` of type `T`. Converting to a method-less interface such as `interface{}`
+  (e.g., to pass a value to `fmt.Sprintf`) adds no edge, because such values cannot be called;
 * `T → T.M` for every method `M` of `T` (a type is above its methods).
 
 Interface calls and closure calls add **no** edge. Each strongly connected component (SCC) of the graph
@@ -90,8 +93,10 @@ unsoundness. Under the previous approach, a missing edge was an unsoundness.
 
 ### 3.1 Levels of members
 
-`dyn` is the *dynamic level*: by default the `lmax` of `levelOf(p)` over the parameters `p` of interface
-or function type, and the empty level if there are none. A user-written first component of type `level`
+`dyn` is the *dynamic level*: by default the `lmax` of `levelOf(p)` over the parameters `p` of function
+type or of an interface type with methods, and the empty level if there are none. Parameters of
+method-less interfaces (`interface{}`, or interfaces with only predicates) do not count: their values
+cannot be called. A user-written first component of type `level`
 replaces `dyn`. The member's **own** part is always added implicitly:
 
 | Member | Level |
@@ -101,7 +106,7 @@ replaces `dyn`. The member's **own** part is always added implicitly:
 | interface method | `levelOf(recv) + dyn` |
 | closure spec `s`, called as `c(args) as s` | `levelOf(c) + dyn` |
 | function literal `lit` | `{lit} + dyn` |
-| `TerminationLevel` methods | the empty level. They can only call other `TerminationLevel` methods, and terminate by their local measure, typically a predicate instance. |
+| `TerminationLevel` methods, and members with `decreases bottomLevel(), …` | the empty level: the bottom stratum (§3.4) |
 
 `lmax` is the maximum with respect to an unknown linearization of the order, as in [JBK] A.1.5. Users
 cannot write it. It satisfies `l <= lmax(l, r)` and `lmax(l, r) ∈ {l, r}`.
@@ -118,9 +123,23 @@ cannot write it. It satisfies `l <= lmax(l, r)` and `lmax(l, r) ∈ {l, r}`.
 * **Loops** keep their own `decreases` measures. Viper's termination plugin still checks those.
 * **Non-terminating members** (no `decreases`) may call anything. Terminating members may not call them,
   as before. `decreases _` and `trusted` remain explicit assumptions.
-* **Imported members** are not re-checked. Their measures are used only to check calls to them. For an
-  imported member without a body, the local part of the measure is dropped: a call from another package
-  can never be at the same level, so the local part could only matter inside its own package.
+* **Imported members** are not re-checked. Their measures are used only to check calls to them.
+* **Tuples of different length.** Every tuple ends in a *kind marker* (§7). If the callee's tuple ends
+  where the caller's continues with local measures, the callee is smaller. A member without local
+  measures cannot call a member of its own level, so this is sound. Viper's plugin instead treats the
+  shorter tuple as larger, which rejected, e.g., an implementation with `decreases` of an interface method
+  with `decreases ErrorMem()` whenever the two had the same level.
+* **Methods of the same object in contracts.** All methods of an interface value share the level
+  `levelOf(recv)`, but contracts commonly call other pure methods of the receiver
+  (`requires IsElem(e)`). Interface methods therefore have a *rank*: one plus the highest rank of the
+  interface methods their own contract calls. The rank is part of the kind marker, so it is compared
+  only when levels and local measures are equal. Ranks depend only on interface declarations, which every
+  importing package sees, so all packages agree on them.
+* **Imported helpers in interface contracts.** A contract of an interface method (or an implementation
+  proof) may call a member whose level consists of imported atoms only, e.g. `seqs.ToSeqByte`. The
+  interface's level `levelOf(recv)` is opaque, so the comparison could never succeed. It is not needed:
+  such a member cannot name the interface, which lives in this package or above, and it has no
+  dynamic arguments through which it could call back.
 
 ### 3.3 What the defaults buy
 
@@ -139,6 +158,49 @@ cannot write it. It satisfies `l <= lmax(l, r)` and `lmax(l, r) ∈ {l, r}`.
   decreases levelOf(a) + levelOf(b)   // a's methods may call b's
   func intersects(a Set, b Set) bool { return a.Intersects(b) }
   ```
+
+### 3.4 The bottom stratum
+
+Some members recurse over *data* whose dynamic type is unknown, not over layers of code. The ghost
+methods `IsDuplicableMem` and `Duplicate` of `error` are an example: an error wrapper recurses into its
+`Cause`, which may be another wrapper of any type. No level can bound "whatever error is nested
+inside". [JBK]'s answer, already used for `TerminationLevel` methods, is the empty level. A member whose
+measure starts with `bottomLevel()` gets exactly the empty level, with no atom of its own and no
+dynamic part:
+
+* it can be called from anywhere, because the empty level is below every other level;
+* it may only call members of the bottom stratum (anything else has an atom, so it is bigger);
+* calls within the bottom stratum compare the remaining measures. Predicate instances such as
+  `ErrorMem()` are typical; their nesting order does not depend on any package.
+
+Implementations of a bottom-stratum interface method must be in the bottom stratum as well (IMPL), and
+they must say so explicitly. Inferring it from "implements a bottom interface method" would make a
+method's level depend on implementation proofs in other packages, which is unsound. The built-in `error`
+interface declares `IsDuplicableMem` and `Duplicate` with `decreases bottomLevel(), ErrorMem()`.
+
+`bottomLevel()` is distinct from `emptyLevel()`: `decreases emptyLevel()` means "own atom, no dynamic
+part", for members that do not call their arguments' methods (e.g., `serrors.WrapStr`, which only
+stores its cause).
+
+### 3.5 Levels of returned objects: `ownLevel()`
+
+A caller can only call methods on an object it got from a callee if it knows a bound on the object's
+level. [JBK] §2.2.3 lets factories promise that their results are below their own level. Since users
+cannot name atoms, Gobra provides `ownLevel()`, the level of the member in whose contract it occurs,
+evaluated in the pre-state:
+
+```go
+ensures err != nil ==> levelOf(err) < ownLevel()
+decreases
+func (l LinkType) MarshalText() (res []byte, err error)
+```
+
+The caller knows that the callee's level is below its own, by the call check. Transitivity then gives
+`levelOf(err)` below the caller, so the caller may call `err.Error()`. This is opt-in. An implicit
+postcondition for every member returning an interface would be abstract too. It would, however, fail for
+members returning stored objects, and it would bring the level theory into nearly every Go program,
+which measurably slows Z3 (§7). The SMT encoding supports chaining two "below" facts through an opaque
+level, e.g. `levelOf(mode) < {NewCBCEncrypter} + levelOf(block)` and `levelOf(block) < {NewCipher}`.
 
 ## 4. Objects: interface values and wrappers
 
@@ -287,6 +349,11 @@ each witness re-triggers the quantifier and produces a new witness. Every check 
 afterwards assumed, so this happened routinely. A five-method test drove Z3 past 7 GB before the split
 and verifies in 10 s after it.
 
+The kind markers that end the tuples (`NonItfMethodMeasure()`, `ProofMeasure(rank)`,
+`ItfMethodMeasure(rank)`, `ClosureProofMeasure()`) are ordered by a fixed set of quantified axioms. One
+ground axiom per pair of ranks slowed Silicon's domain-instance computation, which unifies every ground
+`decreasing` application with every axiom mentioning `decreasing`.
+
 Termination measures get a `WellFoundedOrder` instance for `$Level`. Before each comparison, Gobra emits
 *level hints*: the multiplicities of the syntactically occurring atoms. These let Z3 decide the typical
 obligations `X < {f} + X` and `{g} + X < {f} + X` without instantiating the inner quantifier blindly.
@@ -313,7 +380,10 @@ Closure implementation proofs carry the spec's tuple, ending in `ClosureProofMea
 encoding loop. Their single call may therefore be an interface call at the spec's level.
 
 **Pruning.** Many leveled measures are encoded but then hidden from the plugin and never used by a
-check. The transformer therefore removes the level domains, or their `$typeLevel`/`$closureLevel`
+check. Atoms that the final program does not reference are removed together with the order facts about
+them. In `pkg/experimental/epic` of VerifiedSCION, this removed 756 of 815 atoms and 208,138 of 209,067
+facts: the Viper program shrank from 870,826 to 31,508 lines, and Silicon no longer spends minutes
+computing domain instances. The transformer therefore removes the level domains, or their `$typeLevel`/`$closureLevel`
 axioms, when the final program does not use them. Without this, the multiset theory over atoms
 perturbed Z3 on unrelated members. One closure test went from 14 s to minutes in about half of the runs,
 with Z3 above 10 GB.
@@ -348,8 +418,14 @@ interface method.
   the heap, so they cannot implement terminating specs.
 * **Standard-library stubs** do not declare `TerminationLevel`, so wrapper implementations of `io.Reader`
   and similar interfaces cannot verify yet.
-* **SMT cost.** The multiset order is quantified. The level hints handle the common shapes; unusual
-  explicit levels may need more hints.
+* **Objects stored in globals or containers** (registries) must have their level bounded by an
+  invariant before they can be called. VerifiedSCION's `path.NewPath` calls a constructor closure read
+  from the global `registeredPaths`; its level is unknown without such an invariant. [JBK] §3.3 requires
+  the same for any modular approach.
+* **Chained bounds.** The encoding supports chaining two "below" facts per comparison (§3.5), not more.
+* **SMT cost.** The multiset order is quantified. Comparisons of atom-only levels are decided by Gobra,
+  and the level theory is removed from programs that do not need it. Where it is needed, Z3 is
+  sensitive to its mere presence, so unrelated hard proofs can slow down.
 * **Concurrency is not implemented.** Gobra's termination notion is per call. Blocking operations
   (channel operations, `select` without `default`, `Mutex.Lock`, `WaitGroup.Wait`) are still not
   rejected in terminating code; this gap predates the change. The planned stages are:

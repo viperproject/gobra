@@ -55,6 +55,14 @@ func useBoth() int {
 	return s.Show()
 }
 
+// Chaining two bounds: the result of `passThrough` is below `{passThrough} + levelOf(t)`, and `levelOf(t)` is below
+// `{makeShower}`.
+decreases
+func useChained() int {
+	s := passThrough(makeShower())
+	return s.Show()
+}
+
 // The level of an object read from the heap is unknown.
 requires acc(p) && *p != nil
 //:: ExpectedOutput(postcondition_error:assertion_error)

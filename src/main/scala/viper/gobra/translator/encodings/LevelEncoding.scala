@@ -301,7 +301,9 @@ object LevelEncoding {
   private val unionFunc = vpr.DomainFunc(unionFuncName, Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
   /** The multiplicity of an atom in a level; its applications trigger the definition of the order on levels. */
   val countFunc: vpr.DomainFunc = vpr.DomainFunc("$cnt", Seq(vpr.LocalVarDecl("x", atomType)(), vpr.LocalVarDecl("l", levelType)()), vpr.Int)(domainName = levelDomainName)
-  /** The multiplicity of an atom in a level, used for the witnesses of the order; it triggers nothing (see below). */
+  /** The multiplicity of an atom in a level, used for the witnesses of the order (see below). */
+  private val witness1CountFunc = vpr.DomainFunc("$cnt1", Seq(vpr.LocalVarDecl("x", atomType)(), vpr.LocalVarDecl("l", levelType)()), vpr.Int)(domainName = levelDomainName)
+  /** The multiplicity of an atom in a level, used for the witnesses of witnesses; it triggers nothing (see below). */
   private val witnessCountFunc = vpr.DomainFunc("$cntW", Seq(vpr.LocalVarDecl("x", atomType)(), vpr.LocalVarDecl("l", levelType)()), vpr.Int)(domainName = levelDomainName)
 
   private def call(f: vpr.DomainFunc, args: vpr.Exp*): vpr.DomainFuncApp = vpr.DomainFuncApp(f, args, Map.empty)()
@@ -332,6 +334,10 @@ object LevelEncoding {
       vpr.EqCmp(call(countFunc, x.localVar, l.localVar), count(x, atoms(l)))())()
     val witnessCountDef = vpr.Forall(Seq(x, l), Seq(vpr.Trigger(Seq(call(witnessCountFunc, x.localVar, l.localVar)))()),
       vpr.EqCmp(call(witnessCountFunc, x.localVar, l.localVar), count(x, atoms(l)))())()
+    val witness1CountDef = vpr.Forall(Seq(x, l), Seq(vpr.Trigger(Seq(call(witness1CountFunc, x.localVar, l.localVar)))()),
+      vpr.EqCmp(call(witness1CountFunc, x.localVar, l.localVar), count(x, atoms(l)))())()
+    val witness1CountUnion = vpr.Forall(Seq(x, l, r), Seq(vpr.Trigger(Seq(call(witness1CountFunc, x.localVar, unionLR)))()),
+      vpr.EqCmp(call(witness1CountFunc, x.localVar, unionLR), vpr.Add(call(witness1CountFunc, x.localVar, l.localVar), call(witness1CountFunc, x.localVar, r.localVar))())())()
     // the multiplicities in a union are the sums of the multiplicities in its operands, which exposes the
     // multiplicities in the operands to the definition of the order
     val countUnion = vpr.Forall(Seq(x, l, r), Seq(vpr.Trigger(Seq(call(countFunc, x.localVar, unionLR)))()),
@@ -339,19 +345,24 @@ object LevelEncoding {
 
     /*
      * Huet-Oppen characterization of the multiset ordering. The universally quantified atom `x` is matched via `$cnt`,
-     * whereas the witnesses `y` are stated with `$cntW`. Both are the multiplicity of an atom, but only the former
-     * triggers the quantifier. Otherwise, each witness would trigger the quantifier again, whose instantiation would
-     * produce a new witness, and so on (a matching loop that occurs as soon as some `l < r` is assumed, e.g., after a
-     * termination check).
+     * whereas the witnesses `y` are stated with `$cnt1`, and the witnesses of a second instance (`dominated2`, which
+     * only follows from `l < r`) with `$cntW`. All three are the multiplicity of an atom, but only `$cnt` and `$cnt1`
+     * trigger a quantifier, each a different one. With a single count function, each witness would trigger the
+     * quantifier again, whose instantiation would produce a new witness, and so on (a matching loop that occurs as soon
+     * as some `l < r` is assumed, e.g., after a termination check). The two layers allow chaining two facts `a < b` and
+     * `b' < c` where the dominating atom of the first one lies in an opaque level `b'` (e.g., `levelOf(x)`).
      */
-    val xInL = call(countFunc, x.localVar, l.localVar)
-    val xInR = call(countFunc, x.localVar, r.localVar)
-    val yInL = call(witnessCountFunc, y.localVar, l.localVar)
-    val yInR = call(witnessCountFunc, y.localVar, r.localVar)
-    val dominated = vpr.Exists(Seq(y), Seq(vpr.Trigger(Seq(call(atomLtFunc, x.localVar, y.localVar)))()),
-      vpr.And(call(atomLtFunc, x.localVar, y.localVar), vpr.GtCmp(yInR, yInL)())())()
-    val huetOppen = vpr.Forall(Seq(x), Seq(vpr.Trigger(Seq(xInL))(), vpr.Trigger(Seq(xInR))()),
-      vpr.Implies(vpr.GtCmp(xInL, xInR)(), dominated)())()
+    def dominatedBy(countF: vpr.DomainFunc): vpr.Exp = vpr.Exists(Seq(y), Seq(vpr.Trigger(Seq(call(atomLtFunc, x.localVar, y.localVar)))()),
+      vpr.And(call(atomLtFunc, x.localVar, y.localVar), vpr.GtCmp(call(countF, y.localVar, r.localVar), call(countF, y.localVar, l.localVar))())())()
+    def huetOppenWith(matchF: vpr.DomainFunc, witnessF: vpr.DomainFunc): vpr.Exp = {
+      val xInL = call(matchF, x.localVar, l.localVar)
+      val xInR = call(matchF, x.localVar, r.localVar)
+      vpr.Forall(Seq(x), Seq(vpr.Trigger(Seq(xInL))(), vpr.Trigger(Seq(xInR))()),
+        vpr.Implies(vpr.GtCmp(xInL, xInR)(), dominatedBy(witnessF))())()
+    }
+    val huetOppen = huetOppenWith(countFunc, witness1CountFunc)
+    val ltSecondLayer = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(call(levelLtFunc, l.localVar, r.localVar)))()),
+      vpr.Implies(call(levelLtFunc, l.localVar, r.localVar), huetOppenWith(witness1CountFunc, witnessCountFunc))())()
     val ltDef = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(call(levelLtFunc, l.localVar, r.localVar)))()),
       vpr.EqCmp(call(levelLtFunc, l.localVar, r.localVar), vpr.And(vpr.NeCmp(atoms(l), atoms(r))(), huetOppen)())())()
 
@@ -367,8 +378,9 @@ object LevelEncoding {
 
     vpr.Domain(
       levelDomainName,
-      Seq(lvlFunc, atomsFunc, atomLtFunc, levelLtFunc, levelMaxFunc, unionFunc, countFunc, witnessCountFunc),
-      Seq(lvlInj, atomsInj, irreflexive, unionDef, countDef, witnessCountDef, countUnion, ltDef, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
+      Seq(lvlFunc, atomsFunc, atomLtFunc, levelLtFunc, levelMaxFunc, unionFunc, countFunc, witness1CountFunc, witnessCountFunc),
+      Seq(lvlInj, atomsInj, irreflexive, unionDef, countDef, witness1CountDef, witnessCountDef, countUnion, witness1CountUnion, ltDef,
+        ltSecondLayer, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
     )()
   }
 

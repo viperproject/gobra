@@ -88,8 +88,28 @@ object ModularTerminationTransformer {
       // the functions relating types and closures to their levels are only needed if they are used
       val unused = Set("$typeLevel", "$closureLevel").filterNot(usedLevelFuncs.contains)
       def mentionsUnused(n: vpr.Node): Boolean = n.existsDefined { case app: vpr.DomainFuncApp if unused.contains(app.funcname) => }
-      val prunedLevelDomains = levelDomains.map { d =>
+      val withoutUnusedFuncs = levelDomains.map { d =>
         d.copy(functions = d.functions.filterNot(f => unused.contains(f.name)), axioms = d.axioms.filterNot(mentionsUnused))(d.pos, d.info, d.errT)
+      }
+      // Atoms are registered for every encoded measure, e.g., of every imported member, and the encoding axiomatizes the
+      // (transitively closed) order between all pairs of them. Only the atoms used by the program (or by the remaining
+      // axioms about types and closures) are needed; facts about other atoms cannot contribute to any proof, as the facts
+      // are transitively closed.
+      def isAtomFunc(f: vpr.DomainFunc): Boolean = f.formalArgs.isEmpty && f.typ == LevelEncoding.atomType
+      val atomFuncs = withoutUnusedFuncs.flatMap(_.functions).filter(isAtomFunc).map(_.name).toSet
+      def atomsIn(n: vpr.Node): Set[String] = n.deepCollect { case app: vpr.DomainFuncApp if atomFuncs.contains(app.funcname) => app.funcname }.toSet
+      def isOrderFact(e: vpr.Exp): Boolean = e match {
+        case vpr.DomainFuncApp(LevelEncoding.atomLtFuncName, Seq(_: vpr.DomainFuncApp, _: vpr.DomainFuncApp), _) => true
+        case vpr.Or(l, _) => isOrderFact(l)
+        case _ => false
+      }
+      val usedAtoms = otherNodes.flatMap(atomsIn).toSet ++
+        withoutUnusedFuncs.flatMap(_.axioms).filterNot(a => isOrderFact(a.exp)).flatMap(a => atomsIn(a.exp))
+      val prunedLevelDomains = withoutUnusedFuncs.map { d =>
+        d.copy(
+          functions = d.functions.filter(f => !isAtomFunc(f) || usedAtoms.contains(f.name)),
+          axioms = d.axioms.filter(a => !isOrderFact(a.exp) || atomsIn(a.exp).subsetOf(usedAtoms))
+        )(d.pos, d.info, d.errT)
       }
       // keep the original order of the domains
       val pruned = prunedLevelDomains.map(d => d.name -> d).toMap

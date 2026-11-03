@@ -32,7 +32,7 @@ class TerminationEncoding extends Encoding {
         /**
          * The last element of every tuple termination measure is a kind marker, which records whether the measure
          * belongs to an interface method (resp. closure spec), to an implementation proof, or to an implementation
-         * (see [[TerminationEncoding.markerOrder]]). Implementation proofs call the implementation and are called from
+         * (see the order described in `finalize`). Implementation proofs call the implementation and are called from
          * the interface method, which turns the strict decrease required at these calls into a non-strict one: the
          * measure of the implementation may be at most the measure of the interface. Similarly, the call in a closure
          * implementation proof (which may be the call of an interface method) may have at most the measure of the
@@ -50,10 +50,7 @@ class TerminationEncoding extends Encoding {
               case _ => violation("invalid tuple measure argument")
             })
             lastElem: vpr.Exp = measure match {
-              case _: in.ItfMethodMeasure =>
-                val rank = rankOf(measure)
-                maxRank = math.max(maxRank, rank)
-                markerApp(itfMarkerName(rank), pos, info, errT)
+              case _: in.ItfMethodMeasure => rankedMarkerApp(itfMarkerName, rankOf(measure), pos, info, errT)
               case _: in.NonItfMethodMeasure => markerApp(nonItfMarkerName, pos, info, errT)
             }
           } yield termination.DecreasesTuple(v :+ lastElem, c)(pos, markImported(measure, info), errT)
@@ -63,9 +60,6 @@ class TerminationEncoding extends Encoding {
           } yield termination.DecreasesWildcard(c)(pos, markImported(measure, info), errT)
       }
   }
-
-  /** The largest rank of an interface method encountered so far. */
-  private var maxRank: Int = 0
 
   private def annotations(measure: in.TerminationMeasure): Seq[Source.Annotation] = {
     @tailrec
@@ -95,19 +89,16 @@ class TerminationEncoding extends Encoding {
     *
     *   domain TerminationDomain {
     *     function NonItfMethodMeasure(): TerminationDomain
-    *     function ProofMeasure(): TerminationDomain, function ItfMethodMeasure(): TerminationDomain   // rank 0
-    *     function ProofMeasure$k(): TerminationDomain, function ItfMethodMeasure$k(): TerminationDomain // rank k > 0
+    *     function ProofMeasure(rank: Int): TerminationDomain
+    *     function ItfMethodMeasure(rank: Int): TerminationDomain
     *     function ClosureProofMeasure(): TerminationDomain
     *   }
     *
-    *   domain TerminationDomainWellFoundedOrder {
-    *     axiom { decreasing(m1, m2) } for every pair of markers with m1 < m2 (see [[TerminationEncoding.markerOrder]])
-    *     axiom { bounded(m) } for every marker m
-    *   }
+    * The order (see the order described in `finalize`) is axiomatized by a fixed number of axioms, independently of
+    * the number of ranks. The axioms only state when markers decrease, never the converse.
     */
   override def finalize(addMemberFn: Member => Unit): Unit = {
-    val names = markerNames(maxRank)
-    val funcs = names.map(markerFunc)
+    val funcs = Seq(nonItfFunc, proofFunc, itfFunc, closureProofFunc)
     addMemberFn(vpr.Domain(name = domainName, functions = funcs, axioms = Seq.empty, typVars = Seq.empty, interpretations = None)(NoPosition, NoInfo, NoTrafos))
 
     val wfOrderDomainName = "WellFoundedOrder"
@@ -115,13 +106,35 @@ class TerminationEncoding extends Encoding {
     val typVarMap = Map(vpr.TypeVar("T") -> domainType)
     def wfApp(fname: String, args: Seq[vpr.Exp]): vpr.Exp =
       vpr.DomainFuncApp(funcname = fname, args = args, typVarMap = typVarMap)(NoPosition, NoInfo, typ = vpr.Bool, domainName = wfOrderDomainName, NoTrafos)
-    val decreasingAxioms = for {
-      smaller <- names
-      bigger <- names
-      if markerLt(smaller, bigger)
-    } yield wfApp("decreasing", Seq(markerApp(smaller), markerApp(bigger)))
-    val boundedAxioms = names.map(n => wfApp("bounded", Seq(markerApp(n))))
-    val axioms = (decreasingAxioms ++ boundedAxioms).map(e => vpr.AnonymousDomainAxiom(e)(domainName = termDomainWFOrderName))
+    def dec(l: vpr.Exp, r: vpr.Exp): vpr.Exp = wfApp("decreasing", Seq(l, r))
+    val i = vpr.LocalVarDecl("i", vpr.Int)()
+    val j = vpr.LocalVarDecl("j", vpr.Int)()
+    def ranked(f: vpr.DomainFunc, v: vpr.LocalVarDecl): vpr.Exp = vpr.DomainFuncApp(f, Seq(v.localVar), Map.empty)()
+    val nonItf = vpr.DomainFuncApp(nonItfFunc, Seq.empty, Map.empty)()
+    val closureProof = vpr.DomainFuncApp(closureProofFunc, Seq.empty, Map.empty)()
+    def forall1(body: vpr.Exp, trigger: vpr.Exp): vpr.Exp = vpr.Forall(Seq(i), Seq(vpr.Trigger(Seq(trigger))()), body)()
+    def forall2(cond: vpr.Exp, d: vpr.Exp): vpr.Exp = vpr.Forall(Seq(i, j), Seq(vpr.Trigger(Seq(d))()), vpr.Implies(cond, d)())()
+    val lt = vpr.LtCmp(i.localVar, j.localVar)()
+    val le = vpr.LeCmp(i.localVar, j.localVar)()
+    val axioms = Seq(
+      // the marker of implementations is below all others
+      { val d = dec(nonItf, ranked(proofFunc, i)); forall1(d, d) },
+      { val d = dec(nonItf, ranked(itfFunc, i)); forall1(d, d) },
+      dec(nonItf, closureProof),
+      // proofs and interface methods are ordered by rank, and for the same rank, the proof is below the interface method
+      forall2(le, dec(ranked(proofFunc, i), ranked(itfFunc, j))),
+      forall2(lt, dec(ranked(itfFunc, i), ranked(proofFunc, j))),
+      forall2(lt, dec(ranked(itfFunc, i), ranked(itfFunc, j))),
+      forall2(lt, dec(ranked(proofFunc, i), ranked(proofFunc, j))),
+      // the marker of closure proofs is above all others
+      { val d = dec(ranked(proofFunc, i), closureProof); forall1(d, d) },
+      { val d = dec(ranked(itfFunc, i), closureProof); forall1(d, d) },
+      // all markers are bounded
+      wfApp("bounded", Seq(nonItf)),
+      wfApp("bounded", Seq(closureProof)),
+      { val b = wfApp("bounded", Seq(ranked(proofFunc, i))); forall1(b, b) },
+      { val b = wfApp("bounded", Seq(ranked(itfFunc, i))); forall1(b, b) },
+    ).map(e => vpr.AnonymousDomainAxiom(e)(domainName = termDomainWFOrderName))
     addMemberFn(vpr.Domain(name = termDomainWFOrderName, functions = Seq.empty, axioms = axioms, typVars = Seq.empty, interpretations = None)(NoPosition, NoInfo, NoTrafos))
   }
 }
@@ -132,37 +145,33 @@ object TerminationEncoding {
 
   private val nonItfMarkerName = "NonItfMethodMeasure"
   private val closureProofMarkerName = "ClosureProofMeasure"
-  private def itfMarkerName(rank: Int): String = if (rank == 0) "ItfMethodMeasure" else s"ItfMethodMeasure$$$rank"
-  private def proofMarkerName(rank: Int): String = if (rank == 0) "ProofMeasure" else s"ProofMeasure$$$rank"
+  private val itfMarkerName = "ItfMethodMeasure"
+  private val proofMarkerName = "ProofMeasure"
 
-  private def markerNames(maxRank: Int): Seq[String] =
-    nonItfMarkerName +: (0 to maxRank).flatMap(r => Seq(proofMarkerName(r), itfMarkerName(r))) :+ closureProofMarkerName
+  private def markerFunc(name: String, ranked: Boolean): vpr.DomainFunc =
+    vpr.DomainFunc(name = name, formalArgs = if (ranked) Seq(vpr.LocalVarDecl("rank", vpr.Int)()) else Seq.empty,
+      typ = domainType, interpretation = None)(NoPosition, NoInfo, domainName, NoTrafos)
+  private val nonItfFunc = markerFunc(nonItfMarkerName, ranked = false)
+  private val closureProofFunc = markerFunc(closureProofMarkerName, ranked = false)
+  private val itfFunc = markerFunc(itfMarkerName, ranked = true)
+  private val proofFunc = markerFunc(proofMarkerName, ranked = true)
 
   /**
-    * The order of kind markers: `NonItfMethodMeasure` is below the markers of implementation proofs and interface
+    * The order of kind markers: `NonItfMethodMeasure()` is below the markers of implementation proofs and interface
     * methods, which are ordered by rank and, for the same rank, the proof below the interface method. The marker of
     * closure implementation proofs is above all others.
     */
-  private def markerOrder(name: String): (Int, Int) = name match {
-    case `nonItfMarkerName` => (-1, 0)
-    case `closureProofMarkerName` => (Int.MaxValue, 0)
-    case "ProofMeasure" => (0, 1)
-    case "ItfMethodMeasure" => (0, 2)
-    case s"ProofMeasure$$$r" => (r.toInt, 1)
-    case s"ItfMethodMeasure$$$r" => (r.toInt, 2)
-    case _ => violation(s"unexpected kind marker $name")
+  private def markerApp(name: String, pos: Position, info: Info, errT: ErrorTrafo): vpr.DomainFuncApp =
+    name match {
+      case `nonItfMarkerName` => vpr.DomainFuncApp(func = nonItfFunc, args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
+      case `closureProofMarkerName` => vpr.DomainFuncApp(func = closureProofFunc, args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
+      case _ => violation(s"unexpected unranked kind marker $name")
+    }
+
+  private def rankedMarkerApp(name: String, rank: Int, pos: Position, info: Info, errT: ErrorTrafo): vpr.DomainFuncApp = {
+    val func = if (name == itfMarkerName) itfFunc else proofFunc
+    vpr.DomainFuncApp(func = func, args = Seq(vpr.IntLit(rank)(pos, info, errT)), typVarMap = Map.empty)(pos, info, errT)
   }
-
-  private def markerLt(l: String, r: String): Boolean = {
-    import scala.math.Ordering.Implicits._
-    markerOrder(l) < markerOrder(r)
-  }
-
-  private def markerFunc(name: String): vpr.DomainFunc =
-    vpr.DomainFunc(name = name, formalArgs = Seq.empty, typ = domainType, interpretation = None)(NoPosition, NoInfo, domainName, NoTrafos)
-
-  private def markerApp(name: String, pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): vpr.DomainFuncApp =
-    vpr.DomainFuncApp(func = markerFunc(name), args = Seq.empty, typVarMap = Map.empty)(pos, info, errT)
 
   /** Marks the termination measures of members of imported packages. */
   case object ImportedMeasureInfo extends vpr.Info {
@@ -175,24 +184,25 @@ object TerminationEncoding {
     * implementation proof by replacing their kind marker with the proof marker of the same rank.
     */
   def toProofMeasure(exp: vpr.Exp, imported: Boolean): vpr.Exp = replaceMarker(exp, imported, {
-    case s"ItfMethodMeasure$$$r" => proofMarkerName(r.toInt)
-    case _ => proofMarkerName(0)
+    case app if app.funcname == itfMarkerName =>
+      vpr.DomainFuncApp(func = proofFunc, args = app.args, typVarMap = Map.empty)(app.pos, app.info, app.errT)
+    case app => rankedMarkerApp(proofMarkerName, 0, app.pos, app.info, app.errT)
   })
 
   /**
     * Turns the termination measure `exp` of a closure spec into the measure of a closure implementation proof by
     * replacing its kind marker with `ClosureProofMeasure()`, which is above every other marker.
     */
-  def toClosureProofMeasure(exp: vpr.Exp): vpr.Exp = replaceMarker(exp, imported = false, _ => closureProofMarkerName)
+  def toClosureProofMeasure(exp: vpr.Exp): vpr.Exp =
+    replaceMarker(exp, imported = false, app => markerApp(closureProofMarkerName, app.pos, app.info, app.errT))
 
-  private def isMarkerName(name: String): Boolean = name == nonItfMarkerName || name.startsWith("ItfMethodMeasure") ||
-    name.startsWith("ProofMeasure") || name == closureProofMarkerName
+  private def isMarkerName(name: String): Boolean =
+    name == nonItfMarkerName || name == itfMarkerName || name == proofMarkerName || name == closureProofMarkerName
 
-  private def replaceMarker(exp: vpr.Exp, imported: Boolean, replacement: String => String): vpr.Exp = exp.transform {
+  private def replaceMarker(exp: vpr.Exp, imported: Boolean, replacement: vpr.DomainFuncApp => vpr.DomainFuncApp): vpr.Exp = exp.transform {
     case t: termination.DecreasesTuple =>
       val newTuple = t.tupleExpressions.map(_.transform {
-        case app: vpr.DomainFuncApp if app.domainName == domainName && isMarkerName(app.funcname) =>
-          markerApp(replacement(app.funcname), app.pos, app.info, app.errT)
+        case app: vpr.DomainFuncApp if app.domainName == domainName && isMarkerName(app.funcname) => replacement(app)
       })
       termination.DecreasesTuple(newTuple, t.condition)(t.pos, withImportedMarker(t.info, imported), t.errT)
     case w: termination.DecreasesWildcard =>

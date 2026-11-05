@@ -61,7 +61,7 @@ object ModularTerminationTransformer {
     */
   def pruneLevelEncoding(p: vpr.Program): vpr.Program = {
     val levelDomainNames = Set(LevelEncoding.levelDomainName, LevelEncoding.atomDomainName, s"${LevelEncoding.levelDomainName}WellFoundedOrder")
-    val (levelDomains, otherDomains) = p.domains.partition(d => levelDomainNames.contains(d.name))
+    val (levelDomains, otherDomains) = p.domains.partition(d => LevelEncoding.isLevelDomain(d.name))
     if (levelDomains.isEmpty) return p
 
     def mentionsLevelType(t: vpr.Type): Boolean = t match {
@@ -111,9 +111,11 @@ object ModularTerminationTransformer {
           axioms = d.axioms.filter(a => !isOrderFact(a.exp) || atomsIn(a.exp).subsetOf(usedAtoms))
         )(d.pos, d.info, d.errT)
       }
-      // keep the original order of the domains
+      // keep the original order of the domains, without the domains of order facts that became empty
       val pruned = prunedLevelDomains.map(d => d.name -> d).toMap
-      p.copy(domains = p.domains.map(d => pruned.getOrElse(d.name, d)))(p.pos, p.info, p.errT)
+      val domains = p.domains.map(d => pruned.getOrElse(d.name, d))
+        .filterNot(d => d.name.startsWith(LevelEncoding.orderDomainPrefix) && d.axioms.isEmpty)
+      p.copy(domains = domains)(p.pos, p.info, p.errT)
     }
   }
 
@@ -359,7 +361,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
   private case object LevelsUnknown extends LevelComparison
 
   /** The strict order facts between atoms that the encoding axiomatizes. */
-  private lazy val atomLtFacts: Set[(String, String)] = program.domains.filter(_.name == LevelEncoding.atomDomainName).flatMap(_.axioms).map(_.exp).collect {
+  private lazy val atomLtFacts: Set[(String, String)] = program.domains.filter(d => d.name.startsWith(LevelEncoding.orderDomainPrefix)).flatMap(_.axioms).map(_.exp).collect {
     case vpr.DomainFuncApp(LevelEncoding.atomLtFuncName, Seq(l: vpr.DomainFuncApp, r: vpr.DomainFuncApp), _) if l.args.isEmpty && r.args.isEmpty =>
       (l.funcname, r.funcname)
   }.toSet

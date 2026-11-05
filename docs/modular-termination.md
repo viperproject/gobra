@@ -438,6 +438,10 @@ axioms, when the final program does not use them. Without this, the multiset the
 perturbed Z3 on unrelated members. One closure test went from 14 s to minutes in about half of the runs,
 with Z3 above 10 GB.
 
+The order facts are spread over small domains (`$AtomOrder0`, `$AtomOrder1`, ...). Viper's chopper,
+which VerifiedSCION's router uses (`chop: 10`), hashes the enclosing domain of every axiom it considers.
+With all facts in one domain, chopping the router took longer than 30 minutes.
+
 **Tests.** The following tests are in `src/test/resources/regressions/features/termination/`.
 
 | Test | What it shows |

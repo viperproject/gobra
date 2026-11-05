@@ -242,7 +242,13 @@ class LevelEncoding extends LeafTypeEncoding {
         val ac = vpr.DomainFuncApp(atomLtFunc, Seq(a.localVar, c.localVar), Map.empty)()
         vpr.Forall(Seq(a, b, c), Seq(vpr.Trigger(Seq(abW, bc))()), vpr.Implies(vpr.And(abW, bc)(), ac)())(): vpr.Exp
       }
-      val axioms = (orderAxioms.distinct ++ atMostAxioms.distinct ++ Seq(transitivityAxiom) ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
+      val axioms = (Seq(transitivityAxiom) ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
+      // The order facts are spread over small domains: Viper's chopper hashes the enclosing domain of every axiom it
+      // considers, which is quadratic in the number of facts if they all belong to one domain.
+      (orderAxioms.distinct ++ atMostAxioms.distinct).grouped(orderDomainSize).zipWithIndex.foreach { case (facts, i) =>
+        val name = s"$orderDomainPrefix$i"
+        addMemberFn(vpr.Domain(name, Seq.empty, facts.map(a => vpr.AnonymousDomainAxiom(a)(domainName = name)))())
+      }
       val functions = (mainAtoms.values ++ importedAtoms.values).toVector.sortBy(_.name) ++ typeLevelFuncOpt ++ closureLevelFuncOpt
       addMemberFn(vpr.Domain(atomDomainName, functions, axioms)())
     }
@@ -288,6 +294,11 @@ class LevelEncoding extends LeafTypeEncoding {
 object LevelEncoding {
   val levelDomainName: String = "$Level"
   val atomDomainName: String = "$Atom"
+  /** Prefix of the domains holding the order facts between atoms (see `finalize`). */
+  val orderDomainPrefix: String = "$AtomOrder"
+  private val orderDomainSize: Int = 64
+  def isLevelDomain(name: String): Boolean =
+    name == levelDomainName || name == atomDomainName || name == s"${levelDomainName}WellFoundedOrder" || name.startsWith(orderDomainPrefix)
 
   val atomType: vpr.DomainType = vpr.DomainType(atomDomainName, Map.empty)(Seq.empty)
   val levelType: vpr.DomainType = vpr.DomainType(levelDomainName, Map.empty)(Seq.empty)

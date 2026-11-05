@@ -409,8 +409,12 @@ members, and recursion within an SCC, are like this. The transformer decides the
 `callee = C + E1` and `caller = C + E2`, where `C` is the syntactically common part. The levels are equal
 if `E1` and `E2` are both empty; then only the rest of the tuple is checked. The callee level is smaller
 if `E2` is nonempty and every atom of `E1` has an axiomatized `$atomLt` fact to some atom of `E2`. That
-holds in every model, even when atom names alias. The level theory then never reaches Z3 for programs
-without dynamically bound calls. This matters because Z3 is sensitive to unrelated declarations: a
+holds in every model, even when atom names alias. If only the callee's level is made of atoms (the
+caller's level has an opaque part such as `levelOf(df)` for an interface parameter `df`), the callee is
+below the caller if it is below the atoms the caller certainly contains, as adding atoms makes a
+multiset bigger. Without this, every call in a member with an interface parameter reached Z3 as a
+multiset problem: `SCION.DecodeFromBytes` in VerifiedSCION has 22 such checks, repeated on every path.
+The level theory then never reaches Z3 for programs without dynamically bound calls. This matters because Z3 is sensitive to unrelated declarations: a
 magic-wand proof (`wands/ghost-list.gobra`) went from 12 s to 90 s and timed out with the level domain
 merely present.
 

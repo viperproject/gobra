@@ -377,18 +377,44 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
   }
 
   /**
-    * Compares `callee` with `caller`. With `common` being their common atoms, `callee` = `common + e1` and `caller` =
-    * `common + e2`. If both `e1` and `e2` are empty, the levels are equal. If `e2` is non-empty and every atom of `e1`
-    * is known to be below some atom of `e2`, then `callee` is smaller than `caller` in the multiset ordering (replace
-    * `e2` by `e1`). This holds even if distinct atom names denote the same atom.
+    * Splits a level into the atoms it certainly contains and the remaining parts (e.g., `levelOf(x)`), which may
+    * contribute further atoms. The level is the union of both.
+    */
+  private def staticPart(e: vpr.Exp): Map[String, Int] = e match {
+    case vpr.Old(inner) => staticPart(inner)
+    case vpr.DomainFuncApp(LevelEncoding.unionFuncName, Seq(l, r), _) =>
+      val (a, b) = (staticPart(l), staticPart(r))
+      (a.keySet ++ b.keySet).map(k => k -> (a.getOrElse(k, 0) + b.getOrElse(k, 0))).toMap
+    case other => staticLevel(other).getOrElse(Map.empty)
+  }
+
+  /**
+    * Compares the static levels `callee` and `caller`. With `common` being their common atoms, `callee` = `common + e1`
+    * and `caller` = `common + e2`. If both `e1` and `e2` are empty, the levels are equal. If `e2` is non-empty and every
+    * atom of `e1` is known to be below some atom of `e2`, then `callee` is smaller than `caller` in the multiset
+    * ordering (replace `e2` by `e1`). This holds even if distinct atom names denote the same atom.
+    */
+  private def compareStatic(l1: Map[String, Int], l2: Map[String, Int]): LevelComparison = {
+    def excess(a: Map[String, Int], b: Map[String, Int]): Set[String] = a.collect { case (k, n) if n > b.getOrElse(k, 0) => k }.toSet
+    val (e1, e2) = (excess(l1, l2), excess(l2, l1))
+    if (e1.isEmpty && e2.isEmpty) LevelsEqual
+    else if (e2.nonEmpty && e1.forall(x => e2.exists(y => atomLtFacts.contains((x, y))))) LevelLess
+    else LevelsUnknown
+  }
+
+  /**
+    * Compares `callee` with `caller`. If both are static, see `compareStatic`. If only the callee is static, it is below
+    * the caller if it is below the atoms that the caller certainly contains, as adding atoms to a multiset makes it
+    * bigger. This decides, e.g., the calls of members whose levels have an argument of an interface type (and thus
+    * an opaque component) to members of lower components and imported packages.
     */
   private def compareLevels(callee: vpr.Exp, caller: vpr.Exp): LevelComparison = (staticLevel(callee), staticLevel(caller)) match {
-    case (Some(l1), Some(l2)) =>
-      def excess(a: Map[String, Int], b: Map[String, Int]): Set[String] = a.collect { case (k, n) if n > b.getOrElse(k, 0) => k }.toSet
-      val (e1, e2) = (excess(l1, l2), excess(l2, l1))
-      if (e1.isEmpty && e2.isEmpty) LevelsEqual
-      else if (e2.nonEmpty && e1.forall(x => e2.exists(y => atomLtFacts.contains((x, y))))) LevelLess
-      else LevelsUnknown
+    case (Some(l1), Some(l2)) => compareStatic(l1, l2)
+    case (Some(l1), None) =>
+      compareStatic(l1, staticPart(caller)) match {
+        case LevelLess => LevelLess
+        case _ => LevelsUnknown
+      }
     case _ => LevelsUnknown
   }
 

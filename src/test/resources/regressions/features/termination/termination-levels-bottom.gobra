@@ -132,3 +132,39 @@ decreases
 func bottomClient() {
 	BT{}.P(3)
 }
+
+// Arguments of interfaces whose methods are all in the bottom stratum do not contribute to the levels of members, as
+// calls through these interfaces are charged with the empty level. Objects of these interfaces can thus be passed even
+// if their level is unknown, e.g., when they are read from the heap.
+type Feedback interface {
+	decreases bottomLevel()
+	Touch()
+}
+
+type FeedbackHolder struct{ f Feedback }
+
+requires f != nil
+decreases
+func decodeWith(f Feedback) { f.Touch() }
+
+requires acc(&h.f) && h.f != nil
+decreases
+func useFeedbackHolder(h *FeedbackHolder) { decodeWith(h.f) }
+
+type Feedback2 interface {
+	decreases
+	Touch()
+}
+
+type FeedbackHolder2 struct{ f Feedback2 }
+
+requires f != nil
+decreases
+func decodeWith2(f Feedback2) { f.Touch() }
+
+requires acc(&h.f) && h.f != nil
+decreases
+func useFeedbackHolder2(h *FeedbackHolder2) {
+	//:: ExpectedOutput(function_termination_error)
+	decodeWith2(h.f)
+}

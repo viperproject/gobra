@@ -186,6 +186,12 @@ interface declares `IsDuplicableMem` and `Duplicate` with `decreases bottomLevel
 part", for members that do not call their arguments' methods (e.g., `serrors.WrapStr`, which only
 stores its cause).
 
+Interfaces whose terminating methods are all in the bottom stratum (e.g. `hash.Hash` or gopacket's
+`SerializeBuffer` in VerifiedSCION) do not count as dynamic: calls through them are charged with the
+empty level, so their arguments do not contribute to the levels of members. Objects of these
+interfaces can be passed even if their level is unknown, e.g., when they are read from the heap or a
+global variable.
+
 ### 3.5 Levels of returned objects: `ownLevel()`
 
 A caller can only call methods on an object it got from a callee if it knows a bound on the object's

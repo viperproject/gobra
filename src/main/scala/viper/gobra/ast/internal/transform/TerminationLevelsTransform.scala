@@ -464,7 +464,7 @@ object TerminationLevelsTransform extends InternalTransform {
     * dynamically bound. Values of interfaces without methods (e.g., `interface{}`) cannot be called.
     */
   private def isDynamic(t: in.Type, table: in.LookupTable): Boolean = underlying(t, table) match {
-    case itf: in.InterfaceT => hasMethods(itf, table)
+    case itf: in.InterfaceT => interfacesWithLeveledMethods(table).contains(itf.name)
     case _: in.FunctionT => true
     case _ => false
   }
@@ -485,6 +485,30 @@ object TerminationLevelsTransform extends InternalTransform {
     }.flatten
     direct ++ embedding
   })
+
+  /**
+    * Names of the interfaces with a method whose calls are charged with the level of the receiver, i.e., a method with
+    * a tuple measure outside of the bottom stratum. Calls of the other methods are charged with the empty level (bottom
+    * stratum) or not compared at all (no or wildcard measures), so arguments of the other interfaces do not contribute
+    * to the levels of members. This only removes components from levels, which makes the checks in these members
+    * stricter (e.g., a member converting such an argument to another interface cannot call it).
+    */
+  private def interfacesWithLeveledMethods(table: in.LookupTable): Set[String] = interfacesWithLeveledMethodsCache.getOrElseUpdate(table, {
+    def leveled(measures: Vector[in.TerminationMeasure]): Boolean = measures.exists {
+      case t: in.TupleTerminationMeasure => !t.tuple.headOption.exists(_.isInstanceOf[in.LevelBottom])
+      case _ => false
+    }
+    val direct = table.getMethods.collect {
+      case m: in.Method if isInterfaceMethod(m) && leveled(m.terminationMeasures) => m.receiver.typ.asInstanceOf[in.InterfaceT].name
+      case m: in.PureMethod if isInterfaceMethod(m) && leveled(m.terminationMeasures) => m.receiver.typ.asInstanceOf[in.InterfaceT].name
+    }.toSet
+    val embedding = table.getImplementations.toVector.collect {
+      case (itf, impls) if direct.contains(itf.name) => impls.collect { case i: in.InterfaceT => i.name }
+    }.flatten
+    direct ++ embedding
+  })
+
+  private val interfacesWithLeveledMethodsCache = scala.collection.concurrent.TrieMap.empty[in.LookupTable, Set[String]]
 
   /** Returns false only for interface types without methods. */
   private def callableInterface(t: in.Type, table: in.LookupTable): Boolean = underlying(t, table) match {

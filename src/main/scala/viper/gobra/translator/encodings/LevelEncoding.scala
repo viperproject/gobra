@@ -29,6 +29,8 @@ import viper.silver.{ast => vpr}
   *
   *   function $atomLt(a: $Atom, b: $Atom): Bool
   *   axiom { forall a :: { $atomLt(a, a) } !$atomLt(a, a) }
+  *   // marks the witnesses of assumed comparisons, which trigger the transitivity of $atomLt (see `finalize`)
+  *   function $atomLtW(a: $Atom, b: $Atom): Bool
   *
   *   function $union(l: $Level, r: $Level): $Level
   *   axiom { forall l, r :: { $union(l, r) } $atoms($union(l, r)) == $atoms(l) union $atoms(r) }
@@ -227,14 +229,18 @@ class LevelEncoding extends LeafTypeEncoding {
         val nil = vpr.DomainFuncApp(Names.closureNilFunc, Seq.empty, Map.empty)(vpr.NoPosition, vpr.NoInfo, f.formalArgs.head.typ, Names.closureDomain, vpr.NoTrafos)
         vpr.EqCmp(vpr.DomainFuncApp(f, Seq(nil), Map.empty)(), vpr.DomainFuncApp(lvlFunc, Seq(vpr.EmptyMultiset(atomType)()), Map.empty)())()
       }
-      // transitivity of the order on atoms. It is needed to compare levels that are only known to be below some level
-      // (e.g., by a postcondition `levelOf(res) < ownLevel()`). Its instances only relate existing atom terms.
+      // Transitivity of the order on atoms. It is needed to compare levels that are only known to be below some level
+      // (e.g., by a postcondition `levelOf(res) < ownLevel()`). The order facts between the atoms above are already
+      // transitively closed, so transitivity is only needed for chains that start with an atom of such a level. These
+      // chains start with a witness of an assumed comparison, which is marked by `$atomLtW` (see `levelDomain`). A
+      // trigger on two applications of `$atomLt` would instead be instantiated O(n^3) times for n atoms in every proof
+      // obligation, as all order facts above are applications of `$atomLt`.
       val transitivityAxiom = {
         val (a, b, c) = (vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)(), vpr.LocalVarDecl("c", atomType)())
-        val ab = vpr.DomainFuncApp(atomLtFunc, Seq(a.localVar, b.localVar), Map.empty)()
+        val abW = vpr.DomainFuncApp(atomLtWitnessFunc, Seq(a.localVar, b.localVar), Map.empty)()
         val bc = vpr.DomainFuncApp(atomLtFunc, Seq(b.localVar, c.localVar), Map.empty)()
         val ac = vpr.DomainFuncApp(atomLtFunc, Seq(a.localVar, c.localVar), Map.empty)()
-        vpr.Forall(Seq(a, b, c), Seq(vpr.Trigger(Seq(ab, bc))()), vpr.Implies(vpr.And(ab, bc)(), ac)())(): vpr.Exp
+        vpr.Forall(Seq(a, b, c), Seq(vpr.Trigger(Seq(abW, bc))()), vpr.Implies(vpr.And(abW, bc)(), ac)())(): vpr.Exp
       }
       val axioms = (orderAxioms.distinct ++ atMostAxioms.distinct ++ Seq(transitivityAxiom) ++ typeLevelAxioms ++ nilClosureAxiom).map(a => vpr.AnonymousDomainAxiom(a)(domainName = atomDomainName))
       val functions = (mainAtoms.values ++ importedAtoms.values).toVector.sortBy(_.name) ++ typeLevelFuncOpt ++ closureLevelFuncOpt
@@ -296,6 +302,8 @@ object LevelEncoding {
   private val lvlFunc = vpr.DomainFunc(lvlFuncName, Seq(vpr.LocalVarDecl("m", atomMultisetType)()), levelType)(domainName = levelDomainName)
   val atomsFunc: vpr.DomainFunc = vpr.DomainFunc("$atoms", Seq(vpr.LocalVarDecl("l", levelType)()), atomMultisetType)(domainName = levelDomainName)
   private val atomLtFunc = vpr.DomainFunc(atomLtFuncName, Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
+  /** Marks the order facts that stem from the witnesses of assumed comparisons of levels (see `levelDomain`). */
+  private val atomLtWitnessFunc = vpr.DomainFunc("$atomLtW", Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelLtFunc = vpr.DomainFunc("$levelLt", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelMaxFunc = vpr.DomainFunc("$levelMax", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
   private val unionFunc = vpr.DomainFunc(unionFuncName, Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
@@ -352,19 +360,31 @@ object LevelEncoding {
      * as some `l < r` is assumed, e.g., after a termination check). The two layers allow chaining two facts `a < b` and
      * `b' < c` where the dominating atom of the first one lies in an opaque level `b'` (e.g., `levelOf(x)`).
      */
-    def dominatedBy(countF: vpr.DomainFunc): vpr.Exp = vpr.Exists(Seq(y), Seq(vpr.Trigger(Seq(call(atomLtFunc, x.localVar, y.localVar)))()),
-      vpr.And(call(atomLtFunc, x.localVar, y.localVar), vpr.GtCmp(call(countF, y.localVar, r.localVar), call(countF, y.localVar, l.localVar))())())()
-    def huetOppenWith(matchF: vpr.DomainFunc, witnessF: vpr.DomainFunc): vpr.Exp = {
+    /*
+     * The witnesses of assumed comparisons are additionally marked with `$atomLtW`, which triggers the transitivity of
+     * the order on atoms (see `finalize`). The marker is not required to prove a comparison.
+     */
+    def dominatedBy(countF: vpr.DomainFunc, assumed: Boolean): vpr.Exp = {
+      val xy = call(atomLtFunc, x.localVar, y.localVar)
+      val witness = vpr.And(xy, vpr.GtCmp(call(countF, y.localVar, r.localVar), call(countF, y.localVar, l.localVar))())()
+      vpr.Exists(Seq(y), Seq(vpr.Trigger(Seq(xy))()),
+        if (assumed) vpr.And(call(atomLtWitnessFunc, x.localVar, y.localVar), witness)() else witness)()
+    }
+    def huetOppenWith(matchF: vpr.DomainFunc, witnessF: vpr.DomainFunc, assumed: Boolean): vpr.Exp = {
       val xInL = call(matchF, x.localVar, l.localVar)
       val xInR = call(matchF, x.localVar, r.localVar)
       vpr.Forall(Seq(x), Seq(vpr.Trigger(Seq(xInL))(), vpr.Trigger(Seq(xInR))()),
-        vpr.Implies(vpr.GtCmp(xInL, xInR)(), dominatedBy(witnessF))())()
+        vpr.Implies(vpr.GtCmp(xInL, xInR)(), dominatedBy(witnessF, assumed))())()
     }
-    val huetOppen = huetOppenWith(countFunc, witness1CountFunc)
-    val ltSecondLayer = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(call(levelLtFunc, l.localVar, r.localVar)))()),
-      vpr.Implies(call(levelLtFunc, l.localVar, r.localVar), huetOppenWith(witness1CountFunc, witnessCountFunc))())()
-    val ltDef = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(call(levelLtFunc, l.localVar, r.localVar)))()),
-      vpr.EqCmp(call(levelLtFunc, l.localVar, r.localVar), vpr.And(vpr.NeCmp(atoms(l), atoms(r))(), huetOppen)())())()
+    val lr = call(levelLtFunc, l.localVar, r.localVar)
+    val ltSecondLayer = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(lr))()),
+      vpr.Implies(lr, huetOppenWith(witness1CountFunc, witnessCountFunc, assumed = true))())()
+    // the two directions differ only in the marker of the witnesses
+    val ltDef = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(lr))()),
+      vpr.And(
+        vpr.Implies(lr, vpr.And(vpr.NeCmp(atoms(l), atoms(r))(), huetOppenWith(countFunc, witness1CountFunc, assumed = true))())(),
+        vpr.Implies(vpr.And(vpr.NeCmp(atoms(l), atoms(r))(), huetOppenWith(countFunc, witness1CountFunc, assumed = false))(), lr)()
+      )())()
 
     val max = call(levelMaxFunc, l.localVar, r.localVar)
     val maxDef = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(max))()),
@@ -378,7 +398,7 @@ object LevelEncoding {
 
     vpr.Domain(
       levelDomainName,
-      Seq(lvlFunc, atomsFunc, atomLtFunc, levelLtFunc, levelMaxFunc, unionFunc, countFunc, witness1CountFunc, witnessCountFunc),
+      Seq(lvlFunc, atomsFunc, atomLtFunc, atomLtWitnessFunc, levelLtFunc, levelMaxFunc, unionFunc, countFunc, witness1CountFunc, witnessCountFunc),
       Seq(lvlInj, atomsInj, irreflexive, unionDef, countDef, witness1CountDef, witnessCountDef, countUnion, witness1CountUnion, ltDef,
         ltSecondLayer, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
     )()

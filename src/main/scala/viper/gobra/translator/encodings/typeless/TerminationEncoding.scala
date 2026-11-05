@@ -49,9 +49,10 @@ class TerminationEncoding extends Encoding {
               case p: in.Access => predicateInstance(p)(ctx)
               case _ => violation("invalid tuple measure argument")
             })
-            lastElem: vpr.Exp = measure match {
-              case _: in.ItfMethodMeasure => rankedMarkerApp(itfMarkerName, rankOf(measure), pos, info, errT)
-              case _: in.NonItfMethodMeasure => markerApp(nonItfMarkerName, pos, info, errT)
+            lastElem: vpr.Exp = (measure, outlineHeightOf(measure)) match {
+              case (_, Some(height)) => rankedMarkerApp(outlineMarkerName, height, pos, info, errT)
+              case (_: in.ItfMethodMeasure, _) => rankedMarkerApp(itfMarkerName, rankOf(measure), pos, info, errT)
+              case (_: in.NonItfMethodMeasure, _) => markerApp(nonItfMarkerName, pos, info, errT)
             }
           } yield termination.DecreasesTuple(v :+ lastElem, c)(pos, markImported(measure, info), errT)
         case m: in.WildcardMeasure =>
@@ -73,6 +74,9 @@ class TerminationEncoding extends Encoding {
   private def rankOf(measure: in.TerminationMeasure): Int =
     annotations(measure).collectFirst { case Source.InterfaceMethodRankAnnotation(r) => r }.getOrElse(0)
 
+  private def outlineHeightOf(measure: in.TerminationMeasure): Option[Int] =
+    annotations(measure).collectFirst { case Source.OutlineHeightAnnotation(h) => h }
+
   private def markImported(measure: in.TerminationMeasure, info: vpr.Info): vpr.Info =
     if (annotations(measure).contains(Source.ImportedTerminationMeasureAnnotation)) vpr.MakeInfoPair(TerminationEncoding.ImportedMeasureInfo, info) else info
 
@@ -92,13 +96,14 @@ class TerminationEncoding extends Encoding {
     *     function ProofMeasure(rank: Int): TerminationDomain
     *     function ItfMethodMeasure(rank: Int): TerminationDomain
     *     function ClosureProofMeasure(): TerminationDomain
+    *     function OutlineMeasure(height: Int): TerminationDomain
     *   }
     *
     * The order (see the order described in `finalize`) is axiomatized by a fixed number of axioms, independently of
     * the number of ranks. The axioms only state when markers decrease, never the converse.
     */
   override def finalize(addMemberFn: Member => Unit): Unit = {
-    val funcs = Seq(nonItfFunc, proofFunc, itfFunc, closureProofFunc)
+    val funcs = Seq(nonItfFunc, proofFunc, itfFunc, closureProofFunc, outlineFunc)
     addMemberFn(vpr.Domain(name = domainName, functions = funcs, axioms = Seq.empty, typVars = Seq.empty, interpretations = None)(NoPosition, NoInfo, NoTrafos))
 
     val wfOrderDomainName = "WellFoundedOrder"
@@ -129,6 +134,14 @@ class TerminationEncoding extends Encoding {
       // the marker of closure proofs is above all others
       { val d = dec(ranked(proofFunc, i), closureProof); forall1(d, d) },
       { val d = dec(ranked(itfFunc, i), closureProof); forall1(d, d) },
+      // the markers of outlines are below all others, ordered by their nesting height (an outline nested in another one
+      // has a smaller height), see `TerminationLevelsTransform`
+      { val d = dec(ranked(outlineFunc, i), nonItf); forall1(d, d) },
+      { val d = dec(ranked(outlineFunc, i), closureProof); forall1(d, d) },
+      forall2(vpr.TrueLit()(), dec(ranked(outlineFunc, i), ranked(proofFunc, j))),
+      forall2(vpr.TrueLit()(), dec(ranked(outlineFunc, i), ranked(itfFunc, j))),
+      forall2(vpr.And(vpr.LeCmp(vpr.IntLit(0)(), i.localVar)(), lt)(), dec(ranked(outlineFunc, i), ranked(outlineFunc, j))),
+      { val b = wfApp("bounded", Seq(ranked(outlineFunc, i))); forall1(b, b) },
       // all markers are bounded
       wfApp("bounded", Seq(nonItf)),
       wfApp("bounded", Seq(closureProof)),
@@ -147,6 +160,7 @@ object TerminationEncoding {
   private val closureProofMarkerName = "ClosureProofMeasure"
   private val itfMarkerName = "ItfMethodMeasure"
   private val proofMarkerName = "ProofMeasure"
+  private val outlineMarkerName = "OutlineMeasure"
 
   private def markerFunc(name: String, ranked: Boolean): vpr.DomainFunc =
     vpr.DomainFunc(name = name, formalArgs = if (ranked) Seq(vpr.LocalVarDecl("rank", vpr.Int)()) else Seq.empty,
@@ -155,6 +169,7 @@ object TerminationEncoding {
   private val closureProofFunc = markerFunc(closureProofMarkerName, ranked = false)
   private val itfFunc = markerFunc(itfMarkerName, ranked = true)
   private val proofFunc = markerFunc(proofMarkerName, ranked = true)
+  private val outlineFunc = markerFunc(outlineMarkerName, ranked = true)
 
   /**
     * The order of kind markers: `NonItfMethodMeasure()` is below the markers of implementation proofs and interface
@@ -169,7 +184,7 @@ object TerminationEncoding {
     }
 
   private def rankedMarkerApp(name: String, rank: Int, pos: Position, info: Info, errT: ErrorTrafo): vpr.DomainFuncApp = {
-    val func = if (name == itfMarkerName) itfFunc else proofFunc
+    val func = if (name == itfMarkerName) itfFunc else if (name == outlineMarkerName) outlineFunc else proofFunc
     vpr.DomainFuncApp(func = func, args = Seq(vpr.IntLit(rank)(pos, info, errT)), typVarMap = Map.empty)(pos, info, errT)
   }
 
@@ -197,7 +212,7 @@ object TerminationEncoding {
     replaceMarker(exp, imported = false, app => markerApp(closureProofMarkerName, app.pos, app.info, app.errT))
 
   private def isMarkerName(name: String): Boolean =
-    name == nonItfMarkerName || name == itfMarkerName || name == proofMarkerName || name == closureProofMarkerName
+    name == nonItfMarkerName || name == itfMarkerName || name == proofMarkerName || name == closureProofMarkerName || name == outlineMarkerName
 
   private def replaceMarker(exp: vpr.Exp, imported: Boolean, replacement: vpr.DomainFuncApp => vpr.DomainFuncApp): vpr.Exp = exp.transform {
     case t: termination.DecreasesTuple =>

@@ -9,7 +9,7 @@ package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
 import viper.gobra.ast.internal.TerminationAtom
 import viper.gobra.reporting.Source
-import viper.gobra.reporting.Source.{ImportedTerminationMeasureAnnotation, InterfaceMethodRankAnnotation}
+import viper.gobra.reporting.Source.{ImportedTerminationMeasureAnnotation, InterfaceMethodRankAnnotation, OutlineHeightAnnotation}
 import viper.gobra.theory.Addressability
 
 import scala.annotation.tailrec
@@ -242,11 +242,22 @@ object TerminationLevelsTransform extends InternalTransform {
         m.copy(pres = pres, posts = posts, terminationMeasures = measures)(m.info)
       case other => other
     }
-    withMeasures.transform({
+    // the outlines of a member get the level of the member; the outlines of nested literals and proofs are overwritten
+    // below, as the transformation proceeds top-down
+    val outlines = m.deepCollect { case o: in.Outline => o.name -> o }.toMap
+    val ownAtom: Option[in.Expr] = m match {
+      case f: in.Function => Some(in.LevelAtom(TerminationAtom.function(f.name))(f.info))
+      case f: in.PureFunction => Some(in.LevelAtom(TerminationAtom.function(f.name))(f.info))
+      case m: in.MethodMember => Some(methodOwnLevel(m)(table))
+      case _ => None
+    }
+    val withOutlines = ownAtom.fold(withMeasures)(own => leveledOutlines(withMeasures, memberMeasures(withMeasures), own, outlines))
+    withOutlines.transform({
       case l: in.FunctionLit =>
-        val measures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported)(table)
+        val own = in.LevelAtom(TerminationAtom.literal(l.name))(l.info)
+        val measures = withLevel(l.terminationMeasures, own, l.args, imported)(table)
         val (pres, posts) = resolveOwnLevel(l.pres, l.posts, measures, TerminationAtom.literal(l.name))
-        l.copy(pres = pres, posts = posts, terminationMeasures = measures)(l.info)
+        leveledOutlines(l.copy(pres = pres, posts = posts, terminationMeasures = measures)(l.info), measures, own, outlines)
       case l: in.PureFunctionLit =>
         val measures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported)(table)
         val (pres, posts) = resolveOwnLevel(l.pres, l.posts, measures, TerminationAtom.literal(l.name))
@@ -258,7 +269,66 @@ object TerminationLevelsTransform extends InternalTransform {
           case _: in.FunctionProxy => in.LevelOf(p.closure)(p.info)
           case l: in.FunctionLitProxy => in.LevelAtom(TerminationAtom.literal(l))(p.info)
         }
-        p.copy(terminationMeasures = withLevel(p.terminationMeasures, own, p.args, imported = false)(table))(p.info)
+        val measures = withLevel(p.terminationMeasures, own, p.args, imported = false)(table)
+        leveledOutlines(p.copy(terminationMeasures = measures)(p.info), measures, own, outlines)
+    }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
+  }
+
+  private def memberMeasures(m: in.Member): Vector[in.TerminationMeasure] = m match {
+    case f: in.Function => f.terminationMeasures
+    case f: in.PureFunction => f.terminationMeasures
+    case m: in.Method => m.terminationMeasures
+    case m: in.PureMethod => m.terminationMeasures
+    case _ => Vector.empty
+  }
+
+  /**
+    * Outlines. An `outline` block is encoded as a method that is called where the block occurs, so its calls are calls of
+    * the enclosing member (or literal, or implementation proof). The measure of an outline starts with the level of
+    * the enclosing member, continues with the measure of the outline, and ends with a kind marker that is below all
+    * other kind markers (see `TerminationEncoding`). The call of the outline is checked like every other call, so the
+    * measure of the outline (excluding the marker) has to be at most the measure of the enclosing member. This makes
+    * the measure of the outline irrelevant for soundness: calls in the outline that are accepted are also accepted in
+    * the enclosing member. Outlines nested in outlines have a smaller marker, determined by their nesting height.
+    *
+    * The level of the enclosing member is the first element of its measures. If its measures do not start with the
+    * same level, the empty level is used, which only rejects more calls in the outline. As the body of a member works
+    * with copies of the parameters, the level of an outline is stated in terms of these copies. Should a copy be
+    * assigned before the outline, the outline merely gets a different level, which the check of its call compares
+    * with the level of the member on entry. Members without measures
+    * (i.e., members that may not terminate, or that are assumed to terminate) give their outlines their own atom: the
+    * outline can only be reached through the member, whose callers do not rely on the outline.
+    */
+  private def leveledOutlines[N <: in.Node](n: N, enclosingMeasures: Vector[in.TerminationMeasure], own: in.Expr,
+                                            originals: Map[String, in.Outline]): N = {
+    val heads = enclosingMeasures.collect { case t: in.TupleTerminationMeasure => t.tuple.headOption }
+    val levelHeads = heads.flatten.collect { case e: in.Expr if e.typ.isInstanceOf[in.LevelT] => e }
+    val enclosingLevel =
+      if (heads.isEmpty) own
+      else if (levelHeads.size == heads.size && levelHeads.distinct.size == 1) levelHeads.head
+      else in.LevelEmpty()(own.info)
+    val copies: Map[in.Parameter.In, in.LocalVar] = n.deepCollect {
+      case in.SingleAss(in.Assignee.Var(q: in.LocalVar), p: in.Parameter.In) => p -> q
+    }.toMap
+    val level = enclosingLevel.transform({ case p: in.Parameter.In if copies.contains(p) => copies(p) }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
+
+    def height(o: in.Outline): Int = o.body.deepCollect { case i: in.Outline => i }.map(height).maxOption.fold(0)(_ + 1)
+    def annotate(i: Source.Parser.Info, annotation: Source.Annotation): Source.Parser.Info = i match {
+      case s: Source.Parser.Single => s.createAnnotatedInfo(annotation)
+      case other => other
+    }
+    n.transform({
+      case o: in.Outline =>
+        val original = originals.getOrElse(o.name, o)
+        val h = height(original)
+        val measures = original.terminationMeasures.map {
+          case m@in.NonItfTupleTerminationMeasure(t, cond) =>
+            in.NonItfTupleTerminationMeasure(level +: t, cond)(annotate(m.info, OutlineHeightAnnotation(h)))
+          case m@in.ItfTupleTerminationMeasure(t, cond) =>
+            in.ItfTupleTerminationMeasure(level +: t, cond)(annotate(m.info, OutlineHeightAnnotation(h)))
+          case wildcard => wildcard
+        }
+        o.copy(terminationMeasures = measures)(o.info)
     }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
   }
 

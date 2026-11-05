@@ -291,6 +291,41 @@ c := requires b.f implements spec1
 A closure can still safely call closures it receives or reads from the heap, if its spec bounds their
 level. In `run2` of `termination-closure-knot.gobra`, `decreases levelOf(b.f)` does this.
 
+### Outlines
+
+An `outline (...)` block is encoded as a separate method, which is called where the block occurs. It is
+checked like a member at the level of the enclosing member (or literal, or implementation proof). Its
+measure is `level, μ_block..., OutlineMeasure(h)`. The marker `OutlineMeasure(h)` is below every other
+kind marker, and `h` is the nesting height of the block (an outline nested in another one has a smaller
+height). The call of the block is checked like every other call, so the measure of the block has to be at
+most the measure of the enclosing member where the block occurs. A block with the same measure as its
+member is fine, because its marker is smaller. Calls in the block are compared with the measure of the
+block. A cycle through the block therefore decreases the member's measure, whatever measure the block
+declares:
+
+```go
+decreases n
+func rec(n int) {
+	decreases 1000                // ✗ 1000 is not at most n
+	outline ( rec(n) )            // ✗ n is not below 1000
+}
+
+decreases n
+func recOk(n int) {
+	if n > 0 {
+		requires n > 0
+		decreases n               // ✓ n at most n, and OutlineMeasure(0) < NonItfMethodMeasure()
+		outline ( recOk(n - 1) )  // ✓ n - 1 below n
+	}
+}
+```
+
+The level of the block is stated in terms of the copies of the parameters that the member's body works
+with. If a copy is assigned before the block, the block gets a different level, and the check of its call
+compares this level with the member's level on entry. Before this rule, blocks had no level at all. Calls
+through interfaces and closures inside a block were therefore not checked, and a Landin knot wrapped in
+an `outline` verified (found while testing the design; see `termination-levels-outline.gobra`).
+
 ## 6. Worked example: #1105
 
 ```go
@@ -341,6 +376,13 @@ domain $Level  { $lvl(Multiset[$Atom]) / $atoms(l) bijection; $union(l, r);
 $typeLevel(t)    the atom of a dynamic type, axiomatized for the package's named types
 $closureLevel(c) the level of a closure value
 ```
+
+Transitivity of `$atomLt` is only needed for chains that start at an atom of an opaque level, e.g., an
+atom of `levelOf(res)` known from `levelOf(res) < ownLevel()`; the facts between the package's atoms are
+transitively closed already. The witnesses of *assumed* comparisons are marked with `$atomLtW`, and the
+transitivity axiom is triggered by `$atomLtW(a, b), $atomLt(b, c)`. A trigger on two `$atomLt`
+applications would instead match all pairs of ground facts: `pkg/slayers` has 121 atoms and about 5,400
+facts, which allows on the order of 10^5 redundant instances in every proof obligation.
 
 The universally quantified atom of the Huet–Oppen characterization is matched through `$cnt`. The
 existential witness is stated with `$cntW`. Both are the multiset count, but only `$cnt` triggers the
@@ -398,6 +440,7 @@ with Z3 above 10 GB.
 | `termination-levels-explicit.gobra` | explicit levels for arguments that call each other |
 | `termination-levels-mutual.gobra` | [JBK] Fig. 14 |
 | `termination-levels-method-values.gobra` | method values implementing terminating specs |
+| `termination-levels-outline.gobra` | outlines, including knots hidden in outlines |
 
 `termination-fail-02.gobra` now reports its error where the cycle is closed rather than at the
 interface method.

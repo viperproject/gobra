@@ -38,6 +38,8 @@ object Source {
   case object ImportedTerminationMeasureAnnotation extends Annotation
   /** Records the rank of an interface method on its termination measures (see `TerminationLevelsTransform`). */
   case class InterfaceMethodRankAnnotation(rank: Int) extends Annotation
+  /** Marks the termination measures of `outline` blocks with their nesting height (see `TerminationLevelsTransform`). */
+  case class OutlineHeightAnnotation(height: Int) extends Annotation
   case class IsInvariantAnnotation() extends Annotation
   case class InvariantMightBeOpenAnnotation() extends Annotation
   case class InvariantNotRestoredAnnotation() extends Annotation

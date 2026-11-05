@@ -1,0 +1,125 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// An `outline` block is checked like a member with the level of the enclosing member: the calls in the block are
+// compared with the measure of the block, and the measure of the block has to be at most the measure of the enclosing
+// member where the block occurs.
+
+type I interface {
+	decreases
+	M()
+}
+
+type T struct{}
+
+T implements I
+
+// Landin's knot through an interface, hidden in an outline.
+decreases
+func (t T) M() {
+	var i I = t
+	decreases
+	requires i != nil
+	outline (
+		//:: ExpectedOutput(function_termination_error)
+		i.M()
+	)
+}
+
+type Cell struct {
+	f func(*Cell) int
+}
+
+requires acc(c) && c.f implements spec
+decreases
+func spec(c *Cell) int
+
+// Landin's knot through a closure stored in the heap, hidden in an outline.
+decreases
+func run() int {
+	cell := &Cell{}
+	g := requires acc(c) && c.f implements spec
+		decreases
+		func lit(c *Cell) int {
+			var r int
+			requires acc(c) && c.f implements spec
+			decreases
+			outline (
+				//:: ExpectedOutput(function_termination_error)
+				r = c.f(c) as spec
+			)
+			return r
+		}
+	proof g implements spec {
+		return g(c) as lit
+	}
+	cell.f = g
+	return g(cell) as spec
+}
+
+// The measure of the block has to be at most the measure of the enclosing member.
+requires n >= 0
+decreases n
+func rec(n int) {
+	//:: ExpectedOutput(function_termination_error)
+	requires n >= 0
+	decreases 1000
+	outline (
+		//:: ExpectedOutput(function_termination_error)
+		rec(n)
+	)
+}
+
+// Recursive calls that decrease the measure are fine, also in nested outlines.
+requires n >= 0
+decreases n
+func recOk(n int) {
+	if n > 0 {
+		requires n > 0
+		decreases n
+		outline (
+			requires n > 0
+			decreases n
+			outline (
+				recOk(n - 1)
+			)
+		)
+	}
+}
+
+// The measure of the enclosing member is taken on entry.
+requires n >= 0
+decreases n
+func recReassign(n int) {
+	n = n + 1
+	//:: ExpectedOutput(function_termination_error)
+	requires n > 0
+	decreases n
+	outline (
+		recReassign(n - 1)
+	)
+}
+
+decreases
+func lower() {}
+
+decreases
+func callsLower() {
+	decreases
+	outline (
+		lower()
+	)
+}
+
+// A call through an object whose level is below the member's level is fine.
+requires i != nil
+decreases
+func callsBelow(i I) {
+	requires i != nil
+	decreases
+	outline (
+		i.M()
+	)
+}

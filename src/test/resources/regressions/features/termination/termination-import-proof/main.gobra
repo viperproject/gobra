@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// An implementation proof for an imported type: the proof calls the imported implementation, whose level consists of
+// imported atoms only. The measure of the implementation is still compared with the measure of the interface method.
+// Otherwise, `client` would not terminate: T.M(x) calls x.M(x), which is T.M(x).
+
+// ##(-I ./)
+import "lib"
+
+lib.T implements lib.I {
+	(t lib.T) M(y lib.I) {
+		//:: ExpectedOutput(function_termination_error)
+		t.M(y)
+	}
+}
+
+decreases
+func client() {
+	var x lib.I = lib.T{}
+	x.M(x)
+}

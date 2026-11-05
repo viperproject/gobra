@@ -234,7 +234,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
           case AssertFailed(_, r, c) => MethodTerminationError(mc, r, c)
           case d => d
         })
-        val checks = callChecks(callee, calleeSpec, substitution, callerTuple, callerCondition, errTrafo)
+        val checks = callChecks(callee, calleeSpec, substitution, callerTuple, callerCondition, errTrafo, inContract = false)
         vpr.Seqn(checks :+ mc, Nil)(mc.pos, vpr.NoInfo, vpr.NodeTrafo(mc))
 
       case other => other
@@ -244,7 +244,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
   }
 
   private def callChecks(callee: ErrorNode, calleeSpec: Spec, substitution: Map[vpr.LocalVar, vpr.Exp], callerTuple: Seq[vpr.Exp],
-                         callerCondition: Option[vpr.Exp], errTrafo: vpr.ErrTrafo): Seq[vpr.Stmt] = {
+                         callerCondition: Option[vpr.Exp], errTrafo: vpr.ErrTrafo, inContract: Boolean): Seq[vpr.Stmt] = {
     if (!calleeSpec.leveled) {
       // the callee does not have a leveled measure; it only needs to terminate
       val terminationCondition = calleeSpec.spec.getTerminationCondition.replace(substitution)
@@ -256,7 +256,8 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       val conditionCheck = createConditionCheck(callerCondition, calleeTuple.condition.map(_.replace(substitution)),
         errTrafo, reasonTrafoFactory.generateTupleConditionFalse(calleeTuple))
       val calleeExps = calleeTuple.tupleExpressions.map(_.replace(substitution))
-      if (isInterfaceContext(callerTuple) && staticLevel(calleeExps.head).exists(_.keys.forall(a => !a.startsWith(LevelEncoding.mainAtomPrefix)))) {
+      val importedAtomsOnly = staticLevel(calleeExps.head).exists(l => l.nonEmpty && l.keys.forall(a => !a.startsWith(LevelEncoding.mainAtomPrefix)))
+      if (inContract && isInterfaceContext(callerTuple) && importedAtomsOnly) {
         // see [[isInterfaceContext]]
         return Seq(conditionCheck)
       }
@@ -274,12 +275,14 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
   }
 
   /**
-    * Returns true if `callerTuple` is the measure of an interface method or of an implementation proof, i.e., if the
-    * checked calls occur in the contract of an interface method. The level of an interface method is the level of its
-    * receiver, which is unknown. A call in such a contract to a member whose level consists of atoms of imported
-    * packages only (in particular, members of the bottom stratum) is safe nevertheless: such a member can neither name
-    * the interface (which is declared in the package under verification or in a package importing these packages)
-    * nor receive objects through which it could call back, as its level does not depend on any object.
+    * Returns true if `callerTuple` is the measure of an interface method or of an implementation proof. The level of an
+    * interface method is the level of its receiver, which is unknown. A call in the *contract* of such a member to a
+    * member whose level consists of (at least one and only) atoms of imported packages is safe nevertheless: such a
+    * member does not receive objects through which it could call back, as its level does not depend on any object, and
+    * the objects it can create or bound have types of its own or of lower packages. The exception does not apply to
+    * the bodies of implementation proofs, whose call of the implementation is the check that the implementation's
+    * measure is at most the measure of the interface method, nor to members of the bottom stratum, which may call
+    * interface methods of the bottom stratum.
     */
   private def isInterfaceContext(callerTuple: Seq[vpr.Exp]): Boolean = callerTuple.lastOption.exists { e =>
     val marker = e match {
@@ -410,7 +413,8 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
    * Checks for functions.
    */
 
-  private case class FunctionContext(function: vpr.Function, callerTuple: Seq[vpr.Exp], callerCondition: Option[vpr.Exp]) extends ExpressionContext {
+  /** `contract` is true for the checks of the calls in the contract of `function`. */
+  private case class FunctionContext(function: vpr.Function, callerTuple: Seq[vpr.Exp], callerCondition: Option[vpr.Exp], contract: Boolean) extends ExpressionContext {
     override val conditionInEx: Option[vpr.LocalVarDecl] = Some(vpr.LocalVarDecl(uniqueName("condInEx"), vpr.Bool)())
   }
 
@@ -424,7 +428,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
         case AssertFailed(_, r, c) => FunctionTerminationError(call, r, c)
         case d => d
       })
-      val checks = callChecks(callee, functionSpecs(call.funcname), substitution, context.callerTuple, context.callerCondition, errTrafo)
+      val checks = callChecks(callee, functionSpecs(call.funcname), substitution, context.callerTuple, context.callerCondition, errTrafo, context.contract)
       vpr.Seqn(argChecks ++ checks, Nil)()
     case _ => super.transformExp(e, c, inhaleExp)
   }
@@ -451,12 +455,12 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
     val oldCondition = tuple.condition.map(vpr.Old(_)())
 
     val bodyCheck = f.body.flatMap { body =>
-      val context = FunctionContext(f, oldTuple, oldCondition)
+      val context = FunctionContext(f, oldTuple, oldCondition, contract = false)
       method("body", pres, transformExp(body, context, inhaleExp = false), context.conditionInEx.toSeq)
     }
 
     val postsCheck = if (posts.isEmpty) None else {
-      val context = FunctionContext(f, oldTuple, oldCondition)
+      val context = FunctionContext(f, oldTuple, oldCondition, contract = true)
       val result = vpr.LocalVarDecl(uniqueName("$result"), f.typ)()
       val conjunction = posts.map(_.transform({ case vpr.Result(_) => result.localVar }, Traverse.BottomUp)).reduce[vpr.Exp](vpr.And(_, _)())
       method("posts", pres, transformExp(conjunction, context, inhaleExp = false), result +: context.conditionInEx.toSeq)
@@ -464,7 +468,7 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
 
     // in preconditions, the caller's measure is evaluated at the call, as the precondition is not yet established
     val presCheck = if (pres.isEmpty) None else {
-      val context = FunctionContext(f, tuple.tupleExpressions, tuple.condition)
+      val context = FunctionContext(f, tuple.tupleExpressions, tuple.condition, contract = true)
       val conjunction = pres.reduce[vpr.Exp](vpr.And(_, _)())
       method("pres", Seq.empty, transformExp(conjunction, context, inhaleExp = true), context.conditionInEx.toSeq)
     }

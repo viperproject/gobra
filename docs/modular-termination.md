@@ -135,11 +135,15 @@ cannot write it. It satisfies `l <= lmax(l, r)` and `lmax(l, r) ∈ {l, r}`.
   interface methods their own contract calls. The rank is part of the kind marker, so it is compared
   only when levels and local measures are equal. Ranks depend only on interface declarations, which every
   importing package sees, so all packages agree on them.
-* **Imported helpers in interface contracts.** A contract of an interface method (or an implementation
-  proof) may call a member whose level consists of imported atoms only, e.g. `seqs.ToSeqByte`. The
-  interface's level `levelOf(recv)` is opaque, so the comparison could never succeed. It is not needed:
-  such a member cannot name the interface, which lives in this package or above, and it has no
-  dynamic arguments through which it could call back.
+* **Imported helpers in interface contracts.** The contract of an interface method (or of an
+  implementation proof) may call a member whose level consists of imported atoms only, e.g.
+  `seqs.ToSeqByte`. The interface's level `levelOf(recv)` is opaque, so the comparison could never
+  succeed. It is not needed: such a member has no dynamic arguments through which it could call back,
+  and the objects it can create or bound have types of its own package or of lower ones. The exception
+  covers contracts only. It does not cover the body of an implementation proof, whose call of the
+  implementation is the check that the implementation's measure is at most the interface's. Nor does
+  it cover callees of the bottom stratum, which may call interface methods of the bottom stratum.
+  (Both cases were accepted in an earlier version; found while testing the design.)
 
 ### 3.3 What the defaults buy
 

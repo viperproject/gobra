@@ -107,3 +107,28 @@ func (e plainError) Duplicate() {
 }
 
 plainError implements error
+
+// An implementation in the bottom stratum is still compared with the interface method it implements. Otherwise,
+// `bottomClient` would not terminate: BT.P(3) calls BT.P(3) through the interface.
+type BI interface {
+	requires n >= 0
+	decreases bottomLevel(), n
+	P(n int)
+}
+
+type BT struct{}
+
+//:: ExpectedOutput(generated_implementation_proof:function_termination_error)
+requires n >= 0
+decreases bottomLevel(), n + 1
+func (t BT) P(n int) {
+	var x BI = t
+	x.P(n)
+}
+
+BT implements BI
+
+decreases
+func bottomClient() {
+	BT{}.P(3)
+}

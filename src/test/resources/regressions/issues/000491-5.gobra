@@ -1,0 +1,66 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue491_5
+
+// Tests that nil-dereference checks are not emitted in specifications and
+// intrinsically ghost statements: these are never executed and thus cannot
+// panic. There, an L-value rooted in a nil pointer denotes an unconstrained
+// value, and the permission system prevents deriving facts about actual
+// memory from it.
+
+type Base struct {
+	numINF int
+}
+
+pred (b *Base) BaseMem() {
+	acc(&b.numINF)
+}
+
+type Raw struct {
+	Base
+	raw []byte
+}
+
+// The first conjunct calls a predicate on an embedded field, i.e., takes
+// &r.Base before any permission is available. This must not generate a
+// nil-ness proof obligation: a nil-receiver instance of this predicate can
+// never be folded.
+pred (r *Raw) Mem() {
+	r.Base.BaseMem() && acc(&r.raw)
+}
+
+// Bodies of pure functions are checked, as a pure function that is not ghost is
+// executable. Here, unfolding the predicate provides the permission that entails
+// that r is non-nil, so taking &r.Base is safe.
+ghost
+requires r.Mem()
+pure func (r *Raw) numINFs() int {
+	return unfolding r.Mem() in unfolding r.Base.BaseMem() in r.Base.numINF
+}
+
+// Without such a permission, the obligation of a pure function that is not ghost
+// is reported.
+pure func addrOfBase(r *Raw) (res *Base) {
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	return &r.Base
+}
+
+requires r != nil
+pure func addrOfBaseNonNil(r *Raw) (res *Base) {
+	return &r.Base
+}
+
+func test1() {
+	var x *[10]int
+	// no error: ghost statements are never executed and thus cannot panic;
+	// len(*x) denotes an unconstrained (but well-defined) value
+	assert len(*x) == len(*x)
+}
+
+func test2(r *Raw) {
+	// taking a reference in actual code is still checked
+	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	b := &r.Base
+	_ = b
+}

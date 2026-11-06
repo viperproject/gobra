@@ -40,6 +40,7 @@ class ContextImpl(
                    override val defaultEncoding: DefaultEncoding,
                    override val table: LookupTable,
                    override val internalFreshNames: Context.FreshNameIterator = ContextImpl.FreshNameIteratorImpl(0),
+                   override val emitPanicChecks: Boolean = true,
                  ) extends Context {
 
   def this(conf: TranslatorConfig, table: LookupTable) = {
@@ -81,6 +82,7 @@ class ContextImpl(
                    typeEncodingN: TypeEncoding,
                    defaultEncodingN: DefaultEncoding,
                    initialFreshCounterValueN: Option[Int],
+                   emitPanicChecksN: Boolean,
                  ): Context = new ContextImpl(
     fieldN,
     arrayN,
@@ -102,6 +104,7 @@ class ContextImpl(
       case None => internalFreshNames
       case Some(n) => ContextImpl.FreshNameIteratorImpl(n)
     },
+    emitPanicChecksN,
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this

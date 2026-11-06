@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, InvariantMightBeOpenAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, ImportPreNotEstablished, InsufficientPermissionToRangeExpressionAnnotation, InvalidImplTermMeasureAnnotation, InvariantMightBeOpenAnnotation, IndexInBoundsCheckAnnotation, InvariantNotRestoredAnnotation, IsInvariantAnnotation, LoopInvariantNotEstablishedAnnotation, MainPreNotEstablished, OverflowCheckAnnotation, OverwriteErrorAnnotation, ReceiverNotNilCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -96,6 +96,7 @@ object DefaultErrorBackTranslator {
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
       case AssertionFalseError(info / ReceiverNotNilCheckAnnotation) => ReceiverIsNilReason(info)
+      case AssertionFalseError(info / IndexInBoundsCheckAnnotation) => IndexOutOfBoundsReason(info)
       case x => x
     }
 

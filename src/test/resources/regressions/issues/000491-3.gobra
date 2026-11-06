@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue491_3
+
+// tests that slicing an array pointer correctly results in a non-nilness proof obligation as the pointer is dereferenced.
+// inspired by #805
+
+preserves p != nil ==> acc(p)
+func shorthand(p *[10]int) {
+    //:: ExpectedOutput(load_error:receiver_is_nil_error)
+    _ = p[0:5]
+}
+
+func caller() {
+    arr@ := [10]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	shorthand(&arr)
+	shorthand(nil)
+}

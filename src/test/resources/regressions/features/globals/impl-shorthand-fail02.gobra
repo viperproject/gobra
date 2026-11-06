@@ -4,7 +4,7 @@
 package pkg
 
 type Ifc interface {
-	f()
+	F()
 }
 
 type Impl *struct{}
@@ -13,7 +13,7 @@ type Impl *struct{}
 // not a behavioral subtype of Ifc
 //:: ExpectedOutput(generated_implementation_proof:precondition_error)
 requires false
-func (i Impl) f() {
+func (i Impl) F() {
 	return
 }
 

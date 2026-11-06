@@ -22,12 +22,12 @@ func foldTest() {
 }
 
 type Pair struct {
-    x int
+    X int
     y int
 }
 
 pred (p *Pair) pairSum(sum int) {
-	acc(p) && p.x + p.y < sum
+	acc(p) && p.X + p.y < sum
 }
 
 func foldPairSum() {
@@ -36,17 +36,17 @@ func foldPairSum() {
 	fold (&x).pairSum{3}()
 	unfold (&x).pairSum{3}()
 
-	// the following should fail because p.x + p.y == 2
+	// the following should fail because p.X + p.y == 2
 	//:: ExpectedOutput(fold_error)
 	fold (&x).pairSum{2}()
 }
 
 type Singleton struct {
-    x int
+    X int
 }
 
 pred (s *Singleton) lessThan(bound int) {
-	acc(s) && s.x <= bound
+	acc(s) && s.X <= bound
 }
 
 requires x >= 0

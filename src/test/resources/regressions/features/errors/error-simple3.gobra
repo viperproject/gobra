@@ -7,8 +7,8 @@ package pkg
 import b "bar"
 
 requires e != nil
-func foo(e b.error) int {
-    // this does work in Gobra since we explicitly specify that the error interface from package bar should be used:
-    // (note that this does not work in Go as error is not exported because it is written with a lower-case letter)
+func foo(e b.Error) int {
+    // this works since we explicitly specify that the Error interface from package bar should be used:
+    // (the interface must be exported so that importing packages may reference it)
     return e.Test()
 }

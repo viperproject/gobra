@@ -8,11 +8,11 @@ pred (t *T) Mem() {
 }
 
 pred (t T) Cons() {
-	t.f[0] == 0
+	t.F[0] == 0
 }
 
 type T struct {
-	f [1]int
+	F [1]int
 }
 
 preserves acc(t.Mem(), 1/2)

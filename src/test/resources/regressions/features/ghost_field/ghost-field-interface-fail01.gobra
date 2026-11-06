@@ -26,8 +26,8 @@ pure func callee(s SomeIntf) int {
 
 
 type TestcaseStruct struct {
-    actualField int
-    ghost ghostField int
+    ActualField int
+    ghost GhostField int
 }
 
 pred (s TestcaseStruct) Mem() {
@@ -36,13 +36,13 @@ pred (s TestcaseStruct) Mem() {
 
 decreases
 pure func (s TestcaseStruct) Get() int {
-    return s.actualField
+    return s.ActualField
 }
 
 ghost
 decreases
 pure func (s TestcaseStruct) Get2() int {
-    return s.ghostField
+    return s.GhostField
 }
 
 func testcase() {

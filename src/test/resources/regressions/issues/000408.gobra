@@ -4,36 +4,36 @@
 package issue408
 
 type T interface{
-    f() int
-    pure g() int
+    F() int
+    pure G() int
 }
 
 type TImpl struct{}
 
-func (x* TImpl) f() int {
+func (x* TImpl) F() int {
     return 0
 }
 
 func test1() {
     var x T
     //:: ExpectedOutput(precondition_error:receiver_is_nil_error)
-    x.f()
+    x.F()
 }
 
 func test2() {
     var x T
     //:: ExpectedOutput(precondition_error:receiver_is_nil_error)
-    _ := x.g()
+    _ := x.G()
 }
 
 requires x != nil
 func test3(x T) {
-    x.f()
-    _ := x.g()
+    x.F()
+    _ := x.G()
 }
 
 requires typeOf(x) == type[*int]
 func test4(x T) {
-    x.f()
-    _ := x.g()
+    x.F()
+    _ := x.G()
 }

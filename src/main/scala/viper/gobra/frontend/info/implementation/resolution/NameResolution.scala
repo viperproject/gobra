@@ -373,9 +373,9 @@ trait NameResolution {
       case n@ tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PIdentifierKey, tree.parent(lv: PLiteralValue))) =>
         underlyingType(expectedMiscType(lv)) match {
           // if the enclosing literal is a struct then id is a field
-          case t: StructT => tryFieldLookup(t, id).map(_._1).getOrElse(UnknownEntity())
+          case t: StructT => tryFieldLookup(t, id).map(f => filterForeignPrivate(f._1, id)).getOrElse(UnknownEntity())
           // if the enclosing literal is an adt clause then id is an adt field
-          case t: AdtT => tryAdtMemberLookup(t, id).map(_._1).getOrElse(UnknownEntity())
+          case t: AdtT => tryAdtMemberLookup(t, id).map(f => filterForeignPrivate(f._1, id)).getOrElse(UnknownEntity())
           // otherwise it is just a variable
           case _ => symbTableLookup(n)
         }

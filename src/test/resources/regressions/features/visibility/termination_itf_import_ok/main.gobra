@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// a non-recursive implementation of an interface declared in an imported
+// package passes Gobra's termination checks
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+type TImpl struct{}
+
+requires t != nil
+decreases
+pure func (i TImpl) M(t lib.T) int {
+	return 1
+}
+
+decreases
+func trigger() lib.T {
+	return TImpl{}
+}

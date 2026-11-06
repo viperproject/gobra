@@ -6,28 +6,28 @@ package pkg
 
 type foo interface {
 	bar
-	f()
+	F()
 }
 
 type bar interface {
 	decreases
-	g()
+	G()
 
 	pure
 	decreases
-	h() int
+	H() int
 }
 
 type test int
 
-func (x test) f()
+func (x test) F()
 
 // Rejected: method without a termination measure tries to implement method with termination measure
 //:: ExpectedOutput(type_error)
-func (x test) g()
+func (x test) G()
 
 // Rejected: method without a termination measure tries to implement method with termination measure
 //:: ExpectedOutput(type_error)
-pure func (x test) h() int
+pure func (x test) H() int
 
 test implements foo

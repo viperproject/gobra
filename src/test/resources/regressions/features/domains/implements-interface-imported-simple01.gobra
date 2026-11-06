@@ -13,7 +13,7 @@ foo.IntPair implements any
 
 func test() {
     ghost var x any
-    x = foo.pair(1,2)
+    x = foo.Pair(1,2)
     assert equal(x, x) // succeeds as `equal` is ghost
     //:: ExpectedOutput(assert_error:assertion_error)
     assert false

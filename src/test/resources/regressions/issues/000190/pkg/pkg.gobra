@@ -3,7 +3,7 @@
 
 package pkg
 
-type T struct {
+comparable type T struct {
     t1 int
     t2 int32
 }

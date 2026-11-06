@@ -9,21 +9,21 @@ package ImplementsInterfaceFail04
 ghost type intPair domain {
     func fst(intPair) int
     func snd(intPair) int
-    func pair(int, int) intPair
+    func Pair(int, int) intPair
 
     axiom {
-      forall p intPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+      forall p intPair :: {fst(p)}{snd(p)} p == Pair(fst(p),snd(p))
     } // pair
 
     axiom {
-      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+      forall l, r int :: {Pair(l,r)} l == fst(Pair(l,r)) && r == snd(Pair(l,r))
     }
 }
 
 type Equality interface {
-    pure hash() int
+    pure Hash() int
 
-    isEqual(other Equality) bool
+    IsEqual(other Equality) bool
 }
 
 //:: ExpectedOutput(type_error)
@@ -31,13 +31,13 @@ intPair implements Equality // fails as the ghostness of the implementation does
 
 ghost
 decreases
-pure func (i intPair) hash() int {
+pure func (i intPair) Hash() int {
     return 42 // best implementation of a hash function
 }
 
 ghost
 decreases
-func (i intPair) isEqual(other Equality) bool {
+func (i intPair) IsEqual(other Equality) bool {
     if typeOf(other) == intPair {
         //:: ExpectedOutput(type_error)
         return fst(i) == fst(other.(intPair)) && snd(i) == snd(other.(intPair)) // `other` cannot be cast to `intPair`
@@ -48,6 +48,6 @@ func (i intPair) isEqual(other Equality) bool {
 func test() {
     var x Equality
     //:: ExpectedOutput(type_error)
-    x = pair(1,2) // `pair` does not implement `Equality`
-    assert x.hash() == 42
+    x = Pair(1,2) // `pair` does not implement `Equality`
+    assert x.Hash() == 42
 }

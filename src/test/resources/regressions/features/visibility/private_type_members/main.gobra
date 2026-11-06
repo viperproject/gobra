@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+decreases
+func constructorPattern() {
+	c := lib.New(1)
+	// the exported members of a private imported type are accessible ...
+	assert c.X == 1
+	assert c.M() == 42
+	// ... and the interfaces that it implements are known
+	var i lib.I = c
+	assert i.M() == 42
+}
+
+// the type itself cannot be named
+decreases
+func cannotName() {
+	//:: ExpectedOutput(type_error)
+	var c lib.client
+	_ = c
+}

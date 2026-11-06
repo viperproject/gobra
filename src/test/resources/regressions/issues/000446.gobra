@@ -4,39 +4,39 @@
 package issue446
 
 type I interface {
-    pred mem()
+    pred Mem()
 
-    requires acc(mem(), _)
+    requires acc(Mem(), _)
     ensures  r >= 5
-    pure f() (r int)
+    pure F() (r int)
 }
 
-requires i != nil && i.mem()
+requires i != nil && i.Mem()
 func client(i I) {
-    x := i.f()
+    x := i.F()
     assert x >= 4
 }
 
 type J interface {
-    pred m()
+    pred M()
 
-    requires acc(m(), _)
+    requires acc(M(), _)
     ensures  r <= 5
-    pure g() (r int)
+    pure G() (r int)
 }
 
 type S struct {
-    x int
+    X int
 }
 
-pred (s *S) m() {
-    acc(s) && s.x > 5
+pred (s *S) M() {
+    acc(s) && s.X > 5
 }
 
 //:: ExpectedOutput(generated_implementation_proof:postcondition_error)
-requires acc(s.m(), _)
-pure func (s *S) g() int {
-    return unfolding acc(s.m(), _) in s.x
+requires acc(s.M(), _)
+pure func (s *S) G() int {
+    return unfolding acc(s.M(), _) in s.X
 }
 
 (*S) implements J

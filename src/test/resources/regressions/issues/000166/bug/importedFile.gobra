@@ -7,7 +7,7 @@ pred Test() { true }
 
 
 ensures ret == true
-pure func f() (ret bool) {
+pure func F() (ret bool) {
     return true
 }
 
@@ -15,5 +15,5 @@ requires Test()
 func F1() {}
 
 
-requires f()
+requires F()
 func F2() {}

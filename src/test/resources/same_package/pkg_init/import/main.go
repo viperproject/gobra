@@ -12,7 +12,7 @@ import (
 	"fib"
 )
 
-// @ pred DupPkgInv() { acc(&x) && x == 10 }
+// @ closed pred DupPkgInv() { acc(&x) && x == 10 }
 
 var x /*@@@*/ int = valX()
 
@@ -80,7 +80,7 @@ func foo() {}
 // We check that no interface methods are annotated with mayInit.
 type I interface {
 	// @ decreases
-	m()
+	M()
 }
 
 // the following precondition is checked to follow from all the non-duplicable

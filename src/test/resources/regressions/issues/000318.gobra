@@ -8,5 +8,5 @@ type T interface {
 
 	requires Mem()
 	requires t.Mem()
-	cmp(t T) bool
+	Cmp(t T) bool
 }

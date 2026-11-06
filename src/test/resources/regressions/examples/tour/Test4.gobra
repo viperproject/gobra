@@ -43,19 +43,19 @@ func (this Number) inc() (res int) {
 /* interfaces are not supported yet
 
 type Pair interface {
-  getX() int
-  setX(int)
+  GetX() int
+  SetX(int)
 };
 
 requires acc(&p.x);
 ensures  acc(&p.x) && res == old(p.x) && p.x == old(p.x);
-func (p *Point) getX() (res int) {
+func (p *Point) GetX() (res int) {
   res = p.x;
 };
 
 requires acc(&p.x);
 ensures  acc(&p.x) && p.x == v;
-func (p *Point) getX(v int) {
+func (p *Point) GetX(v int) {
   p.x = v;
 };
 

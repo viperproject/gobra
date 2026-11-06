@@ -195,6 +195,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
                 }.getOrElse(successProp)
               })
           } else if (elems.size == s.embedded.size + s.fields.size) {
+            // a positional literal assigns to all fields, including non-exported ones,
+            // which is not allowed for struct types declared in other packages
+            val hasNonExportedFields = (s.embedded.keys ++ s.fields.keys).exists(!isExportedName(_))
+            failedProp(s"cannot use a positional composite literal for type $typ declared in another package, " +
+              s"as it would assign to non-exported fields",
+              isImportedContextualType(typ) && hasNonExportedFields) and
             propForall(
               elems.map(_.exp).zip(s.fieldsAndEmbedded.values),
               createProperty[(PCompositeVal, Type)]{ case (l: PCompositeVal, r: Type) => compositeValAssignableTo.result(l, r, mayInit) }

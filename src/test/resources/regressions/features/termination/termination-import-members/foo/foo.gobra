@@ -10,25 +10,25 @@ package foo
 type Foo struct{}
 
 decreases
-pure func pure_foo_function() bool {
+pure func Pure_foo_function() bool {
     //:: ExpectedOutput(pure_function_termination_error)
-    return pure_foo_function()
+    return Pure_foo_function()
 }
 
 decreases
-pure func (foo Foo) pure_foo_method() bool {
+pure func (foo Foo) Pure_foo_method() bool {
     //:: ExpectedOutput(pure_function_termination_error)
-    return foo.pure_foo_method()
+    return foo.Pure_foo_method()
 }
 
 decreases
-func foo_function() bool {
+func Foo_function() bool {
     //:: ExpectedOutput(function_termination_error)
-    return foo_function()
+    return Foo_function()
 }
 
 decreases
-func (foo Foo) foo_method() bool {
+func (foo Foo) Foo_method() bool {
     //:: ExpectedOutput(function_termination_error)
-    return foo.foo_method()
+    return foo.Foo_method()
 }

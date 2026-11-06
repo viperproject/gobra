@@ -1,0 +1,52 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+const Pub = 1
+const priv = 2
+
+type Pair struct {
+	X int
+	y int
+}
+
+comparable type Key struct {
+	X int
+	priv int
+}
+
+type NoCmpAnnot struct {
+	X int
+}
+
+type hidden struct {
+	z int
+}
+
+decreases
+pure func privFn(x int) int {
+	return x
+}
+
+decreases
+func PubFn() {}
+
+decreases
+pure func (p Pair) privMethod() int {
+	return 0
+}
+
+pred privPred(x int) {
+	x > 0
+}
+
+closed
+decreases
+pure func ClosedFn(x int) int {
+	return privFn(x)
+}
+
+closed pred ClosedPred(p *Pair) {
+	acc(&p.y)
+}

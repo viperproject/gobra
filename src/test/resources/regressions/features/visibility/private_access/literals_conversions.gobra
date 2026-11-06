@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I ./)
+package main
+
+import "lib"
+
+type MyPair struct {
+	X int
+	y int
+}
+
+decreases
+func literals() {
+	ok := lib.Pair{}
+	_ = ok
+	ok2 := lib.Pair{X: 1}
+	_ = ok2
+	// positional literals would assign to non-exported fields
+	//:: ExpectedOutput(type_error)
+	bad := lib.Pair{1, 2}
+	_ = bad
+	// keyed literals cannot use non-exported keys
+	//:: ExpectedOutput(type_error)
+	bad2 := lib.Pair{y: 2}
+	_ = bad2
+}
+
+decreases
+func conv(v MyPair) {
+	// struct conversions depend on the private structure of the imported type
+	//:: ExpectedOutput(type_error)
+	p := lib.Pair(v)
+	_ = p
+}
+
+decreases
+func cmp(a lib.Key, b lib.Key, c lib.NoCmpAnnot, d lib.NoCmpAnnot) {
+	// Key is annotated as comparable
+	e := a == b
+	_ = e
+	// NoCmpAnnot is not annotated as comparable
+	//:: ExpectedOutput(type_error)
+	f := c == d
+	_ = f
+}
+
+decreases
+func mapKeys() {
+	m := map[lib.Key]int{}
+	_ = m
+	//:: ExpectedOutput(type_error)
+	m2 := map[lib.NoCmpAnnot]int{}
+	_ = m2
+}

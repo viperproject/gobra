@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "time"
+
+// `time.Time` is annotated as comparable in its stub, so an importing package may compare its
+// values and use them as map keys without relying on its non-exported fields.
+decreases
+func cmp(a time.Time, b time.Time) {
+	c := a == b
+	_ = c
+}
+
+decreases
+func mapKeys(t time.Time) {
+	m := map[time.Time]int{}
+	_ = m
+}
+
+// `time.Duration` needs no annotation: its underlying type is not a struct, so an importing
+// package can tell that it is comparable without inspecting non-exported fields.
+decreases
+func durations(a time.Duration, b time.Duration) {
+	c := a == b
+	_ = c
+}

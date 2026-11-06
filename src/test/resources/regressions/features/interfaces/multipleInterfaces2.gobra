@@ -5,25 +5,25 @@ package pkg
 
 
 type stream interface {
-    pred mem()
+    pred Mem()
 
-    requires acc(mem(), 1/2)
-    pure hasNext() bool
+    requires acc(Mem(), 1/2)
+    pure HasNext() bool
 
-    requires mem() && hasNext()
-    ensures  mem()
-    next() interface{}
+    requires Mem() && HasNext()
+    ensures  Mem()
+    Next() interface{}
 }
 
 
 type safeStream interface {
-    pred mem()
+    pred Mem()
 
-    requires acc(mem())
-    pure safe() bool
+    requires acc(Mem())
+    pure Safe() bool
 
-    requires acc(mem()) && safe()
-    pure hasNext() bool
+    requires acc(Mem()) && Safe()
+    pure HasNext() bool
 }
 
 
@@ -33,19 +33,19 @@ type safeStream interface {
 type counter struct{ f, max int }
 
 requires acc(x, 1/2)
-pure func (x *counter) hasNext() bool {
+pure func (x *counter) HasNext() bool {
   return x.f < x.max
 }
 
 requires acc(x, 1/2)
-pure func (x *counter) safe() bool {
+pure func (x *counter) Safe() bool {
   return true
 }
 
-requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+requires acc(&x.f) && acc(&x.max, 1/2) && x.HasNext()
 ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == type[int]
 ensures  y.(int) == old(x.f)
-func (x *counter) next() (y interface{}) {
+func (x *counter) Next() (y interface{}) {
   y = x.f
   x.f += 1
   return
@@ -53,29 +53,29 @@ func (x *counter) next() (y interface{}) {
 
 // implementation proofs
 
-pred (x *counter) mem() { acc(x) }
+pred (x *counter) Mem() { acc(x) }
 
 (*counter) implements stream {
 
-  pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+  pure (x *counter) HasNext() bool {
+    return unfolding acc(x.Mem(), 1/2) in x.HasNext()
   }
 
-  (x *counter) next() (res interface{}) {
-    unfold x.mem()
-    res = x.next()
-    fold x.mem()
+  (x *counter) Next() (res interface{}) {
+    unfold x.Mem()
+    res = x.Next()
+    fold x.Mem()
   }
 }
 
 (*counter) implements safeStream {
 
-  pure (x *counter) hasNext() bool {
-    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+  pure (x *counter) HasNext() bool {
+    return unfolding acc(x.Mem(), 1/2) in x.HasNext()
   }
 
-  pure (x *counter) safe() bool {
-    return unfolding acc(x.mem(), 1/2) in x.safe()
+  pure (x *counter) Safe() bool {
+    return unfolding acc(x.Mem(), 1/2) in x.Safe()
   }
 }
 

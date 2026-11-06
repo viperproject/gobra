@@ -28,14 +28,23 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
         wellDefIfMain(n) ++
         wellFoundedIfNeeded(n) ++
         atomicMemberIsWellFormed(n) ++
-        noConditionalMeasureIfGhostOrPure(n)
+        noConditionalMeasureIfGhostOrPure(n) ++
+        // the body of a fully-public (non-closed) pure function is visible to importing
+        // packages and may thus only reference exported members
+        (if (n.spec.isPure && !n.spec.isClosed && isExportedName(n.id.name))
+          n.body.toVector.flatMap(b => privateMemberReferences(b._2, s"the body of fully-public pure function ${n.id.name} (consider marking the function as closed)"))
+        else noMessages)
     case m: PMethodDecl =>
       wellDefVariadicArgs(m.args) ++
         isReceiverType.errors(miscType(m.receiver))(member) ++
         wellDefIfPureMethod(m) ++
         wellFoundedIfNeeded(m) ++
         atomicMemberIsWellFormed(m) ++
-        noConditionalMeasureIfGhostOrPure(m)
+        noConditionalMeasureIfGhostOrPure(m) ++
+        // see the analogous check for pure functions above
+        (if (m.spec.isPure && !m.spec.isClosed && isExportedName(m.id.name) && hasExportedReceiver(m.receiver))
+          m.body.toVector.flatMap(b => privateMemberReferences(b._2, s"the body of fully-public pure method ${m.id.name} (consider marking the method as closed)"))
+        else noMessages)
     case b: PConstDecl =>
       b.specs.flatMap(wellDefConstSpec)
     case g: PVarDecl if isGlobalVarDeclaration(g) =>

@@ -7,7 +7,7 @@ package shadowed
 // predicate named `Foo`, so the predicate-constructor rewrite must not rely on the local
 // namespace when disambiguating `shadowed.Foo{...}`.
 type Foo struct {
-	x int
+	X int
 }
 
 // `Bar` is a top-level function predicate, exposed under the same package. It shares its name

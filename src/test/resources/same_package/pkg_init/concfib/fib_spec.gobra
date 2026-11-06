@@ -20,7 +20,7 @@ pred lockInv() {
 		0 <= i && cache[i] == FibSpec(i)
 }
 
-pred StaticInv() {
+closed pred StaticInv() {
 	acc(lock.LockP(), _) &&
 	lock.LockInv() == lockInv{}
 }

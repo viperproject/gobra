@@ -5,5 +5,5 @@ package bug
 
 type I interface {
     ensures y > 0
-    foo() (y int)
+    Foo() (y int)
 }

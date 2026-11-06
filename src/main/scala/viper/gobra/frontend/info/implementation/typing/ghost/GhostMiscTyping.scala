@@ -151,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _) =>
+    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _, isClosed) =>
       // Collect the named output parameters of the spec's owner so that we only
       // reject references to those (and not to outputs of an enclosing function,
       // method, or closure - which is relevant for outline statements and nested
@@ -172,6 +172,28 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
       error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure) ++
+      error(n, "Closed can only be used in combination with pure.", isClosed && !isPure) ++
+      {
+        // `closed` distinguishes members whose body is visible to importing packages from those
+        // whose body is not; it is thus only meaningful for members with exported names.
+        val closedOnNonExportedName = isClosed && (tree.parent(n).head match {
+          case d: PFunctionDecl => !isExportedName(d.id.name)
+          case d: PMethodDecl => !isExportedName(d.id.name)
+          case _ => false // function literals and interface signatures are rejected elsewhere
+        })
+        error(n, "Only members with exported names can be marked as closed.", closedOnNonExportedName)
+      } ++
+      {
+        // Contracts of exported members are part of the package's interface and must be
+        // interpretable by importing packages: they may only reference exported members.
+        val ownerIsClientFacing = tree.parent(n).head match {
+          case d: PFunctionDecl => isExportedName(d.id.name)
+          case d: PMethodDecl => isExportedName(d.id.name) && hasExportedReceiver(d.receiver)
+          case sig: PMethodSig => isClientFacingInterfaceMember(sig)
+          case _ => false // e.g., function literals are not part of the package's interface
+        }
+        if (ownerIsClientFacing) privateMemberReferences(n, "the contract of an exported member") else noMessages
+      } ++
       error(n, "Annotation 'opensInvariants' can only be used in ghost members.", opensInvs && !isEnclosingGhost(enclosingCodeRoot(n))) ++
       error(n, "Annotation 'opensInvariants' can only be used in non-pure members.", opensInvs && isPure)
 

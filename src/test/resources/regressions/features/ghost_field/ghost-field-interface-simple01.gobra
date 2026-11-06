@@ -28,7 +28,7 @@ pure func callee(s SomeIntf) int {
 
 // ----- Testcase 1
 type Testcase1Struct struct {
-    actualField int
+    ActualField int
 }
 
 pred (s Testcase1Struct) Mem() {
@@ -37,7 +37,7 @@ pred (s Testcase1Struct) Mem() {
 
 decreases
 pure func (s Testcase1Struct) Get() int {
-    return s.actualField
+    return s.ActualField
 }
 
 ghost
@@ -58,7 +58,7 @@ func testcase1() {
 
 // ----- Testcase 2
 type Testcase2Struct struct {
-    actualField int
+    ActualField int
 }
 
 pred (s *Testcase2Struct) Mem() {
@@ -68,7 +68,7 @@ pred (s *Testcase2Struct) Mem() {
 decreases
 requires acc(s.Mem(), _)
 pure func (s *Testcase2Struct) Get() int {
-    return unfolding acc(s.Mem(), _) in s.actualField
+    return unfolding acc(s.Mem(), _) in s.ActualField
 }
 
 ghost
@@ -89,8 +89,8 @@ func testcase2() {
 
 // ----- Testcase 3
 type Testcase3Struct struct {
-    actualField int
-    ghost ghostField int
+    ActualField int
+    ghost GhostField int
 }
 
 pred (s *Testcase3Struct) Mem() {
@@ -100,14 +100,14 @@ pred (s *Testcase3Struct) Mem() {
 decreases
 requires acc(s.Mem(), _)
 pure func (s *Testcase3Struct) Get() int {
-    return unfolding acc(s.Mem(), _) in s.actualField
+    return unfolding acc(s.Mem(), _) in s.ActualField
 }
 
 ghost
 decreases
 requires acc(s.Mem(), _)
 pure func (s *Testcase3Struct) Get2() int {
-    return unfolding acc(s.Mem(), _) in s.ghostField
+    return unfolding acc(s.Mem(), _) in s.GhostField
 }
 
 func testcase3() {

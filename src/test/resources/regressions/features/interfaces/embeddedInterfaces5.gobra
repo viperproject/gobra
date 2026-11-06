@@ -4,15 +4,15 @@
 package pkg
 
 type A interface {
-    pred mem()
+    pred Mem()
 }
 
 type B interface {
-	pred mem()
+	pred Mem()
 }
 
 type C interface {
-	pred mem()
+	pred Mem()
 	A
 	B
 }
@@ -21,7 +21,7 @@ type X struct {
 	x int
 }
 
-pred (self *X) mem() {
+pred (self *X) Mem() {
 	acc(self)
 }
 

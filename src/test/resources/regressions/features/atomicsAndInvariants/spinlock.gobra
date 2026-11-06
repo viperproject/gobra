@@ -26,43 +26,43 @@ func CompareAndSwapInt32(addr *int32, oldv int32, newv int32) (swapped bool)
 type SLock struct {
 	// a bool would be sufficient here, but there is no CAS function in the package
 	// sync.atomic that acts directly on *bool.
-	state *int32
-	ghost inv pred()
-	ghost locked gpointer[bool]
+	State *int32
+	ghost Inv pred()
+	ghost Locked gpointer[bool]
 }
 
 pred (m SLock) LockP() {
-	Invariant(ownInv{m})
+	Invariant(OwnInv{m})
 }
 
-pred ownInv(m SLock) {
-	acc(m.state)       &&
-	acc(m.locked, 1/2) &&
-	(*m.state == 0 || *m.state == 1) &&
-	(*m.state == 0 ==> m.inv() && acc(m.locked, 1/2) && !*m.locked) &&
-	(*m.state == 1 ==> *m.locked)
+pred OwnInv(m SLock) {
+	acc(m.State)       &&
+	acc(m.Locked, 1/2) &&
+	(*m.State == 0 || *m.State == 1) &&
+	(*m.State == 0 ==> m.Inv() && acc(m.Locked, 1/2) && !*m.Locked) &&
+	(*m.State == 1 ==> *m.Locked)
 }
 
 pred (m SLock) UnlockP() {
-	acc(m.locked, 1/2) && *m.locked
+	acc(m.Locked, 1/2) && *m.Locked
 }
 
 ghost
 requires m.LockP()
 decreases
 pure func (m SLock) LockInv() pred() {
-	return m.inv
+	return m.Inv
 }
 
 requires inv()
 ensures m.LockP() && m.LockInv() == inv
 decreases
 func Alloc(ghost inv pred()) (m SLock) {
-	m.state = new(int32)
-	ghost m.inv = inv
-	ghost m.locked = new(bool)
-	fold ownInv{m}()
-	EstablishInvariant(ownInv{m})
+	m.State = new(int32)
+	ghost m.Inv = inv
+	ghost m.Locked = new(bool)
+	fold OwnInv{m}()
+	EstablishInvariant(OwnInv{m})
 	fold m.LockP()
 }
 
@@ -78,14 +78,14 @@ func (m SLock) Lock() {
 	invariant m.LockP()
 	invariant locked ==> m.UnlockP() && m.LockInv()()
 	for !locked {
-		critical ownInv{m} (
-		unfold ownInv{m}()
-		locked = CompareAndSwapInt32(m.state, 0, 1)
+		critical OwnInv{m} (
+		unfold OwnInv{m}()
+		locked = CompareAndSwapInt32(m.State, 0, 1)
 		ghost if locked {
-			*m.locked = true
+			*m.Locked = true
 			fold m.UnlockP()
 		}
-		fold ownInv{m}()
+		fold OwnInv{m}()
 		)
 	}
 }
@@ -98,10 +98,10 @@ func (m SLock) Unlock() {
 	unfold acc(m.LockP(), _)
 	fold m.LockP()
 	unfold m.UnlockP()
-	critical ownInv{m} (
-	unfold ownInv{m}()
-	CompareAndSwapInt32(m.state, 1, 0)
-	*m.locked = false
-	fold ownInv{m}()
+	critical OwnInv{m} (
+	unfold OwnInv{m}()
+	CompareAndSwapInt32(m.State, 1, 0)
+	*m.Locked = false
+	fold OwnInv{m}()
 	)
 }

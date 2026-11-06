@@ -10,7 +10,7 @@ var A int
 var A struct{}
 
 type T interface {
-    f() int
+    F() int
 }
 
 mayInit
@@ -20,7 +20,7 @@ func newT() T
 // in global variable declarations, given that dependency
 // analysis cannot be performed.
 //:: ExpectedOutput(type_error)
-var B = newT().f()
+var B = newT().F()
 
 ghost
 //:: ExpectedOutput(type_error)

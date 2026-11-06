@@ -16,16 +16,16 @@ type I interface {
 }
 
 type S struct {
-	value int
+	ValueP int
 }
 
 pred (s *S) Mem() {
-	acc(&s.value)
+	acc(&s.ValueP)
 }
 
 requires acc(s.Mem(), _)
 pure func (s *S) Value() int {
-	return unfolding acc(s.Mem(), _) in s.value
+	return unfolding acc(s.Mem(), _) in s.ValueP
 }
 
 ensures i != nil
@@ -33,7 +33,7 @@ ensures i.Mem()
 ensures i.Value() == 0
 func (s *S) Zero() (i I) {
 	n := &S{}
-	n.value = 0
+	n.ValueP = 0
 	fold n.Mem()
 	return n
 }

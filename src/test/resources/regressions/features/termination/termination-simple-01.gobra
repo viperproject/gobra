@@ -138,12 +138,12 @@ func fib(n int) int {
 }
 
 type list struct {
-	next *list
-	value int
+	Next *list
+	Value int
 }
 
 pred List(self *list) {
-	acc(&self.value) && acc(&self.next) && (self.next != nil ==> List(self.next))
+	acc(&self.Value) && acc(&self.Next) && (self.Next != nil ==> List(self.Next))
 }
 
 requires List(x)
@@ -151,11 +151,11 @@ ensures List(x)
 decreases List(x)
 func length(x *list) int {
 	unfold List(x)
-	if x.next == nil {
+	if x.Next == nil {
 		fold List(x)
 		return 1
 	} else {
-		var y int = 1 + length(x.next)
+		var y int = 1 + length(x.Next)
 		fold List(x)
 		return y
 	}

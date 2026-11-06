@@ -4,7 +4,7 @@
 package pkg
 
 type someInterface interface {
-    ghost pure getValue() int
+    ghost pure GetValue() int
 }
 
 type someImplementation struct {
@@ -15,6 +15,6 @@ type someImplementation struct {
 someImplementation implements someInterface
 
 ghost
-pure func (impl someImplementation) getValue() int {
+pure func (impl someImplementation) GetValue() int {
     return impl.value
 }

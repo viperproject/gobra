@@ -3,17 +3,17 @@
 
 package cell
 
-type cell struct { v int }
+type Cell struct { V int }
 
-// implementation of cell
+// implementation of Cell
 requires acc(c, 1/2)
-ensures res == c.v
-pure func (c *cell) GetVal() (res int) {
-    return c.v
+ensures res == c.V
+pure func (c *Cell) GetVal() (res int) {
+    return c.V
 }
 
 requires acc(c)
-ensures acc(c) && c.v == v
-func (c *cell) SetVal(v int) {
-    c.v = v
+ensures acc(c) && c.V == v
+func (c *Cell) SetVal(v int) {
+    c.V = v
 }

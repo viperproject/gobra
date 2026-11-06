@@ -5,14 +5,14 @@ package pkg
 
 // This does not parse:
 // type foo interface {
-//   opaque pure bar() (res int)
+//   opaque pure Bar() (res int)
 // }
 
 // Interface method signatures cannot be opaque.
 type foo interface {
 	//:: ExpectedOutput(type_error)
 	opaque
-	pure bar() (res int)
+	pure Bar() (res int)
 }
 
 type test int
@@ -21,4 +21,4 @@ test implements foo
 
 ensures res == 5
 decreases
-pure func (x test) bar() (res int)
+pure func (x test) Bar() (res int)

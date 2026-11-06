@@ -33,6 +33,7 @@ func alloc(val byte) (res *Byte) {
 	return res
 }
 
+// @ closed
 // @ pure
 // @ requires acc(b.Mem(), _)
 // @ decreases

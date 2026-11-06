@@ -22,7 +22,7 @@ func init() {
 }
 
 // @ preserves NamesInv()
-// @ ensures acc(res) && res._start == 0
+// @ ensures acc(res) && res.Start == 0
 // @ decreases
 func Name(s string) (res *name.Name) {
 	// @ unfold NamesInv()

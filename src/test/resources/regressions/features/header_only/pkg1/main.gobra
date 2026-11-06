@@ -5,4 +5,4 @@
 // ##(--onlyFilesWithHeader)
 package pkg1
 
-func f(int) int
+func F(int) int

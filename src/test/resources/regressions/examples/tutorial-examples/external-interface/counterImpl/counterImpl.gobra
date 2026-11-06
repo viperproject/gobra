@@ -4,20 +4,20 @@
 package counterImpl
 
 // implementation
-type counter struct{ f, max int }
+type Counter struct{ F, Max int }
 
 requires acc(x, 1/2)
-ensures  res == (x.f < x.max) // necessary, because the body of imported functions is removed
+ensures  res == (x.F < x.Max) // necessary, because the body of imported functions is removed
 decreases
-pure func (x *counter) hasNext() (res bool) {
-	return x.f < x.max
+pure func (x *Counter) HasNext() (res bool) {
+	return x.F < x.Max
 }
 
-requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
-ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == type[int]
-ensures  y.(int) == old(x.f)
-func (x *counter) next() (y interface{}) {
-	y = x.f
-	x.f += 1
+requires acc(&x.F) && acc(&x.Max, 1/2) && x.HasNext()
+ensures  acc(&x.F) && acc(&x.Max, 1/2) && x.F == old(x.F)+1 && typeOf(y) == type[int]
+ensures  y.(int) == old(x.F)
+func (x *Counter) Next() (y interface{}) {
+	y = x.F
+	x.F += 1
 	return
 }

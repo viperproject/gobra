@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
+import viper.gobra.ast.frontend.PTypeDef
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -40,16 +41,33 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val comparableType: Property[Type] = createBinaryProperty("comparable") {
-    case Single(st) => underlyingType(st) match {
-      case t: StructT =>
-        structMemberSet(t).collect {
-          case (_, f: Field) => f.context.symbType(f.decl.typ)
-          case (_, e: Embbed) => e.context.typ(e.decl.typ)
-        }.forall(comparableType)
+    case Single(st) => st match {
+      case t: DeclaredT if isImportedContextualType(t) =>
+        // We do not rely on the structure of imported types, as it may contain private fields.
+        // An imported struct-backed type is only comparable if its declaration carries the
+        // `comparable` annotation, which is checked in the declaring package and can thus be
+        // assumed here.
+        hasComparableAnnotation(t) || (underlyingType(t) match {
+          case _: StructT => false // may contain private fields; requires the `comparable` annotation
+          case u => comparableType(u)
+        })
+      case _ => underlyingType(st) match {
+        case t: StructT =>
+          structMemberSet(t).collect {
+            case (_, f: Field) => f.context.symbType(f.decl.typ)
+            case (_, e: Embbed) => e.context.typ(e.decl.typ)
+          }.forall(comparableType)
 
-      case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT => false
-      case _ => true
+        case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT => false
+        case _ => true
+      }
     }
+    case _ => false
+  }
+
+  /** True iff the declaration of `t` carries the `comparable` annotation. */
+  def hasComparableAnnotation(t: DeclaredT): Boolean = t.decl match {
+    case d: PTypeDef => d.isComparable
     case _ => false
   }
 }

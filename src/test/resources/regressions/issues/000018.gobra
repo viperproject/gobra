@@ -18,13 +18,13 @@ func evens(n int) (e int) {
 };
 
 type Point struct {
-  x int;
+  X int;
   y int;
 };
 
 
 //:: ExpectedOutput(contract_not_well_formed:permission_error)
-ensures r.x == 0;
+ensures r.X == 0;
 func Origin() (r *Point) {
   r = &Point{0, 0};
 };

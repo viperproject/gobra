@@ -9,14 +9,14 @@ package ImplementsInterfaceFail01
 ghost type intPair domain {
     func fst(intPair) int
     func snd(intPair) int
-    func pair(int, int) intPair
+    func Pair(int, int) intPair
 
     axiom {
-      forall p intPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+      forall p intPair :: {fst(p)}{snd(p)} p == Pair(fst(p),snd(p))
     } // pair
 
     axiom {
-      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+      forall l, r int :: {Pair(l,r)} l == fst(Pair(l,r)) && r == snd(Pair(l,r))
     }
 }
 
@@ -24,7 +24,7 @@ ghost type intPair domain {
 intPair implements any
 
 func test() (res bool) {
-    x := pair(1,2)
+    x := Pair(1,2)
     //:: ExpectedOutput(type_error)
     tmp := equalImpure(x, x) // cannot assign ghost argument to a non-ghost parameter
     assert equalPure(x, x) // fine as we allow calling pure functions with ghost arguments by implicitly treating the callee as being ghost

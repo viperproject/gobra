@@ -4,32 +4,32 @@
 package pkg
 
 type foo interface {
-	pred mem()
+	pred Mem()
 
-	requires mem()
-	bar() int
+	requires Mem()
+	Bar() int
 }
 
 type t uint64
 
-preserves x.mem()
-func (x t) bar() int {
+preserves x.Mem()
+func (x t) Bar() int {
 	return 1
 }
 
-pred (x t) mem() { true }
+pred (x t) Mem() { true }
 
 pred mem2(x *t) { acc(x) }
 
 t implements foo
 
 (*t) implements foo {
-	pred mem := mem2
+	pred Mem := mem2
 
-	(x *t) bar() (res int) {
+	(x *t) Bar() (res int) {
 		unfold mem2(x)
-		fold (*x).mem()
-		res = x.bar()
+		fold (*x).Mem()
+		res = x.Bar()
 		fold mem2(x)
 	}
 }

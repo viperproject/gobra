@@ -12,10 +12,10 @@ func test1() {
 
 type T interface {
 	// @ ensures res.RecvChannel() && res.RecvGivenPerm()()
-	getC() (res <-chan struct{})
+	GetC() (res <-chan struct{})
 }
 
 // @ requires t != nil
 func test2(t T) {
-	<-t.getC()
+	<-t.GetC()
 }

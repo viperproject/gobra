@@ -1,0 +1,51 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Pair struct {
+	X int
+	y int
+}
+
+// Literals that leave the non-exported fields at their default value may occur in the
+// contract of an exported member.
+ensures res == Pair{}
+decreases
+pure func Zero() (res Pair)
+
+ensures res == Pair{X: 1}
+decreases
+pure func One() (res Pair)
+
+// A keyed literal may not name a non-exported field.
+//:: ExpectedOutput(type_error)
+ensures res == Pair{y: 1}
+decreases
+pure func BadKeyed() (res Pair)
+
+// A positional literal assigns to all fields, including the non-exported ones.
+//:: ExpectedOutput(type_error)
+ensures res == Pair{1, 2}
+decreases
+pure func BadPositional() (res Pair)
+
+// The body of a fully-public predicate is subject to the same rules.
+pred Mem(p Pair) {
+	p == Pair{X: 1}
+}
+
+pred BadMem(p Pair) {
+	//:: ExpectedOutput(type_error)
+	p == Pair{1, 2}
+}
+
+// A closed predicate may use any literal, as its body is not visible to clients.
+closed pred ClosedMem(p Pair) {
+	p == Pair{1, 2}
+}
+
+// So may the contract of a non-exported member.
+ensures res == Pair{1, 2}
+decreases
+pure func hidden() (res Pair)

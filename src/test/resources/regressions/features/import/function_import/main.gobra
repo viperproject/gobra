@@ -7,9 +7,9 @@ package main
 import b "bar"
 
 func foo() {
-  b.bar()
+  b.Bar()
 }
 
 func foo2() {
-  go b.bar()
+  go b.Bar()
 }

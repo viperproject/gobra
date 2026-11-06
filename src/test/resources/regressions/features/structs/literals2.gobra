@@ -16,10 +16,10 @@ func client2() {
 	e := &Element{Value: 1}
 }
 
-type T interface { m() int }
+type T interface { M() int }
 type X struct{}
-func (x X) m() int
+func (x X) M() int
 
 func client3() {
-	T(X{}).m()
+	T(X{}).M()
 }

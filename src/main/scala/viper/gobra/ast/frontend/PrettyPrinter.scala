@@ -140,15 +140,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, body) =>
-        "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
-      case PMPredicateDecl(id, recv, args, body) =>
-        "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PFPredicateDecl(id, args, body, isClosed) =>
+        (if (isClosed) showClosed else emptyDoc) <> "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PMPredicateDecl(id, recv, args, body, isClosed) =>
+        (if (isClosed) showClosed else emptyDoc) <> "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
     }
   }
 
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
+  def showClosed: Doc = "closed" <> line
   def showOpensInvs: Doc = "opensInvariants" <> line
   def showAtomic: Doc = "atomic" <> line
   def showTrusted: Doc = "trusted" <> line
@@ -172,7 +173,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit) =>
+    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit, isClosed) =>
+      (if (isClosed) showClosed else emptyDoc) <>
       (if (isPure) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
       (if (opensInvs) showOpensInvs else emptyDoc) <>
@@ -230,7 +232,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
-    case PTypeDef(right, left) => "type" <+> showId(left) <+> showType(right)
+    case PTypeDef(right, left, isComparable) => (if (isComparable) "comparable" <> space else emptyDoc) <> "type" <+> showId(left) <+> showType(right)
     case PTypeAlias(right, left) => "type" <+> showId(left) <+> "=" <+> showType(right)
   }
 
@@ -815,9 +817,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, _) =>
+      case PFPredicateDecl(id, args, _, _) =>
         "pred" <+> showId(id) <> parens(showParameterList(args))
-      case PMPredicateDecl(id, recv, args, _) =>
+      case PMPredicateDecl(id, recv, args, _, _) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
     }
   }

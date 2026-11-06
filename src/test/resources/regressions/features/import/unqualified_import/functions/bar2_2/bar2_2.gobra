@@ -3,4 +3,4 @@
 
 package bar2_2
 
-func bar() { }
+func Bar() { }

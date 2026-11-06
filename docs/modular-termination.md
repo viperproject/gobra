@@ -489,6 +489,18 @@ interface method.
     `slayers`, so these calls genuinely depend on how clients use the registry. A modular proof needs
     a level bound carried from the registry through `NewPath` into `SCION`'s invariant, with callers of
     `SCION` paying for it. This is not done yet; four calls in `pkg/slayers` fail.
+  * The router's data plane calls objects stored in fields of `DataPlane` and of the packet processor.
+    Three patterns covered all cases. (1) Library objects that never call back (`hash.Hash`,
+    prometheus metrics, gopacket's `SerializeBuffer` and `DecodeFeedback`, BFD sessions): their
+    interface methods go into the bottom stratum. (2) A stored object whose possible types are known:
+    a contract states them (`lastLayerHasKnownType()`), which fixes its level below the package.
+    (3) A stored closure called by a member whose callers do not terminate: the member's measure
+    includes the closure's level (`decreases levelOf(d.getMacFactory())`). Members that only store an
+    object (e.g. an error `cause`) exclude it from their level with an explicit measure.
+  * The bottom stratum is flat: a member of it can only call another one with a decreasing local
+    measure. This is what the error chains need (the level of a wrapped cause is unknown), but it rules
+    out the bottom stratum for implementations that call helper functions, such as gopacket's
+    `DecodingLayer.NextLayerType` in `slayers`.
 * **Chained bounds.** The encoding supports chaining two "below" facts per comparison (§3.5), not more.
 * **SMT cost.** The multiset order is quantified. Comparisons of atom-only levels are decided by Gobra,
   and the level theory is removed from programs that do not need it. Where it is needed, Z3 is

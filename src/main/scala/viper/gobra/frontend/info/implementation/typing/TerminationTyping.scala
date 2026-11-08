@@ -46,13 +46,6 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
         isConditional(m))
     }
 
-  private[typing] def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
-    val tupleMeasureTypes = measures
-      .collect { case ttm: PTupleTerminationMeasure => ttm }
-      .map(_.tuple.map(typ))
-    tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
-  }
-
   private[typing] def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
     case PTupleTerminationMeasure(tuple, cond) =>
       tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++

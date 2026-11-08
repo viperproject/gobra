@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// A member has at most one tuple termination measure. Conditional wildcard measures may complement it.
+
+//:: ExpectedOutput(type_error)
+requires x >= 0
+decreases x if x > 10
+decreases x + 1 if x <= 10
+func twoTuples(x int)
+
+requires x >= 0
+decreases x if x > 10
+decreases _ if x <= 10
+func tupleAndWildcard(x int)

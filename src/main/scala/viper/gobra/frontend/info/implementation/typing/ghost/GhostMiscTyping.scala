@@ -169,8 +169,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
-      // measures must have the same type
-      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
+      // at most one tuple measure: a member's termination is checked with a single measure, possibly conditional and
+      // complemented by conditional wildcard measures
+      error(n, "Specifications can contain at most one tuple termination measure (besides wildcard measures).",
+        terminationMeasures.count(_.isInstanceOf[PTupleTerminationMeasure]) > 1) ++
       error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure) ++
       error(n, "Annotation 'opensInvariants' can only be used in ghost members.", opensInvs && !isEnclosingGhost(enclosingCodeRoot(n))) ++
       error(n, "Annotation 'opensInvariants' can only be used in non-pure members.", opensInvs && isPure)

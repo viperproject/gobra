@@ -127,6 +127,8 @@ trait SIFLowGuardTransformer {
 
     def premise(e: Exp, args: Set[String], depth: Int): Option[Exp] = e match {
       case i: Implies if isRelational(i.left, ctx) && admissible(i.left, args) => Some(i.left)
+      // Gobra encodes `P ==> Q` in the bodies of functions as `P ? Q : true`
+      case c: CondExp if c.els == TrueLit()() && isRelational(c.cond, ctx) && admissible(c.cond, args) => Some(c.cond)
       case f: FuncApp if depth > 0 && ctx.isHyperFunction(f.funcname) =>
         for {
           fn <- functions.get(f.funcname) if onlyTerminationPres(fn)

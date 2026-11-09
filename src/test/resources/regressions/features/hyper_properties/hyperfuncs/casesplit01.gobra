@@ -42,10 +42,10 @@ func Sign(x int) (res int) {
 // Calls and loops in a method with a case split.
 requires 0 <= n
 ensures NonInterf(n, res)
-ensures res >= n
+ensures res >= 0
 func SumAbs(n int) (res int) {
 	res = 0
-	invariant 0 <= i && i <= n && res >= i
+	invariant 0 <= i && i <= n && res >= 0
 	invariant low(n) ==> low(i) && low(res)
 	for i := 0; i < n; i++ {
 		v := Abs(i)

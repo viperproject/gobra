@@ -251,12 +251,16 @@ then calls methods of the resulting paths. The levels are bounded without trust:
    `SCION`'s methods.
 
 A method of `SCION` that calls `s.Path` needs `levelOf(s.Path) < {method}`, a chain through
-`PathBound()`. `ownLevel()` may also be used in assertions in a body, where it is the member's level on
-entry: `assert PathBound() < ownLevel()` is a ground comparison, after which the transitivity axiom of §7
-decides the check. The fact about `s.Path` is wrapped in a predicate `PathLevelInv(s.Path)` inside
-`SCION.Mem`, which only the members that call `s.Path` unfold: with the fact directly in `Mem`, proofs
-about `Mem` that have nothing to do with termination became unstable. With the fact in scope,
-`SCION.SerializeTo` is still much slower than before (see §8).
+`PathBound()`. The checks find it without hints: for every dynamic check, Gobra compares the named level
+constants (parameterless level functions without precondition, such as `PathBound()`) statically with
+the caller's level, assumes the ones that are below it on the branch of the check (§7), and transitivity
+of `$levelLt` closes the chain. `PathBound()` is **opaque**. A fact `levelOf(s.Path) < PathBound()` about
+an opaque constant has no atoms and thus no hints, so it does not burden the other proofs about
+`SCION.Mem`. With a transparent constant, its nine atoms got hints at every unfolding of `Mem`, which made
+`SCION.SerializeTo` (35 s before the change) take 300 s and destabilized unrelated proofs. Proofs that a
+level is below an opaque constant compare with the revealed call, e.g.,
+`assert levelOf(tmp) < reveal PathBound()`: the call stays in the comparison, and the atoms of its body
+get hints. `ownLevel()` may also be used in assertions in a body, where it is the member's level on entry.
 
 The registry is closed because `slayers` registers everything during initialization. A registry that
 higher packages could extend later would instead need a bound chosen by `path` itself.
@@ -483,6 +487,14 @@ and check methods for function bodies and contracts. The checks reuse the plugin
 replaced by `decreases _`. The plugin then only checks loops and members without levels, so no error is
 reported twice.
 
+**Dynamic checks.** A check whose comparison of levels is left to Z3 is executed on a branch that ends
+after it (`if (*) { checks; inhale false }`). Silicon assumes every assertion it proves, so the quantified
+comparison of levels and the disjunction of the lexicographic order would otherwise burden every later
+proof obligation of the method. On that branch, Gobra also assumes `B() < caller` for each named level
+constant `B` whose body is statically below the caller's level (see "Static comparisons"). A callee level
+known to be below such a constant, e.g., from a predicate, then follows by transitivity, without hints
+and without exposing the atoms of the constant elsewhere.
+
 **Interfaces and closures.** Implementation proofs turn the strict check at their call into `≤` through
 the last tuple element: `NonItfMethodMeasure < ProofMeasure < ItfMethodMeasure < ClosureProofMeasure`.
 Closure implementation proofs carry the spec's tuple, ending in `ClosureProofMeasure`, on the proof's
@@ -516,6 +528,7 @@ With all facts in one domain, chopping the router took longer than 30 minutes.
 | `termination-import-registry/` | a closed registry with level constants (§3.6) |
 | `termination-levels-transitivity.gobra` | chains of level comparisons |
 | `termination-levels-own-in-body.gobra` | `ownLevel()` in bodies of members and literals |
+| `termination-levels-opaque-bound.gobra` | opaque level constants, revealed comparisons, bounds without hints |
 
 `termination-fail-02.gobra` now reports its error where the cycle is closed rather than at the
 interface method.
@@ -543,9 +556,8 @@ interface method.
     the bottom stratum (`decreases bottomLevel()`), which solves this case.
   * The methods of `slayers.SCION` call methods of the field `s.Path`, whose dynamic type comes from the
     registry. Any package above `slayers` could store a `path.Path` whose methods call back into
-    `slayers`, so these calls genuinely depend on how clients use the registry. A modular proof needs
-    a level bound carried from the registry through `NewPath` into `SCION`'s invariant, with callers of
-    `SCION` paying for it. This is not done yet; four calls in `pkg/slayers` fail.
+    `slayers`. The closed registry of §3.6 bounds these levels without trust, because `slayers` is the
+    only package that can register constructors and registers all of them in its initialization.
   * The router's data plane calls objects stored in fields of `DataPlane` and of the packet processor.
     Three patterns covered all cases. (1) Library objects that never call back (`hash.Hash`,
     prometheus metrics, gopacket's `SerializeBuffer` and `DecodeFeedback`, BFD sessions): their

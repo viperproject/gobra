@@ -360,7 +360,7 @@ object LevelEncoding {
   private val atomLtFunc = vpr.DomainFunc(atomLtFuncName, Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
   /** Marks the order facts that stem from the witnesses of assumed comparisons of levels (see `levelDomain`). */
   private val atomLtWitnessFunc = vpr.DomainFunc("$atomLtW", Seq(vpr.LocalVarDecl("a", atomType)(), vpr.LocalVarDecl("b", atomType)()), vpr.Bool)(domainName = levelDomainName)
-  private val levelLtFunc = vpr.DomainFunc("$levelLt", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), vpr.Bool)(domainName = levelDomainName)
+  val levelLtFunc: vpr.DomainFunc = vpr.DomainFunc("$levelLt", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), vpr.Bool)(domainName = levelDomainName)
   private val levelMaxFunc = vpr.DomainFunc("$levelMax", Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
   private val unionFunc = vpr.DomainFunc(unionFuncName, Seq(vpr.LocalVarDecl("l", levelType)(), vpr.LocalVarDecl("r", levelType)()), levelType)(domainName = levelDomainName)
   /** The multiplicity of an atom in a level; its applications trigger the definition of the order on levels. */

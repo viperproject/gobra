@@ -236,8 +236,14 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
           case AssertFailed(_, r, c) => MethodTerminationError(mc, r, c)
           case d => d
         })
-        val checks = callChecks(callee, calleeSpec, substitution, callerTuple, callerCondition, errTrafo, inContract = false)
-        vpr.Seqn(checks :+ mc, Nil)(mc.pos, vpr.NoInfo, vpr.NodeTrafo(mc))
+        val (checks, dynamic) = callChecksWithKind(callee, calleeSpec, substitution, callerTuple, callerCondition, errTrafo, inContract = false)
+        if (!dynamic) vpr.Seqn(checks :+ mc, Nil)(mc.pos, vpr.NoInfo, vpr.NodeTrafo(mc))
+        else {
+          // A comparison that the SMT solver decides is checked on a branch that ends after the check, so that the
+          // comparison is not assumed afterwards. Assumed comparisons of levels (and the lexicographic disjunctions of
+          // the tuples) burden every later proof obligation of the method; see `checkInDeadBranch`.
+          vpr.Seqn(Seq(checkInDeadBranch(checks, mc), mc), Nil)(mc.pos, vpr.NoInfo, vpr.NodeTrafo(mc))
+        }
 
       case other => other
     }
@@ -245,13 +251,31 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
     goSeqn(body)
   }
 
+  /**
+    * Executes `checks` on a branch that is closed afterwards (`if (*) { checks; inhale false }`). The checks are
+    * verified as before, but their assertions are not assumed after the branch. Silicon assumes every assertion that it
+    * proves; for a comparison of levels decided by the SMT solver, this adds the quantified characterization of the
+    * multiset order, and for the tuple the disjunction of the lexicographic order, to all later proof obligations of the
+    * method. In VerifiedSCION, this made `SCION.SerializeTo` several times slower.
+    */
+  private def checkInDeadBranch(checks: Seq[vpr.Stmt], at: vpr.Stmt): vpr.Stmt = {
+    val choice = vpr.LocalVarDecl(uniqueName("termination_check"), vpr.Bool)(at.pos)
+    val closed = vpr.Seqn(checks :+ vpr.Inhale(vpr.FalseLit()(at.pos))(at.pos), Nil)(at.pos)
+    vpr.Seqn(Seq(vpr.If(choice.localVar, closed, vpr.Seqn(Nil, Nil)(at.pos))(at.pos)), Seq(choice))(at.pos)
+  }
+
   private def callChecks(callee: ErrorNode, calleeSpec: Spec, substitution: Map[vpr.LocalVar, vpr.Exp], callerTuple: Seq[vpr.Exp],
-                         callerCondition: Option[vpr.Exp], errTrafo: vpr.ErrTrafo, inContract: Boolean): Seq[vpr.Stmt] = {
+                         callerCondition: Option[vpr.Exp], errTrafo: vpr.ErrTrafo, inContract: Boolean): Seq[vpr.Stmt] =
+    callChecksWithKind(callee, calleeSpec, substitution, callerTuple, callerCondition, errTrafo, inContract)._1
+
+  /** Returns the checks of a call, and whether the comparison of the levels is left to the SMT solver. */
+  private def callChecksWithKind(callee: ErrorNode, calleeSpec: Spec, substitution: Map[vpr.LocalVar, vpr.Exp], callerTuple: Seq[vpr.Exp],
+                                 callerCondition: Option[vpr.Exp], errTrafo: vpr.ErrTrafo, inContract: Boolean): (Seq[vpr.Stmt], Boolean) = {
     if (!calleeSpec.leveled) {
       // the callee does not have a leveled measure; it only needs to terminate
       val terminationCondition = calleeSpec.spec.getTerminationCondition.replace(substitution)
-      Seq(createConditionCheck(callerCondition, Some(terminationCondition), errTrafo,
-        ReasonTrafoFactory(callee).generateTerminationConditionFalse(callee)))
+      (Seq(createConditionCheck(callerCondition, Some(terminationCondition), errTrafo,
+        ReasonTrafoFactory(callee).generateTerminationConditionFalse(callee))), false)
     } else {
       val calleeTuple = calleeSpec.tuple.get
       val reasonTrafoFactory = ReasonTrafoFactory(calleeTuple)
@@ -261,17 +285,17 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       val importedAtomsOnly = staticLevel(calleeExps.head).exists(l => l.nonEmpty && l.keys.forall(a => !a.startsWith(LevelEncoding.mainAtomPrefix)))
       if (inContract && isInterfaceContext(callerTuple) && importedAtomsOnly) {
         // see [[isInterfaceContext]]
-        return Seq(conditionCheck)
+        return (Seq(conditionCheck), false)
       }
       compareLevels(calleeExps.head, callerTuple.head) match {
         case LevelLess =>
           // the measure decreases in its first component
-          Seq(conditionCheck)
+          (Seq(conditionCheck), false)
         case LevelsEqual =>
-          Seq(conditionCheck, tupleCheck(callerCondition, callerTuple.tail, calleeExps.tail, errTrafo, reasonTrafoFactory))
+          (Seq(conditionCheck, tupleCheck(callerCondition, callerTuple.tail, calleeExps.tail, errTrafo, reasonTrafoFactory)), false)
         case LevelsUnknown =>
           val check = tupleCheck(callerCondition, callerTuple, calleeExps, errTrafo, reasonTrafoFactory)
-          Seq(conditionCheck) ++ levelHints(callerTuple.head, calleeExps.head) :+ check
+          (Seq(conditionCheck) ++ constantBounds(callerTuple.head) ++ levelHints(callerTuple.head, calleeExps.head) :+ check, true)
       }
     }
   }
@@ -436,6 +460,41 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       vpr.Assert(vpr.And(count(atom, calleeLevel), count(atom, callerLevel))())()
     }
   }
+
+  /**
+    * Named level constants: parameterless level functions without precondition, e.g.,
+    * `func Bound() level { return levelOf(f) + levelOf(g) }`, which may be opaque.
+    */
+  private lazy val levelConstants: Seq[vpr.Function] = program.functions.filter { f =>
+    f.formalArgs.isEmpty && f.typ == LevelEncoding.levelType && f.body.isDefined && f.pres.forall(_.isInstanceOf[DecreasesClause])
+  }
+
+  private lazy val levelConstantBodies: Map[String, vpr.Exp] = levelConstants.map(f => f.name -> f.body.get).toMap
+
+  /** Replaces the level constants in `e` by their bodies, up to a fixed depth. */
+  private def inlineLevelConstants(e: vpr.Exp): vpr.Exp = {
+    def once(x: vpr.Exp): vpr.Exp = x.transform({
+      case app: vpr.FuncApp if app.args.isEmpty && levelConstantBodies.contains(app.funcname) => levelConstantBodies(app.funcname)
+    }, Traverse.BottomUp)
+    Iterator.iterate(e)(once).take(17).sliding(2).collectFirst { case Seq(a, b) if a == b => a }.getOrElse(e)
+  }
+
+  /**
+    * Facts `B() < caller` for the level constants `B` whose bodies are statically below the caller's level. A check
+    * whose callee level is opaque but known to be below a constant, e.g., `levelOf(s.Path) < PathBound()` from a
+    * predicate, then follows by transitivity. The facts are decided statically (see `compareLevels`) and assumed on the
+    * branch of the check only (see `checkInDeadBranch`), so that the atoms of the constants never reach the other proof
+    * obligations of the method. Opaque constants thus keep facts about them cheap for the SMT solver.
+    */
+  private def constantBounds(callerLevel: vpr.Exp): Seq[vpr.Stmt] =
+    if (callerLevel.typ != LevelEncoding.levelType) Seq.empty
+    else levelConstants.flatMap { f =>
+      val call = vpr.FuncApp(f, Seq.empty)()
+      compareLevels(inlineLevelConstants(call), callerLevel) match {
+        case LevelLess => Some(vpr.Inhale(vpr.DomainFuncApp(LevelEncoding.levelLtFunc, Seq(call, callerLevel), Map.empty)())())
+        case _ => None
+      }
+    }
 
   /*
    * Checks for functions.

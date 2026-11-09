@@ -4,7 +4,9 @@
 package termination
 
 // An opaque level constant keeps facts about it free of atoms. Comparisons with a revealed call
-// see the atoms of its body, and chain with facts about the opaque call by transitivity.
+// see the atoms of its body. The termination check of a call compares the level constants
+// with the caller's level statically, so a callee below a constant that is below the caller
+// passes by transitivity, without hints.
 
 type I interface {
 	decreases
@@ -45,9 +47,28 @@ func use(s *S) {
 
 requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < Bound()
 decreases
-func useWithoutReveal(s *S) {
+func useWithoutHint(s *S) {
 	f()
 	g()
+	s.x.M()
+}
+
+ghost
+opaque
+decreases
+pure func TopBound() level { return levelOf(top) }
+
+requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < TopBound()
+decreases
+func top(s *S) {
+	//:: ExpectedOutput(function_termination_error)
+	bottom(s)
+}
+
+// TopBound refers to top, which calls bottom: the bound is not below bottom
+requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < TopBound()
+decreases
+func bottom(s *S) {
 	//:: ExpectedOutput(function_termination_error)
 	s.x.M()
 }

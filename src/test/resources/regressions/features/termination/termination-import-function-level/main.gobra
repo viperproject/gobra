@@ -1,0 +1,61 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// The level of a named function is its atom. It can bound the levels of stored objects in
+// invariants, where ownLevel() is not available: here, the stored shower is below the
+// imported function that created it, and thus below every member of this package.
+
+// ##(-I ./)
+import "lib"
+
+type Holder struct{ s lib.Shower }
+
+pred (h *Holder) Inv() { acc(&h.s) && h.s != nil && levelOf(h.s) < levelOf(lib.MakeShower) }
+
+ensures h.Inv()
+decreases
+func newHolder() (h *Holder) {
+	h = &Holder{s: lib.MakeShower()}
+	fold h.Inv()
+	return h
+}
+
+requires acc(h.Inv(), 1/2)
+ensures  acc(h.Inv(), 1/2)
+decreases
+func (h *Holder) Show() int {
+	unfold acc(h.Inv(), 1/2)
+	n := h.s.Show()
+	fold acc(h.Inv(), 1/2)
+	return n
+}
+
+// Without the bound, the stored shower's level is unknown.
+type Holder2 struct{ s lib.Shower }
+
+pred (h *Holder2) Inv() { acc(&h.s) && h.s != nil }
+
+requires acc(h.Inv(), 1/2)
+ensures  acc(h.Inv(), 1/2)
+decreases
+func (h *Holder2) Show() int {
+	unfold acc(h.Inv(), 1/2)
+	//:: ExpectedOutput(function_termination_error)
+	n := h.s.Show()
+	fold acc(h.Inv(), 1/2)
+	return n
+}
+
+decreases
+func helper() {}
+
+ghost
+decreases
+func compare() {
+	assert levelOf(helper) < levelOf(compare)
+	assert levelOf(lib.MakeShower) < levelOf(compare)
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert levelOf(compare) < levelOf(helper)
+}

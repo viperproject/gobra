@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+type Shower interface {
+	decreases
+	Show() int
+}
+
+type Lit struct{}
+
+decreases
+func (l Lit) Show() int { return 0 }
+
+Lit implements Shower
+
+ensures res != nil && levelOf(res) < ownLevel()
+decreases
+func MakeShower() (res Shower) { return Lit{} }

@@ -98,7 +98,17 @@ class LevelEncoding extends LeafTypeEncoding {
 
   private def levelOf(e: in.Expr, src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = src.vprMeta
-    ctx.underlyingType(e.typ) match {
+    (e, ctx.underlyingType(e.typ)) match {
+      // the level of a named function is its atom (which the closure getter of the function also states), e.g., to
+      // bound the levels of objects by the level of the function that created them
+      case (in.FunctionObject(func, _), _) => unit(atomLevel(in.TerminationAtom.function(func), src)(ctx))
+      case (_, t) => levelOfType(e, t, src)(ctx)
+    }
+  }
+
+  private def levelOfType(e: in.Expr, typ: in.Type, src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val (pos, info, errT) = src.vprMeta
+    typ match {
       case itf: in.InterfaceT =>
         // the atom of the dynamic type, plus the level of the components if the interface declares a level method
         registerTypeLevels(ctx)

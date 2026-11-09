@@ -144,7 +144,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case PMPredicateDecl(id, recv, args, body) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case decl: PClosureSpecDecl => showClosureSpecDecl(decl)
     }
+  }
+
+  def showClosureSpecDecl(decl: PClosureSpecDecl): Doc = {
+    val ghostDoc = if (decl.isGhost) "ghost" <> line else emptyDoc
+    ghostDoc <> showSpec(decl.spec) <> "spec" <+> showId(decl.id) <> parens(showParameterList(decl.args)) <> showResult(decl.result)
   }
 
   def showPure: Doc = "pure" <> line
@@ -819,6 +825,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         "pred" <+> showId(id) <> parens(showParameterList(args))
       case PMPredicateDecl(id, recv, args, _) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
+      case decl: PClosureSpecDecl => showClosureSpecDecl(decl)
     }
   }
 

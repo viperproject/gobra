@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSpecDeclGhost1
+
+// The `ghost` and `pure` modifiers of a closure spec declaration refer to the closures that the spec specifies.
+
+// specifies ghost closures
+ghost
+requires x >= 0
+ensures r == x + 1
+decreases
+spec ghostInc(x int) (r int)
+
+// specifies pure ghost closures
+ghost
+ensures r == x + 1
+decreases
+pure spec ghostPureInc(x int) (r int)
+
+// specifies actual closures with a ghost argument
+requires g >= 0 && x >= 0
+ensures r == x + 1
+spec actualInc(ghost g int, x int) (r int)
+
+func test1() {
+    c := ensures r == x + 1
+         decreases
+         pure func f(x int) (r int) {
+            return x + 1
+         }
+
+    // pure closures may implement ghost specs
+    proof c implements ghostPureInc {
+        return c(x) as f
+    }
+
+    // calls with a ghost spec are ghost and, thus, may take ghost arguments and have ghost results
+    ghost y := 41
+    ghost r := c(y) as ghostPureInc
+    assert r == 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert r == 41
+}
+
+requires c implements ghostInc
+func test2(c func(int) int) {
+    ghost y := 1
+    ghost r := c(y) as ghostInc
+    assert r == 2
+    //:: ExpectedOutput(precondition_error:assertion_error)
+    ghost r = c(-1) as ghostInc
+}
+
+requires c implements actualInc
+func test3(c func(int, int) int) {
+    ghost g := 0
+    // ghost arguments may be passed to ghost parameters
+    r := c(g, 1) as actualInc
+    assert r == 2
+}
+
+func test4() {
+    c := requires x >= 0
+         ensures r == x + 1
+         func f(ghost g int, x int) (r int) {
+            return x + 1
+         }
+
+    proof c implements actualInc {
+        r = c(g, x) as f
+    }
+
+    test3(c)
+}

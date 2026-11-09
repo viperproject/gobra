@@ -21,11 +21,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case c@PClosureSpecInstance(id, _) => resolve(id) match {
-      case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
+      case Some(ap.ClosureSpec(_, s)) => wellDefClosureSpecInstanceParams(c, s.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
       case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedLocalVariables(l.lit.decl).isEmpty)
         wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
         else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
-      case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
+      case Some(_: ap.Function) => error(id, s"function $id cannot be used as a closure spec; closure specs have to be declared with 'spec' instead of 'func'")
+      case _ => error(id, s"identifier $id does not identify a closure spec declaration or a named function literal")
     }
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
@@ -100,9 +101,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       if (spec.paramKeys.isEmpty) fType.copy(args = fType.args.drop(params.size))
       else {
         val f = resolve(func) match {
-          case Some(ap.Function(_, f)) => f
-          case Some(ap.Closure(_, c)) => c
-          case _ => Violation.violation(s"expected a function or closure, but got $func")
+          case Some(t: ap.ClosureSpecTarget) => t.symb
+          case _ => Violation.violation(s"expected a closure spec or closure, but got $func")
         }
         val paramSet = spec.paramKeys.toSet
         fType.copy(args = (f.args zip fType.args).filter{

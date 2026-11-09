@@ -48,6 +48,15 @@ object AstPattern {
     override def maybeSpec: Option[PClosureSpecInstance] = Some(spec)
   }
 
+  /** reference to an entity that can be used as the base of a closure spec instance */
+  sealed trait ClosureSpecTarget extends Expr with Symbolic {
+    def id: PIdnUse
+    override def symb: st.ClosureSpecTarget
+  }
+
+  /** reference to a closure spec declaration, which may only occur as part of a closure spec instance */
+  case class ClosureSpec(id: PIdnUse, symb: st.ClosureSpec) extends ClosureSpecTarget
+
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
   case class BlankIdentifier(decl: PBlankIdentifier) extends Expr
 
@@ -60,7 +69,7 @@ object AstPattern {
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind {
     override val isPure: Boolean = symb.isPure
   }
-  case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind {
+  case class Closure(id: PIdnUse, symb: st.Closure) extends FunctionKind with ClosureSpecTarget {
     override val isPure: Boolean = symb.isPure
   }
   case class DomainFunction(id: PIdnUse, symb: st.DomainFunction) extends FunctionKind {

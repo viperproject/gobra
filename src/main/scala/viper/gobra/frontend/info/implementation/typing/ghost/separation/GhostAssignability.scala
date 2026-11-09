@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
@@ -30,14 +31,11 @@ trait GhostAssignability {
 
   /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
   private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
-    val isPure = resolve(call.maybeSpec.get.func) match {
-      case Some(ap.Function(_, f)) => f.isPure
-      case Some(ap.Closure(_, c)) => c.isPure
-      case _ => Violation.violation("this case should be unreachable")
-    }
+    val target = closureSpecTarget(call.spec)
 
-    // If the closure variable being called is ghost, ghost is assignable to all parameters.
-    if (isPure || isExprGhost(call.callee)) { return noMessages }
+    // If the closure variable being called is ghost or the spec specifies ghost closures,
+    // ghost is assignable to all parameters.
+    if (target.isPure || target.specifiesGhostClosures || isExprGhost(call.callee)) { return noMessages }
 
     val argTyping = closureSpecArgsAndResGhostTyping(call.maybeSpec.get)._1.toTuple
     call.args.zip(argTyping).flatMap {
@@ -45,18 +43,22 @@ trait GhostAssignability {
     }
   }
 
-  /** ghost types of the call arguments and results of a closure spec instance.
-    * The ghost type depends on that of the corresponding argument in the base function,
-    * not on the ghostness of the function. */
-  private [separation] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
-    def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
-      GhostType.ghostTuple(params.map(p => context.isParamGhost(p)))
+  /** closure spec declaration or function literal referenced by `spec` */
+  private def closureSpecTarget(spec: PClosureSpecInstance): st.ClosureSpecTarget = resolve(spec.func) match {
+    case Some(t: ap.ClosureSpecTarget) => t.symb
+    case _ => Violation.violation(s"expected a closure spec or function literal, but got ${spec.func}")
+  }
 
-    val (fArgs, fRes, context) = resolve(spec.func) match {
-      case Some(ap.Function(_, f)) => (f.args, f.result.outs, f.context)
-      case Some(ap.Closure(_, c)) => (c.args, c.result.outs, c.context)
-      case _ => Violation.violation("this case should be unreachable")
-    }
+  /** ghost types of the call arguments and results of a closure spec instance.
+    * The ghost type depends on that of the corresponding argument in the spec declaration or function literal and on
+    * whether the spec specifies ghost closures, but not on the ghostness of the closure spec declaration itself. */
+  private [separation] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
+    val target = closureSpecTarget(spec)
+    // all arguments and results of closures specified by a ghost closure spec are ghost
+    def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(params.map(p => target.specifiesGhostClosures || context.isParamGhost(p)))
+
+    val (fArgs, fRes, context) = (target.args, target.result.outs, target.context)
 
     val argTyping = if(spec.params.forall(_.key.isEmpty))
       paramTyping(fArgs.drop(spec.params.size), context)
@@ -240,7 +242,16 @@ trait GhostAssignability {
    * To ensure this, we make sure, for all spec implementation proofs, that the ghostness of the arguments and result
    * of the spec matches that of the call inside. */
   private [separation] def provenSpecMatchesInGhostnessWithCall(p: PClosureImplProof): Messages = {
+    val target = closureSpecTarget(p.impl.spec)
     val specTyping = closureSpecArgsAndResGhostTyping(p.impl.spec)
+
+    if (target.specifiesGhostClosures) {
+      // Calls with a ghost spec are ghost. Thus, the implementing closure must not have any side effects on actual
+      // state, which is the case if it is pure or if it is ghost itself.
+      return error(p.impl.closure,
+        s"only ghost or pure closures can implement the ghost closure spec ${p.impl.spec}, but ${p.impl.closure} is neither",
+        !target.isPure && !isExprGhost(p.impl.closure))
+    }
 
     closureImplProofCallAttr(p) match {
       case c: PInvoke =>
@@ -266,8 +277,9 @@ trait GhostAssignability {
     }
 
     resolve(call.spec.get.func) match {
-      case Some(p: ap.Function) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
-      case Some(p: ap.Closure) => resultTyping(p.symb.result, isExprGhost(call.base.asInstanceOf[PExpression]), p.symb.context)
+      case Some(t: ap.ClosureSpecTarget) =>
+        val isCallGhost = t.symb.specifiesGhostClosures || isExprGhost(call.base.asInstanceOf[PExpression])
+        resultTyping(t.symb.result, isCallGhost, t.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
   }

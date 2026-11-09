@@ -258,7 +258,13 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque] | closureSpecDecl);
+
+// Declaration of a closure specification, e.g., `requires x > 0; ensures r > 0; spec pos(x int) (r int)`.
+// `spec` is a contextual keyword (and not a reserved token) such that Go programs using `spec` as an identifier
+// remain parseable. A closure spec declaration starts with two consecutive identifiers, which is never valid Go at
+// the level of top-level declarations.
+closureSpecDecl: {isSpecKeyword()}? IDENTIFIER IDENTIFIER signature;
 
 functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 

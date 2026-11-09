@@ -1,0 +1,49 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSpecDeclGhostFail1
+
+// The `ghost` modifier of a closure spec declaration refers to the closures that the spec specifies.
+
+// specifies ghost closures
+ghost
+requires x >= 0
+ensures r == x + 1
+decreases
+spec ghostInc(x int) (r int)
+
+// specifies actual closures with a ghost argument
+requires x >= 0
+ensures r == x + 1
+spec actualInc(ghost g int, x int) (r int)
+
+func test1() {
+    c := requires x >= 0
+         ensures r == x + 1
+         decreases
+         func f(x int) (r int) {
+            return x + 1
+         }
+
+    // non-pure actual closures cannot implement ghost specs, as calls with the spec are ghost
+    //:: ExpectedOutput(type_error)
+    proof c implements ghostInc {
+        r = c(x) as f
+    }
+}
+
+requires c implements ghostInc
+func test2(c func(int) int) {
+    var r int
+    // the result of a call with a ghost spec is ghost
+    //:: ExpectedOutput(type_error)
+    r = c(1) as ghostInc
+}
+
+requires c implements actualInc
+func test3(c func(int, int) int) {
+    ghost g := 0
+    // ghost arguments may only be passed to ghost parameters
+    //:: ExpectedOutput(type_error)
+    r := c(0, g) as actualInc
+}

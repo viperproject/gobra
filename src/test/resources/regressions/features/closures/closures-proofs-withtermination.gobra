@@ -5,7 +5,7 @@ package proofsWithTermination
 
 // Check that spec implementation proofs do not interfere with the termination checks of the enclosing method
 
-func generic(a int)int
+spec generic(a int)int
 
 decreases
 ensures res >= 0
@@ -22,7 +22,7 @@ func test1() {
     assert pos implements generic
 }
 
-pure func pureGeneric(a int)int
+pure spec pureGeneric(a int)int
 
 decreases
 pure func purePos(int)int {

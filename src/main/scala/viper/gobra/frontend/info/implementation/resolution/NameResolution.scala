@@ -98,6 +98,7 @@ trait NameResolution {
           case decl: PBoundVariable => BoundVariable(decl, this)
 
           case decl: PFPredicateDecl => FPredicate(decl, this)
+          case decl: PClosureSpecDecl => ClosureSpec(decl, this)
           case decl: PMPredicateDecl => MPredicateImpl(decl, this)
           case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
 
@@ -283,6 +284,7 @@ trait NameResolution {
         case PExplicitGhostMember(a) => packageLevelDefinitions(a)
         case p: PMPredicateDecl => Vector(p.id)
         case p: PFPredicateDecl => Vector(p.id)
+        case p: PClosureSpecDecl => Vector(p.id)
       }
     }
   }
@@ -382,7 +384,7 @@ trait NameResolution {
 
       // Argument is the key of a closure spec instance.
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PIdentifierKey, tree.parent(spec: PClosureSpecInstance))) =>
-        lookupFunctionMemberOrLit(spec.func).flatMap(func => lookupParamForClosureSpec(id, func)) match {
+        lookupClosureSpecTarget(spec.func).flatMap(func => lookupParamForClosureSpec(id, func)) match {
           case Some(p: InParameter) => p
           case _ => UnknownEntity() // only in-parameter names can be used as keys
         }
@@ -391,7 +393,7 @@ trait NameResolution {
       // For now, this case should be the last case before the symbol table lookup.
       case n: PIdnUse if tryEnclosingClosureImplementationProof(n).nonEmpty =>
         val proof = tryEnclosingClosureImplementationProof(n).get
-        lookupFunctionMemberOrLit(proof.impl.spec.func).flatMap(func => lookupParamForClosureSpec(n, func)) match {
+        lookupClosureSpecTarget(proof.impl.spec.func).flatMap(func => lookupParamForClosureSpec(n, func)) match {
           case Some(p: InParameter) => p
           case Some(p: OutParameter) => p
           case _ => symbTableLookup(n)
@@ -466,7 +468,7 @@ trait NameResolution {
     }
   }
 
-  private def lookupParamForClosureSpec(id: PIdnUse, func: ActualDataEntity with WithArguments with WithResult): Option[ActualVariable] = {
+  private def lookupParamForClosureSpec(id: PIdnUse, func: ClosureSpecTarget): Option[ActualVariable] = {
     def namedParam(p: PParameter): Option[PNamedParameter] = p match {
       case p: PNamedParameter => Some(p)
       case PExplicitGhostParameter(p: PNamedParameter) => Some(p)
@@ -486,16 +488,17 @@ trait NameResolution {
     }
   }
 
-  private def lookupFunctionMemberOrLit(name: PNameOrDot): Option[ActualDataEntity with WithArguments with WithResult] = name match {
+  /** looks up the closure spec declaration or named function literal that is the base of a closure spec instance */
+  private def lookupClosureSpecTarget(name: PNameOrDot): Option[ClosureSpecTarget] = name match {
     case PNamedOperand(id) => symbTableLookup(id) match {
-      case f: Function => Some(f)
+      case s: ClosureSpec => Some(s)
       case c: Closure => Some(c)
       case _ => None
     }
     case PDot(base: PNamedOperand, id) => symbTableLookup(base.id) match {
       case pkg: Import =>
         tryPackageLookup(RegularImport(pkg.decl.importPath), id) match {
-          case Some((f: Function, _)) => Some(f)
+          case Some((s: ClosureSpec, _)) => Some(s)
           case _ => None
         }
       case _ => None

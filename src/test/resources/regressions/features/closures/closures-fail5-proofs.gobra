@@ -3,9 +3,8 @@
 
 package closuresFail5Proofs
 
-ghost
 requires x >= 0
-pure func pspec(x int) (y int)
+pure spec pspec(x int) (y int)
 
 func test1() {
     cl :=
@@ -71,10 +70,9 @@ func test4() {
     }
 }
 
-ghost
 decreases
 requires x >= 0
-pure func tpspec(x int) (y int)
+pure spec tpspec(x int) (y int)
 
 func test5() {
     cl :=
@@ -91,9 +89,8 @@ func test5() {
     } 
 }
 
-ghost
 requires x >= 0
-func spec(x int) (y int)
+spec spec(x int) (y int)
 
 func test6() {
     cl :=
@@ -160,10 +157,9 @@ func test9() {
     } 
 }
 
-ghost
 decreases
 requires x >= 0
-func tspec(x int) (y int)
+spec tspec(x int) (y int)
 
 
 func test10() {

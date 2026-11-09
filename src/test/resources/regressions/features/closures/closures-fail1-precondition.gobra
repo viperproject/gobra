@@ -68,7 +68,7 @@ func test5() {
 }
 
 ensures res >= 0
-func spec()(res int)
+spec spec()(res int)
 
 func test6() {
     x@ := 1
@@ -84,7 +84,7 @@ func test6() {
 }
 
 ensures res >= 0
-pure func pspec()(res int)
+pure spec pspec()(res int)
 
 func test7() {
     x@ := 1

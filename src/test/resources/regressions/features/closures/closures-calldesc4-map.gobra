@@ -13,10 +13,9 @@ type Inv interface {
     pure res(ghost calls seq[int]) int
 }
 
-ghost
 requires inv != nil && inv.inv(prev_calls)
 ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int]{x})
-func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
+spec fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
 ghost
 requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i], _)

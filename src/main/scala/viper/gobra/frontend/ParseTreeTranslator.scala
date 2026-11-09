@@ -867,11 +867,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       (for (expr <- ctx.expression().asScala.toVector) yield visitNode[PExpression](expr)).at(ctx)
   }
 
-  override def visitSpecMember(ctx: SpecMemberContext): PFunctionOrMethodDecl = super.visitSpecMember(ctx) match {
+  override def visitSpecMember(ctx: SpecMemberContext): PMember = super.visitSpecMember(ctx) match {
     case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PFunctionDecl(id, args, result, spec, body)
     case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked]))
       => PMethodDecl(id, receiver, args, result, spec, body)
+    case Vector(spec : PFunctionSpec, ClosureSpecSignature(id, args, result))
+      => PClosureSpecDecl(id, args, result, spec, isGhost = false).at(ctx)
+  }
+
+  /** intermediate result of visiting a closure spec declaration, which is completed by [[visitSpecMember]] */
+  case class ClosureSpecSignature(id: PIdnDef, args: Vector[PParameter], result: PResult)
+
+  /**
+    * Visits the rule
+    * closureSpecDecl: {isSpecKeyword()}? IDENTIFIER IDENTIFIER signature;
+    */
+  override def visitClosureSpecDecl(ctx: ClosureSpecDeclContext): ClosureSpecSignature = {
+    // the first identifier is the contextual keyword `spec`
+    val id = idnDef.get(ctx.IDENTIFIER(1))
+    val (args, result) = visitNode[Signature](ctx.signature())
+    ClosureSpecSignature(id, args, result)
   }
 
   /**
@@ -982,7 +998,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * Visits the rule
     * explicitGhostMember: GHOST (methodDecl | functionDecl | declaration);
     * */
-  override def visitExplicitGhostMember(ctx: ExplicitGhostMemberContext): Vector[PExplicitGhostMember] = super.visitExplicitGhostMember(ctx) match {
+  override def visitExplicitGhostMember(ctx: ExplicitGhostMemberContext): Vector[PMember] = super.visitExplicitGhostMember(ctx) match {
+    // the ghost modifier of a closure spec declaration specifies that the closures implementing it are ghost,
+    // i.e., it does not affect the ghostness of the declaration itself, which is always ghost code.
+    case Vector("ghost", decl : PClosureSpecDecl) => Vector(decl.copy(isGhost = true).at(ctx))
     case Vector("ghost", decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl).at(ctx))
     case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
   }

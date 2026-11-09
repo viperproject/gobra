@@ -457,8 +457,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case ap.BuiltInFunction(_, symb) => symb.isPure
         })
         case (Left(callee), Some(_: ap.ClosureCall)) => resolve(n.spec.get.func) match {
-          case Some(ap.Function(_, f)) => f.isPure && go(callee) && n.args.forall(a => go(a))
-          case Some(ap.Closure(_, c)) => c.isPure && go(callee) && n.args.forall(a => go(a))
+          case Some(t: ap.ClosureSpecTarget) => t.symb.isPure && go(callee) && n.args.forall(a => go(a))
           case _ => false
         }
         case (Left(_), Some(_: ap.PredicateCall)) => !strong

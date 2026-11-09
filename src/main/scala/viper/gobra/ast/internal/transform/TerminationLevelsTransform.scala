@@ -270,7 +270,13 @@ object TerminationLevelsTransform extends InternalTransform {
           case l: in.FunctionLitProxy => in.LevelAtom(TerminationAtom.literal(l))(p.info)
         }
         val measures = withLevel(p.terminationMeasures, own, p.args, imported = false)(table)
-        leveledOutlines(p.copy(terminationMeasures = measures)(p.info), measures, own, outlines)
+        // the proof carries the contract of the spec, in which `ownLevel()` denotes the level of the closure
+        val key = p.spec.func match {
+          case f: in.FunctionProxy => TerminationAtom.function(f)
+          case l: in.FunctionLitProxy => TerminationAtom.literal(l)
+        }
+        val (pres, posts) = resolveOwnLevel(p.pres, p.posts, measures, key)
+        leveledOutlines(p.copy(pres = pres, posts = posts, terminationMeasures = measures)(p.info), measures, own, outlines)
     }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
   }
 

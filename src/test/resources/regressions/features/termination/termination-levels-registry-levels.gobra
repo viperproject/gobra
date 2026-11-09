@@ -1,0 +1,150 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Miniature of VerifiedSCION's path registry: constructors stored in the heap, a layer
+// (cf. slayers.SCION) that calls the paths they create, and a client (cf. the router).
+
+type Path interface {
+	pred Mem()
+
+	requires acc(Mem(), 1/2)
+	ensures  acc(Mem(), 1/2)
+	decreases
+	Len() int
+}
+
+// Spec of registered constructors: the created path is below the constructor.
+ensures p != nil && p.Mem() && levelOf(p) < ownLevel()
+decreases
+func NewSpec() (p Path)
+
+type Registry struct {
+	scion  func() Path
+	onehop func() Path
+}
+
+pred (r *Registry) Inv() {
+	acc(&r.scion) && acc(&r.onehop) &&
+	r.scion implements NewSpec && r.onehop implements NewSpec
+}
+
+// (1) The level of the registry: the levels of all stored constructors.
+ghost
+requires acc(r.Inv(), _)
+decreases
+pure func (r *Registry) Level() level {
+	return unfolding acc(r.Inv(), _) in levelOf(r.scion) + levelOf(r.onehop)
+}
+
+// (2) NewPath's level includes the registry's level, so it may call the constructors.
+//     Its result is below the registry's level, which is what the layer stores.
+requires acc(r.Inv(), _)
+ensures  p != nil && p.Mem() && levelOf(p) <= old(r.Level())
+decreases r.Level()
+func NewPath(r *Registry, oneHop bool) (p Path) {
+	unfold acc(r.Inv(), _)
+	if oneHop {
+		p = r.onehop() as NewSpec
+	} else {
+		p = r.scion() as NewSpec
+	}
+	return p
+}
+
+type Layer struct {
+	path Path
+	reg  *Registry
+}
+
+// (3) The layer's invariant bounds the stored path by the registry's level.
+pred (l *Layer) Mem() {
+	acc(&l.path) && acc(&l.reg) && acc(l.reg.Inv(), _) &&
+	l.path != nil && l.path.Mem() && levelOf(l.path) <= l.reg.Level()
+}
+
+ghost
+requires acc(l.Mem(), _)
+decreases
+pure func (l *Layer) RegLevel() level {
+	return unfolding acc(l.Mem(), _) in l.reg.Level()
+}
+
+// (4) Members that call the stored path include the registry's level in their own.
+requires acc(&l.path) && acc(&l.reg) && acc(l.reg.Inv(), _) && l.path == nil
+ensures  l.Mem() && l.RegLevel() == old(l.reg.Level())
+decreases l.reg.Level()
+func (l *Layer) Decode(oneHop bool) int {
+	l.path = NewPath(l.reg, oneHop)
+	n := l.path.Len()
+	fold l.Mem()
+	return n
+}
+
+requires acc(l.Mem(), 1/2)
+ensures  acc(l.Mem(), 1/2)
+decreases l.RegLevel()
+func (l *Layer) Len() int {
+	unfold acc(l.Mem(), 1/2)
+	n := l.path.Len()
+	fold acc(l.Mem(), 1/2)
+	return n
+}
+
+// (5) Callers of the layer pay for the registry as well, up to a caller that does not terminate.
+requires acc(&l.path) && acc(&l.reg) && acc(l.reg.Inv(), _) && l.path == nil
+decreases l.reg.Level()
+func process(l *Layer) int {
+	n := l.Decode(false)
+	return n + l.Len()
+}
+
+// Registration: constructors that only allocate.
+type Raw struct{ n int }
+
+pred (r *Raw) Mem() { acc(&r.n) }
+
+requires acc(r.Mem(), 1/2)
+ensures  acc(r.Mem(), 1/2)
+decreases
+func (r *Raw) Len() int { return unfolding acc(r.Mem(), 1/2) in r.n }
+
+*Raw implements Path
+
+ensures r.Inv()
+decreases
+func register() (r *Registry) {
+	f := ensures p != nil && p.Mem() && levelOf(p) < ownLevel()
+		decreases
+		func newRaw() (p Path) {
+			x := &Raw{}
+			fold x.Mem()
+			return x
+		}
+	proof f implements NewSpec {
+		return f() as newRaw
+	}
+	r = &Registry{scion: f, onehop: f}
+	fold r.Inv()
+	return r
+}
+
+// A path that calls back into the layer cannot be registered: its level would have to be
+// below the registry's level while it calls a member whose level includes the registry's.
+type Evil struct{ l *Layer }
+
+pred (e *Evil) Mem() { acc(&e.l) && e.l != nil && acc(e.l.Mem(), 1/2) }
+
+requires acc(e.Mem(), 1/2)
+ensures  acc(e.Mem(), 1/2)
+decreases
+func (e *Evil) Len() int {
+	unfold acc(e.Mem(), 1/2)
+	//:: ExpectedOutput(function_termination_error)
+	n := e.l.Len()
+	fold acc(e.Mem(), 1/2)
+	return n
+}
+
+*Evil implements Path

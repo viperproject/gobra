@@ -53,7 +53,7 @@ real program is visible in that one Viper program, and it often isn't:
 | `l1 + l2` | multiset union |
 | `l1 < l2`, `l1 <= l2`, `==` | multiset (Dershowitz–Manna) order induced by the order on atoms |
 | `emptyLevel()` | the empty multiset |
-| `levelOf(x)` | the level of the object `x` (interface value, closure, value of a named type, §4–5) |
+| `levelOf(x)` | the level of the object `x` (interface value, closure, value of a named type, §4–5); for a named function `f`, `levelOf(f)` is `f`'s atom (§3.6) |
 | `decreases L, m1, …, mk` | if the first component `L` has type `level`, it is the member's *dynamic level* (§3) |
 | `ghost pure TerminationLevel() level` | optional method by which a type, or an interface, defines the level of its values (§4) |
 | `decreases bottomLevel(), m…` | places the member in the *bottom stratum* (§3.4) |
@@ -211,6 +211,47 @@ postcondition for every member returning an interface would be abstract too. It 
 members returning stored objects, and it would bring the level theory into nearly every Go program,
 which measurably slows Z3 (§7). The SMT encoding supports chaining two "below" facts through an opaque
 level, e.g. `levelOf(mode) < {NewCBCEncrypter} + levelOf(block)` and `levelOf(block) < {NewCipher}`.
+
+### 3.6 Naming levels: `levelOf(f)` and level constants
+
+A package sometimes needs a bound that is not the level of a member it is in, e.g. "below every
+constructor that `init` registered". `levelOf(f)` for a named function `f` (including an imported one) is
+the level `{f}`. It reveals nothing beyond what callers of `f` already know: the atom's position is still
+only constrained by the facts of §2. A ghost function such as
+
+```go
+ghost
+decreases
+pure func RegLevel() level {
+	return levelOf(empty.RegisterPath) + levelOf(scion.RegisterPath) + levelOf(onehop.RegisterPath)
+}
+```
+
+is a *level constant*: a parameterless, non-opaque pure function of type `level` without precondition.
+Level comparisons inline level constants (up to a fixed depth), so that the static comparison and the
+level hints of §7 see their atoms. Without inlining, `{a} < {a} + RegLevel()` would reach Z3 as a
+comparison with an opaque level.
+
+**Pattern: a closed registry.** VerifiedSCION's `path` package keeps a global table of constructor
+closures that higher packages register. `slayers` calls these constructors through `path.NewPath` and
+then calls methods of the resulting paths. The levels are bounded without trust:
+
+1. `path` exposes `ConstructorLevel(t)`, the level of the closure registered for `t` (empty if none),
+   and gives the write permission to the registry only to `slayers` (`friendPkg "../" PkgMem() &&
+   NoneRegistered()`).
+2. Each path package's `RegisterPath` ensures `ConstructorLevel(PathType) < ownLevel()`, because its
+   constructor is a literal created there, which only allocates (`ensures levelOf(p) < ownLevel()`).
+3. `slayers`' `init` registers all path types. It knows that no constructor was registered before
+   (`importRequires path.NoneRegistered()`), so afterwards every slot is below `RegLevel()`, the sum of
+   the four `RegisterPath` atoms. It then keeps only a duplicable read permission
+   (`dup pkgInvariant acc(path.PkgMem(), _) && RegistryBounded()`), so nobody can change the registry.
+4. `NewPath` ensures `levelOf(p) < old(ConstructorLevel(t))` (or the level of its fallback type), so
+   the paths `slayers` creates are below `RegLevel() + PoolLevel()`, an invariant of `SCION`'s memory
+   predicate. Every method of `SCION` is in a package above the path packages, so the bound is below
+   `SCION`'s methods.
+
+The registry is closed because `slayers` registers everything during initialization. A registry that
+higher packages could extend later would instead need a bound chosen by `path` itself.
 
 ## 4. Objects: interface values and wrappers
 
@@ -394,6 +435,10 @@ transitivity axiom is triggered by `$atomLtW(a, b), $atomLt(b, c)`. A trigger on
 applications would instead match all pairs of ground facts: `pkg/slayers` has 121 atoms and about 5,400
 facts, which allows on the order of 10^5 redundant instances in every proof obligation.
 
+`$levelLt` is transitive by an axiom triggered on pairs `$levelLt(l, m), $levelLt(m, r)`. Only assumed
+comparisons and checked obligations create such terms, so the axiom is cheap. It is needed for chains
+through opaque levels, e.g. `levelOf(p) < ConstructorLevel(t)` and `ConstructorLevel(t) < RegLevel()`.
+
 The universally quantified atom of the Huet–Oppen characterization is matched through `$cnt`. The
 existential witness is stated with `$cntW`. Both are the multiset count, but only `$cnt` triggers the
 quantifier. With a single count function, every assumed `l < r` would start a matching loop, because
@@ -459,6 +504,9 @@ With all facts in one domain, chopping the router took longer than 30 minutes.
 | `termination-levels-mutual.gobra` | [JBK] Fig. 14 |
 | `termination-levels-method-values.gobra` | method values implementing terminating specs |
 | `termination-levels-outline.gobra` | outlines, including knots hidden in outlines |
+| `termination-import-function-level/` | `levelOf(f)` of imported functions |
+| `termination-import-registry/` | a closed registry with level constants (§3.6) |
+| `termination-levels-transitivity.gobra` | chains of level comparisons |
 
 `termination-fail-02.gobra` now reports its error where the cycle is closed rather than at the
 interface method.
@@ -501,7 +549,8 @@ interface method.
     measure. This is what the error chains need (the level of a wrapped cause is unknown), but it rules
     out the bottom stratum for implementations that call helper functions, such as gopacket's
     `DecodingLayer.NextLayerType` in `slayers`.
-* **Chained bounds.** The encoding supports chaining two "below" facts per comparison (§3.5), not more.
+* **Chained bounds.** Chains of "below" facts through opaque levels rely on the transitivity axioms of
+  §7. Long chains may need intermediate `assert`s.
 * **SMT cost.** The multiset order is quantified. Comparisons of atom-only levels are decided by Gobra,
   and the level theory is removed from programs that do not need it. Where it is needed, Z3 is
   sensitive to its mere presence, so unrelated hard proofs can slow down.

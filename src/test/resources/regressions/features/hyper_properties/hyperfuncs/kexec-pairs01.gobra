@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package kexecpairs01
+
+// ##(--hyperMode on --hyperExecutions 4)
+
+// In a k-product, a callee whose contract relates only executions 0 and 1 can be used on every pair of the caller's
+// executions: its contract holds for all k-tuples, including (σᵢ, σⱼ, σⱼ, σⱼ), on which it means the same as on the
+// pair (σᵢ, σⱼ).
+
+decreases
+hyperfunc NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+// Robust declassification as a 4-safety property (see kexec-robust01.gobra).
+decreases
+hyperfunc Square(pub, sec, att any) bool {
+	return low(pub) &&
+		rel(att, 0) === rel(att, 1) && rel(att, 2) === rel(att, 3) &&
+		rel(sec, 0) === rel(sec, 2) && rel(sec, 1) === rel(sec, 3)
+}
+
+decreases
+hyperfunc Robust(out any) bool {
+	return rel(out, 0) === rel(out, 1) ==> rel(out, 2) === rel(out, 3)
+}
+
+type Salaries struct {
+	alice, bob int
+}
+
+// A helper verified against plain non-interference.
+ensures NonInterf(Salaries{alice, bob}, avg)
+func Average(alice, bob int) (avg int) {
+	return (alice + bob) / 2
+}
+
+// The caller uses the helper's contract on the rows (0, 2) and (1, 3) of the square, which share the secret. Without
+// the pairwise instances, the helper's contract would only say something when all four executions agree.
+requires Square(dept, Salaries{alice, bob}, offset)
+ensures  Robust(res)
+func Report(dept, alice, bob, offset int) (res int) {
+	avg := Average(alice, bob)
+	return dept * 1000 + avg + offset
+}
+
+// The pairwise instances do not make an insecure caller verify.
+requires Square(dept, Salaries{alice, bob}, offset)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  Robust(res)
+func Leak(dept, alice, bob, offset int) (res int) {
+	avg := Average(alice, bob)
+	return avg * offset
+}
+
+// Unary parts of the contract still hold for every execution.
+requires 0 <= x
+ensures  0 <= res && NonInterf(x, res)
+func Half(x int) (res int) {
+	return x / 2
+}
+
+requires 0 <= x && low(x)
+ensures  low(res) && res >= 0
+func Caller(x int) (res int) {
+	return Half(x)
+}
+
+// A missing unary precondition is still reported.
+func BadCaller(x int) (res int) {
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	return Half(x)
+}

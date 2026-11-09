@@ -42,9 +42,11 @@ trait SIFLowGuardTransformer {
 
     val splits = caseSplitPremises(p, ctx)
     val unaryCopies = methodsNeedingUnaryCopies(p, splits.keySet, ctx)
+    val pairCalls = if (executions > 2) pairwiseCallees(p, ctx) else PairwiseCalls.empty
 
     val members =
-      p.methods.flatMap(method(_, ctx, splits)) ++
+      p.methods.flatMap(method(_, ctx, splits, pairCalls)) ++
+      p.methods.filter(m => pairCalls.wrapped(m.name)).map(pairwiseWrapper(_, ctx)) ++
       p.methods.filter(m => unaryCopies(m.name)).flatMap(unaryMethodCopies(_, ctx, unaryCopies)) ++
       p.functions.flatMap(function(_, ctx)) ++
       p.predicates.flatMap(predicate(_, ctx)) ++
@@ -60,7 +62,8 @@ trait SIFLowGuardTransformer {
     )(p.pos, p.info, p.errT)
   }
 
-  def method(m: Method, ctx: Context, splits: Map[String, Exp] = Map.empty): Vector[Member] = {
+  def method(m: Method, ctx: Context, splits: Map[String, Exp] = Map.empty,
+             pairCalls: PairwiseCalls = PairwiseCalls.empty): Vector[Member] = {
     if (ctx.onlyMajor(m.name)) {
       Vector(
         m.copy(
@@ -79,7 +82,7 @@ trait SIFLowGuardTransformer {
           pres = m.pres.map(assertion(_, ctx)),
           posts = m.posts.map(assertion(_, ctx)),
           body = m.body.map { s =>
-            val product = toSeqn(statement(s, ctx))
+            val product = pairCalls.redirect(m.name, toSeqn(statement(s, ctx)))
             splits.get(m.name) match {
               case None => product
               case Some(premise) => toSeqn(caseSplitBody(m, premise, product, ctx))
@@ -88,6 +91,103 @@ trait SIFLowGuardTransformer {
         )(m.pos, m.info, m.errT)
       )
     }
+  }
+
+  /////////////////////////////// Pairwise reuse of contracts in k-products (Phase 3) ///////////////////////////////
+  //
+  // With k > 2 executions, a callee is verified as a k-product: its contract holds for all k-tuples of executions,
+  // including tuples that repeat an execution. If the contract relates only executions 0 and 1 (it uses `low`, `rel`
+  // with indices 0 and 1, and hyper functions with such bodies), then on the tuple (σᵢ, σⱼ, …, σⱼ) it means the same
+  // as on the pair (σᵢ, σⱼ). A call can therefore use the contract for every ordered pair (i, j) of the caller's
+  // executions, for instance a helper verified against `NonInterf` on the rows of a 4-execution square. The call is
+  // redirected to an abstract wrapper of the callee whose contract consists of these instances:
+  //
+  //   requires  P on the diagonal (σᵣ, …, σᵣ), for every execution r       (unary parts, resources)
+  //   ensures   Q on the diagonal, for every r
+  //   ensures   old(P on (σᵢ, σⱼ, …, σⱼ)) ==> Q on (σᵢ, σⱼ, …, σⱼ), for all i ≠ j      (relational parts only)
+  //   ensures   old(P) ==> Q                                                   (the k-tuple itself, as before)
+  //
+  // The wrapper has the callee's termination measure. Calls within a recursive cycle keep calling the callee, so that
+  // termination is still checked.
+
+  case class PairwiseCalls(wrapped: Set[String], reaches: (String, String) => Boolean) {
+    def wrapperName(n: String): String = s"${n}_pairs"
+    def redirect(caller: String, body: Seqn): Seqn = {
+      if (wrapped.isEmpty) body
+      else body.transform {
+        case c: MethodCall if wrapped(c.methodName) && !reaches(c.methodName, caller) =>
+          c.copy(methodName = wrapperName(c.methodName))(c.pos, c.info, c.errT)
+      }
+    }
+  }
+  object PairwiseCalls {
+    val empty: PairwiseCalls = PairwiseCalls(Set.empty, (_, _) => false)
+  }
+
+  def pairwiseCallees(p: Program, ctx: Context): PairwiseCalls = {
+    val functions = p.functions.map(f => f.name -> f).toMap
+
+    def relatesOnlyFirstTwo(n: Node, seen: Set[String]): Boolean = !n.exists {
+      case SIFRelExp(_, lit) => lit.i >= 2
+      case a: PredicateAccess => ctx.isRelationalPredicate(a.predicateName)
+      case f: FuncApp if ctx.isHyperFunction(f.funcname) && !seen(f.funcname) =>
+        functions.get(f.funcname) match {
+          case Some(fn) if fn.body.nonEmpty =>
+            !(fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirstTwo(_, seen + f.funcname))
+          case _ => true // abstract hyper functions may relate any executions
+        }
+      case _ => false
+    }
+
+    val wrapped = p.methods.collect {
+      case m if !ctx.onlyMajor(m.name) && (m.pres ++ m.posts).exists(isRelational(_, ctx)) &&
+        (m.pres ++ m.posts).forall(relatesOnlyFirstTwo(_, Set.empty)) => m.name
+    }.toSet
+
+    val callees: Map[String, Set[String]] = p.methods.map { m =>
+      m.name -> m.body.toSeq.flatMap(_.deepCollect { case c: MethodCall => c.methodName }).toSet
+    }.toMap
+    def reachable(from: String): Set[String] = {
+      @tailrec
+      def go(acc: Set[String], frontier: Set[String]): Set[String] = {
+        val next = frontier.flatMap(callees.getOrElse(_, Set.empty)) -- acc
+        if (next.isEmpty) acc else go(acc ++ next, next)
+      }
+      go(Set.empty, Set(from))
+    }
+    val reach = wrapped.map(n => n -> reachable(n)).toMap
+    PairwiseCalls(wrapped, (callee, caller) => reach.get(callee).exists(_.contains(caller)))
+  }
+
+  def pairwiseWrapper(m: Method, ctx: Context): Method = {
+    val k = ctx.runs.size
+    val (measures, pres) = m.pres.partition(_.isInstanceOf[DecreasesClause])
+
+    def conj(es: Seq[Exp]): Exp =
+      if (es.isEmpty) TrueLit()(m.pos, m.info, m.errT) else conjunction(es)(m.pos, m.info, m.errT)
+
+    // `e` on the tuple (σᵣ, …, σᵣ): relational atoms on the diagonal, unary parts (including resources) once
+    def diagonal(e: Exp, r: Int): Exp = {
+      val dctx = ctx.withRunIndices(Seq.fill(k)(r))
+      Simplifier.simplify(relationalAssertion(e, dctx, isPositive = true, (u, c) => runExp(u, c.runs.head)))
+    }
+    def onTuple(e: Exp, is: Seq[Int]): Exp = assertionToRelational(e, ctx.withRunIndices(is))
+    def instance(is: Seq[Int]): Exp = Implies(
+      Old(onTuple(conj(pres), is))(m.pos, m.info, m.errT),
+      onTuple(conj(m.posts), is),
+    )(m.pos, m.info, m.errT)
+
+    val pairs = for (i <- 0 until k; j <- 0 until k if i != j) yield i +: Seq.fill(k - 1)(j)
+
+    m.copy(
+      name = PairwiseCalls.empty.wrapperName(m.name),
+      formalArgs = ctx.runs.flatMap(r => m.formalArgs.map(runLocalVarDecl(_, r))),
+      formalReturns = ctx.runs.flatMap(r => m.formalReturns.map(runLocalVarDecl(_, r))),
+      pres = measures.map(assertion(_, ctx)) ++ (0 until k).map(r => conj(pres.map(diagonal(_, r)))),
+      posts = (0 until k).map(r => conj(m.posts.map(diagonal(_, r)))) ++
+        pairs.map(instance) :+ instance(0 until k),
+      body = None,
+    )(m.pos, m.info, m.errT)
   }
 
   /////////////////////////////// Relational case splits (Phase 2b) ///////////////////////////////
@@ -885,6 +985,7 @@ trait SIFLowGuardTransformer {
                   _hyperFuncs: String => Boolean,
                   _rigidVars: Set[String],
                   _executions: Int,
+                  _runIndices: Option[Seq[Int]] = None,
                 ): Context = {
 
     trait ContextImpl extends Context {
@@ -896,9 +997,12 @@ trait SIFLowGuardTransformer {
       override def isHyperFunction(n: String): Boolean = _hyperFuncs(n)
       override def isRigidVariable(n: String): Boolean = _rigidVars.contains(n)
       override def withRigidVariables(ns: Seq[String]): Context =
-        newContext(_relPreds, _noDups, _onlyMajor, _noMinor, _hyperFuncs, _rigidVars ++ ns, _executions)
+        newContext(_relPreds, _noDups, _onlyMajor, _noMinor, _hyperFuncs, _rigidVars ++ ns, _executions, _runIndices)
+      override def withRunIndices(is: Seq[Int]): Context =
+        newContext(_relPreds, _noDups, _onlyMajor, _noMinor, _hyperFuncs, _rigidVars, _executions, Some(is))
 
-      override lazy val runs: Seq[RunContext] = (0 until _executions).map(new RunContextImpl(_))
+      override lazy val runs: Seq[RunContext] =
+        _runIndices.getOrElse(0 until _executions).map(new RunContextImpl(_))
     }
 
     /** The context of the execution with index `i`. Execution 0 is the major execution, all others are minor. */
@@ -929,6 +1033,11 @@ trait Context {
   /** Rigid variables are bound by quantifiers in relational assertions and denote the same value in all executions. */
   def isRigidVariable(@unused n: String): Boolean
   def withRigidVariables(ns: Seq[String]): Context
+  /**
+    * The same context, but relating the executions with the given indices (in this order) instead of all executions.
+    * Indices may repeat, e.g., `Seq(i, j, j)` evaluates a relational assertion on the tuple (σᵢ, σⱼ, σⱼ).
+    */
+  def withRunIndices(is: Seq[Int]): Context
 
   /** the contexts of all executions related by the product program */
   def runs: Seq[RunContext]

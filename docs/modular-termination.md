@@ -57,7 +57,7 @@ real program is visible in that one Viper program, and it often isn't:
 | `decreases L, m1, …, mk` | if the first component `L` has type `level`, it is the member's *dynamic level* (§3) |
 | `ghost pure TerminationLevel() level` | optional method by which a type, or an interface, defines the level of its values (§4) |
 | `decreases bottomLevel(), m…` | places the member in the *bottom stratum* (§3.4) |
-| `ownLevel()` | in a member's contract: the member's own level, in its pre-state (§3.5) |
+| `ownLevel()` | in a member's contract or body: the member's own level, in its pre-state (§3.5) |
 
 **Atoms.** Every function, method, function literal and named type has an atom. Atoms are never
 written by users. For the package being verified, Gobra builds a dependency graph over its declarations:
@@ -249,6 +249,14 @@ then calls methods of the resulting paths. The levels are bounded without trust:
    the paths `slayers` creates are below `RegLevel() + PoolLevel()`, an invariant of `SCION`'s memory
    predicate. Every method of `SCION` is in a package above the path packages, so the bound is below
    `SCION`'s methods.
+
+A method of `SCION` that calls `s.Path` needs `levelOf(s.Path) < {method}`, a chain through
+`PathBound()`. `ownLevel()` may also be used in assertions in a body, where it is the member's level on
+entry: `assert PathBound() < ownLevel()` is a ground comparison, after which the transitivity axiom of §7
+decides the check. The fact about `s.Path` is wrapped in a predicate `PathLevelInv(s.Path)` inside
+`SCION.Mem`, which only the members that call `s.Path` unfold: with the fact directly in `Mem`, proofs
+about `Mem` that have nothing to do with termination became unstable. With the fact in scope,
+`SCION.SerializeTo` is still much slower than before (see §8).
 
 The registry is closed because `slayers` registers everything during initialization. A registry that
 higher packages could extend later would instead need a bound chosen by `path` itself.
@@ -507,6 +515,7 @@ With all facts in one domain, chopping the router took longer than 30 minutes.
 | `termination-import-function-level/` | `levelOf(f)` of imported functions |
 | `termination-import-registry/` | a closed registry with level constants (§3.6) |
 | `termination-levels-transitivity.gobra` | chains of level comparisons |
+| `termination-levels-own-in-body.gobra` | `ownLevel()` in bodies of members and literals |
 
 `termination-fail-02.gobra` now reports its error where the cycle is closed rather than at the
 interface method.

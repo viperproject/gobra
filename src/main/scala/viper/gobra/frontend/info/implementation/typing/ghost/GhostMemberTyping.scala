@@ -137,7 +137,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       val singleValuedBody = body.map(_._2.nonEmptyStmts) match {
         case Some(Vector(PReturn(Vector(ret)))) =>
           error(ret, "The body of a hyperfunc of non-boolean type must denote a single value for all executions; " +
-            "use rel(e, i) to refer to the value of e in execution i.", !isSingleValued(ret))
+            "use rel(e, i) to refer to the value of e in execution i, or require low(x) for a parameter x.",
+            !isSingleValued(ret, rigidParameters(spec)))
         case _ => noMessages
       }
       supportedMode ++ singleValuedBody

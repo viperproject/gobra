@@ -278,12 +278,40 @@ trait SIFLowGuardTransformer {
     * of all executions and whose contract and body are relational. Its result is a single value for all executions.
     */
   def hyperFunction(f: Function, ctx: Context): Function = {
+    val rigid = rigidParameters(f)
     f.copy(
       formalArgs = ctx.runs.flatMap(r => f.formalArgs.map(runLocalVarDecl(_, r))),
       pres = f.pres.map(assertion(_, ctx)),
-      posts = f.posts.map(assertion(_, ctx)),
-      body = f.body.map(relationalExp(_, ctx)),
+      posts = f.posts.map(e => assertion(readRigidParameters(e, rigid), ctx)),
+      body = f.body.map(e => relationalExp(readRigidParameters(e, rigid), ctx)),
     )(f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
+  }
+
+  /**
+    * The rigid parameters of a hyper function: parameters `n` with a top-level precondition `low(n)`. They have the
+    * same value in all executions, so the body and the postcondition may use them as single values.
+    */
+  def rigidParameters(f: Function): Set[String] = {
+    def conjuncts(e: Exp): Seq[Exp] = e match {
+      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
+      case e => Seq(e)
+    }
+    val params = f.formalArgs.map(_.name).toSet
+    f.pres.flatMap(conjuncts).collect { case SIFLowExp(v: LocalVar, _, _) if params(v.name) => v.name }.toSet
+  }
+
+  /** Reads the rigid parameters outside `rel` and `low` from execution 0, which is sound under `low(n)`. */
+  def readRigidParameters(e: Exp, rigid: Set[String]): Exp = {
+    def go(e: Exp): Exp = e match {
+      case _: SIFRelExp | _: SIFLowExp => e
+      case v: LocalVar if rigid(v.name) => SIFRelExp(v, IntLit(0)(v.pos, v.info, v.errT))(v.pos, v.info, v.errT)
+      case e => e.withChildren(e.children.map {
+        case c: Exp => go(c)
+        case cs: Seq[_] => cs.map { case c: Exp => go(c); case c => c }
+        case c => c
+      })
+    }
+    if (rigid.isEmpty) e else go(e)
   }
 
   def runFunction(f: Function, ctx: RunContext): Function = {

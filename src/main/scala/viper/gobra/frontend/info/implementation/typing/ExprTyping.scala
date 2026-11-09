@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminat
 import viper.gobra.frontend.info.base.Type.{StringT, _}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
+import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.{Constants, TypeBounds, Violation}
 
 import scala.annotation.nowarn
@@ -30,9 +30,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   // are constant (obtained empirically)
   val MAX_SHIFT: Int = 512
 
-  private def isUntypedIntConst(expr: PExpression): Boolean =
-    exprType(expr) == UNTYPED_INT_CONST && intConstantEval(expr).nonEmpty
-
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
     case n: PNamedOperand =>
       resolve(n) match {
@@ -41,6 +38,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(ap.Closure(id, _)) => error(n, s"expected valid operand, got closure declaration name $n",
           !tree.parent(n).head.isInstanceOf[PClosureSpecInstance] &&
             tryEnclosingFunctionLit(n).fold(true)(lit => lit.id.fold(true)(encId => encId.name != id.name)))
+        // An untyped integer constant used where the context imposes a type must be representable in
+        // that type, exactly like a literal (see the PIntLit case of wellDefActualExpr): with
+        // `const c = 300`, `var x uint8 = c`, `return c`, `g(c)`, and `x == c` for `x uint8` are all
+        // invalid Go. As for literals, an inner node of a larger untyped constant expression is not
+        // checked, only the outermost node is. Note that the operand's own type must not be computed
+        // here, since typing an expression presupposes its well-definedness; the check only needs
+        // the structural predicate and the constant's value.
+        case Some(_: ap.Constant) if isUntypedIntConst(n) && !isInnerNodeOfUntypedIntConst(n) =>
+          intExprWithinTypeBounds(n, UNTYPED_INT_CONST)
         case _ => noMessages
       } // no more checks to avoid cycles
 
@@ -222,7 +228,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolLit | _: PNilLit | _: PStringLit => noMessages
 
-    case n: PIntLit => numExprWithinTypeBounds(n)
+    // A literal that is an intermediate node of an untyped constant expression is evaluated with
+    // arbitrary precision and is not required to be representable in the type the expression as a
+    // whole assumes; only the outermost node is checked (see isInnerNodeOfUntypedIntConst).
+    case n: PIntLit =>
+      if (isInnerNodeOfUntypedIntConst(n)) noMessages else numExprWithinTypeBounds(n)
 
     case n: PIota =>
       error(n, s"cannot use iota outside of constant declaration", enclosingPConstDecl(n).isEmpty)
@@ -270,6 +280,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             convertibleTo.errors(exprType(p.arg), typ, mayInit)(n) ++
             isExpr(p.arg).out ++
             argWithinBounds
+
+        case (Right(_), Some(fc: ap.FractionalPermConstructor)) =>
+          // perm(num, den) denotes the permission amount num/den. Conceptually, its signature is
+          // `perm(integer, integer) perm`: both arguments must be assignable to `integer`, which
+          // holds for an untyped constant and for every integer kind, since a bounded kind is
+          // implicitly promoted to the mathematical `integer` (see Assignability). Alternatively,
+          // `num` may itself be a permission amount, which is then divided by `den`.
+          val integerT = IntT(UnboundedInteger)
+          val numT = exprType(fc.num)
+          val numOk =
+            if (numT == PermissionT) noMessages
+            else assignableTo.errors(numT, integerT, mayInit)(fc.num)
+          val denOk = assignableTo.errors(exprType(fc.den), integerT, mayInit)(fc.den)
+          isExpr(fc.num).out ++ isExpr(fc.den).out ++ numOk ++ denOk
 
         case (Left(callee), Some(c: ap.FunctionCall)) =>
           val (isOpaque, isMayInit, isImported, isPure, isGhost, opensInvs) = c.callee match {
@@ -507,9 +531,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PDiv, l, r) if Set(l, r).intersect(Set(UnboundedFloatT, Float32T, Float64T)).nonEmpty =>
             mergeableTypes.errors(l, r)(n)
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
+          case (_: PAdd | _: PSub | _: PMul | _: PMod, l, r)
             if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT, mayInit)(n.left) ++ assignableTo.errors(r, PermissionT, mayInit)(n.right)
+          case (_: PDiv, l, r) if l == PermissionT =>
+              // perm / n: divisor must be an integer (PermDiv); do not require it to be perm
+              assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
           case (op @ (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear), l, r) =>
             val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left)
             val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
@@ -522,54 +549,85 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 // mergedType must exist because, otherwise typesAreMergeable.isEmpty would not hold
                 val mergedType = typeMerge(l, r).get
 
-                // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
-                // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
-                // which are also rejected by the go compiler
-                intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
-                  intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
-                  intExprWithinTypeBounds(n, mergedType)
+                // Go evaluates constant expressions with arbitrary precision: intermediate values are
+                // not required to fit in the declared type, only the final result is. For example,
+                // `const MaxISD uint16 = (1 << 16) - 1` is valid because the final value 65535 fits
+                // in uint16, even though the intermediate value 65536 does not.
+                // When the whole expression is a pure untyped integer constant (no explicit type
+                // conversions anywhere in the tree, as determined by isUntypedIntConst), the result is
+                // checked only at the outermost node of that constant expression; the intermediate
+                // nodes are skipped, because they too may exceed the declared type. The per-operand
+                // checks are kept for expressions that carry explicit types (e.g. `uint8(1) * (-1)`
+                // or `300 + y` where y : uint8), where Go converts the untyped operand to the typed
+                // operand's type and so does require each operand to be representable.
+                if (isUntypedIntConst(n)) {
+                  if (isInnerNodeOfUntypedIntConst(n)) noMessages
+                  else intExprWithinTypeBounds(n, mergedType)
+                } else {
+                  // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
+                  // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
+                  // which are also rejected by the go compiler
+                  intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
+                    intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
+                    intExprWithinTypeBounds(n, mergedType)
+                }
               } else noMessages
             }
+            // From the spec: "the divisor of a constant division or remainder operation must not be
+            // zero".
+            val divisionByZero = op match {
+              case _: PDiv | _: PMod =>
+                error(n.right, "invalid operation: division by zero",
+                  intConstantEval(n.right.asInstanceOf[PExpression]).contains(BigInt(0)))
+              case _ => noMessages
+            }
+            // Bitwise operations are not defined for the ghost `integer` type (unbounded precision)
             val bitwiseOnUnbounded = op match {
               case _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear =>
                 error(n, "bitwise operations are not defined for the `integer` type",
-                  !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger)) ++
-                  error(n, "bitwise operations are not defined for the `integer` type",
-                    !asExpr(n.right).exists(isUntypedIntConst) && r == IntT(UnboundedInteger))
+                  !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger)) ++
+                error(n, "bitwise operations are not defined for the `integer` type",
+                  !isUntypedIntConst(n.right) && r == IntT(UnboundedInteger))
               case _ => noMessages
             }
-            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds ++ bitwiseOnUnbounded
+            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds ++ bitwiseOnUnbounded ++ divisionByZero
           case (_: PShiftLeft, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
-              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
+              !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              shiftOnUnbounded ++ intConstantEval(n.right.asInstanceOf[PExpression]).map { v =>
-                  // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
-                  // of the type of the left operand (or 512 if there is an untyped const on the left)
-                  val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
-                  val nBits = underlyingType(exprOrTypeType(n.left)) match {
-                    case IntT(t: BoundedIntegerKind) => t.nbits
-                    case IntT(UnboundedInteger) => MAX_SHIFT
-                    case t => violation(s"unexpected type $t")
-                  }
-                  val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)
-                  lowerBound ++ upperBound
+              val shiftCount = intConstantEval(n.right.asInstanceOf[PExpression]).map { v =>
+                  // From the spec: "The right operand in a shift expression must have integer type
+                  // or be an untyped constant representable by a value of type uint" and "there is
+                  // no upper limit on the shift count". In particular, the shift count is not bounded
+                  // by the width of the left operand's type: `x << 10` for `x uint8` is valid Go and
+                  // yields 0, and `var c uint8 = (1 << 10) >> 3` is valid because constant
+                  // expressions are evaluated exactly and only the result, 128, must fit uint8.
+                  // What makes e.g. `int8(1) << 10` invalid is that the *value* 1024 is not
+                  // representable in int8, which shiftResultWithinBounds checks below.
+                  // MAX_SHIFT is retained as an implementation limit, so that evaluating a constant
+                  // shift cannot blow up.
+                  error(n.right, s"constant ${n.right} overflows uint", v < 0) ++
+                    error(n.right, s"shift count ${n.right} too large", v > MAX_SHIFT)
               }.getOrElse(noMessages)
+              shiftOnUnbounded ++ shiftCount ++ shiftResultWithinBounds(n, l)
             } else integerOperands ++ shiftOnUnbounded
           case (_: PShiftRight, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST, mayInit)(n.left) ++
               assignableTo.errors(r, UNTYPED_INT_CONST, mayInit)(n.right)
             val shiftOnUnbounded = error(n, "shift operations are not defined for the `integer` type",
-              !asExpr(n.left).exists(isUntypedIntConst) && l == IntT(UnboundedInteger))
+              !isUntypedIntConst(n.left) && l == IntT(UnboundedInteger))
             if (integerOperands.isEmpty) {
-              shiftOnUnbounded ++ (intConstantEval(n.right.asInstanceOf[PExpression]) match {
-                case Some(v) =>
-                  // The Go compiler only checks that the RHS of (>>) is non-negative
-                  error(n, s"constant $r overflows uint", v < 0)
-                case None => noMessages
-              })
+              shiftOnUnbounded ++ shiftResultWithinBounds(n, l) ++
+                (intConstantEval(n.right.asInstanceOf[PExpression]) match {
+                  case Some(v) =>
+                    // As for (<<), the shift count is only required to be non-negative and within
+                    // Gobra's own MAX_SHIFT limit; the width of the left operand's type is not a bound.
+                    error(n.right, s"constant ${n.right} overflows uint", v < 0) ++
+                      error(n.right, s"shift count ${n.right} too large", v > MAX_SHIFT)
+                  case None => noMessages
+                })
             } else integerOperands ++ shiftOnUnbounded
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
@@ -731,6 +789,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def numExprWithinTypeBounds(num: PNumExpression): Messages =
     intExprWithinTypeBounds(num, numExprType(num))
 
+  /**
+    * A constant shift expression must have a value representable in the type it assumes, exactly
+    * like any other constant expression: `int8(1) << 10` is invalid because the value 1024 is not
+    * representable in int8, not because the shift count exceeds int8's width. The type of a shift
+    * expression is the type of its left operand. As for every constant expression, only the
+    * outermost node is checked (see isInnerNodeOfUntypedIntConst).
+    */
+  private def shiftResultWithinBounds(shift: PExpression, leftTyp: Type): Messages =
+    if (isInnerNodeOfUntypedIntConst(shift)) noMessages
+    else intExprWithinTypeBounds(shift, leftTyp)
+
   private def intExprWithinTypeBounds(exp: PExpression, typ: Type): Messages = {
     if (typ == UNTYPED_INT_CONST) {
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
@@ -772,6 +841,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
+      case (Right(_), Some(_: ap.FractionalPermConstructor)) => PermissionT
       case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
@@ -1066,6 +1136,119 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
+        // For unary bit negation: the operand takes the same type as the negation expression,
+        // so propagate the negation's own context upward.
+        case bNeg: PBitNegation => getTypeFromCtxt(bNeg) match {
+          case Some(_: InterfaceT) => None
+          case result => result
+        }
+
+        // For shift expressions: the left operand (value being shifted) follows the context type
+        // of the shift expression itself. The right operand (shift count) gets no type from context.
+        case bExpr: PShiftLeft  =>
+          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) match {
+            case Some(_: InterfaceT) => None
+            case result => result
+          } else None
+        case bExpr: PShiftRight =>
+          if ((bExpr.left : PExpressionOrType).eq(expr)) getTypeFromCtxt(bExpr) match {
+            case Some(_: InterfaceT) => None
+            case result => result
+          } else None
+
+        // For comparison binary expressions (== != < <= > >=):
+        // Comparisons return bool, so there is no outer context type to propagate.
+        // However, Go requires that an untyped constant operand be representable in the
+        // type of the other operand (e.g. `x < 1000` where x: uint8 must reject 1000).
+        // Propagate the sibling's concrete integer type to this operand.
+        case bExpr: PBinaryExp[_, _]
+          if bExpr.isInstanceOf[PEquals] || bExpr.isInstanceOf[PUnequals] ||
+             bExpr.isInstanceOf[PLess]   || bExpr.isInstanceOf[PAtMost]   ||
+             bExpr.isInstanceOf[PGreater]|| bExpr.isInstanceOf[PAtLeast] =>
+          val sibling: PExpressionOrType =
+            if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
+          // When the sibling is itself an untyped constant expression, both operands are untyped:
+          // Go compares them exactly and imposes no representability requirement, so no type is
+          // propagated. Deciding this structurally, without computing the sibling's type, is also
+          // what keeps this case free of attribute cycles - otherwise `1 + 2 == 3 + 4` (valid Go)
+          // ping-pongs between the two operands through getTypeFromCtxt and re-enters exprType
+          // while it is still being computed.
+          if (isUntypedIntConst(sibling)) None
+          else sibling match {
+            case e: PNumExpression =>
+              tryNumExprType(e) match {
+                case Some(it: IntT) if it != UNTYPED_INT_CONST => Some(it)
+                case _ => None
+              }
+            case e: PExpression =>
+              exprType(e) match {
+                case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                case _ => None
+              }
+            case _ => None
+          }
+
+        // For other numeric binary expressions (+ - * / % & | ^ &^):
+        // If the sibling operand is itself a pure untyped integer constant expression, propagate
+        // the outer context type down to this subexpression.
+        // If the sibling is a named operand with a declared integer type T (e.g. `1 + y` where
+        // y: int8), return Some(T) so that this literal also gets type T — the same rule Go uses
+        // for untyped constants in mixed expressions.
+        // Otherwise, return None and let typeMerge at the binary expression level handle it.
+        case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression] =>
+          val sibling: PExpressionOrType =
+            if ((bExpr.left : PExpressionOrType).eq(expr)) bExpr.right else bExpr.left
+          if (isUntypedIntConst(sibling)) {
+            // Propagate the outer context only if it is a concrete integer type (not an interface
+            // and not perm). If the context is interface{}, return None so that bounds checking
+            // happens only once at the binary expression level (not additionally at each literal
+            // subexpression). If the context is perm, return None so that integer literal
+            // subexpressions of x/y are not given type PermissionT (which would break Desugar).
+            //
+            // Special case: PSub(PIntLit(0), expr) is Gobra's AST representation of unary
+            // negation (parsed from "-expr" in source). Do NOT propagate the parent context type
+            // to `expr` in that case. The constant-value bounds check is performed at the PSub
+            // level (value = 0 - lit = -lit), which is correct. Propagating would check `lit`
+            // itself, producing a false positive for the minimum signed value — e.g.
+            // PSub(0, 128) = -128 fits in int8, but 128 > 127 would trigger a spurious error.
+            val isUnaryNegOperand = bExpr.isInstanceOf[PSub] && {
+              val sub = bExpr.asInstanceOf[PSub]
+              (sub.left: PExpressionOrType).eq(sibling) &&   // expr is the right operand
+              (sibling match { case PIntLit(v, _) => v == BigInt(0); case _ => false })
+            }
+            if (isUnaryNegOperand) None
+            else getTypeFromCtxt(bExpr) match {
+              case Some(_: InterfaceT) => None
+              case Some(PermissionT)            => None
+              case result => result
+            }
+          } else {
+            // sibling is not a pure literal integer constant (isUntypedIntConst = false),
+            // but it may still be an untyped expression (e.g. x*x where x is an untyped
+            // named constant). We must not call exprType(sibling) when sibling is a
+            // PNumExpression: exprType on a PNumExpression calls getNonInterfaceTypeFromCtxt
+            // → getTypeFromCtxt(sibling) → exprType(expr) → cycle.
+            // Instead, use numExprType for PNumExpression siblings: it calls exprType only on
+            // sub-nodes of the sibling (not on the sibling itself) and never calls
+            // getTypeFromCtxt on the sibling, so it is cycle-safe.
+            // For non-PNumExpression siblings (variables, method calls, field accesses, …)
+            // exprType is safe because those branches in actualExprType do not call
+            // getTypeFromCtxt on the expression itself.
+            sibling match {
+              case e: PNumExpression =>
+                tryNumExprType(e) match {
+                  case Some(it: IntT) if it != UNTYPED_INT_CONST => Some(it)
+                  case _ => None
+                }
+              case e: PExpression =>
+                exprType(e) match {
+                  case it: IntT if it != UNTYPED_INT_CONST => Some(it)
+                  case _ => None
+                }
+              case _ => None
+            }
+          }
+
         case e: PMisc => e match {
           // The following case infers the type of an literal expression when it occurs inside a composite literal.
           // For example, it infers that the expression `1/2` in `seq[perm]{ 1/2 }` has type perm. Notice that the whole
@@ -1114,6 +1297,61 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("blank identifier always has a parent")
   }
 
+  /**
+    * Returns whether `expr` is a proper subexpression of a larger untyped integer constant
+    * expression.
+    *
+    * Per the Go spec (Constant expressions), "constant expressions are always evaluated exactly;
+    * intermediate values and the constants themselves may require precision significantly larger
+    * than supported by any predeclared type in the language". Representability is required only
+    * where the constant is given a type, i.e. at the outermost node of the constant expression.
+    * Checking it at the intermediate nodes as well rejects valid Go, e.g.
+    *   var x uint16 = (1 << 16) - 1      // 65535 fits uint16; the intermediate 65536 need not
+    *   var x uint16 = (1 * 70000) - 69999 // 1 fits uint16; neither operand of `*` does
+    */
+  private def isInnerNodeOfUntypedIntConst(expr: PExpression): Boolean =
+    isUntypedIntConst(expr) && (expr match {
+      case tree.parent(p: PExpression) => isUntypedIntConst(p)
+      case _ => false
+    })
+
+  /**
+    * Structurally determines whether an expression is a pure untyped integer constant expression,
+    * i.e. one composed solely of integer literals, iota, bit-negation, shifts, arithmetic on such
+    * expressions, and references to untyped integer constants. Unlike [[numExprType]], this
+    * predicate never calls [[exprType]] - it resolves names through [[entity]] only - and is
+    * therefore cycle-free. It is used by [[getTypeFromCtxt]] to decide whether the outer context
+    * type should be propagated to a literal that appears as a subexpression of a binary expression,
+    * and by [[isInnerNodeOfUntypedIntConst]] to locate the node at which representability is
+    * checked.
+    */
+  def isUntypedIntConst(expr: PExpressionOrType): Boolean = isUntypedIntConst(expr, Set.empty)
+
+  /**
+    * @param visited the definitions of the named constants already followed, so that a cyclic
+    *                constant declaration (`const a = b; const b = a`) cannot recurse forever. Such
+    *                a program is rejected elsewhere, but this predicate runs before that.
+    */
+  private def isUntypedIntConst(expr: PExpressionOrType, visited: Set[PIdnDef]): Boolean = expr match {
+    case _: PIntLit | _: PIota                                                  => true
+    case PBitNegation(op)                                                        => isUntypedIntConst(op, visited)
+    case bExpr: PShiftLeft                                                       => isUntypedIntConst(bExpr.left, visited)
+    case bExpr: PShiftRight                                                      => isUntypedIntConst(bExpr.left, visited)
+    case bExpr: PBinaryExp[_, _] if bExpr.isInstanceOf[PNumExpression]          =>
+      isUntypedIntConst(bExpr.left, visited) && isUntypedIntConst(bExpr.right, visited)
+    // A reference to an untyped integer constant is itself an untyped constant expression, so
+    // `const c = 300; var x uint8 = c - 100` is valid Go. A constant is untyped only if its
+    // declaration gives no type *and* its defining expression is itself untyped - `const c =
+    // int8(5)` has type int8. Constants imported from another package are treated conservatively
+    // as typed, since their defining expression belongs to a different type-checker instance.
+    case PNamedOperand(id) => entity(id) match {
+      case st.SingleConstant(_, idDef, exp, None, _, context)
+        if context == this && !visited.contains(idDef) => isUntypedIntConst(exp, visited + idDef)
+      case _ => false
+    }
+    case _                                                                       => false
+  }
+
   private def numExprType(expr: PNumExpression): Type = {
     val typ = expr match {
       case _: PIntLit => UNTYPED_INT_CONST
@@ -1126,14 +1364,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBitNegation(op) => exprOrTypeType(op)
 
+      case PShiftLeft(left, _) => exprOrTypeType(left)
+      case PShiftRight(left, _) => exprOrTypeType(left)
+
+      // a permission amount divided by an integer is a permission amount (PermDiv)
+      case PDiv(left, _) if exprOrTypeType(left) == PermissionT => PermissionT
+
       case bExpr: PBinaryExp[_, _] =>
-        bExpr match {
-          case _: PShiftLeft | _: PShiftRight => exprOrTypeType(bExpr.left)
-          case _ =>
-            val typeLeft = exprOrTypeType(bExpr.left)
-            val typeRight = exprOrTypeType(bExpr.right)
-            typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
-        }
+        typeMerge(exprOrTypeType(bExpr.left), exprOrTypeType(bExpr.right)).getOrElse(UnknownType)
 
       case e => violation(s"unexpected expression $e while type-checking integer expressions.")
     }
@@ -1145,6 +1383,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => violation(s"unexpected type $typ")
     }
   }
+
+  /**
+   * Like [[numExprType]], but returns None instead of throwing a [[Violation.LogicException]]
+   * when the expression is ill-typed (e.g. `len` applied to a non-collection argument).
+   * Used in [[getTypeFromCtxt]] to safely peek at a sibling's type without crashing on
+   * programs that already have other type errors.
+   */
+  private def tryNumExprType(e: PNumExpression): Option[Type] =
+    try Some(numExprType(e))
+    catch { case _: Violation.LogicException => None }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
@@ -1193,7 +1441,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
       case ActualPointerT(_: ArrayT) => INT_TYPE
-      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => UNTYPED_INT_CONST
+      // Ghost collection sizes are mathematical integers (ghost values, not constants).
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT | _: AdtT => IntT(UnboundedInteger)
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
     }
 

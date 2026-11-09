@@ -10,11 +10,25 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
 import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{PIdnNode, _}
 import viper.gobra.frontend.info.base.SymbolTable._
+import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 
 trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
+
+  /**
+    * Resolves a built-in type tag to its frontend type, substituting the *configured*
+    * integer kind for the architecture-dependent `int`/`uint` tags. The static tag
+    * objects default to the 32-bit kinds, but the running configuration may define
+    * them as 64-bit — using the static kind gave explicit conversions like `int(x)`
+    * 32-bit bounds in 64-bit mode.
+    */
+  private def builtInTypeWithConfiguredIntKind(tag: BuiltInMemberTag.BuiltInTypeTag): Type = tag match {
+    case BuiltInMemberTag.IntType => IntT(config.typeBounds.Int)
+    case BuiltInMemberTag.UIntType => IntT(config.typeBounds.UInt)
+    case _ => tag.typ
+  }
 
   import viper.gobra.util.Violation._
 
@@ -168,7 +182,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         val fields = a.fields.map(f => f.id.name -> a.context.symbType(f.typ))
         AdtClauseT(a.getName, fields, a.decl, a.typeDecl, a.context)
 
-      case BuiltInType(tag, _, _) => tag.typ
+      case BuiltInType(tag, _, _) => builtInTypeWithConfiguredIntKind(tag)
       case _ => violation(s"expected type, but got $id")
     }
   }
@@ -225,7 +239,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case BuiltInFunction(tag, _, _) => typ(tag)
 
-    case BuiltInType(tag, _, _) => tag.typ
+    case BuiltInType(tag, _, _) => builtInTypeWithConfiguredIntKind(tag)
 
     case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)

@@ -284,7 +284,7 @@ func client2() {
 }
 ```
 
-Gobra offers fractional permissions, meaning that it can distinguish between different amounts of permissions. A permission amount is rational number between 0 and 1. Modifying the value of a heap location requires full permission, denoted as `acc(x, write)`. Reading from a heap location requires any non-zero permission amount. Read permissions are usually denoted as factions, e.g., `acc(x, 1/2)`. We can also write `acc(x, _)` for an arbitrary non-zero permission amount.
+Gobra offers fractional permissions, meaning that it can distinguish between different amounts of permissions. A permission amount is rational number between 0 and 1. Modifying the value of a heap location requires full permission, denoted as `acc(x, write)`. Reading from a heap location requires any non-zero permission amount. Read permissions are usually denoted as fractions, written with the `perm` constructor: `perm(n, d)` denotes the amount `n/d`, e.g., `acc(x, perm(1, 2))` denotes half a permission. We can also write `acc(x, _)` for an arbitrary non-zero permission amount.
 
 
 
@@ -412,13 +412,13 @@ Often, introducing additional state, such as additional variables or arguments i
 ```go (test/resources/regressions/tutorial-examples/ghost-code.gobra)
 package tutorial
 
-requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/2)
-ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/2)
+requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], perm(1, 2))
+ensures  forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], perm(1, 2))
 ensures  isContained ==> 0 <= idx && idx < len(s) && s[idx] == x
 func contains(s []int, x int) (isContained bool, ghost idx int) {
 
 	invariant 0 <= i && i <= len(s)
-	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], 1/4)
+	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k], perm(1, 4))
 	for i := 0; i < len(s); i += 1 {
 		if s[i] == x {
 			return true, i
@@ -487,7 +487,7 @@ type stream interface {
 	pred mem()
 
 	decreases
-	requires acc(mem(), 1/2)
+	requires acc(mem(), perm(1, 2))
 	pure hasNext() bool
 
 	requires mem() && hasNext()
@@ -506,15 +506,15 @@ The following snippet illustrates an implementation of the `stream` interface. T
 // implementation
 type counter struct{ f, max int }
 
-requires acc(x, 1/2)
+requires acc(x, perm(1, 2))
 decreases
 pure func (x *counter) hasNext() bool {
 	return x.f < x.max
 }
 
-requires acc(&x.f) && acc(&x.max, 1/2)
+requires acc(&x.f) && acc(&x.max, perm(1, 2))
 requires x.hasNext()
-ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 
+ensures  acc(&x.f) && acc(&x.max, perm(1, 2)) && x.f == old(x.f)+1 
 ensures  typeOf(y) == type[int] && y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
 	y = x.f
@@ -532,7 +532,7 @@ pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
 	pure (x *counter) hasNext() bool {
-		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+		return unfolding acc(x.mem(), perm(1, 2)) in x.hasNext()
 	}
 
 	(x *counter) next() (res interface{}) {
@@ -674,8 +674,8 @@ pred sendInvariant(v *int) {
 	acc(v) && *v > 0
 }
 
-requires acc(c.SendChannel(), 1/2)
-requires acc(c.RecvChannel(), 1/2)
+requires acc(c.SendChannel(), perm(1, 2))
+requires acc(c.RecvChannel(), perm(1, 2))
 requires c.SendGivenPerm() == sendInvariant{_}
 requires c.SendGotPerm() == PredTrue{}
 requires c.RecvGivenPerm() == PredTrue{}

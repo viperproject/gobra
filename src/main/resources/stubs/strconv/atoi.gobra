@@ -22,7 +22,7 @@ type NumError struct {
 	Err  error  // the reason the conversion failed (e.g. ErrRange, ErrSyntax, etc.)
 }
 
-requires p > 0
+requires p > noPerm
 requires acc(e, p)
 ensures acc(e, p)
 decreases _

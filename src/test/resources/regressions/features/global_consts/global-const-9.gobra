@@ -4,11 +4,11 @@
 package pkg
 
 //:: ExpectedOutput(type_error)
-const p perm = perm(1/0)
+const p perm = perm(1, 0)
 
 const (
 	//:: ExpectedOutput(type_error)
-	i0 = perm(1 / iota)
+	i0 = perm(1, iota)
 	i1
 	i2
 	i3

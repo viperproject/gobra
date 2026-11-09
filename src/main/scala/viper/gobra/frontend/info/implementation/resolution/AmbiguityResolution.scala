@@ -9,9 +9,9 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.PermissionType
 import viper.gobra.frontend.info.base.Type.{AdtT, FunctionT, ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.Violation.violation
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
@@ -110,6 +110,15 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PInvoke =>
       exprOrType(n.base) match {
         case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
+        // `perm(num, den)` is the only "conversion" taking two arguments: it constructs a permission
+        // amount. Any other type applied to a number of arguments other than one is not resolvable,
+        // which the well-definedness check reports as a type error.
+        case Right(t) if n.args.length == 2 =>
+          resolve(t) match {
+            case Some(ap.BuiltInType(_, st.BuiltInType(PermissionType, _, _))) =>
+              Some(ap.FractionalPermConstructor(n.args(0), n.args(1)))
+            case _ => None
+          }
         case Left(e) =>
           resolve(e) match {
             case Some(ap.BuiltInType(_, st.BuiltInType(tag, _, _))) if n.args.length == 1 =>
@@ -120,7 +129,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args, exprType(e).asInstanceOf[PredT]))
             case _ => None
           }
-        case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")
+        case Right(_) => None
       }
 
     case n: PIndexedExp => exprOrType(n.base) match {

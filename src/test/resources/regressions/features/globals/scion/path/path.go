@@ -66,10 +66,10 @@ type Metadata struct {
 // @ ensures   RegisteredTypes().Contains(uint16(pathMeta.Type))
 // @ decreases
 func RegisterPath(pathMeta Metadata) {
-	// @ unfold acc(PkgInv(), 1/2)
-	// @ RegisteredTypes().DoesNotContainsImpliesAbstractDoesNotContain(uint16(pathMeta.Type), 1/4)
+	// @ unfold acc(PkgInv(), perm(1, 2))
+	// @ RegisteredTypes().DoesNotContainsImpliesAbstractDoesNotContain(uint16(pathMeta.Type), perm(1, 4))
 	// @ RegisteredTypes().DoesNotContainImpliesNotFContains(uint16(pathMeta.Type))
-	// @ unfold acc(PkgInv(), 1/2)
+	// @ unfold acc(PkgInv(), perm(1, 2))
 	// @ defer fold PkgInv()
 	pm := registeredPaths[pathMeta.Type]
 	if pm.inUse {
@@ -83,11 +83,11 @@ func RegisterPath(pathMeta Metadata) {
 }
 
 // @ requires  0 <= t && t < maxPathType
-// @ preserves acc(PkgInv(), 1/512)
+// @ preserves acc(PkgInv(), perm(1, 512))
 // @ decreases
 func (t Type) String() string {
-	// @ unfold acc(PkgInv(), 1/512)
-	// @ defer fold acc(PkgInv(), 1/512)
+	// @ unfold acc(PkgInv(), perm(1, 512))
+	// @ defer fold acc(PkgInv(), perm(1, 512))
 	pm := registeredPaths[t]
 	if !pm.inUse {
 		return "UNKNOWN"

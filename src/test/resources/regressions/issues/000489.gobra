@@ -15,11 +15,11 @@ type T struct {
 	f [1]int
 }
 
-preserves acc(t.Mem(), 1/2)
+preserves acc(t.Mem(), perm(1, 2))
 func (t *T) foo() {
-	unfold acc(t.Mem(), 1/2)
-	unfold acc(t.Cons(), 1/2)
-	fold acc(t.Cons(), 1/2)
-	fold acc(t.Mem(), 1/2)
+	unfold acc(t.Mem(), perm(1, 2))
+	unfold acc(t.Cons(), perm(1, 2))
+	fold acc(t.Cons(), perm(1, 2))
+	fold acc(t.Mem(), perm(1, 2))
 	return
 }

@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// perm(num, den) accepts integers of any kind: a bounded operand is implicitly
+// promoted to the mathematical `integer`, no explicit conversion is required.
+
+requires n > 0
+requires acc(x, perm(1, n))
+ensures acc(x, perm(1, n))
+func readWithBoundedDenominator(x *int, n int) int {
+	return *x
+}
+
+requires 0 < k && 0 < d && perm(k, d) <= writePerm
+requires acc(x, perm(k, d))
+ensures acc(x, perm(k, d))
+func readWithBoundedOperands(x *int, k int8, d uint16) int {
+	return *x
+}
+
+requires acc(x)
+ensures acc(x)
+func splitAndJoin(x *int) {
+	n := 4
+	assert acc(x, perm(1, n)) && acc(x, perm(3, n))
+	assert acc(x, perm(1, 4) + perm(3, 4))
+	assert acc(x, perm(1, n) + perm(n - 1, n))
+}
+
+ghost
+requires m > 0
+ensures res == perm(1, m)
+decreases
+pure func fraction(m integer) (res perm) {
+	return perm(1, m)
+}
+
+func useFraction() {
+	assert fraction(2) == perm(1, 2)
+	assert fraction(2) + fraction(2) == writePerm
+}

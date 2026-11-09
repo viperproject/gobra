@@ -37,14 +37,14 @@ pred (m SLock) LockP() {
 
 pred ownInv(m SLock) {
 	acc(m.state)       &&
-	acc(m.locked, 1/2) &&
+	acc(m.locked, perm(1, 2)) &&
 	(*m.state == 0 || *m.state == 1) &&
-	(*m.state == 0 ==> m.inv() && acc(m.locked, 1/2) && !*m.locked) &&
+	(*m.state == 0 ==> m.inv() && acc(m.locked, perm(1, 2)) && !*m.locked) &&
 	(*m.state == 1 ==> *m.locked)
 }
 
 pred (m SLock) UnlockP() {
-	acc(m.locked, 1/2) && *m.locked
+	acc(m.locked, perm(1, 2)) && *m.locked
 }
 
 ghost

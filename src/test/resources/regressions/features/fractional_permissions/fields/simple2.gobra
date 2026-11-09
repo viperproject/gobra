@@ -9,5 +9,5 @@ type cell struct{
 
 const dividend = 1
 
-requires acc(&x.val, dividend/2) && x.val == 42
+requires acc(&x.val, perm(dividend, 2)) && x.val == 42
 func constPerm(x *cell) {}

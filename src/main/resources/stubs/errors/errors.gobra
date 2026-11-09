@@ -44,7 +44,7 @@ ensures   e.IsDuplicableMem() ==> e.ErrorMem()
 decreases
 func (e *errorString) Duplicate() {
     unfold e.ErrorMem()
-    fold acc(e.ErrorMem(), 2/1)
+    fold acc(e.ErrorMem(), perm(2, 1))
 }
 
 preserves e.ErrorMem()

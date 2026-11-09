@@ -1,0 +1,34 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Arithmetic may mix the mathematical `integer` type with a bounded integer kind: the bounded
+// operand is promoted to `integer`, and so is the result. Here, `len` on a ghost collection has
+// type `integer`, while `i` is a bounded `int`. Converting the result back to a bounded kind
+// requires an explicit conversion.
+
+ghost
+requires 0 <= i && i <= len(s)
+ensures res == len(s) - i
+decreases
+pure func remaining(s seq[int], i int) (res integer) {
+	return len(s) - i
+}
+
+ghost
+requires 0 <= i && i <= len(s)
+decreases
+func mixInStatement(s seq[int], i int) {
+	assert len(s) - i >= 0
+	ghost var n int = int(len(s) - i)
+	assert n >= 0
+}
+
+ghost
+requires 0 <= i && i <= len(s)
+decreases
+func mixRequiresConversion(s seq[int], i int) {
+	//:: ExpectedOutput(type_error)
+	ghost var n int = len(s) - i
+}

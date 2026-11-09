@@ -79,7 +79,7 @@ pred (self CntFrom) inv(ghost calls seq[int]) { acc(self.c) && *self.c == self.f
 ghost
 requires len(calls) > 0
 pure func (self CntFrom) res(ghost calls seq[int]) int {
-    return self.from + len(calls) - 1
+    return int(self.from + len(calls) - 1)
 }
 
 func test2() {

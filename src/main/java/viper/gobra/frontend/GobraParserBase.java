@@ -22,4 +22,13 @@ public abstract class GobraParserBase extends org.antlr.v4.runtime.Parser
         int prevTokenType = stream.LA(1);
         return prevTokenType == GobraParser.R_CURLY || prevTokenType == GobraParser.R_PAREN;
     }
+
+    /**
+     * Returns true if the current token is the contextual keyword `spec`, which introduces a closure spec declaration.
+     */
+    protected boolean isSpecKeyword()
+    {
+        Token token = _input.LT(1);
+        return token.getType() == GobraParser.IDENTIFIER && "spec".equals(token.getText());
+    }
 }

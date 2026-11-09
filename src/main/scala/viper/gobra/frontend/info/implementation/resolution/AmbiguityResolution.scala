@@ -59,6 +59,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
         case s: st.Closure => Some(ap.Closure(n.id, s))
+        case s: st.ClosureSpec => Some(ap.ClosureSpec(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case s: st.DomainFunction => Some(ap.DomainFunction(n.id, s))
         // built-in members
@@ -94,6 +95,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(_), Some((s: st.Constant, _))) => Some(ap.Constant(n.id, s))
         case (Right(_), Some((s: st.GlobalVariable, _))) => Some(ap.GlobalVariable(n.id, s))
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
+        case (Right(_), Some((s: st.ClosureSpec, _))) => Some(ap.ClosureSpec(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
         case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))
         case (Right(_), Some((s: st.AdtClause, _))) => Some(ap.AdtClause(n.id, s))

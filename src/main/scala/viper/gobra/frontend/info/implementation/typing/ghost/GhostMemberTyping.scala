@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PClosureSpecDecl, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -26,6 +26,41 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       body.fold(noMessages)(assignableToSpec) ++
         isReceiverType.errors(miscType(receiver))(member) ++
         nonVariadicArguments(args)
+
+    case decl: PClosureSpecDecl => wellDefClosureSpecDecl(decl)
+  }
+
+  /**
+    * Checks a closure spec declaration. Modifiers of a closure spec declaration (i.e., `ghost` and `pure`) refer to the
+    * closures that are specified by it. Modifiers that only make sense for function and method declarations
+    * are rejected.
+    */
+  private def wellDefClosureSpecDecl(decl: PClosureSpecDecl): Messages = {
+    val spec = decl.spec
+    def disallowedModifier(modifier: String, cond: Boolean): Messages =
+      error(decl, s"Closure spec declarations cannot be annotated with '$modifier'.", cond)
+
+    val modifierErrors =
+      disallowedModifier("trusted", spec.isTrusted) ++
+        disallowedModifier("opaque", spec.isOpaque) ++
+        disallowedModifier("atomic", spec.isAtomic)
+
+    val pureErrors = if (spec.isPure) {
+      isSingleResultArg(decl) ++
+        isPurePostcondition(spec) ++
+        pureMembersCannotHavePreserves(spec) ++
+        nonVariadicArguments(decl.args) ++
+        error(decl, pureFunctionsDoNotNeedMayInitMsg, spec.mayBeUsedInInit)
+    } else noMessages
+
+    // the closures specified by a pure or a ghost spec have to terminate
+    val needsTermination = spec.isPure || decl.isGhost
+    val terminationErrors =
+      error(decl, "All pure or ghost closure specs must have termination measures, but none was found for this closure spec.",
+        needsTermination && !config.disableCheckTerminationPureFns && spec.terminationMeasures.isEmpty) ++
+        (if (needsTermination) noConditionalMeasureErrors(spec.terminationMeasures) else noMessages)
+
+    wellDefVariadicArgs(decl.args) ++ modifierErrors ++ pureErrors ++ terminationErrors
   }
 
   private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {

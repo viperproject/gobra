@@ -5,6 +5,10 @@ package main
 
 requires acc(x)
 ensures acc(x) && *x == old(*x) * n
+spec multSpec(x *int, n int)
+
+requires acc(x)
+ensures acc(x) && *x == old(*x) * n
 func mult(x *int, n int) {
     *x *= n
 }
@@ -29,11 +33,11 @@ func test2(x *int) {
          func times2(x *int) {
             *x *= 2
          }
-    defer c(x) as mult{n: 2}
+    defer c(x) as multSpec{n: 2}
 
     *x = 5
 
-    proof c implements mult{n: 2} {
+    proof c implements multSpec{n: 2} {
         c(x) as times2
     }
 }
@@ -41,7 +45,10 @@ func test2(x *int) {
 requires acc(x)
 ensures acc(x) && *x == 10
 func test3(x *int) {
-    defer mult(x,2) as mult
+    proof mult implements multSpec {
+        mult(x, n)
+    }
+    defer mult(x,2) as multSpec
     *x = 5
     return
     *x = 6
@@ -57,10 +64,10 @@ func (self Mult) times(x *int) {
 requires acc(x)
 ensures acc(x) && *x == 15
 func test4(x *int) {
-    defer Mult{3}.times(x) as mult{n: 3}
+    defer Mult{3}.times(x) as multSpec{n: 3}
     *x = 5
     
-    proof Mult{3}.times implements mult{n: 3} {
+    proof Mult{3}.times implements multSpec{n: 3} {
         Mult{3}.times(x)
     }
 }

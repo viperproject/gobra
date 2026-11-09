@@ -16,10 +16,9 @@ type Calls interface {
 }
 
 
-ghost
 requires cs != nil && cs.inv(prev)
 ensures cs.inv(prev ++ seq[int]{x}) && res == cs.res(prev ++ seq[int]{x})
-func spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
+spec spec(ghost cs Calls, ghost prev seq[int], x int) (res int)
 
 requires f implements spec{cs}
 requires cs != nil && cs.inv(seq[int]{})

@@ -14,9 +14,8 @@ pure func (self S1) f(n int) int {
     return 2*n + 2*self.x
 }
 
-ghost
 ensures r >= 2*n && r % 2 == 0
-pure func more(n int) (r int)
+pure spec more(n int) (r int)
 
 requires i != nil && i.f implements more
 ensures r == i.f(a) as more + 2

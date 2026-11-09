@@ -1,0 +1,69 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSpecDeclFail1
+
+// Closure specs are declared with `spec` and can only be used to specify closures.
+
+requires x >= 0
+ensures r >= 0
+spec pos(x int) (r int)
+
+requires x >= 0
+ensures r >= 0
+func posFunc(x int) (r int) {
+    return x
+}
+
+func test1() {
+    // closure spec declarations cannot be called directly
+    //:: ExpectedOutput(type_error)
+    r := pos(1)
+}
+
+func test2() {
+    // closure spec declarations cannot be used as values
+    //:: ExpectedOutput(type_error)
+    f := pos
+}
+
+requires c implements pos
+func test3(c func(int) int) {
+    // functions cannot be used as closure specs
+    //:: ExpectedOutput(type_error)
+    r := c(1) as posFunc
+}
+
+//:: ExpectedOutput(type_error)
+requires c implements posFunc
+func test4(c func(int) int) {
+}
+
+requires c implements pos
+func test5(c func(int) int) {
+    // closures can only be called with a spec
+    //:: ExpectedOutput(type_error)
+    r := c(1)
+}
+
+requires c implements pos
+func test6(c func(int) int) {
+    r := c(1) as pos
+    assert r >= 0
+}
+
+//:: ExpectedOutput(type_error)
+trusted
+ensures r >= 0
+spec trustedSpec(x int) (r int)
+
+//:: ExpectedOutput(type_error)
+opaque
+ensures r >= 0
+pure spec opaqueSpec(x int) (r int)
+
+// `spec` is a contextual keyword and can still be used as an identifier
+func test7() {
+    spec := 42
+    assert spec == 42
+}

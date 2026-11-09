@@ -3,8 +3,7 @@
 
 package closuresFail4GhostArgs
 
-ghost
-func spec(a int, ghost b int)(c int, ghost d int)
+spec spec(a int, ghost b int)(c int, ghost d int)
 
 func test1() {
     cl := func f(a int, ghost b int)(c int, ghost d int) {}

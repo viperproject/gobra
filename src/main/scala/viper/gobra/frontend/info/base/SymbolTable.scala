@@ -75,11 +75,25 @@ object SymbolTable extends Environments[Entity] {
     def isOpaque: Boolean = decl.spec.isOpaque
   }
 
-  case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
+  /**
+    * Entities that can be used as the base of a closure spec instance (e.g., `spec` in `c(args) as spec{params}`),
+    * namely closure spec declarations and named function literals.
+    */
+  sealed trait ClosureSpecTarget extends DataEntity with WithArguments with WithResult {
+    /** specification of the closures specified by this target */
+    def spec: PFunctionSpec
+    /** true iff the closures specified by this target are pure */
+    def isPure: Boolean = spec.isPure
+    /** true iff the closures specified by this target are ghost */
+    def specifiesGhostClosures: Boolean
+  }
+
+  case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with ClosureSpecTarget {
     override def rep: PNode = lit
     override val args: Vector[PParameter] = lit.args
     override val result: PResult = lit.decl.result
-    def isPure: Boolean = lit.spec.isPure
+    override def spec: PFunctionSpec = lit.spec
+    override def specifiesGhostClosures: Boolean = false
   }
 
   sealed trait Constant extends DataEntity {
@@ -225,6 +239,18 @@ object SymbolTable extends Environments[Entity] {
   case class FPredicate(decl: PFPredicateDecl, context: ExternalTypeInfo) extends Predicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
+  }
+
+  /**
+    * Closure spec declarations are ghost entities, independently of whether the closures they specify are ghost.
+    * The ghostness of the specified closures is given by [[ClosureSpec.specifiesGhostClosures]].
+    */
+  case class ClosureSpec(decl: PClosureSpecDecl, context: ExternalTypeInfo) extends GhostDataEntity with ClosureSpecTarget {
+    override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
+    override val result: PResult = decl.result
+    override def spec: PFunctionSpec = decl.spec
+    override def specifiesGhostClosures: Boolean = decl.isGhost
   }
 
   sealed trait GhostConstant extends Constant with GhostDataEntity

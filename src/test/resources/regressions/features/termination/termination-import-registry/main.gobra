@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// A closed registry (cf. VerifiedSCION's path registry): this package performs all
+// registrations, so it can bound the levels of the registered constructors by the levels of
+// the functions that register them. NewPath, which calls a registered constructor, includes
+// the constructor's level in its own level. Level constants such as RegLevel are inlined in
+// comparisons, which exposes their atoms to the SMT solver.
+
+// ##(-I ./)
+import (
+	"reglib"
+	"sub1"
+	"sub2"
+)
+
+ghost
+decreases
+pure func RegLevel() level {
+	return levelOf(sub1.Register) + levelOf(sub2.Register)
+}
+
+ghost
+decreases
+pure func RegistryBounded() bool {
+	return forall t int :: { reglib.ConstructorLevel(t) } 0 <= t && t < 8 ==> reglib.ConstructorLevel(t) < RegLevel()
+}
+
+// like getPath: calls NewPath, whose level includes the constructor's level
+requires RegistryBounded()
+requires 0 <= t && t < 8
+decreases
+func getPath(t int) reglib.Path {
+	return reglib.NewPath(t)
+}
+
+// like init: establishes the bound from the registrations
+requires forall t int :: { reglib.ConstructorLevel(t) } 0 <= t && t < 8 && t != 0 && t != 1 ==> reglib.ConstructorLevel(t) == emptyLevel()
+decreases
+func initLike() {
+	sub1.Register()
+	sub2.Register()
+	assert RegistryBounded()
+}

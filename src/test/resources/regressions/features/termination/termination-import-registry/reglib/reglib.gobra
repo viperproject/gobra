@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package reglib
+
+type Path interface {
+	decreases
+	Len() int
+}
+
+ghost
+requires 0 <= t && t < 8
+decreases
+pure func ConstructorLevel(t int) level
+
+requires 0 <= t && t < 8
+ensures  levelOf(p) < old(ConstructorLevel(t))
+decreases ConstructorLevel(t)
+func NewPath(t int) (p Path)

@@ -86,15 +86,33 @@ class LevelEncoding extends LeafTypeEncoding {
       case u@in.LevelUnion(l, r) => for { vl <- goE(l); vr <- goE(r) } yield union(vl, vr, u)
       case m@in.LevelMax(l, r) => for { vl <- goE(l); vr <- goE(r) } yield app(levelMaxFunc, Seq(vl, vr), m)
       case lt@in.LevelLess(l, r) =>
-        for { vl <- goE(l); vr <- goE(r) } yield withHints(vl, vr, app(levelLtFunc, Seq(vl, vr), lt), lt)
+        for { vl <- goE(inlineLevelConstants(l)(ctx)); vr <- goE(inlineLevelConstants(r)(ctx)) }
+          yield withHints(vl, vr, app(levelLtFunc, Seq(vl, vr), lt), lt)
       case le@in.LevelAtMost(l, r) =>
         val (pos, info, errT) = le.vprMeta
-        for { vl <- goE(l); vr <- goE(r) } yield withHints(vl, vr, vpr.Or(vpr.EqCmp(vl, vr)(pos, info, errT), app(levelLtFunc, Seq(vl, vr), le))(pos, info, errT), le)
+        for { vl <- goE(inlineLevelConstants(l)(ctx)); vr <- goE(inlineLevelConstants(r)(ctx)) }
+          yield withHints(vl, vr, vpr.Or(vpr.EqCmp(vl, vr)(pos, info, errT), app(levelLtFunc, Seq(vl, vr), le))(pos, info, errT), le)
       case lo@in.LevelOf(e) => levelOf(e, lo)(ctx)
     }
   }
 
   private val interfaces = new viper.gobra.translator.encodings.interfaces.InterfaceComponentImpl
+
+  /**
+    * Replaces calls of parameterless pure functions of type level without precondition (i.e., named level constants
+    * such as `func Bound() level { return levelOf(f) + levelOf(g) }`) by their bodies. This exposes the atoms of the
+    * constants to the hints of comparisons (see `withHints`). The bodies are the values of the calls.
+    */
+  private def inlineLevelConstants(e: in.Expr, depth: Int = 0)(ctx: Context): in.Expr =
+    if (depth > 16) e
+    else e.transform({
+      case call@in.PureFunctionCall(func, Vector(), _: in.LevelT, _) =>
+        ctx.table.lookup(func) match {
+          case f: in.PureFunction if f.args.isEmpty && f.pres.isEmpty && f.body.isDefined && !f.isOpaque =>
+            inlineLevelConstants(f.body.get, depth + 1)(ctx)
+          case _ => call
+        }
+    }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
 
   private def levelOf(e: in.Expr, src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = src.vprMeta

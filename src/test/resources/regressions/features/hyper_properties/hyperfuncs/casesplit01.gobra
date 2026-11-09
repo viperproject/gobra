@@ -1,0 +1,87 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package casesplit01
+
+// ##(--hyperMode on)
+
+// Relational case splits: a postcondition `P ==> Q` whose premise P depends only on the arguments holds vacuously
+// for executions that do not satisfy P. The low-guard encoding therefore verifies such methods with a case split on
+// P: executions satisfying P are verified as a product (where the branch conditions must be low), all others only
+// need unary correctness.
+
+decreases
+hyperfunc NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+// The branch condition depends on the input, which is not low in general. It is low whenever the premise of the
+// postcondition holds.
+ensures NonInterf(x, res)
+ensures res >= 0
+func Abs(x int) (res int) {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// A premise written directly as an implication.
+ensures low(x) ==> low(res)
+func Sign(x int) (res int) {
+	if x < 0 {
+		res = -1
+	} else if x == 0 {
+		res = 0
+	} else {
+		res = 1
+	}
+	return res
+}
+
+// Calls and loops in a method with a case split.
+requires 0 <= n
+ensures NonInterf(n, res)
+ensures res >= n
+func SumAbs(n int) (res int) {
+	res = 0
+	invariant 0 <= i && i <= n && res >= i
+	invariant low(n) ==> low(i) && low(res)
+	for i := 0; i < n; i++ {
+		v := Abs(i)
+		res += v
+	}
+	return res
+}
+
+// The output still depends on the secret when the input is low.
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures NonInterf(x, res)
+func Leak(x int, secret int) (res int) {
+	if x < 0 {
+		return secret
+	}
+	return x
+}
+
+// Unary correctness is checked also for executions that do not satisfy the premise: the unary copy of the method
+// is verified.
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures NonInterf(x, res) && res >= 0
+func WrongAbs(x int) (res int) {
+	if x < 0 {
+		return x
+	}
+	return x
+}
+
+// Without a premise (here: a relational postcondition that is not an implication), there is no case split, and the
+// branch condition must be low.
+ensures low(res)
+func NoSplit(x int) (res int) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	if x < 0 {
+		return 0
+	}
+	return 0
+}

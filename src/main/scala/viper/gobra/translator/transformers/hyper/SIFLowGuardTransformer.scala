@@ -13,7 +13,7 @@ import viper.gobra.translator.transformers.ViperTransformer
 import viper.gobra.translator.util.VprInfo
 import viper.gobra.util.Violation
 import viper.silver.ast._
-import viper.silver.ast.utility.Simplifier
+import viper.silver.ast.utility.{Expressions, Simplifier}
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance
 import viper.silver.plugin.standard.termination.{DecreasesClause, DecreasesTuple, DecreasesWildcard}
 import viper.silver.plugin.sif._
@@ -40,8 +40,12 @@ trait SIFLowGuardTransformer {
     val noDups = noDuplicates(p)
     val ctx = newContext(relPreds, noDups, onlyMajor, noMinor, hyperFuncs, Set.empty, executions)
 
+    val splits = caseSplitPremises(p, ctx)
+    val unaryCopies = methodsNeedingUnaryCopies(p, splits.keySet, ctx)
+
     val members =
-      p.methods.flatMap(method(_, ctx)) ++
+      p.methods.flatMap(method(_, ctx, splits)) ++
+      p.methods.filter(m => unaryCopies(m.name)).flatMap(unaryMethodCopies(_, ctx, unaryCopies)) ++
       p.functions.flatMap(function(_, ctx)) ++
       p.predicates.flatMap(predicate(_, ctx)) ++
       p.fields.flatMap(field(_, ctx)) ++
@@ -56,7 +60,7 @@ trait SIFLowGuardTransformer {
     )(p.pos, p.info, p.errT)
   }
 
-  def method(m: Method, ctx: Context): Vector[Member] = {
+  def method(m: Method, ctx: Context, splits: Map[String, Exp] = Map.empty): Vector[Member] = {
     if (ctx.onlyMajor(m.name)) {
       Vector(
         m.copy(
@@ -74,9 +78,185 @@ trait SIFLowGuardTransformer {
           formalReturns = ctx.runs.flatMap(r => m.formalReturns.map(runLocalVarDecl(_, r))),
           pres = m.pres.map(assertion(_, ctx)),
           posts = m.posts.map(assertion(_, ctx)),
-          body = m.body.map(s => toSeqn(statement(s, ctx))),
+          body = m.body.map { s =>
+            val product = toSeqn(statement(s, ctx))
+            splits.get(m.name) match {
+              case None => product
+              case Some(premise) => toSeqn(caseSplitBody(m, premise, product, ctx))
+            }
+          },
         )(m.pos, m.info, m.errT)
       )
+    }
+  }
+
+  /////////////////////////////// Relational case splits (Phase 2b) ///////////////////////////////
+  //
+  // A method whose relational postconditions are all implications `P ==> Q` with a premise `P` that depends only on
+  // the method's arguments (directly, or as the body of a hyper function such as `NonInterf(in, out)`) is verified
+  // with a case split on the premises:
+  //
+  //   if (P₁ || … || Pₙ) { product of the body, with low-guard checks }
+  //   else { m_U0(args₀); …; m_Uₖ₋₁(argsₖ₋₁) }
+  //
+  // In the else-branch, all relational postconditions hold vacuously, because the premises are evaluated in the
+  // pre-state and arguments are immutable. The executions are therefore related by nothing but their unary
+  // contracts, which are provided by the unary copies m_Uᵢ of the method. The copy m_U0 has the body of m translated
+  // for execution 0 alone, and it is verified; the copies for the other executions are identical up to renaming and
+  // are thus abstract. Their contracts are the unary projections of m's contract: relational atoms are replaced by
+  // `true` or `false` such that the projection is implied by the original assertion. Calls in the body of a unary
+  // copy go to the unary copies of the callees, which are generated in the same way.
+
+  /** The premises of the methods that are verified with a relational case split. */
+  def caseSplitPremises(p: Program, ctx: Context): Map[String, Exp] = {
+    val functions = p.functions.map(f => f.name -> f).toMap
+
+    def onlyTerminationPres(f: Function): Boolean = f.pres.forall(_.isInstanceOf[DecreasesClause])
+
+    // A premise must have the same value in the pre-state and in the post-state. Thus, it may read only arguments
+    // and must not depend on the heap.
+    def admissible(e: Exp, args: Set[String]): Boolean = {
+      val bound = e.deepCollect { case q: QuantifiedExp => q.variables.map(_.name) }.flatten.toSet
+      !e.exists {
+        case _: LocationAccess | _: Unfolding | _: Applying | _: Old | _: LabelledOld | _: CurrentPerm | _: ForPerm => true
+        case f: FuncApp => !(ctx.isHyperFunction(f.funcname) && functions.get(f.funcname).exists(onlyTerminationPres))
+        case v: LocalVar => !(args.contains(v.name) || bound.contains(v.name))
+        case _ => false
+      }
+    }
+
+    def premise(e: Exp, args: Set[String], depth: Int): Option[Exp] = e match {
+      case i: Implies if isRelational(i.left, ctx) && admissible(i.left, args) => Some(i.left)
+      case f: FuncApp if depth > 0 && ctx.isHyperFunction(f.funcname) =>
+        for {
+          fn <- functions.get(f.funcname) if onlyTerminationPres(fn)
+          body <- fn.body
+          scope = f.args.flatMap(_.deepCollect { case v: LocalVar => v.name }).toSet
+          res <- premise(Expressions.instantiateVariables(body, fn.formalArgs, f.args, scope), args, depth - 1)
+        } yield res
+      case _ => None
+    }
+
+    def conjuncts(e: Exp): Seq[Exp] = e match {
+      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
+      case e => Seq(e)
+    }
+
+    p.methods.flatMap { m =>
+      if (m.body.isEmpty || ctx.onlyMajor(m.name)) None
+      else {
+        val args = m.formalArgs.map(_.name).toSet
+        val relationalPosts = m.posts.flatMap(conjuncts).filter(isRelational(_, ctx))
+        val premises = relationalPosts.map(premise(_, args, depth = 3))
+        if (relationalPosts.nonEmpty && premises.forall(_.isDefined)) {
+          val distinct = premises.flatten.distinct
+          Some(m.name -> disjunction(distinct)(distinct.head.pos, distinct.head.info, distinct.head.errT))
+        } else None
+      }
+    }.toMap
+  }
+
+  /** The methods that need unary copies: the methods with a case split and, transitively, their callees. */
+  def methodsNeedingUnaryCopies(p: Program, roots: Set[String], ctx: Context): Set[String] = {
+    val methods = p.methods.map(m => m.name -> m).toMap
+    def callees(n: String): Set[String] = methods.get(n).flatMap(_.body).toSeq.flatMap(_.deepCollect {
+      case c: MethodCall if !ctx.onlyMajor(c.methodName) && methods.contains(c.methodName) => c.methodName
+    }).toSet
+
+    @tailrec
+    def closure(acc: Set[String], frontier: Set[String]): Set[String] = {
+      val next = frontier.flatMap(callees) -- acc
+      if (next.isEmpty) acc else closure(acc ++ next, next)
+    }
+    closure(roots, roots)
+  }
+
+  def unaryMethodName(n: String, run: RunContext): String = run.rename(s"${n}_U")
+
+  def caseSplitBody(m: Method, premise: Exp, product: Seqn, ctx: Context): Stmt = {
+    val calls = ctx.runs.map { r =>
+      MethodCall(
+        unaryMethodName(m.name, r),
+        m.formalArgs.map(a => runExp(a.localVar, r)),
+        m.formalReturns.map(v => runExp(v.localVar, r).asInstanceOf[LocalVar]),
+      )(m.pos, m.info, m.errT)
+    }
+    If(assertion(premise, ctx), product, Seqn(calls, Seq.empty)(m.pos, m.info, m.errT))(m.pos, m.info, m.errT)
+  }
+
+  /** The unary copies of `m`, one per execution. Only the copy for execution 0 has a body. */
+  def unaryMethodCopies(m: Method, ctx: Context, unaryCopies: String => Boolean): Vector[Member] = {
+    ctx.runs.zipWithIndex.map { case (r, idx) =>
+      m.copy(
+        name = unaryMethodName(m.name, r),
+        formalArgs = m.formalArgs.map(runLocalVarDecl(_, r)),
+        formalReturns = m.formalReturns.map(runLocalVarDecl(_, r)),
+        pres = m.pres.map(unaryProjection(_, r, ctx)),
+        posts = m.posts.map(unaryProjection(_, r, ctx)),
+        body = if (idx == 0) m.body.map(s => toSeqn(unaryStatement(s, r, ctx, unaryCopies))) else None,
+      )(m.pos, m.info, m.errT)
+    }.toVector
+  }
+
+  /**
+    * The projection of a relational assertion to execution `run`: maximal relational atoms (e.g., `low(x)`, hyper
+    * function calls) are replaced by `true` in positive and by `false` in negative positions. The result is implied
+    * by the original assertion. Relational predicate instances denote their unary instance in `run`.
+    */
+  def unaryProjection(e: Exp, run: RunContext, ctx: Context): Exp = {
+    def weaken(e: Exp, positive: Boolean): Exp = e match {
+      case e if !isRelational(e, ctx) => e
+      case _: PredicateAccessPredicate | _: PredicateAccess => e
+      case a: And => And(weaken(a.left, positive), weaken(a.right, positive))(a.pos, a.info, a.errT)
+      case o: Or => Or(weaken(o.left, positive), weaken(o.right, positive))(o.pos, o.info, o.errT)
+      case i: Implies => Implies(weaken(i.left, !positive), weaken(i.right, positive))(i.pos, i.info, i.errT)
+      case n: Not => Not(weaken(n.exp, !positive))(n.pos, n.info, n.errT)
+      case c: CondExp if !isRelational(c.cond, ctx) =>
+        CondExp(c.cond, weaken(c.thn, positive), weaken(c.els, positive))(c.pos, c.info, c.errT)
+      case c: CondExp =>
+        if (positive) Or(weaken(c.thn, positive), weaken(c.els, positive))(c.pos, c.info, c.errT)
+        else And(weaken(c.thn, positive), weaken(c.els, positive))(c.pos, c.info, c.errT)
+      case f: Forall => f.copy(exp = weaken(f.exp, positive), triggers = Seq.empty)(f.pos, f.info, f.errT).autoTrigger
+      case f: Exists => f.copy(exp = weaken(f.exp, positive), triggers = Seq.empty)(f.pos, f.info, f.errT).autoTrigger
+      case u: Unfolding =>
+        u.copy(body = weaken(u.body, positive))(u.pos, u.info, u.errT)
+      case e if e.typ == Bool => if (positive) TrueLit()(e.pos, e.info, e.errT) else FalseLit()(e.pos, e.info, e.errT)
+      case e => Violation.violation(s"Unexpected non-boolean relational assertion: $e")
+    }
+    Simplifier.simplify(runExp(weaken(e, positive = true), run))
+  }
+
+  /** Translates the body of a method for the unary copy of execution `run`. */
+  def unaryStatement(s: Stmt, run: RunContext, ctx: Context, unaryCopies: String => Boolean): Stmt = {
+    def go(s: Stmt): Stmt = unaryStatement(s, run, ctx, unaryCopies)
+    def proj(e: Exp): Exp = unaryProjection(e, run, ctx)
+
+    s match {
+      case s: Seqn =>
+        val declarations = s.scopedSeqnDeclarations.map {
+          case x: LocalVarDecl => runLocalVarDecl(x, run)
+          case x => x
+        }
+        Seqn(s.ss.map(go), declarations)(s.pos, s.info, s.errT)
+
+      // A relational condition has no value in a single execution. The branch is chosen non-deterministically,
+      // which over-approximates the executions of the method.
+      case s: If if isRelational(s.cond, ctx) =>
+        val choice = LocalVarDecl(run.rename(s"relationalChoice_${s.pos.hashCode.abs}"), Bool)(s.pos, s.info, s.errT)
+        Seqn(Seq(If(choice.localVar, toSeqn(go(s.thn)), toSeqn(go(s.els)))(s.pos, s.info, s.errT)), Seq(choice))(s.pos, s.info, s.errT)
+      case s: If => If(runExp(s.cond, run), toSeqn(go(s.thn)), toSeqn(go(s.els)))(s.pos, s.info, s.errT)
+      case s: While => While(runExp(s.cond, run), s.invs.map(proj), toSeqn(go(s.body)))(s.pos, s.info, s.errT)
+
+      case s: Inhale => Inhale(proj(s.exp))(s.pos, s.info, s.errT)
+      case s: Exhale => Exhale(proj(s.exp))(s.pos, s.info, s.errT)
+      case s: Assume => Assume(proj(s.exp))(s.pos, s.info, s.errT)
+      case s: Assert => Assert(proj(s.exp))(s.pos, s.info, s.errT)
+
+      case s: MethodCall if unaryCopies(s.methodName) =>
+        val call = runStatement(s, run).asInstanceOf[MethodCall]
+        call.copy(methodName = unaryMethodName(s.methodName, run))(call.pos, call.info, call.errT)
+
+      case s => runStatement(s, run)
     }
   }
 

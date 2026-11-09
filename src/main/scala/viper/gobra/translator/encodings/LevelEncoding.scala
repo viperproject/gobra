@@ -425,6 +425,14 @@ object LevelEncoding {
         vpr.Implies(vpr.And(vpr.NeCmp(atoms(l), atoms(r))(), huetOppenWith(countFunc, witness1CountFunc, assumed = false))(), lr)()
       )())()
 
+    // Transitivity of the multiset order. It chains comparisons through opaque levels, e.g., from `levelOf(x) < L` and
+    // `L < M` with `L = levelOf(y)`, which the characterization above can only do through the witnesses of their atoms
+    // (and not in general). Its instances only relate existing comparisons, of which there are few.
+    val m2 = vpr.LocalVarDecl("m", levelType)()
+    val lm = call(levelLtFunc, l.localVar, m2.localVar)
+    val mr = call(levelLtFunc, m2.localVar, r.localVar)
+    val ltTrans = vpr.Forall(Seq(l, m2, r), Seq(vpr.Trigger(Seq(lm, mr))()), vpr.Implies(vpr.And(lm, mr)(), lr)())()
+
     val max = call(levelMaxFunc, l.localVar, r.localVar)
     val maxDef = vpr.Forall(Seq(l, r), Seq(vpr.Trigger(Seq(max))()),
       vpr.And(
@@ -439,7 +447,7 @@ object LevelEncoding {
       levelDomainName,
       Seq(lvlFunc, atomsFunc, atomLtFunc, atomLtWitnessFunc, levelLtFunc, levelMaxFunc, unionFunc, countFunc, witness1CountFunc, witnessCountFunc),
       Seq(lvlInj, atomsInj, irreflexive, unionDef, countDef, witness1CountDef, witnessCountDef, countUnion, witness1CountUnion, ltDef,
-        ltSecondLayer, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
+        ltSecondLayer, ltTrans, maxDef).map(e => vpr.AnonymousDomainAxiom(e)(domainName = levelDomainName))
     )()
   }
 

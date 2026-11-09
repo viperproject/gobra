@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Comparisons of levels are transitive, also through opaque levels such as Bound().
+
+type I interface {
+	decreases
+	M()
+}
+
+ghost
+decreases
+pure func Bound() level
+
+decreases
+func f() {}
+
+decreases
+func g() {}
+
+ghost
+decreases
+pure func Reg() level { return levelOf(f) + levelOf(g) }
+
+ghost
+requires x != nil && levelOf(x) < Bound()
+requires Bound() < Reg()
+decreases
+func chain(x I) {
+	assert levelOf(x) < Reg()
+}

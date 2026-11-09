@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// In bodies, ownLevel() is the level of the enclosing member (or literal) on entry.
+
+type I interface {
+	decreases
+	M()
+}
+
+type S struct {
+	x I
+}
+
+decreases
+func f() {}
+
+decreases
+func g() {}
+
+ghost
+decreases
+pure func Reg() level { return levelOf(f) + levelOf(g) }
+
+requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < Reg()
+decreases
+func use(s *S) {
+	f()
+	g()
+	// use calls f and g, so it is above both; the call of s.x.M() follows by transitivity
+	assert Reg() < ownLevel()
+	s.x.M()
+}
+
+requires n >= 0
+decreases n
+func above(n int) {
+	if n > 0 { below(n - 1) }
+}
+
+// below refers to above, so both are in one component and have the same atom
+requires n >= 0
+decreases n
+func below(n int) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert levelOf(above) < ownLevel()
+}
+
+decreases
+func inLiteral() {
+	h := requires acc(&p.x, 1/2) && p.x != nil && levelOf(p.x) < Reg()
+		decreases
+		func lit(p *S) {
+			f()
+			g()
+			// the level of the literal, not of inLiteral
+			assert Reg() < ownLevel()
+			p.x.M()
+		}
+	assert levelOf(h) < ownLevel()
+}

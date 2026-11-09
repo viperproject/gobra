@@ -227,19 +227,23 @@ object TerminationLevelsTransform extends InternalTransform {
       case f: in.Function =>
         val measures = withLevel(f.terminationMeasures, in.LevelAtom(TerminationAtom.function(f.name))(f.info), f.args, imported)(table)
         val (pres, posts) = resolveOwnLevel(f.pres, f.posts, measures, TerminationAtom.function(f.name))
-        f.copy(pres = pres, posts = posts, terminationMeasures = measures)(f.info)
+        val body = f.body.map(resolveOwnLevelInBody(_, measures, TerminationAtom.function(f.name), pure = false))
+        f.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(f.info)
       case f: in.PureFunction =>
         val measures = withLevel(f.terminationMeasures, in.LevelAtom(TerminationAtom.function(f.name))(f.info), f.args, imported)(table)
         val (pres, posts) = resolveOwnLevel(f.pres, f.posts, measures, TerminationAtom.function(f.name))
-        f.copy(pres = pres, posts = posts, terminationMeasures = measures)(f.info)
+        val body = f.body.map(resolveOwnLevelInBody(_, measures, TerminationAtom.function(f.name), pure = true))
+        f.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(f.info)
       case m: in.Method =>
         val measures = withLevel(m.terminationMeasures, methodOwnLevel(m)(table), methodArgs(m), imported, ranks.get(m.name))(table)
         val (pres, posts) = resolveOwnLevel(m.pres, m.posts, measures, TerminationAtom.method(m.name))
-        m.copy(pres = pres, posts = posts, terminationMeasures = measures)(m.info)
+        val body = m.body.map(resolveOwnLevelInBody(_, measures, TerminationAtom.method(m.name), pure = false))
+        m.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(m.info)
       case m: in.PureMethod =>
         val measures = withLevel(m.terminationMeasures, methodOwnLevel(m)(table), methodArgs(m), imported, ranks.get(m.name))(table)
         val (pres, posts) = resolveOwnLevel(m.pres, m.posts, measures, TerminationAtom.method(m.name))
-        m.copy(pres = pres, posts = posts, terminationMeasures = measures)(m.info)
+        val body = m.body.map(resolveOwnLevelInBody(_, measures, TerminationAtom.method(m.name), pure = true))
+        m.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(m.info)
       case other => other
     }
     // the outlines of a member get the level of the member; the outlines of nested literals and proofs are overwritten
@@ -257,11 +261,13 @@ object TerminationLevelsTransform extends InternalTransform {
         val own = in.LevelAtom(TerminationAtom.literal(l.name))(l.info)
         val measures = withLevel(l.terminationMeasures, own, l.args, imported)(table)
         val (pres, posts) = resolveOwnLevel(l.pres, l.posts, measures, TerminationAtom.literal(l.name))
-        leveledOutlines(l.copy(pres = pres, posts = posts, terminationMeasures = measures)(l.info), measures, own, outlines)
+        val body = l.body.map(resolveOwnLevelInBody(_, measures, TerminationAtom.literal(l.name), pure = false))
+        leveledOutlines(l.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(l.info), measures, own, outlines)
       case l: in.PureFunctionLit =>
         val measures = withLevel(l.terminationMeasures, in.LevelAtom(TerminationAtom.literal(l.name))(l.info), l.args, imported)(table)
         val (pres, posts) = resolveOwnLevel(l.pres, l.posts, measures, TerminationAtom.literal(l.name))
-        l.copy(pres = pres, posts = posts, terminationMeasures = measures)(l.info)
+        val body = l.body.map(resolveOwnLevelInBody(_, measures, TerminationAtom.literal(l.name), pure = true))
+        l.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(l.info)
       case p: in.SpecImplementationProof =>
         // the implementation of a spec may have at most the level with which calls through the spec are charged:
         // the level of the closure for specs given by functions and the atom of the literal for literal specs
@@ -276,7 +282,8 @@ object TerminationLevelsTransform extends InternalTransform {
           case l: in.FunctionLitProxy => TerminationAtom.literal(l)
         }
         val (pres, posts) = resolveOwnLevel(p.pres, p.posts, measures, key)
-        leveledOutlines(p.copy(pres = pres, posts = posts, terminationMeasures = measures)(p.info), measures, own, outlines)
+        val body = resolveOwnLevelInBody(p.body, measures, key, pure = false)
+        leveledOutlines(p.copy(pres = pres, posts = posts, terminationMeasures = measures, body = body)(p.info), measures, own, outlines)
     }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
   }
 
@@ -390,6 +397,33 @@ object TerminationLevelsTransform extends InternalTransform {
       }
     }
     (pres.map(replace(_, inPost = false)), posts.map(replace(_, inPost = true)))
+  }
+
+  /**
+    * Replaces `ownLevel()` in the body of a member (or literal, or proof) by the member's level on entry, as in its
+    * postconditions. Nested literals and proofs are skipped: there, `ownLevel()` denotes their own level, which is
+    * resolved when they are transformed. In bodies, `ownLevel()` serves to state facts that help later checks, e.g.,
+    * `assert Bound() < ownLevel()` lets a call of an object whose level is below `Bound()` be checked by transitivity.
+    */
+  private def resolveOwnLevelInBody[N <: in.Node](n: N, measures: Vector[in.TerminationMeasure], key: String, pure: Boolean): N = {
+    val level: Option[in.Expr] = measures.collectFirst {
+      case t: in.TupleTerminationMeasure if t.tuple.headOption.exists(_.isInstanceOf[in.Expr]) => t.tuple.head.asInstanceOf[in.Expr]
+    }
+    def heapIndependent(l: in.Expr): Boolean = l.deepCollect { case e: in.Expr => e }.forall {
+      case _: in.LevelAtom | _: in.LevelUnion | _: in.LevelEmpty | _: in.LevelOf | _: in.Parameter.In => true
+      case _ => false
+    }
+    def replacement(o: in.LevelOwn): in.Expr = level match {
+      case Some(l) if pure || heapIndependent(l) => l
+      case Some(l) => in.Old(l)(o.info)
+      case None => in.LevelAtom(s"own:$key")(o.info)
+    }
+    n.transformNodeAndContext[Boolean]({
+      case (l: in.FunctionLit, _) => (l, false)
+      case (l: in.PureFunctionLit, _) => (l, false)
+      case (p: in.SpecImplementationProof, _) => (p, false)
+      case (o: in.LevelOwn, true) => (replacement(o), true)
+    }, initialContext = true, viper.silver.ast.utility.rewriter.Traverse.TopDown)
   }
 
   private def isLevelMethod(m: in.MethodMember): Boolean = m.name.name == levelMethodName

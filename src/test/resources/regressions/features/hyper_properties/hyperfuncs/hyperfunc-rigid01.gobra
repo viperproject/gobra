@@ -21,7 +21,7 @@ func Scale(x int, c int) (res int) {
 
 // The call site does not establish `low(c)`.
 func BadCall(x int, c int) {
-	//:: ExpectedOutput(assert_error:precondition_error)
+	//:: ExpectedOutput(precondition_error:assertion_error)
 	assert ScaledDiff(x, c) == ScaledDiff(x, c)
 }
 
@@ -37,7 +37,10 @@ ghost
 requires 2 <= len(s) && low(len(s)) && low(s[0])
 ensures Hamming(s, 2) <= 1
 decreases
-func FirstLow(s seq[int]) {}
+func FirstLow(s seq[int]) {
+	assert Hamming(s, 0) == 0
+	assert Hamming(s, 1) == 0
+}
 
 ghost
 requires 1 <= len(s) && low(len(s))

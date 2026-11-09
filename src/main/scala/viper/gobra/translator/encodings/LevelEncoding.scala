@@ -86,12 +86,16 @@ class LevelEncoding extends LeafTypeEncoding {
       case u@in.LevelUnion(l, r) => for { vl <- goE(l); vr <- goE(r) } yield union(vl, vr, u)
       case m@in.LevelMax(l, r) => for { vl <- goE(l); vr <- goE(r) } yield app(levelMaxFunc, Seq(vl, vr), m)
       case lt@in.LevelLess(l, r) =>
-        for { vl <- goE(inlineLevelConstants(l)(ctx)); vr <- goE(inlineLevelConstants(r)(ctx)) }
-          yield withHints(vl, vr, app(levelLtFunc, Seq(vl, vr), lt), lt)
+        for {
+          vl <- goE(inlineLevelConstants(l)(ctx)); vr <- goE(inlineLevelConstants(r)(ctx))
+          atoms <- hintAtoms(l, r, vl, vr)(ctx)
+        } yield withHints(vl, vr, atoms, app(levelLtFunc, Seq(vl, vr), lt), lt)
       case le@in.LevelAtMost(l, r) =>
         val (pos, info, errT) = le.vprMeta
-        for { vl <- goE(inlineLevelConstants(l)(ctx)); vr <- goE(inlineLevelConstants(r)(ctx)) }
-          yield withHints(vl, vr, vpr.Or(vpr.EqCmp(vl, vr)(pos, info, errT), app(levelLtFunc, Seq(vl, vr), le))(pos, info, errT), le)
+        for {
+          vl <- goE(inlineLevelConstants(l)(ctx)); vr <- goE(inlineLevelConstants(r)(ctx))
+          atoms <- hintAtoms(l, r, vl, vr)(ctx)
+        } yield withHints(vl, vr, atoms, vpr.Or(vpr.EqCmp(vl, vr)(pos, info, errT), app(levelLtFunc, Seq(vl, vr), le))(pos, info, errT), le)
       case lo@in.LevelOf(e) => levelOf(e, lo)(ctx)
     }
   }
@@ -103,16 +107,31 @@ class LevelEncoding extends LeafTypeEncoding {
     * such as `func Bound() level { return levelOf(f) + levelOf(g) }`) by their bodies. This exposes the atoms of the
     * constants to the hints of comparisons (see `withHints`). The bodies are the values of the calls.
     */
-  private def inlineLevelConstants(e: in.Expr, depth: Int = 0)(ctx: Context): in.Expr =
+  private def inlineLevelConstants(e: in.Expr, depth: Int = 0, revealed: Boolean = false)(ctx: Context): in.Expr =
     if (depth > 16) e
     else e.transform({
-      case call@in.PureFunctionCall(func, Vector(), _: in.LevelT, _) =>
+      case call@in.PureFunctionCall(func, Vector(), _: in.LevelT, reveal) =>
         ctx.table.lookup(func) match {
-          case f: in.PureFunction if f.args.isEmpty && f.pres.isEmpty && f.body.isDefined && !f.isOpaque =>
-            inlineLevelConstants(f.body.get, depth + 1)(ctx)
+          case f: in.PureFunction if f.args.isEmpty && f.pres.isEmpty && f.body.isDefined && (!f.isOpaque || (revealed && reveal)) =>
+            inlineLevelConstants(f.body.get, depth + 1, revealed)(ctx)
           case _ => call
         }
     }, viper.silver.ast.utility.rewriter.Traverse.TopDown)
+
+  /**
+    * The atoms for the hints of a comparison. Revealed calls of opaque level constants (`reveal Bound()`) contribute
+    * the atoms of their bodies, but stay calls in the comparison itself: an opaque constant keeps facts about it
+    * (e.g., `levelOf(x) < Bound()`) free of atoms, and hence of hints, while a comparison with a revealed call
+    * (e.g., `reveal Bound() < ownLevel()`) can still be decided and chained with them by transitivity.
+    */
+  private def hintAtoms(l: in.Expr, r: in.Expr, vl: vpr.Exp, vr: vpr.Exp)(ctx: Context): CodeWriter[Vector[vpr.Exp]] = {
+    def atomsOf(e: in.Expr, translated: vpr.Exp): CodeWriter[Seq[vpr.Exp]] = {
+      val revealed = inlineLevelConstants(e, revealed = true)(ctx)
+      val exp = if (revealed == inlineLevelConstants(e)(ctx)) unit(translated) else ctx.expression(revealed)
+      exp.map(_.deepCollect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == atomType => a })
+    }
+    for { al <- atomsOf(l, vl); ar <- atomsOf(r, vr) } yield (al ++ ar).distinct.toVector
+  }
 
   private def levelOf(e: in.Expr, src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = src.vprMeta
@@ -307,10 +326,8 @@ class LevelEncoding extends LeafTypeEncoding {
     * multiset ordering (as the hints of [[viper.gobra.translator.transformers.ModularTerminationTransformer]] do for
     * the termination checks).
     */
-  private def withHints(l: vpr.Exp, r: vpr.Exp, comparison: vpr.Exp, src: in.Node): vpr.Exp = {
+  private def withHints(l: vpr.Exp, r: vpr.Exp, atoms: Vector[vpr.Exp], comparison: vpr.Exp, src: in.Node): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    val atoms = (l.deepCollect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == atomType => a } ++
-      r.deepCollect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == atomType => a }).distinct
     val hints = atoms.flatMap(a => Seq(l, r).map(level =>
       vpr.GeCmp(vpr.DomainFuncApp(countFunc, Seq(a, level), Map.empty)(pos, info, errT), vpr.IntLit(0)(pos, info, errT))(pos, info, errT): vpr.Exp))
     hints.foldRight(comparison)((h, acc) => vpr.And(h, acc)(pos, info, errT))

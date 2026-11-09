@@ -1,0 +1,53 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// An opaque level constant keeps facts about it free of atoms. Comparisons with a revealed call
+// see the atoms of its body, and chain with facts about the opaque call by transitivity.
+
+type I interface {
+	decreases
+	M()
+}
+
+type S struct {
+	x I
+}
+
+decreases
+func f() {}
+
+decreases
+func g() {}
+
+ghost
+opaque
+decreases
+pure func Bound() level { return levelOf(f) + levelOf(g) }
+
+ghost
+requires x != nil && levelOf(x) < levelOf(f)
+ensures  levelOf(x) < Bound()
+decreases
+func below(x I) {
+	assert levelOf(x) < reveal Bound()
+}
+
+requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < Bound()
+decreases
+func use(s *S) {
+	f()
+	g()
+	assert reveal Bound() < ownLevel()
+	s.x.M()
+}
+
+requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < Bound()
+decreases
+func useWithoutReveal(s *S) {
+	f()
+	g()
+	//:: ExpectedOutput(function_termination_error)
+	s.x.M()
+}

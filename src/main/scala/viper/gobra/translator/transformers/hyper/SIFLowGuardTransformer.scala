@@ -111,7 +111,10 @@ trait SIFLowGuardTransformer {
   def caseSplitPremises(p: Program, ctx: Context): Map[String, Exp] = {
     val functions = p.functions.map(f => f.name -> f).toMap
 
-    def onlyTerminationPres(f: Function): Boolean = f.pres.forall(_.isInstanceOf[DecreasesClause])
+    // The body of an opaque hyper function is not available where the postcondition is checked, so its premise
+    // would not make the postcondition vacuous there.
+    def onlyTerminationPres(f: Function): Boolean =
+      f.pres.forall(_.isInstanceOf[DecreasesClause]) && !VprInfo.isOpaque(f.info)
 
     // A premise must have the same value in the pre-state and in the post-state. Thus, it may read only arguments
     // and must not depend on the heap.

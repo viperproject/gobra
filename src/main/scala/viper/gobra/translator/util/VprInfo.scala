@@ -17,6 +17,9 @@ object VprInfo {
     }
   }
 
+  def isOpaque(info: vpr.Info): Boolean =
+    info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains("opaque"))
+
   /** Key of the annotation marking Viper functions that encode hyper functions, see [[SIFLowGuardTransformer]]. */
   val hyperFuncAnnotationKey: String = "hyperFunc"
 

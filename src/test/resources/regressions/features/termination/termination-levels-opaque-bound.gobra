@@ -72,3 +72,18 @@ func bottom(s *S) {
 	//:: ExpectedOutput(function_termination_error)
 	s.x.M()
 }
+
+requires x != nil
+decreases
+func helper(x I) {
+	x.M()
+}
+
+// the level of the call is {helper} + levelOf(s.x), below the single atom of passOn
+requires acc(&s.x, 1/2) && s.x != nil && levelOf(s.x) < Bound()
+decreases
+func passOn(s *S) {
+	f()
+	g()
+	helper(s.x)
+}

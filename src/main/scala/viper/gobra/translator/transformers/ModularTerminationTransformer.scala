@@ -295,7 +295,8 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
           (Seq(conditionCheck, tupleCheck(callerCondition, callerTuple.tail, calleeExps.tail, errTrafo, reasonTrafoFactory)), false)
         case LevelsUnknown =>
           val check = tupleCheck(callerCondition, callerTuple, calleeExps, errTrafo, reasonTrafoFactory)
-          (Seq(conditionCheck) ++ constantBounds(callerTuple.head) ++ levelHints(callerTuple.head, calleeExps.head) :+ check, true)
+          (Seq(conditionCheck) ++ constantBounds(callerTuple.head) ++ singletonReduction(calleeExps.head, callerTuple.head) ++
+            levelHints(callerTuple.head, calleeExps.head) :+ check, true)
       }
     }
   }
@@ -495,6 +496,32 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
         case _ => None
       }
     }
+
+  /**
+    * If the caller's level is a single atom `{a}` and the callee's level is `A + R` with static atoms `A` that are all
+    * statically below `a` and a single opaque part `R` (e.g., `{g} + levelOf(x)`), then `R < {a}` implies
+    * `A + R < {a}`: both mean that all atoms are below `a`. The implication is assumed on the branch of the check, so
+    * that the SMT solver only has to show `R < {a}` (e.g., by transitivity from a bound of `R`), rather than to compare
+    * multisets with an opaque component.
+    */
+  private def singletonReduction(calleeLevel: vpr.Exp, callerLevel: vpr.Exp): Seq[vpr.Stmt] = {
+    def leaves(e: vpr.Exp): Seq[vpr.Exp] = e match {
+      case vpr.DomainFuncApp(LevelEncoding.unionFuncName, Seq(l, r), _) => leaves(l) ++ leaves(r)
+      case other => Seq(other)
+    }
+    if (calleeLevel.typ != LevelEncoding.levelType || callerLevel.typ != LevelEncoding.levelType) return Seq.empty
+    val (static, opaque) = leaves(calleeLevel).partition(staticLevel(_).isDefined)
+    val staticAtoms = static.flatMap(staticLevel).foldLeft(Map.empty[String, Int]) { (acc, m) =>
+      (acc.keySet ++ m.keySet).map(k => k -> (acc.getOrElse(k, 0) + m.getOrElse(k, 0))).toMap
+    }
+    (staticLevel(callerLevel), opaque) match {
+      case (Some(caller), Seq(rest)) if caller.size == 1 && caller.values.head == 1 && static.nonEmpty &&
+          staticAtoms.keys.forall(x => atomLtFacts.contains((x, caller.keys.head))) =>
+        def lt(l: vpr.Exp): vpr.Exp = vpr.DomainFuncApp(LevelEncoding.levelLtFunc, Seq(l, callerLevel), Map.empty)()
+        Seq(vpr.Inhale(vpr.Implies(lt(rest), lt(calleeLevel))())())
+      case _ => Seq.empty
+    }
+  }
 
   /*
    * Checks for functions.

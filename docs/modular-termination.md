@@ -494,6 +494,10 @@ proof obligation of the method. On that branch, Gobra also assumes `B() < caller
 constant `B` whose body is statically below the caller's level (see "Static comparisons"). A callee level
 known to be below such a constant, e.g., from a predicate, then follows by transitivity, without hints
 and without exposing the atoms of the constant elsewhere.
+If the caller's level is a single atom `{a}` and the callee's level is `A + R` with static atoms `A`
+all below `a` and one opaque part `R` (e.g., a ghost helper `{h} + levelOf(x)`), Gobra also assumes
+`R < {a} ==> A + R < {a}` on that branch: both sides say that all atoms are below `a`. Z3 then only
+has to show `R < {a}`, typically by transitivity.
 
 **Interfaces and closures.** Implementation proofs turn the strict check at their call into `≤` through
 the last tuple element: `NonItfMethodMeasure < ProofMeasure < ItfMethodMeasure < ClosureProofMeasure`.

@@ -1014,8 +1014,9 @@ case class MapConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr 
 }
 
 
-case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
-case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false)(val info: Source.Parser.Info) extends Expr
+/** `executions`: for calls to hyper functions, the executions on which the call is evaluated (all if absent) */
+case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false, executions: Option[Vector[Int]] = None)(val info: Source.Parser.Info) extends Expr
+case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type, reveal: Boolean = false, executions: Option[Vector[Int]] = None)(val info: Source.Parser.Info) extends Expr
 case class PureClosureCall(closure: Expr, args: Vector[Expr], spec: ClosureSpec, typ: Type)(val info: Source.Parser.Info) extends Expr
 case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 

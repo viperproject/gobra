@@ -1383,6 +1383,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
   }
 
+  override def visitReindexedInvokePrimaryExpr(ctx: ReindexedInvokePrimaryExprContext): AnyRef = super.visitReindexedInvokePrimaryExpr(ctx) match {
+    case Vector(pe: PExpression, "@", ExecutionIndices(is), InvokeArgs(args)) => PReindex(is, PInvoke(pe, args, None).at(ctx))
+  }
+
   override def visitRevealInvokePrimaryExpr(ctx: RevealInvokePrimaryExprContext): AnyRef = super.visitRevealInvokePrimaryExpr(ctx) match {
     case Vector(_, pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None, true)
   }
@@ -1563,7 +1567,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitLow(ctx: LowContext): AnyRef = super.visitLow(ctx) match {
     case Vector("low", "(", expr: PExpression, ")") => PLow(expr)
+    case Vector("low", "@", ExecutionIndices(is), "(", expr: PExpression, ")") => PReindex(is, PLow(expr).at(ctx))
   }
+
+  private object ExecutionIndices {
+    def unapply(v: Any): Option[Vector[PIntLit]] = v match {
+      case v: Vector[_] => Some(v.collect { case i: PIntLit => i })
+      case _ => None
+    }
+  }
+
+  override def visitExecutionIndices(ctx: ExecutionIndicesContext): Vector[PIntLit] =
+    ctx.integer().asScala.toVector.map(visitInteger)
 
   /**
     */

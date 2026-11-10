@@ -127,17 +127,11 @@ trait SIFLowGuardTransformer {
   def pairwiseCallees(p: Program, ctx: Context): PairwiseCalls = {
     val functions = p.functions.map(f => f.name -> f).toMap
 
-    def relatesOnlyFirstTwo(n: Node, seen: Set[String]): Boolean = !n.exists {
-      case SIFRelExp(_, lit) => lit.i >= 2
-      case a: PredicateAccess => ctx.isRelationalPredicate(a.predicateName)
-      case f: FuncApp if ctx.isHyperFunction(f.funcname) && !seen(f.funcname) =>
-        functions.get(f.funcname) match {
-          case Some(fn) if fn.body.nonEmpty =>
-            !(fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirstTwo(_, seen + f.funcname))
-          case _ => true // abstract hyper functions may relate any executions
-        }
-      case _ => false
-    }
+    def relatesOnlyFirstTwo(n: Node, seen: Set[String]): Boolean =
+      relatesOnlyFirst(n, 2, functions, ctx.isHyperFunction, seen) && !n.exists {
+        case a: PredicateAccess => ctx.isRelationalPredicate(a.predicateName)
+        case _ => false
+      }
 
     val wrapped = p.methods.collect {
       case m if !ctx.onlyMajor(m.name) && (m.pres ++ m.posts).exists(isRelational(_, ctx)) &&
@@ -232,7 +226,7 @@ trait SIFLowGuardTransformer {
       case i: Implies if isRelational(i.left, ctx) && admissible(i.left, args) => Some(i.left)
       // Gobra encodes `P ==> Q` in the bodies of functions as `P ? Q : true`
       case c: CondExp if c.els == TrueLit()() && isRelational(c.cond, ctx) && admissible(c.cond, args) => Some(c.cond)
-      case f: FuncApp if depth > 0 && ctx.isHyperFunction(f.funcname) =>
+      case f: FuncApp if depth > 0 && ctx.isHyperFunction(f.funcname) && VprInfo.executions(f.info).isEmpty =>
         for {
           fn <- functions.get(f.funcname) if onlyTerminationPres(fn)
           body <- fn.body
@@ -702,7 +696,48 @@ trait SIFLowGuardTransformer {
     */
   def hyperFuncApp(f: FuncApp, ctx: Context): FuncApp = {
     def args(run: RunContext): Seq[Exp] = f.args.map(runWithRelational(_, ctx, run))
-    f.copy(args = ctx.runs.flatMap(args))(f.pos, f.info, f.typ, f.errT)
+    // A re-indexed call `H@(i₀, …, iₘ₋₁)(…)` evaluates `H` on the selected executions. If m < k, the tuple is padded
+    // by repeating the last selected execution, which is sound since `H` relates only its first m executions (see
+    // [[reindexingErrors]]).
+    val callRuns = VprInfo.executions(f.info) match {
+      case Some(is) =>
+        val padded = is ++ Seq.fill(ctx.runs.size - is.size)(is.last)
+        ctx.withRunIndices(padded.map(i => ctx.runs(i).index)).runs
+      case None => ctx.runs
+    }
+    f.copy(args = callRuns.flatMap(args))(f.pos, VprInfo.removeExecutions(f.info), f.typ, f.errT)
+  }
+
+  /**
+    * The m-ary prefix of a k-tuple padded with its last element denotes the same value of a hyper function as the
+    * m-tuple only if the hyper function relates only its first m executions. Returns an error for each re-indexed call
+    * with m < k to a hyper function that may relate more executions.
+    */
+  def reindexingErrors(p: Program, hyperFuncs: String => Boolean, executions: Int): Seq[AbstractError] = {
+    val functions = p.functions.map(f => f.name -> f).toMap
+    p.deepCollect {
+      case f: FuncApp if hyperFuncs(f.funcname) && VprInfo.executions(f.info).exists(_.size < executions) &&
+        !functions.get(f.funcname).exists(fn => relatesOnlyFirst(fn, VprInfo.executions(f.info).get.size, functions, hyperFuncs)) =>
+        ConsistencyError(s"The hyperfunc ${f.funcname} may relate more than the ${VprInfo.executions(f.info).get.size} selected executions; select all ${executions} executions.", f.pos)
+    }
+  }
+
+  /** Whether the body and contract of `fn` relate only the executions 0 … m-1. */
+  def relatesOnlyFirst(fn: Function, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean): Boolean =
+    fn.body.nonEmpty && (fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, Set(fn.name)))
+
+  def relatesOnlyFirst(n: Node, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean, seen: Set[String]): Boolean = !n.exists {
+    case SIFRelExp(_, lit) => lit.i >= m
+    case f: FuncApp if hyperFuncs(f.funcname) => VprInfo.executions(f.info) match {
+      case Some(is) => is.exists(_ >= m) // the callee itself is checked at its own call
+      case None if seen(f.funcname) => false
+      case None => functions.get(f.funcname) match {
+        case Some(fn) if fn.body.nonEmpty =>
+          !(fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, seen + f.funcname))
+        case _ => true // abstract hyper functions may relate any executions
+      }
+    }
+    case _ => false
   }
 
   /**
@@ -1007,6 +1042,7 @@ trait SIFLowGuardTransformer {
 
     /** The context of the execution with index `i`. Execution 0 is the major execution, all others are minor. */
     class RunContextImpl(i: Int) extends ContextImpl with RunContext {
+      override val index: Int = i
       override val removeMinor: Boolean = if (i == 0) _noMinor else true
       override def rename(n: String): String =
         if (hasNoDuplicates(n) || isRigidVariable(n)) n else s"${n}$i"
@@ -1046,6 +1082,8 @@ trait Context {
 }
 
 trait RunContext extends Context {
+  /** the index of the execution */
+  def index: Int
   def removeMinor: Boolean
   def rename(@unused x: String): String
 }
@@ -1108,7 +1146,9 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     config.hyperModeOrDefault match {
       case Hyper.Enabled =>
-        Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false, config.hyperExecutionsOrDefault), task.backtrack))
+        val errs = reindexingErrors(task.program, hyperFunctions(task.program), config.hyperExecutionsOrDefault)
+        if (errs.nonEmpty) Left(errs)
+        else Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false, config.hyperExecutionsOrDefault), task.backtrack))
 
       case Hyper.Disabled =>
         removeHyper(task.program).map(BackendVerifier.Task(_, task.backtrack))

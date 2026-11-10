@@ -1117,6 +1117,9 @@ case class PLowContext() extends PGhostExpression
 
 case class PRel(exp: PExpression, lit: PIntLit) extends PGhostExpression
 
+/** `exp`, which is `low(e)` or a call to a hyperfunc, evaluated on the executions `indices` (in this order). */
+case class PReindex(indices: Vector[PIntLit], exp: PExpression) extends PGhostExpression
+
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */

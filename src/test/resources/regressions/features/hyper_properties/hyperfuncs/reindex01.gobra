@@ -1,0 +1,72 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 4)
+
+package reindex01
+
+// Re-indexing: `low@(i, j)(e)` and `H@(i, j)(args)` evaluate `low` and a hyperfunc on the selected executions.
+
+// Robust declassification over four executions, written with re-indexed `low`.
+decreases
+hyperfunc Square(pub, sec, att any) bool {
+	return low(pub) && low@(0, 1)(att) && low@(2, 3)(att) && low@(0, 2)(sec) && low@(1, 3)(sec)
+}
+
+decreases
+hyperfunc Robust(out any) bool {
+	return low@(0, 1)(out) ==> low@(2, 3)(out)
+}
+
+requires Square(dept, salary, offset)
+ensures  Robust(res)
+func Report(dept, salary, offset int) (res int) {
+	return dept * 1000 + salary + offset
+}
+
+requires Square(dept, salary, guess)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  Robust(res)
+func Leak(dept, salary, guess int) (res int) {
+	return salary * guess
+}
+
+// A two-execution definition, applied to selected pairs of executions.
+decreases
+hyperfunc NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+requires low@(0, 2)(x)
+ensures  NonInterf@(0, 2)(x, res) && NonInterf@(1, 3)(x, res)
+func Double(x int) (res int) {
+	return 2 * x
+}
+
+requires low@(0, 2)(x)
+ensures  low@(0, 2)(res)
+func UseDouble(x int) (res int) {
+	res = Double(x)
+	assert NonInterf@(0, 2)(x, res)
+	return res
+}
+
+// The order of the selected executions matters for asymmetric relations.
+decreases
+hyperfunc Le(x int) bool {
+	return rel(x, 0) <= rel(x, 1)
+}
+
+requires Le@(0, 1)(x) && Le@(1, 2)(x)
+ensures  Le@(0, 2)(x)
+func Transitive(x int) {}
+
+requires Le@(0, 1)(x)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  Le@(1, 0)(x)
+func Reversed(x int) {}
+
+// Repeated executions (contraction): a relation on an execution and itself.
+ensures low@(1, 1)(x) && NonInterf@(3, 3)(x, y)
+func Diagonal(x, y int) {}
+

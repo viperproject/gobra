@@ -4641,6 +4641,23 @@ object Desugar extends LazyLogging {
           dLit <- go(lit)
         } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
 
+        // `low@(i₀, …, iₘ₋₁)(e)`: `e` agrees in the selected executions
+        case PReindex(indices, PLow(exp)) => for { dExp <- go(exp) } yield {
+          val rels = indices.map(i => in.Rel(dExp, in.IntLit(i.lit)(src))(src))
+          rels.tail.map(r => in.GhostEqCmp(rels.head, r)(src): in.Expr)
+            .reduceOption[in.Expr](in.And(_, _)(src)).getOrElse(in.BoolLit(b = true)(src))
+        }
+
+        // a call to a hyperfunc, evaluated on the selected executions
+        case PReindex(indices, call) => for { dCall <- go(call) } yield {
+          val is = Some(indices.map(_.lit.toInt))
+          dCall match {
+            case c: in.PureFunctionCall => c.copy(executions = is)(c.info)
+            case c: in.PureMethodCall => c.copy(executions = is)(c.info)
+            case c => Violation.violation(s"Expected a call to a hyperfunc, but got $c")
+          }
+        }
+
         case PElem(left, right) => for {
           dleft <- go(left)
           dright <- go(right)

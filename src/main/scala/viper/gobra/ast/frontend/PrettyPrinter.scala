@@ -585,6 +585,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PLow(exp) => "low" <> parens(showExpr(exp))
       case _: PLowContext => "low_context"
       case PRel(exp, lit) => "rel" <> parens(showExpr(exp) <> "," <+> showExpr(lit))
+      case PReindex(indices, exp) =>
+        val is = "@" <> parens(ssep(indices.map(showExpr), comma <> space))
+        exp match {
+          case PLow(e) => "low" <> is <> parens(showExpr(e))
+          case PInvoke(base, args, _, _) => showExprOrType(base) <> is <> parens(showExprList(args))
+          case e => showExpr(e) <> is
+        }
 
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))

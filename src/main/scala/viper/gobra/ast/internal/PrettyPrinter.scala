@@ -507,11 +507,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, _, reveal) =>
+    case PureFunctionCall(func, args, _, reveal, _) =>
       val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
       revealDoc <+> func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, _, reveal) =>
+    case PureMethodCall(recv, meth, args, _, reveal, _) =>
       val revealDoc: Doc = if (reveal) "reveal " else emptyDoc
       revealDoc <> showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 

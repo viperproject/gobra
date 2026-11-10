@@ -12,3 +12,13 @@ func ok(x int)
 //:: ExpectedOutput(type_error)
 requires rel(x, 3) == 0
 func outOfRange(x int)
+
+// selected executions must be in range, too
+//:: ExpectedOutput(type_error)
+requires low@(0, 3)(x)
+func reindexOutOfRange(x int)
+
+// only `low` and hyperfuncs can be evaluated on selected executions
+//:: ExpectedOutput(type_error)
+requires ok@(0, 1)(x)
+func reindexNonHyper(x int)

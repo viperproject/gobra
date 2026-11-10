@@ -22,7 +22,14 @@ import scala.annotation.unused
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
-class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boolean = false) extends GobraParserBaseVisitor[AnyRef] {
+class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boolean = false, executions: Int = 2) extends GobraParserBaseVisitor[AnyRef] {
+
+  /**
+    * Execution quantifiers (`forall i exec :: e`, `exists i exec :: e`) range over the executions 0, …, k-1. Since k is
+    * fixed per verification run, they are unrolled during parsing into a conjunction (disjunction) of copies of `e`,
+    * in which the variables are bound to the literals given here.
+    */
+  private var executionBindings: Map[String, BigInt] = Map.empty
 
   val warnings : ListBuffer[TranslationWarning] = ListBuffer.empty
 
@@ -1173,6 +1180,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     visitChildren(ctx) match {
       case idnUseLike(id) => id match {
         case id@PIdnUse(name) => name match {
+          case n if executionBindings.contains(n) => PIntLit(executionBindings(n)).at(id)
           case "iota" => PIota().at(id)
           case _ => PNamedOperand(id).at(id)
         }
@@ -1578,7 +1586,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitExecutionIndices(ctx: ExecutionIndicesContext): Vector[PIntLit] =
-    ctx.integer().asScala.toVector.map(visitInteger)
+    ctx.executionIndex().asScala.toVector.map(visitExecutionIndex)
+
+  override def visitExecutionIndex(ctx: ExecutionIndexContext): PIntLit = {
+    if (ctx.integer() != null) visitInteger(ctx.integer())
+    else executionBindings.get(ctx.IDENTIFIER().getText) match {
+      case Some(i) => PIntLit(i).at(ctx)
+      case None => fail(ctx, s"${ctx.IDENTIFIER().getText} is not an execution; executions are literals or variables bound by 'forall x exec' or 'exists x exec'")
+    }
+  }
 
   /**
     */
@@ -1594,7 +1610,34 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * Visits the rule
     * isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
     */
-  override def visitQuantification(ctx: QuantificationContext): AnyRef = super.visitQuantification(ctx) match {
+  override def visitQuantification(ctx: QuantificationContext): AnyRef = {
+    val decls = ctx.boundVariables().boundVariableDecl().asScala.toVector
+    val (execDecls, otherDecls) = decls.partition(_.elementType().getText == "exec")
+    if (execDecls.isEmpty) visitOrdinaryQuantification(ctx)
+    else {
+      val isForall = ctx.FORALL() != null
+      val names = execDecls.flatMap(_.IDENTIFIER().asScala.map(_.getText))
+      val assignments = names.foldLeft(Vector(Map.empty[String, BigInt])) { (acc, n) =>
+        for (a <- acc; i <- 0 until executions) yield a + (n -> BigInt(i))
+      }
+      val copies = assignments.map { a =>
+        val saved = executionBindings
+        executionBindings = saved ++ a
+        try {
+          val body = visitNode[PExpression](ctx.expression())
+          if (otherDecls.isEmpty) body
+          else {
+            val vars = otherDecls.flatMap(visitBoundVariableDecl)
+            val triggers = visitTriggers(ctx.triggers())
+            (if (isForall) PForall(vars, triggers, body) else PExists(vars, triggers, body)).at(ctx)
+          }
+        } finally executionBindings = saved
+      }
+      copies.reduceLeft[PExpression]((l, r) => (if (isForall) PAnd(l, r) else POr(l, r)).at(ctx))
+    }
+  }
+
+  private def visitOrdinaryQuantification(ctx: QuantificationContext): AnyRef = super.visitQuantification(ctx) match {
     case Vector(quantifier: String,
       vars : Vector[PBoundVariable@unchecked], ":", ":", triggers : Vector[PTrigger@unchecked], body : PExpression) =>
       (quantifier match {

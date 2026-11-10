@@ -138,11 +138,14 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 low: LOW (ADDR_MOD executionIndices)? L_PAREN expression R_PAREN;
 
 // the executions on which `low` or a hyperfunc call is evaluated, e.g., `low@(0, 2)(x)`
-executionIndices: L_PAREN integer (COMMA integer)* R_PAREN;
+executionIndices: L_PAREN executionIndex (COMMA executionIndex)* R_PAREN;
+
+// an execution: a literal, or a variable bound by an execution quantifier (`forall i exec :: …`)
+executionIndex: integer | IDENTIFIER;
 
 lowc: LOWC L_PAREN R_PAREN;
 
-hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
+hyperRelExpr: REL L_PAREN expression COMMA executionIndex R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 

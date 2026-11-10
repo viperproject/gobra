@@ -103,12 +103,40 @@ object ModularTerminationTransformer {
         case vpr.Or(l, _) => isOrderFact(l)
         case _ => false
       }
-      val usedAtoms = otherNodes.flatMap(atomsIn).toSet ++
-        withoutUnusedFuncs.flatMap(_.axioms).filterNot(a => isOrderFact(a.exp)).flatMap(a => atomsIn(a.exp))
+      val nonOrderAxioms = withoutUnusedFuncs.flatMap(_.axioms).filterNot(a => isOrderFact(a.exp)).map(_.exp)
+      val usedAtoms = otherNodes.flatMap(atomsIn).toSet ++ nonOrderAxioms.flatMap(atomsIn)
+      // A fact `a < b` can only contribute to a proof if `b` can be an atom of the bigger level of some comparison: the
+      // dominating atoms of the multiset order (and the middle atoms of transitive chains, which are closed already)
+      // are atoms of the bigger level. These are the atoms of the bigger levels of comparisons (`$levelLt(_, r)`,
+      // `decreasing(_, r)`), including the atoms of the level constants, types, and closures they mention.
+      val typeAtoms = nonOrderAxioms.filter(_.existsDefined { case app: vpr.DomainFuncApp if app.funcname == "$typeLevel" => }).flatMap(atomsIn).toSet
+      val closureAtoms = nonOrderAxioms.filter(_.existsDefined { case app: vpr.DomainFuncApp if app.funcname == "$closureLevel" => }).flatMap(atomsIn).toSet
+      val levelFunctionBodies: Map[String, vpr.Exp] = p.functions.collect { case f if f.typ == LevelEncoding.levelType && f.body.isDefined => f.name -> f.body.get }.toMap
+      def upperAtoms(e: vpr.Exp, visited: Set[String]): Set[String] = {
+        val calls = e.deepCollect { case app: vpr.FuncApp if levelFunctionBodies.contains(app.funcname) && !visited.contains(app.funcname) => app.funcname }.toSet
+        atomsIn(e) ++
+          (if (e.existsDefined { case app: vpr.DomainFuncApp if app.funcname == "$typeLevel" => }) typeAtoms else Set.empty) ++
+          (if (e.existsDefined { case app: vpr.DomainFuncApp if app.funcname == "$closureLevel" => }) closureAtoms else Set.empty) ++
+          calls.flatMap(f => upperAtoms(levelFunctionBodies(f), visited ++ calls))
+      }
+      val biggerLevels: Seq[vpr.Exp] = otherNodes.flatMap(_.deepCollect {
+        case vpr.DomainFuncApp("$levelLt", Seq(_, r), _) => r
+        case app: vpr.DomainFuncApp if app.funcname == "decreasing" && app.args.size == 2 && app.args(1).typ == LevelEncoding.levelType => app.args(1)
+      })
+      // `$levelMax` is at least both of its arguments, so its arguments may be bigger levels as well
+      val maxArgs: Seq[vpr.Exp] = otherNodes.flatMap(_.deepCollect { case vpr.DomainFuncApp("$levelMax", args, _) => args }).flatten
+      val upper: Set[String] = (biggerLevels ++ maxArgs).flatMap(upperAtoms(_, Set.empty)).toSet
+      def neededFact(e: vpr.Exp): Boolean = {
+        val atoms = atomsIn(e)
+        atoms.subsetOf(usedAtoms) && (e match {
+          case vpr.DomainFuncApp(_, Seq(_, b: vpr.DomainFuncApp), _) => upper.contains(b.funcname)
+          case _ => true
+        })
+      }
       val prunedLevelDomains = withoutUnusedFuncs.map { d =>
         d.copy(
           functions = d.functions.filter(f => !isAtomFunc(f) || usedAtoms.contains(f.name)),
-          axioms = d.axioms.filter(a => !isOrderFact(a.exp) || atomsIn(a.exp).subsetOf(usedAtoms))
+          axioms = d.axioms.filter(a => !isOrderFact(a.exp) || neededFact(a.exp))
         )(d.pos, d.info, d.errT)
       }
       // keep the original order of the domains, without the domains of order facts that became empty
@@ -391,9 +419,27 @@ private class ModularTerminationChecks(override val program: vpr.Program, overri
       (l.funcname, r.funcname)
   }.toSet
 
-  /** Returns the multiset of atoms denoted by `e` if `e` is built from atoms, the empty level, and unions only. */
+  /**
+    * The levels of the dynamic types that the encoding axiomatizes (`$typeLevel(T) == {T}` for named types `T`, see
+    * `LevelEncoding.registerTypeLevels`), keyed by the type.
+    */
+  private lazy val typeLevels: Map[vpr.Exp, vpr.Exp] = program.domains.flatMap(_.axioms).map(_.exp).collect {
+    case vpr.EqCmp(vpr.DomainFuncApp("$typeLevel", Seq(t), _), l) => t -> l
+  }.toMap
+
+  /** The type `T` if `t` is the dynamic type of an interface value built with the type `T`, e.g., `get1of2(tuple2(x, T))`. */
+  private def constantType(t: vpr.Exp): vpr.Exp = t match {
+    case vpr.DomainFuncApp("get1of2", Seq(vpr.DomainFuncApp("tuple2", Seq(_, typ), _)), _) => typ
+    case other => other
+  }
+
+  /**
+    * Returns the multiset of atoms denoted by `e` if `e` is built from atoms, the empty level, unions, and the levels of
+    * dynamic types that are known syntactically (e.g., in the implementation proofs of a named type).
+    */
   private def staticLevel(e: vpr.Exp): Option[Map[String, Int]] = e match {
     case vpr.Old(inner) => staticLevel(inner)
+    case vpr.DomainFuncApp("$typeLevel", Seq(t), _) => typeLevels.get(constantType(t)).flatMap(staticLevel)
     case vpr.DomainFuncApp(LevelEncoding.lvlFuncName, Seq(vpr.ExplicitMultiset(elems)), _) =>
       val atoms = elems.collect { case a: vpr.DomainFuncApp if a.args.isEmpty && a.typ == LevelEncoding.atomType => a.funcname }
       if (atoms.size == elems.size) Some(atoms.groupMapReduce(identity)(_ => 1)(_ + _)) else None

@@ -15,7 +15,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifier}
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageInfo, Source}
 import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
-import viper.gobra.reporting.{IntermediateVerifierResult, NegativeVerifierResult, NoopReporter, VerifierResult}
+import viper.gobra.reporting.{GeneratedViperMessage, GobraMessage, GobraReporter, IntermediateVerifierResult, NegativeVerifierResult, NoopReporter, VerifierResult}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.server.ViperConfig
 import viper.server.core.ViperCoreServer
@@ -77,12 +77,39 @@ class AbortTests extends AnyFunSuite with BeforeAndAfterAll {
     file
   }
 
-  private def getConfig(backend: ViperBackend): Config = {
-    val source = FromFileSource(sourceFile)
+  /** a program whose verification is reliably long-running: Silicon explores both branches of
+    * every `if` separately, i.e. `slow` has 2^20 symbolic execution paths. This is independent of
+    * any SMT solver behavior, i.e. the verification cannot terminate quickly by solver cleverness.
+    */
+  private val longRunningProgramUnderTest: String = {
+    val n = 20
+    val params = (0 until n).map(i => s"b$i bool").mkString(", ")
+    val ifs = (0 until n).map(i => s"\tif b$i { x = x + 1 } else { x = x - 1 }").mkString("\n")
+    s"""package main
+       |
+       |func slow($params) {
+       |\tx := 0
+       |$ifs
+       |\tassert -$n <= x && x <= $n
+       |}
+       |""".stripMargin
+  }
+
+  private lazy val longRunningSourceFile: Path = {
+    val tmpDir = Files.createTempDirectory("gobra-abort-tests")
+    tmpDir.toFile.deleteOnExit()
+    val file = tmpDir.resolve("abort-test-long-running.gobra")
+    Files.write(file, longRunningProgramUnderTest.getBytes(StandardCharsets.UTF_8))
+    file.toFile.deleteOnExit()
+    file
+  }
+
+  private def getConfig(backend: ViperBackend, source: Path = sourceFile, reporter: GobraReporter = NoopReporter): Config = {
+    val fileSource = FromFileSource(source)
     Config(
       logLevel = Level.INFO,
-      reporter = NoopReporter,
-      packageInfoInputMap = Map(Source.getPackageInfoOrCrash(source, Path.of("")) -> Vector(source)),
+      reporter = reporter,
+      packageInfoInputMap = Map(Source.getPackageInfoOrCrash(fileSource, Path.of("")) -> Vector(fileSource)),
       backend = Some(backend),
       z3Exe = Option(System.getProperty("GOBRATESTS_Z3_EXE")),
     )
@@ -162,6 +189,39 @@ class AbortTests extends AnyFunSuite with BeforeAndAfterAll {
     handle.cancel()
 
     assert(awaitResult(handle.result) == VerifierResult.Aborted)
+  }
+
+  test("cancelling during a real backend verification interrupts ViperServer's job and reports an aborted result") {
+    implicit val ctx: GobraExecutionContext = executor
+    val server = new ViperCoreServer(new ViperConfig(List("--logLevel", "ERROR")))(executor) with DefaultVerificationServerStart
+    try {
+      val backend = ViperBackends.ViperServerWithSilicon(Some(server))
+      // completed as soon as a message that was produced after the Viper encoding arrives, i.e.
+      // as soon as the backend is active:
+      val backendActive = Promise[Unit]()
+      val reporter = new GobraReporter {
+        override val name: String = "abort-tests-reporter"
+        @volatile private var encodingDone: Boolean = false
+        override def report(msg: GobraMessage): Unit = msg match {
+          case _: GeneratedViperMessage => encodingDone = true
+          case _ if encodingDone => backendActive.trySuccess(())
+          case _ =>
+        }
+      }
+      val config = getConfig(backend, source = longRunningSourceFile, reporter = reporter)
+      val pkgInfo = config.packageInfoInputMap.keys.head
+
+      val handle = gobraInstance.verifyCancellable(pkgInfo, config)
+      // cancel as soon as the backend verification is active:
+      Await.result(backendActive.future, Duration(timeoutSec, TimeUnit.SECONDS))
+      handle.cancel()
+
+      // without ViperServer's job interruption, the verification would explore all ~2^20 symbolic
+      // execution paths of the program under test, i.e. the following would run into the timeout:
+      assert(awaitResult(handle.result) == VerifierResult.Aborted)
+    } finally {
+      Await.ready(server.stop(), Duration(timeoutSec, TimeUnit.SECONDS))
+    }
   }
 
   test("ViperServer reports an aborted result for verifications that are aborted before job submission") {

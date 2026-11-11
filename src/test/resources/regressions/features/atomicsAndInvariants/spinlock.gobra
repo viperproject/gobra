@@ -1,0 +1,107 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Example of spinlock implemented and verified with gobra's invariants.
+// It has the same specification as the built-in sync.Mutex, except for a
+// small change due to exceptions for unrelated reasons: rather than passing
+// an instance of SLock by reference to every method, we pass it by value
+// and we store pointers in the fields (passing by reference causes an exception when taking
+// the address of a field of type pred()).
+
+package spinlock
+
+// Function signature taken from https://pkg.go.dev/sync/atomic#CompareAndSwapInt32.
+atomic
+preserves acc(addr)
+ensures   swapped ==>
+	old(*addr) == oldv &&
+	*addr == newv
+ensures   !swapped ==>
+	old(*addr) != oldv &&
+	old(*addr) == *addr
+decreases
+func CompareAndSwapInt32(addr *int32, oldv int32, newv int32) (swapped bool)
+
+
+type SLock struct {
+	// a bool would be sufficient here, but there is no CAS function in the package
+	// sync.atomic that acts directly on *bool.
+	state *int32
+	ghost inv pred()
+	ghost locked gpointer[bool]
+}
+
+pred (m SLock) LockP() {
+	Invariant(ownInv{m})
+}
+
+pred ownInv(m SLock) {
+	acc(m.state)       &&
+	acc(m.locked, 1/2) &&
+	(*m.state == 0 || *m.state == 1) &&
+	(*m.state == 0 ==> m.inv() && acc(m.locked, 1/2) && !*m.locked) &&
+	(*m.state == 1 ==> *m.locked)
+}
+
+pred (m SLock) UnlockP() {
+	acc(m.locked, 1/2) && *m.locked
+}
+
+ghost
+requires m.LockP()
+decreases
+pure func (m SLock) LockInv() pred() {
+	return m.inv
+}
+
+requires inv()
+ensures m.LockP() && m.LockInv() == inv
+decreases
+func Alloc(ghost inv pred()) (m SLock) {
+	m.state = new(int32)
+	ghost m.inv = inv
+	ghost m.locked = new(bool)
+	fold ownInv{m}()
+	EstablishInvariant(ownInv{m})
+	fold m.LockP()
+}
+
+
+requires acc(m.LockP(), _)
+ensures m.LockP() && m.UnlockP() && m.LockInv()()
+func (m SLock) Lock() {
+	locked := false
+
+	unfold acc(m.LockP(), _)
+	fold m.LockP()
+
+	invariant m.LockP()
+	invariant locked ==> m.UnlockP() && m.LockInv()()
+	for !locked {
+		critical ownInv{m} (
+		unfold ownInv{m}()
+		locked = CompareAndSwapInt32(m.state, 0, 1)
+		ghost if locked {
+			*m.locked = true
+			fold m.UnlockP()
+		}
+		fold ownInv{m}()
+		)
+	}
+}
+
+
+requires acc(m.LockP(), _) && m.UnlockP() && m.LockInv()()
+ensures  m.LockP()
+decreases
+func (m SLock) Unlock() {
+	unfold acc(m.LockP(), _)
+	fold m.LockP()
+	unfold m.UnlockP()
+	critical ownInv{m} (
+	unfold ownInv{m}()
+	CompareAndSwapInt32(m.state, 1, 0)
+	*m.locked = false
+	fold ownInv{m}()
+	)
+}

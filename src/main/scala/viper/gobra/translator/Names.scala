@@ -157,6 +157,7 @@ object Names {
   def sliceDefaultFunc: String = "sliceDefault"
   def sliceFromArray: String = "ssliceFromArray"
   def sliceFromSlice: String = "ssliceFromSlice"
+  def sliceToSequence: String = "ssliceToSeq"
 
   // sequences
   def emptySequenceFunc: String = "sequenceEmpty"

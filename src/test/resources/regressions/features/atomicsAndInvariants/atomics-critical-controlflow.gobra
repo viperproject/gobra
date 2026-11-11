@@ -1,0 +1,90 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred Cell(x *int) { acc(x) }
+
+// An unstructured jump out of a critical region would jump past the region's
+// closing exhale (emitted after the body during desugaring), leaking the opened
+// invariant's resources. `return`/`break`/`continue` are therefore forbidden
+// inside a critical region.
+
+// `return` inside a critical region of a ghost `opensInvariants` function used
+// to be accepted (the well-formedness check treats every statement in a ghost
+// function as ghost), which made it possible to steal the invariant's contents.
+ghost
+opensInvariants
+requires Invariant(Cell{x})
+ensures  acc(x)
+decreases
+func returnEscape(x *int) {
+	critical Cell{x} (
+	unfold Cell{x}()
+	//:: ExpectedOutput(type_error)
+	return
+	)
+}
+
+// `break` is forbidden.
+ghost
+opensInvariants
+requires Invariant(Cell{x})
+func breakEscape(x *int) {
+	invariant Invariant(Cell{x})
+	for {
+		critical Cell{x} (
+		unfold Cell{x}()
+		//:: ExpectedOutput(type_error)
+		break
+		fold Cell{x}()
+		)
+	}
+}
+
+// `continue` is forbidden.
+ghost
+opensInvariants
+requires Invariant(Cell{x})
+func continueEscape(x *int) {
+	invariant Invariant(Cell{x})
+	for {
+		critical Cell{x} (
+		unfold Cell{x}()
+		//:: ExpectedOutput(type_error)
+		continue
+		fold Cell{x}()
+		)
+	}
+}
+
+// `break`/`continue` are forbidden even when they target a loop nested inside
+// the region.
+ghost
+opensInvariants
+requires Invariant(Cell{x})
+decreases
+func breakInsideRegion(x *int) {
+	critical Cell{x} (
+	unfold Cell{x}()
+	invariant acc(x)
+	decreases 0
+	for {
+		//:: ExpectedOutput(type_error)
+		break
+	}
+	fold Cell{x}()
+	)
+}
+
+// A critical region without unstructured control flow remains well-formed.
+ghost
+opensInvariants
+requires Invariant(Cell{x})
+decreases
+func normalOk(x *int) {
+	critical Cell{x} (
+	unfold Cell{x}()
+	fold Cell{x}()
+	)
+}

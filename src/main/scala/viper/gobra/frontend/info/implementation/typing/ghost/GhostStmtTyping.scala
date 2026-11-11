@@ -54,7 +54,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case fp: st.FPredicate => fp.decl.body.isEmpty
       case mp: st.MPredicateImpl => mp.decl.body.isEmpty
       case _: st.MPredicateSpec =>
-        // counter-intuitive: interface well-definedness will make sure that implementations implement the declared predicates
+        // While the predicate declaration in an interface has no body, folding its instances is
+        // permitted: the fold resolves the body via the receiver's dynamic type, over which the
+        // encoding dispatches to the statically known implementations of the interface. Folding
+        // fails at verification time if the dynamic type cannot be resolved to a known
+        // implementation, e.g., for a nil receiver.
         false
     }
 

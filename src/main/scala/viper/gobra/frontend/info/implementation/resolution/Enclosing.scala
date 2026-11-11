@@ -75,6 +75,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingFunctionOrMethod: PNode => Option[PFunctionOrMethodDecl] =
     down[Option[PFunctionOrMethodDecl]](None) { case f: PFunctionOrMethodDecl => Some(f) }
 
+  lazy val isEnclosingCritical: PNode => Boolean =
+    down(false){ case _: PCritical => true }
+
   lazy val tryEnclosingClosureImplementationProof: PNode => Option[PClosureImplProof] =
     down[Option[PClosureImplProof]](None) { case m: PClosureImplProof => Some(m) }
 
@@ -147,6 +150,15 @@ trait Enclosing { this: TypeInfoImpl =>
     }}
 
 
+  /**
+    * Returns the type that an occurrence of `nil` gets from being compared to the operand `n`, if any.
+    * The type of `n` is projected to its single-valued type because expressions such as map lookups,
+    * type assertions, and receives are typed as [[Type.InternalSingleMulti]], i.e., their type depends on the
+    * context in which they occur. Only the single-valued type is relevant in a comparison.
+    */
+  private def typeOfComparedOperand(n: PExpressionOrType): Option[Type] =
+    Type.Single.unapply(exprOrTypeType(n)).filter(_ != Type.NilType)
+
   def nilType(nil: PNilLit): Option[Type] = {
 
     @tailrec
@@ -189,10 +201,10 @@ trait Enclosing { this: TypeInfoImpl =>
             // no reference
             // no deref
             // no negation
-          case PEquals(`n`, r) => val t = exprOrTypeType(r); if (t == Type.NilType) None else Some(t)
-          case PEquals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
-          case PUnequals(`n`, r) => val t = exprOrTypeType(r); if (t == Type.NilType) None else Some(t)
-          case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
+          case PEquals(`n`, r) => typeOfComparedOperand(r)
+          case PEquals(l, `n`) => typeOfComparedOperand(l)
+          case PUnequals(`n`, r) => typeOfComparedOperand(r)
+          case PUnequals(l, `n`) => typeOfComparedOperand(l)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
           case p: PAsserting => aux(p)
@@ -203,7 +215,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case p: POld => aux(p)
           case p: PLabeledOld => aux(p)
           case p: PBefore => aux(p)
-          case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
+          case p: PConditional => typeOfComparedOperand(p)
             // no implication, access
             // no forall or exists body
           case PElem(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)

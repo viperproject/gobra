@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// the sequence of a slice reflects the values that are currently stored in it
+
+requires acc(s)
+requires len(s) > 0
+func test1(s []int) {
+  ghost prev := seq(s)
+  s[0] = 42
+  assert seq(s)[0] == 42
+  assert len(seq(s)) == len(prev)
+  assert forall i int :: 0 < i && i < len(s) ==> seq(s)[i] == prev[i]
+}
+
+requires acc(s)
+ensures acc(s)
+ensures seq(s) == old(seq(s))
+func test2(s []int) {
+}
+
+requires acc(s)
+requires len(s) == 2
+ensures acc(s)
+ensures seq(s) == seq[int] { 1, 2 }
+func test3(s []int) {
+  s[0] = 1
+  s[1] = 2
+}

@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// abstract functions may be marked as atomic
+preserves acc(x)
+ensures   b ==> *x == newv && old(*x) == oldv
+ensures   !b ==> *x == old(*x) && old(*x) != oldv
+decreases
+atomic func CAS(x *int, oldv int, newv int) (b bool)
+
+preserves acc(x)
+decreases
+atomic func Get(x *int) int
+
+pred Own(x *int) { acc(x) }
+
+requires Invariant(Own{x})
+decreases
+func tryCAS(x *int) {
+	var v int
+	var b bool
+
+	// An invariant may be opened for the duraion of one atomic (non-ghost) operation
+	// and arbitrary ghost code. When an invariant is opened in a critical region,
+	// Gobra first checks that the property is an invariant.
+	critical Own{x} (
+	// The invariant is made available inside the critical region.
+	unfold Own{x}()
+	v = Get(x)
+	// An invariant must be re-established before the end of the critical region.
+	fold Own{x}()
+	)
+
+	vp := v+1
+
+	critical Own{x} (
+	unfold Own{x}()
+	b = CAS(x, v, vp)
+	fold Own{x}()
+	)
+}
+
+// Tests that we can establish an invariant and call a function that depends on it.
+decreases
+func callTryCAS() {
+	x@ := 1
+	fold Own{&x}()
+	EstablishInvariant(Own{&x})
+	tryCAS(&x)
+}
+
+
+decreases
+func getRandomBool() bool
+
+// Gobra keeps track of which invariants are open/closed
+// around loops.
+requires Invariant(Own{x})
+func testLoops(x *int) {
+	invariant Invariant(Own{x})
+	for getRandomBool() {
+		critical Own{x} (
+			unfold Own{x}()
+			assert acc(x)
+			fold Own{x}()
+		)
+	}
+	critical Own{x} (
+		unfold Own{x}()
+		assert acc(x)
+		fold Own{x}()
+	)
+}

@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package importedAdt
+
+// ##(-I ./)
+import defs "importedAdtPkg"
+
+// Exercises the member surface of an ADT declared in another package:
+// constructors, destructors, discriminators, pattern matches, and clause types.
+
+func test1() {
+  ghost y := defs.Leaf{Value: 3}
+  assert y == defs.Leaf{3}
+  assert y.Value == 3
+  assert y.isLeaf
+}
+
+func test2(ghost x defs.Tree) {
+  ghost var y int
+  match x {
+    case defs.Node{defs.Leaf{5}, _}: y = 4
+    case _: y = 3
+  }
+
+  assert y >= 3
+}
+
+func test3() {
+  x := defs.Node{defs.Leaf{3}, defs.Node{defs.Leaf{4}, defs.Leaf{5}}}
+  ghost var q int
+  match x {
+    case defs.Node{_, defs.Node{defs.Leaf{?z}, _}}: q = z
+  }
+  assert q == 4
+}
+
+func test4(ghost l defs.Leaf) {
+  ghost v := l.Value
+  assert v == l.Value
+}

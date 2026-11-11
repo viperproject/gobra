@@ -43,7 +43,7 @@ object Algorithms {
         case (node, id) :: stack =>
           if (ids(node) >= 0) dfs(stack, ids)
           else {
-            val newStack = graph(node).foldLeft(stack){ case (st, x) => (x, id) :: st }
+            val newStack = graph.getOrElse(node, Set.empty).foldLeft(stack){ case (st, x) => (x, id) :: st }
             val newIds = ids.updated(node, id)
             dfs(newStack, newIds)
           }

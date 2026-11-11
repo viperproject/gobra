@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds._
 import viper.gobra.util.Violation.violation
+import viper.gobra.util.GoString
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
@@ -23,7 +24,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
     intConstantEval(exp).getOrElse(violation(s"expected constant int expression, but got $exp"))
   }
 
-  def evalStringOrFail(exp: PExpression): String = {
+  def evalStringOrFail(exp: PExpression): GoString = {
     stringConstantEval(exp).getOrElse(violation(s"expected constant string expression, but got $exp"))
   }
 
@@ -196,14 +197,14 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
     }
   }
 
-  lazy val stringConstantEval: PExpression => Option[String] = {
-    attr[PExpression, Option[String]] {
+  lazy val stringConstantEval: PExpression => Option[GoString] = {
+    attr[PExpression, Option[GoString]] {
       case PStringLit(lit) => Some(lit)
 
       case PAdd(l,r) => for {
         lStr <- stringConstantEval(l)
         rStr <- stringConstantEval(r)
-      } yield lStr + rStr
+      } yield lStr ++ rStr
 
       case _ => None
     }

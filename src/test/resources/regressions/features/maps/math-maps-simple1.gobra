@@ -43,3 +43,21 @@ func test2(m map[int]int) {
 	assert 5 elem domain(y)
 	assert !(8 elem domain(m))
 }
+
+// tests the "comma-ok" form of a lookup, which yields the zero value of the
+// value type for keys that are not contained in the mathematical map
+ghost
+func test3() {
+	m := dict[int]int{ 1: 5 }
+
+	v1, ok1 := m[1]
+	assert ok1 && v1 == 5
+
+	v2, ok2 := m[0]
+	assert !ok2 && v2 == 0
+
+	// the results are computed before they are assigned
+	k := 1
+	k, ok3 := m[k]
+	assert ok3 && k == 5
+}

@@ -1,0 +1,65 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+func test1(s []int) {
+  assert len(seq(s)) == len(s)
+}
+
+requires acc(s)
+func test2(s []int) {
+  assert forall i int :: 0 <= i && i < len(s) ==> seq(s)[i] == s[i]
+}
+
+func test3() {
+  s := make([]int, 3)
+  assert seq(s) == seq[int] { 0, 0, 0 }
+}
+
+func test4() {
+  var s []int
+  assert len(seq(s)) == 0
+  assert seq(s) == seq[int] { }
+}
+
+func test5() {
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  s := a[2:4]
+  assert seq(s) == seq[int] { 4, 8 }
+}
+
+requires acc(s, _)
+func test6(s []int) {
+  ghost xs := seq(s)
+  assert xs == seq(s)
+  assert len(xs) == len(s)
+}
+
+// converting a slice only reads the elements within its length; `acc(s)` provides
+// access to exactly those elements, and not to the ones within its capacity
+requires acc(s)
+requires len(s) == 1 && cap(s) == 3
+func test7(s []int) {
+  assert len(seq(s)) == 1
+  assert seq(s) == seq[int] { s[0] }
+}
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+func test8(ghost s ghost []int) {
+  assert len(seq(s)) == len(s)
+}
+
+requires forall i int :: 0 <= i && i < len(xs) ==> acc(&xs[i])
+func test9(xs ...int) {
+  assert len(seq(xs)) == len(xs)
+}
+
+ghost
+requires acc(s)
+ensures len(res) == len(s)
+decreases
+pure func toSeq(s []int) (res seq[int]) {
+  return seq(s)
+}

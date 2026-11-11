@@ -106,9 +106,21 @@ class AssertionEncoding extends Encoding {
         newBody <- pure(ctx.assertion(body))(ctx)
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
         desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
-        triggeredForall = desugaredForall.map(_.autoTrigger)
+        triggeredForall = desugaredForall map autoTriggerDesugared
         reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
       } yield reducedForall
+  }
+
+  /** Adds triggers to the quantifiers produced by desugaring the quantified permission syntax.
+    * Desugaring a quantified inhale-exhale assertion desugars the inhaling and the exhaling view
+    * separately and wraps the resulting quantifiers in inhale-exhale assertions, which is why we
+    * have to look through these wrappers.
+    */
+  private def autoTriggerDesugared(desugared: vpr.Exp): vpr.Exp = desugared match {
+    case forall: vpr.Forall => forall.autoTrigger
+    case n: vpr.InhaleExhaleExp =>
+      vpr.InhaleExhaleExp(autoTriggerDesugared(n.in), autoTriggerDesugared(n.ex))(n.pos, n.info, n.errT)
+    case other => other
   }
 
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {

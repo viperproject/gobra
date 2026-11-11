@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001057
+
+//:: ExpectedOutput(type_error)
+pred ProgramShape(p *Program, frac perm) {
+    acc(p, frac) &&
+    //:: ExpectedOutput(type_error)
+    (forall i int :: { &p.Methods[i] } 0 <= i && i < len(p.Methods) ==> acc(&p.Methods[i], frac))
+}
+
+pure
+// older versions of Gobra would crash when parsing the following precondition
+// as it tried to infer the type of `1/2` from context. However, due to the
+// absence of `Program`, `ProgramShape` ends up being ill-typed and, thus,
+// inferring the type of `1/2` used to result in a violation.
+requires acc(ProgramShape(p, 1/2))
+//:: ExpectedOutput(type_error)
+func memberIn(p *Program) bool

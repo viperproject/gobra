@@ -18,7 +18,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{BackendAnnotation, Decimal, NumBase, TypeBounds, Violation}
+import viper.gobra.util.{BackendAnnotation, Decimal, GoString, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -478,6 +478,21 @@ case class Outline(
                     trusted: Boolean,
                   )(val info: Source.Parser.Info) extends Stmt
 
+/**
+  * Critical region `critical inv (body)` that temporarily opens the invariant `inv` around `body`.
+  * The expansion into the entailed proof obligations is performed by
+  * [[viper.gobra.translator.encodings.typeless.CriticalEncoding]].
+  *
+  * @param inv the invariant (an expression of type pred()) opened by this region
+  * @param invIsInv the boolean expression `Invariant(inv)`. It is constructed during desugaring
+  *                 (rather than by the encoding) because the built-in `Invariant` function must
+  *                 be registered with the desugarer.
+  * @param openInvs the per-member variable holding the set of currently open invariants. It is
+  *                 declared and initialized (to the empty set) by the desugarer, which also
+  *                 preserves its value across loops via an implicit loop invariant.
+  */
+case class Critical(inv: Expr, invIsInv: Expr, openInvs: LocalVar, body: Stmt)(val info: Source.Parser.Info) extends Stmt
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**
@@ -860,14 +875,15 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
 /**
   * Represents the conversion of a collection of type 't',
   * represented by `expr`, to a (mathematical) sequence of type 't'.
-  * Here `expr` is assumed to be either a sequence or an exclusive array.
+  * Here `expr` is assumed to be a sequence, an array, a slice, or an option.
   */
 case class SequenceConversion(expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ : Type = expr.typ match {
     case t: SequenceT => t
     case t: ArrayT => t.sequence
+    case t: SliceT => t.sequence
     case OptionT(t, addr) => SequenceT(t, addr)
-    case t => Violation.violation(s"expected a sequence or exclusive array type. but got $t")
+    case t => Violation.violation(s"expected a sequence, array, slice, or option type, but got $t")
   }
 }
 
@@ -1163,7 +1179,7 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }
 
-case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+case class StringLit(s: GoString)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = StringT(Addressability.literal)
 }
 
@@ -1417,11 +1433,17 @@ case object SortT extends PrettyType("sort") {
   * The type of `length`-sized arrays of elements of type `typ`.
   */
 case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends PrettyType(s"[$length]$elems") {
-  /** (Deeply) converts the current type to a `SequenceT`. */
+  /**
+    * (Deeply) converts the current type to a `SequenceT`, i.e. nested arrays are turned into
+    * nested sequences.
+    * The trailing `withAddressability` is what makes the result exclusive: the elements of a
+    * shared array are shared as well, whereas the elements of a mathematical sequence are
+    * always exclusive.
+    */
   lazy val sequence : SequenceT = SequenceT(elems match {
     case t: ArrayT => t.sequence
     case t => t
-  }, addressability)
+  }, addressability).withAddressability(Addressability.conversionResult)
 
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case ArrayT(otherLength, otherElems, _) => length == otherLength && elems.equalsWithoutMod(otherElems)
@@ -1436,6 +1458,17 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
   * The (composite) type of slices of type `elems`.
   */
 case class SliceT(elems : Type, addressability: Addressability) extends PrettyType(s"[]$elems") {
+  /**
+    * Converts the current type to the `SequenceT` of the values stored in the slice.
+    * Unlike `ArrayT.sequence`, this conversion is shallow: an element that is itself a slice or an
+    * array is not converted recursively, e.g. `[][]T` is converted to `seq[[]T]`. This is intended,
+    * as converting the nested collections would require access to their cells as well.
+    * The trailing `withAddressability` is what makes the result exclusive: the elements of a slice
+    * are always shared, whereas the elements of a mathematical sequence are always exclusive.
+    */
+  lazy val sequence : SequenceT =
+    SequenceT(elems, addressability).withAddressability(Addressability.conversionResult)
+
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case SliceT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false

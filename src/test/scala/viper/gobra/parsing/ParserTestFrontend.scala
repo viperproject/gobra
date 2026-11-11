@@ -12,13 +12,11 @@ import viper.gobra.ast.frontend.{PExpression, PImport, PMember, PProgram, PState
 import viper.gobra.frontend.Parser
 import viper.gobra.reporting.ParserError
 
-import scala.reflect.ClassTag
-
 class ParserTestFrontend {
-  private def parse[T: ClassTag](source: String, parser: Source => Either[Vector[ParserError], T]) : Either[Vector[ParserError], T] =
+  private def parse[T](source: String, parser: Source => Either[Vector[ParserError], T]) : Either[Vector[ParserError], T] =
     parser(StringSource(source))
 
-  private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Vector[ParserError], T]): T = {
+  private def parseOrFail[T](source: String, parser: Source => Either[Vector[ParserError], T]): T = {
     parse(source, parser) match {
       case Right(ast) => ast
       case Left(messages) => fail(s"Parsing failed: $messages")

@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue001057
+
+type Program struct {
+    Methods []*Method
+}
+
+type Method struct {
+    Name string
+}
+
+//:: ExpectedOutput(predicate_not_well_defined:negative_permission_error)
+pred ProgramShape(p *Program, frac perm) {
+    acc(p, frac) &&
+    (forall i int :: { &p.Methods[i] } 0 <= i && i < len(p.Methods) ==> acc(&p.Methods[i], frac))
+}
+
+ghost
+pure
+requires acc(ProgramShape(p, 1/2))
+func memberIn(p *Program) bool

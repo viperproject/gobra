@@ -40,3 +40,9 @@ type error interface {
 // a correct program must never call it.
 requires false
 func panic(v interface{})
+
+ghost
+requires p()
+ensures  Invariant(p)
+decreases
+func EstablishInvariant(p pred())

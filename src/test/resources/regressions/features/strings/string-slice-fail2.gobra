@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// tests bound checks during type checking
+
+func test() {
+	_ = ""[0:0]
+    _ = "abc"[3:3]
+    //:: ExpectedOutput(type_error)
+	_ = ""[-1:0]
+	//:: ExpectedOutput(type_error)
+	_ = ""[0:1]
+	//:: ExpectedOutput(type_error)
+	_ = "é"[2:3]
+	_ = "é"[2:2]
+	//:: ExpectedOutput(type_error)
+	_ = "\xff"[1:2]
+	_ = "\xff"[1:1]
+	//:: ExpectedOutput(type_error)
+	_ = "\u00ff"[2:3]
+	_ = "\u00ff"[2:2]
+	//:: ExpectedOutput(type_error)
+	_ = `\n`[2:3]
+    _ = `\n`[2:2]
+}

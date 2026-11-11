@@ -1,0 +1,101 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// tests how mpredicates with `nil` receivers behave.
+
+package pkg
+
+type cell struct {
+	val int
+}
+
+// mpredicate with a pointer receiver whose body guards the dereference:
+pred (c *cell) optMem() {
+	c != nil ==> acc(&c.val)
+}
+
+// analogous to methods, an mpredicate instance with a nil receiver of a
+// pointer type is well-defined:
+func foldWithNilReceiver() {
+	var c *cell = nil
+	fold c.optMem()
+	assert c.optMem()
+	unfold c.optMem()
+}
+
+// mpredicate whose body dereferences the receiver unconditionally:
+pred (c *cell) mem() {
+	acc(&c.val)
+}
+
+// the instance is still well-defined for a nil receiver, but its body
+// cannot be established:
+func foldStrictWithNilReceiver() {
+	var c *cell = nil
+	//:: ExpectedOutput(fold_error:permission_error)
+	fold c.mem()
+}
+
+requires c.optMem()
+func consumeCellOptMem(c *cell) {
+}
+
+// an mpredicate instance with a nil receiver can be held and passed around
+// like any other instance:
+func callWithNilReceiver() {
+	var c *cell = nil
+	fold c.optMem()
+	consumeCellOptMem(c)
+}
+
+type intf interface {
+	pred mem()
+
+	requires mem()
+	foo()
+}
+
+type impl struct{}
+
+pred (i *impl) mem() {
+	true
+}
+
+requires i.mem()
+func (i *impl) foo() {
+}
+*impl implements intf
+
+requires i.mem()
+func consumeInterfaceMem(i intf) {
+}
+
+// a nil interface value must not be usable as the receiver of an interface
+// mpredicate instance:
+func callWithNilInterface() {
+	var i intf = nil
+	//:: ExpectedOutput(precondition_error:permission_error)
+	consumeInterfaceMem(i)
+}
+
+// folding an interface mpredicate requires establishing the predicate of the
+// receiver's dynamic type; for a nil interface value, this fails:
+func foldWithNilInterface() {
+	var i intf = nil
+	//:: ExpectedOutput(fold_error:permission_error)
+	fold i.mem()
+}
+
+func foldWithNonNilInterface() {
+	var i intf = &impl{}
+	fold i.mem() // succeeds
+	i.foo()
+}
+
+// calling a method on a nil interface value panics in Go (independently
+// of the callee's precondition):
+requires i.mem() // `i` might be nil
+func callMethodOnNilInterface(i intf) {
+	//:: ExpectedOutput(precondition_error:receiver_is_nil_error)
+	i.foo()
+}

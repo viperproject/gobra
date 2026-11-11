@@ -80,6 +80,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PAnnotatedStmt
       |  _: PExpressionStmt
       |  _: POutline
+      |  _: PCritical
       | _: PShortForRange
       | _: PAssForRange
     => noMessages

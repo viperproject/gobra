@@ -53,18 +53,18 @@ func multipleReturns(x int) (int, int) {
 pure func abstractFunc(x int) (int)
 
 type rect struct {
-    width, height int
+	width, height int
 }
 
 // Overflow checks support methods and pure methods
 func (r rect) area() int {
 	//:: ExpectedOutput(integer_overflow_error)
-    return r.width * r.height
+	return r.width * r.height
 }
 
 pure func (r rect) perim() int {
 	//:: ExpectedOutput(integer_overflow_error)
-    return 2 * r.width + 2 * r.height
+	return 2 * r.width + 2 * r.height
 }
 
 func (r rect) smallerArea(other rect) bool {

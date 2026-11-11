@@ -79,6 +79,18 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             case ts@Vector(t1, t2, PermissionT) if validArgTypes(t1, t2) => FunctionT(ts, INT_TYPE)
           })
       }
+      case InvariantFunctionTag => AbstractType(
+        {
+          case (n, t) =>
+            error(
+              n,
+              s"Function ${InvariantFunctionTag.name} expects an argument of type pred().",
+              t.length != 1 || t(0) != PredT(Vector.empty)
+            )
+        },
+        {
+          case args => FunctionT(args, BooleanT)
+        })
     }
     case t: BuiltInFPredicateTag => t match {
       case PredTrueFPredTag => AbstractType(
@@ -88,7 +100,6 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         {
           case args => FunctionT(args, AssertionT)
         })
-
     }
 
     case t: BuiltInMethodTag => t match {
@@ -175,6 +186,9 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case CopyFunctionTag =>
       GhostType.ghostTuple(Vector(false, false, true))
 
+    case InvariantFunctionTag =>
+      GhostType.ghostTuple(Vector(true))
+
     case t: GhostBuiltInMember => t match {
       case _ =>
         if (typ(t).typing.isDefinedAt(args)) {
@@ -195,6 +209,9 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case AppendFunctionTag => ghostArgs(0)
 
     case CopyFunctionTag => GhostType.notGhost
+
+    // `Invariant` is a ghost function returning a single (ghost) boolean
+    case InvariantFunctionTag => ghostArgs(1)
 
     case t: GhostBuiltInMember => t match {
       case _ =>

@@ -154,3 +154,17 @@ func test18(m map[string]*int) {}
 requires m != nil ==> acc(m)
 requires forall i int :: { i elem range(m) } i elem range(m) ==> 0 < i
 func test19(m map[string]int) {}
+
+type intMap map[int]int
+
+// the "comma-ok" form of a lookup is also supported for declared map types
+func test20() {
+	m := make(intMap)
+	m[3] = 10
+
+	v1, ok1 := m[3]
+	assert ok1 && v1 == 10
+
+	v2, ok2 := m[4]
+	assert !ok2 && v2 == 0
+}

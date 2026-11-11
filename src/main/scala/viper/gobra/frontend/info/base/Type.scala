@@ -60,12 +60,12 @@ object Type {
 
   case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
 
-  case class AdtT(clauses: Vector[AdtClauseT], decl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(decl.left.name) {
+  case class AdtT(clauses: Vector[AdtClauseT], decl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(decl.left.name) with ContextualType {
     val adtDecl: PAdtType = decl.right.asInstanceOf[PAdtType]
     val declaredType: DeclaredT = DeclaredT(decl, context)
   }
 
-  case class AdtClauseT(name: String, fields: Vector[(String, Type)], decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(name) {
+  case class AdtClauseT(name: String, fields: Vector[(String, Type)], decl: PAdtClause, typeDecl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(name) with ContextualType {
     val adtDecl: PAdtType = typeDecl.right.asInstanceOf[PAdtType]
     val typeMap: Map[String, Type] = fields.toMap
     val declaredType: DeclaredT = DeclaredT(typeDecl, context)

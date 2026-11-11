@@ -85,3 +85,12 @@ func NoSplit(x int) (res int) {
 	}
 	return 0
 }
+
+// A premise may use heap-independent functions, such as Go's `%`.
+ensures NonInterf(x % 2, res)
+func IsEven(x int) (res int) {
+	if x % 2 == 0 {
+		return 1
+	}
+	return 0
+}

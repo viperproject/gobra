@@ -216,7 +216,9 @@ trait SIFLowGuardTransformer {
       val bound = e.deepCollect { case q: QuantifiedExp => q.variables.map(_.name) }.flatten.toSet
       !e.exists {
         case _: LocationAccess | _: Unfolding | _: Applying | _: Old | _: LabelledOld | _: CurrentPerm | _: ForPerm => true
-        case f: FuncApp => !(ctx.isHyperFunction(f.funcname) && functions.get(f.funcname).exists(onlyTerminationPres))
+        // hyper functions without preconditions, and heap-independent functions (e.g., Go's `%`), read no heap
+        case f: FuncApp => !((ctx.isHyperFunction(f.funcname) && functions.get(f.funcname).exists(onlyTerminationPres)) ||
+          (!ctx.isHyperFunction(f.funcname) && ctx.hasNoDuplicates(f.funcname)))
         case v: LocalVar => !(args.contains(v.name) || bound.contains(v.name))
         case _ => false
       }

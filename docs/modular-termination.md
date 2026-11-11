@@ -389,6 +389,12 @@ compares this level with the member's level on entry. Before this rule, blocks h
 through interfaces and closures inside a block were therefore not checked, and a Landin knot wrapped in
 an `outline` verified (found while testing the design; see `termination-levels-outline.gobra`).
 
+In a member without a tuple measure (one that may not terminate, or whose termination is assumed), nothing relies on
+the level of an outline, as the outline is only reached through the member. A leading level `L` of the outline's
+measure then joins the member's atom: `decreases levelOf(err)` gives the outline the level `{member} + levelOf(err)`,
+and its calls are checked against it. The packet-processing goroutines of VerifiedSCION's router use this for an
+outline that calls `errors.As` on an error returned by a connection.
+
 ## 6. Worked example: #1105
 
 ```go

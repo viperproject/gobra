@@ -334,11 +334,19 @@ object TerminationLevelsTransform extends InternalTransform {
       case o: in.Outline =>
         val original = originals.getOrElse(o.name, o)
         val h = height(original)
+        // In a member without a tuple measure (one that may not terminate, or whose termination is assumed), nothing
+        // relies on the level of an outline, so a leading level `L` of the outline's measure joins the atom of the
+        // member: `decreases levelOf(x)` gives the outline the level `{member} + levelOf(x)`. The calls in the outline
+        // are checked against this level as usual.
+        def withLevel(t: Vector[in.Node]): Vector[in.Node] = t match {
+          case (l: in.Expr) +: rest if heads.isEmpty && l.typ.isInstanceOf[in.LevelT] => in.LevelUnion(level, l)(l.info) +: rest
+          case _ => level +: t
+        }
         val measures = original.terminationMeasures.map {
           case m@in.NonItfTupleTerminationMeasure(t, cond) =>
-            in.NonItfTupleTerminationMeasure(level +: t, cond)(annotate(m.info, OutlineHeightAnnotation(h)))
+            in.NonItfTupleTerminationMeasure(withLevel(t), cond)(annotate(m.info, OutlineHeightAnnotation(h)))
           case m@in.ItfTupleTerminationMeasure(t, cond) =>
-            in.ItfTupleTerminationMeasure(level +: t, cond)(annotate(m.info, OutlineHeightAnnotation(h)))
+            in.ItfTupleTerminationMeasure(withLevel(t), cond)(annotate(m.info, OutlineHeightAnnotation(h)))
           case wildcard => wildcard
         }
         o.copy(terminationMeasures = measures)(o.info)

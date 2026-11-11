@@ -123,3 +123,29 @@ func callsBelow(i I) {
 		i.M()
 	)
 }
+
+// In a member that may not terminate, an outline can take the level of an object it calls: its
+// level is then the atom of the member plus that level.
+requires x != nil
+func serve(x I) {
+	for {
+		requires x != nil
+		decreases levelOf(x)
+		outline (
+			x.M()
+		)
+	}
+}
+
+// Without the level of x, the outline cannot call it.
+requires x != nil
+func serveUnbounded(x I) {
+	for {
+		requires x != nil
+		decreases
+		outline (
+			//:: ExpectedOutput(function_termination_error)
+			x.M()
+		)
+	}
+}

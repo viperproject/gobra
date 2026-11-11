@@ -1745,8 +1745,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
 
   override def visitAnnotation(ctx: AnnotationContext): PAnnotation = {
     val id = goIdnDef.get(ctx.IDENTIFIER())
-    val params = visitStringList(ctx.stringList()).map(_.lit)
-    PAnnotation(id.name, params.map(_.toString)).at(ctx)
+    val params = visitStringList(ctx.stringList()).map(_.lit.utf8)
+    PAnnotation(id.name, params).at(ctx)
   }
 
   override def visitAnnotatedExpression(ctx: AnnotatedExpressionContext): PAnnotatedExp = {

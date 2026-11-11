@@ -43,3 +43,14 @@ ensures Lipschitz(x, res, 2)
 func TripleBad(x int) (res int) { // sensitivity 3 > 2
 	return 3 * x - 1
 }
+
+// `rel` on values of struct type: ghost equality of structs is encoded with let expressions.
+type Version struct {
+	major, minor int
+}
+
+requires rel(a, 0) === rel(b, 1) && rel(b, 0) === rel(a, 1)
+ensures  rel(res, 0) == -rel(res, 1)
+func CompareVersions(a, b Version) (res int) {
+	return (a.major - b.major) * 2 + (a.minor - b.minor)
+}

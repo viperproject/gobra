@@ -583,6 +583,8 @@ trait SIFLowGuardTransformer {
       case r: SIFRelExp => relationalExp(r, ctx)
       case f: FuncApp if ctx.isHyperFunction(f.funcname) => hyperFuncApp(f, ctx)
 
+      case l: Let => relationalLet(l, ctx, (body, c) => relationalAssertion(body, c, isPositive, positiveUnary))
+
       case a: DomainFuncApp =>
         assert(isRelationalTrigger(a.funcname), s"Expected relational trigger, but got $a.")
         a.copy(
@@ -670,6 +672,7 @@ trait SIFLowGuardTransformer {
     * Boolean expressions are translated as relational assertions.
     */
   def relationalExp(e: Exp, ctx: Context): Exp = e match {
+    case l: Let if isRelational(l, ctx) => relationalLet(l, ctx, (body, c) => relationalExp(body, c))
     case SIFRelExp(e, lit) if 0 <= lit.i && lit.i < ctx.runs.size => runExp(e, ctx.runs(lit.i.toInt))
     case r: SIFRelExp => throw new IllegalArgumentException(s"Unsupported execution identifier in $r")
     case f: FuncApp if ctx.isHyperFunction(f.funcname) => hyperFuncApp(f, ctx)
@@ -680,6 +683,22 @@ trait SIFLowGuardTransformer {
       if (values.forall(_ == values.head)) values.head
       else throw new IllegalArgumentException(s"Expected an expression that denotes the same value in all executions, but got $e")
     case e => mapRelationalOperands(e, ctx, (b: Exp) => assertion(b, ctx))
+  }
+
+  /**
+    * Translates a let expression in a relational context (e.g., Gobra's encoding of `===` on struct values binds the
+    * operands). If the bound expression is relational, it denotes a single value, so the variable is rigid. Otherwise,
+    * the variable is bound once per execution.
+    */
+  private def relationalLet(l: Let, ctx: Context, body: (Exp, Context) => Exp): Exp = {
+    if (isRelational(l.exp, ctx)) {
+      val bound = if (l.exp.typ == Bool) assertion(l.exp, ctx) else relationalExp(l.exp, ctx)
+      Let(l.variable, bound, body(l.body, ctx.withRigidVariables(Seq(l.variable.name))))(l.pos, l.info, l.errT)
+    } else {
+      ctx.runs.distinctBy(_.index).foldRight(body(l.body, ctx)) { (r, b) =>
+        Let(runLocalVarDecl(l.variable, r), runExp(l.exp, r), b)(l.pos, l.info, l.errT)
+      }
+    }
   }
 
   /** Rebuilds `e` with its operands translated: boolean operands with `bool`, all others as relational expressions. */

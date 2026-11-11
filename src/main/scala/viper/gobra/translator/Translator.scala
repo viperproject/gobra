@@ -15,11 +15,10 @@ import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, Transform
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
 import viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl
-import viper.gobra.translator.transformers.{AssumeTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.translator.transformers.{AssumeTransformer, DependencyAnalysisAnnotationTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.util.Violation
-import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
 import viper.silver.ast.pretty.FastPrettyPrinter
+import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast => vpr}
 

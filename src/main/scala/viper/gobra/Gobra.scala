@@ -18,7 +18,6 @@ import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend._
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, InputConfig, PackageInfo, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
 import viper.gobra.reporting._
 import viper.gobra.translator.Translator

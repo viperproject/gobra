@@ -119,14 +119,14 @@ class DetailedBenchmarkTests extends BenchmarkTests {
           .leftMap(errs => VerifierResult.Failure(errs): NegativeVerifierResult)
       })
 
-    private val desugaring: NextStep[TypeInfo, NegativeVerifierResult, Vector[VerifierError], (TypeInfo, Program)] =
+    private val desugaring: NextStep[TypeInfo, NegativeVerifierResult, (TypeInfo, Program)] =
       NextStep("desugaring", typeChecking, { case (typeInfo: TypeInfo) =>
         assert(config.isDefined)
         val c = config.get
         Right(typeInfo, Desugar.desugar(c, typeInfo)(executor))
       })
 
-    private val internalTransforming: NextStep[(TypeInfo, Program), Vector[VerifierError], (TypeInfo, Program)] = NextStep("internal transforming", desugaring, {case (typeInfo: TypeInfo, program: Program) => {
+    private val internalTransforming: NextStep[(TypeInfo, Program), NegativeVerifierResult, (TypeInfo, Program)] = NextStep("internal transforming", desugaring, {case (typeInfo: TypeInfo, program: Program) => {
       assert(config.isDefined)
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
@@ -140,14 +140,14 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       }}
     })
 
-    private val encoding: NextStep[(TypeInfo, Program), Vector[VerifierError], BackendVerifier.Task] = NextStep("Viper encoding", internalTransforming,  {case (typeInfo: TypeInfo, program: Program) => {
+    private val encoding: NextStep[(TypeInfo, Program), NegativeVerifierResult, BackendVerifier.Task] = NextStep("Viper encoding", internalTransforming,  {case (typeInfo: TypeInfo, program: Program) => {
       assert(config.isDefined)
       val c = config.get
       assert(c.packageInfoInputMap.size == 1)
       val pkgInfo = c.packageInfoInputMap.keys.head
       Translator.translate(program, pkgInfo, typeInfo)(c)
         .left.map(errs => VerifierResult.Failure(errs))
-    })
+    }})
 
     private val verifying = NextStepEitherT("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
       assert(config.isDefined)

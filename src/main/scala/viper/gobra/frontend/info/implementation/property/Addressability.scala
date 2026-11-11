@@ -115,6 +115,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PMatchExp => AddrMod.rValue
       case _: PMake | _: PNew => AddrMod.make
       case _: PUnpackSlice => AddrMod.rValue
+      case PAnnotatedExp(exp, _) => addressability(exp)
     }
 
   def addressabilityMemberPath(base: AddrMod, path: Vector[MemberPath]): AddrMod = {

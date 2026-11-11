@@ -156,6 +156,9 @@ object Source {
         val newPos  = vpr.TranslatedPosition(origin.pos)
 
         n(newPos, newInfo, vpr.NoTrafos)
+      case _: Parser.DAEnhancedInfo => throw new IllegalStateException() // TODO ake
+
+
     }
   }
 
@@ -200,6 +203,7 @@ object Source {
           val newPos  = vpr.TranslatedPosition(origin.pos)
 
           node.withMeta(newPos, newInfo, errT).asInstanceOf[N]
+        case _: Parser.DAEnhancedInfo => Violation.violation(s"information cannot be taken from an unsourced node $source") // TODO ake
       }
     }
 

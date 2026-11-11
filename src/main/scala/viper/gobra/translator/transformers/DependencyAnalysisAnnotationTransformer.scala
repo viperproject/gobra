@@ -9,7 +9,7 @@ import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.reporting.Source.Verifier
 import viper.silver.ast._
 import viper.silver.ast.utility.ViperStrategy
-import viper.silver.dependencyAnalysis.{AssumptionType, DependencyAnalysisSourceInfo, DependencyTypeInfo, StringDependencyAnalysisSourceInfo}
+import viper.silver.dependencyAnalysis.{DependencyAnalysisSourceInfo, DependencyTypeInfo, OriginType, StringDependencyAnalysisSourceInfo}
 import viper.silver.verifier.AbstractError
 import viper.silver.{ast, ast => vpr}
 
@@ -65,10 +65,10 @@ class DependencyAnalysisAnnotationTransformer(typeInfo: TypeInfo, config: Config
       pos match {
         case position: AbstractSourcePosition if isUnderResources(position.file.toAbsolutePath) =>
           val newInfo = attachInfoIfNotExists[DependencyAnalysisSourceInfo](oldInfo, StringDependencyAnalysisSourceInfo(pos.toString, pos))
-          attachInfoIfNotExists[DependencyTypeInfo](newInfo, DependencyTypeInfo(AssumptionType.Internal.asDepType()))
+          attachInfoIfNotExists[DependencyTypeInfo](newInfo, DependencyTypeInfo(OriginType.Internal.asDepType()))
         case FilePosition(file, _, _) if isUnderResources(file.toAbsolutePath) =>
           val newInfo = attachInfoIfNotExists[DependencyAnalysisSourceInfo](oldInfo, StringDependencyAnalysisSourceInfo(pos.toString, pos))
-          attachInfoIfNotExists[DependencyTypeInfo](newInfo, DependencyTypeInfo(AssumptionType.Internal.asDepType()))
+          attachInfoIfNotExists[DependencyTypeInfo](newInfo, DependencyTypeInfo(OriginType.Internal.asDepType()))
         case _ => oldInfo
       }
     }

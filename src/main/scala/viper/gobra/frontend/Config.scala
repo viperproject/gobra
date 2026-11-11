@@ -1026,7 +1026,6 @@ case class InputConfig(
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
     assertTimeout = assertTimeout.value,
-  )
     dependencyAnalysis = dependencyAnalysis.value.orElse(ConfigDefaults.DefaultDependencyAnalysis),
     enableUnsatCores = enableUnsatCores.value.getOrElse(false),
     disableTerminationPlugin = disableTerminationPlugin.value.getOrElse(false),

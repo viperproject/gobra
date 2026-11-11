@@ -139,6 +139,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PImplementationProofPredicateAlias => UnknownType
     case _: PBackendAnnotation => UnknownType
+    case _: PAnnotation => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {

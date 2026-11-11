@@ -2865,7 +2865,7 @@ object Desugar extends LazyLogging {
 
           case l: PLiteral => litD(ctx, info)(l)
 
-          case PAnnotatedExp(exp, annot) =>
+          case PAnnotatedExp(exp, _) =>
             exprD(ctx, info)(exp)
 
           case PUnfolding(acc, op) =>

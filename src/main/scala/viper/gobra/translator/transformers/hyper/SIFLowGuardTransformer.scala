@@ -166,6 +166,9 @@ trait SIFLowGuardTransformer {
       Simplifier.simplify(relationalAssertion(e, dctx, isPositive = true, (u, c) => runExp(u, c.runs.head)))
     }
     def onTuple(e: Exp, is: Seq[Int]): Exp = assertionToRelational(e, ctx.withRunIndices(is))
+    // the relational parts of `e` on a tuple; the unary parts are required on the diagonal
+    def relationalOnTuple(e: Exp, is: Seq[Int]): Exp = Simplifier.simplify(
+      relationalAssertion(e, ctx.withRunIndices(is), isPositive = true, (u, _) => TrueLit()(u.pos, u.info, u.errT)))
     def instance(is: Seq[Int]): Exp = Implies(
       Old(onTuple(conj(pres), is))(m.pos, m.info, m.errT),
       onTuple(conj(m.posts), is),
@@ -177,7 +180,10 @@ trait SIFLowGuardTransformer {
       name = PairwiseCalls.empty.wrapperName(m.name),
       formalArgs = ctx.runs.flatMap(r => m.formalArgs.map(runLocalVarDecl(_, r))),
       formalReturns = ctx.runs.flatMap(r => m.formalReturns.map(runLocalVarDecl(_, r))),
-      pres = measures.map(assertion(_, ctx)) ++ (0 until k).map(r => conj(pres.map(diagonal(_, r)))),
+      // Relational preconditions are obligations of the caller (e.g., `low` arguments of a sink): they must hold on
+      // every pair of executions.
+      pres = measures.map(assertion(_, ctx)) ++ (0 until k).map(r => conj(pres.map(diagonal(_, r)))) ++
+        pairs.map(is => conj(pres.map(relationalOnTuple(_, is)))),
       posts = (0 until k).map(r => conj(m.posts.map(diagonal(_, r)))) ++
         pairs.map(instance) :+ instance(0 until k),
       body = None,
@@ -737,15 +743,26 @@ trait SIFLowGuardTransformer {
   def reindexingErrors(p: Program, hyperFuncs: String => Boolean, executions: Int): Seq[AbstractError] = {
     val functions = p.functions.map(f => f.name -> f).toMap
     p.deepCollect {
+      case f: FuncApp if hyperFuncs(f.funcname) && VprInfo.executions(f.info).exists(_ != (0 until executions)) &&
+        functions.get(f.funcname).exists(isHeapDependent) =>
+        ConsistencyError(s"The hyperfunc ${f.funcname} reads the heap; it can only be applied to all ${executions} executions in order.", f.pos)
       case f: FuncApp if hyperFuncs(f.funcname) && VprInfo.executions(f.info).exists(_.size < executions) &&
         !functions.get(f.funcname).exists(fn => relatesOnlyFirst(fn, VprInfo.executions(f.info).get.size, functions, hyperFuncs)) =>
         ConsistencyError(s"The hyperfunc ${f.funcname} may relate more than the ${VprInfo.executions(f.info).get.size} selected executions; select all ${executions} executions.", f.pos)
     }
   }
 
+  /**
+    * Whether the hyper function `fn` reads the heap. Each execution has its own copy of the heap, and the i-th
+    * arguments of a hyper function are evaluated in the heap of execution i. Thus, `fn` cannot be applied to a tuple
+    * of executions that differs from (0, …, k-1), for instance a padded or permuted one.
+    */
+  def isHeapDependent(fn: Function): Boolean =
+    fn.pres.exists(!_.isPure) || fn.body.exists(_.exists { case _: FieldAccess | _: Unfolding => true; case _ => false })
+
   /** Whether the body and contract of `fn` relate only the executions 0 … m-1. */
   def relatesOnlyFirst(fn: Function, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean): Boolean =
-    fn.body.nonEmpty && (fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, Set(fn.name)))
+    !isHeapDependent(fn) && fn.body.nonEmpty && (fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, Set(fn.name)))
 
   def relatesOnlyFirst(n: Node, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean, seen: Set[String]): Boolean = !n.exists {
     case SIFRelExp(_, lit) => lit.i >= m
@@ -753,6 +770,7 @@ trait SIFLowGuardTransformer {
       case Some(is) => is.exists(_ >= m) // the callee itself is checked at its own call
       case None if seen(f.funcname) => false
       case None => functions.get(f.funcname) match {
+        case Some(fn) if isHeapDependent(fn) => true // cannot be evaluated on a padded tuple, see [[isHeapDependent]]
         case Some(fn) if fn.body.nonEmpty =>
           !(fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, seen + f.funcname))
         case _ => true // abstract hyper functions may relate any executions

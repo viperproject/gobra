@@ -1,0 +1,51 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package kexecpairs02
+
+// ##(--hyperMode on --hyperExecutions 3)
+
+// Relational preconditions are obligations of the caller also when a callee's contract is used pairwise in a
+// k-product: a sink that requires a low argument must not accept a secret.
+
+requires low(v)
+func Sink(v int)
+
+requires low(pub)
+func Leak(pub int, sec int) {
+	Sink(pub)
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	Sink(sec)
+}
+
+// A hyperfunc that reads the heap evaluates its i-th arguments in the heap of execution i. It is therefore not
+// used pairwise, and its callers are verified on the k-tuple.
+
+type Box struct { v int }
+
+pred (b *Box) Mem() { acc(&b.v) }
+
+requires b.Mem()
+decreases
+hyperfunc (b *Box) LowBox() bool {
+	return unfolding b.Mem() in low(b.v)
+}
+
+requires acc(b.Mem(), 1/2) && b.LowBox()
+ensures  acc(b.Mem(), 1/2) && low(res)
+func (b *Box) Get() (res int) {
+	return unfolding acc(b.Mem(), 1/2) in b.v
+}
+
+requires b.Mem() && b.LowBox()
+func Client(b *Box) {
+	x := b.Get()
+	Sink(x)
+}
+
+requires b.Mem()
+func ClientLeak(b *Box) {
+	x := unfolding b.Mem() in b.v
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	Sink(x)
+}

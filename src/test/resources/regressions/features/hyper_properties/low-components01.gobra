@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lowcomponents01
+
+// ##(--hyperMode on)
+
+// `low(e)` for a struct or an array holds iff all fields or elements are low, as for Go's `==`.
+
+type H struct { E uint8; M [3]byte }
+
+requires acc(h) && len(raw) >= 4
+requires forall i int :: { &raw[i] } 0 <= i && i < len(raw) ==> acc(&raw[i], 1/2)
+requires forall i int :: { &raw[i] } 0 <= i && i < 4 ==> low(raw[i])
+ensures  acc(h)
+ensures  forall i int :: { &raw[i] } 0 <= i && i < len(raw) ==> acc(&raw[i], 1/2)
+ensures  low(*h)
+func (h *H) Dec(raw []byte) {
+	h.E = raw[0]
+	h.M[0] = raw[1]
+	h.M[1] = raw[2]
+	h.M[2] = raw[3]
+}
+
+requires acc(h) && low(pub)
+ensures  acc(h)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  low(h.M)
+func (h *H) Leak(pub byte, sec byte) {
+	h.M[0] = pub
+	h.M[1] = sec
+	h.M[2] = pub
+}
+
+requires low(a[0]) && low(a[1])
+ensures  low(res)
+func Exclusive(a [2]int) (res [2]int) {
+	res = a
+	return res
+}
+
+requires low(a)
+ensures  low(a[1]) && low(res)
+func Nested(a [2]H) (res H) {
+	return a[0]
+}

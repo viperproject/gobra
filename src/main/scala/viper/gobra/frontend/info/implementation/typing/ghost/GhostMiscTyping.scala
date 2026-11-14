@@ -151,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _) =>
+    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _, _) =>
       // Collect the named output parameters of the spec's owner so that we only
       // reject references to those (and not to outputs of an enclosing function,
       // method, or closure - which is relevant for outline statements and nested

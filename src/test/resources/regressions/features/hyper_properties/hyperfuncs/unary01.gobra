@@ -1,0 +1,72 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package unary01
+
+// ##(--hyperMode on)
+
+// Methods whose contracts and bodies contain no relational assertions, and that call only such methods, relate the
+// executions by nothing but their unary contracts. They are verified once, as a unary method, so their branch
+// conditions need not be low. This allows adding security specifications to some methods of a verified code base.
+
+type Cell struct { v int }
+
+pred (c *Cell) Mem() { acc(&c.v) }
+
+// branches on data that is not low, and has no relational specification
+requires c.Mem()
+ensures  c.Mem() && res >= 0
+func (c *Cell) Abs() (res int) {
+	unfold c.Mem()
+	if c.v < 0 {
+		res = -c.v
+	} else {
+		res = c.v
+	}
+	fold c.Mem()
+	return res
+}
+
+// unary correctness is still checked
+requires c.Mem()
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  c.Mem() && res > 0
+func (c *Cell) WrongAbs() (res int) {
+	unfold c.Mem()
+	if c.v < 0 {
+		res = -c.v
+	} else {
+		res = c.v
+	}
+	fold c.Mem()
+	return res
+}
+
+// a caller with a relational specification uses the unary contract in both executions
+requires c.Mem() && unfolding c.Mem() in low(c.v)
+ensures  c.Mem() && res >= 0
+func (c *Cell) Twice() (res int) {
+	r := c.Abs()
+	return 2 * r
+}
+
+requires low(v)
+func Sink(v int)
+
+// A method that calls a method with a relational contract is verified as a product, so its branch conditions must
+// be low even though its own contract is unary.
+func CallsSink(secret int) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	if secret > 0 {
+		Sink(1)
+	}
+}
+
+// The relational postcondition of a caller cannot be derived from the unary contract of a callee.
+requires c.Mem()
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  c.Mem() && low(res)
+func (c *Cell) LowAbs() (res int) {
+	res = c.Abs()
+	return res
+}

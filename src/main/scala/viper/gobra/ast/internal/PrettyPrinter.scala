@@ -150,8 +150,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
-      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque, isHyper) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> (if (isHyper) text("hyperfunc") else text("pure func"))
       funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
@@ -163,8 +163,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque) =>
-      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> "pure func"
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, body, isOpaque, isHyper) =>
+      val funcPrefix = (if (isOpaque) text("opaque ") else emptyDoc) <> (if (isHyper) text("hyperfunc") else text("pure func"))
       funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <> showBackendAnnotations(backendAnnotations)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
@@ -507,11 +507,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
-    case PureFunctionCall(func, args, _, reveal) =>
+    case PureFunctionCall(func, args, _, reveal, _) =>
       val revealDoc: Doc = if (reveal) "reveal" else emptyDoc
       revealDoc <+> func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, _, reveal) =>
+    case PureMethodCall(recv, meth, args, _, reveal, _) =>
       val revealDoc: Doc = if (reveal) "reveal " else emptyDoc
       revealDoc <> showExpr(recv) <> dot <> meth.name <> parens(showExprList(args))
 
@@ -712,8 +712,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
-    val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+    case PureFunction(name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque, isHyper) =>
+    val funcPrefix = if (isHyper) (if (isOpaque) "opaque hyperfunc" else "hyperfunc") else if (isOpaque) "pure opaque func" else "pure func"
       funcPrefix <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
         showBackendAnnotations(backendAnnotations))
@@ -727,8 +727,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque) =>
-      val funcPrefix = if (isOpaque) "pure opaque func" else "pure func"
+    case PureMethod(receiver, name, args, results, pres, posts, measures, backendAnnotations, _, isOpaque, isHyper) =>
+      val funcPrefix = if (isHyper) (if (isOpaque) "opaque hyperfunc" else "hyperfunc") else if (isOpaque) "pure opaque func" else "pure func"
       funcPrefix <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts) <> showTerminationMeasures(measures) <>
           showBackendAnnotations(backendAnnotations))

@@ -27,7 +27,7 @@ class DefaultPureMethodEncoding extends Encoding {
     require(meth.results.size == 1)
 
     val (pos, info, errT) = meth.vprMeta
-    val infoWithOpaque = VprInfo.maybeAttachOpaque(info, meth.isOpaque)
+    val infoWithOpaque = VprInfo.maybeAttachHyperFunc(VprInfo.maybeAttachOpaque(info, meth.isOpaque), meth.isHyper)
 
     val vRecv = ctx.variable(meth.receiver)
     val vRecvPres = ctx.varPrecondition(meth.receiver).toVector
@@ -76,7 +76,7 @@ class DefaultPureMethodEncoding extends Encoding {
     require(func.results.size == 1)
 
     val (pos, info, errT) = func.vprMeta
-    val infoWithOpaque = VprInfo.maybeAttachOpaque(info, func.isOpaque)
+    val infoWithOpaque = VprInfo.maybeAttachHyperFunc(VprInfo.maybeAttachOpaque(info, func.isOpaque), func.isHyper)
 
     val vArgs = func.args.map(ctx.variable)
     val vArgPres = func.args.flatMap(ctx.varPrecondition)

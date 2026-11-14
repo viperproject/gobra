@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncrel01
+
+// ##(--hyperMode on)
+
+// Relations other than equality: monotonicity and sensitivity.
+decreases
+hyperfunc Monotone(x, y int) bool {
+	return rel(x, 0) <= rel(x, 1) ==> rel(y, 0) <= rel(y, 1)
+}
+
+// A non-boolean hyperfunc: the distance between the two executions.
+decreases
+hyperfunc Dist(x int) int {
+	return rel(x, 0) - rel(x, 1) >= 0 ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0)
+}
+
+decreases
+hyperfunc Lipschitz(x, y int, c int) bool {
+	return low(c) && Dist(y) <= rel(c, 0) * Dist(x)
+}
+
+ensures Monotone(x, res)
+func Double(x int) (res int) {
+	return 2 * x + 7
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures Monotone(x, res)
+func Neg(x int) (res int) { // not monotone
+	return -x
+}
+
+ensures Lipschitz(x, res, 3)
+func Triple(x int) (res int) {
+	return 3 * x - 1
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures Lipschitz(x, res, 2)
+func TripleBad(x int) (res int) { // sensitivity 3 > 2
+	return 3 * x - 1
+}
+
+// `rel` on values of struct type: ghost equality of structs is encoded with let expressions.
+type Version struct {
+	major, minor int
+}
+
+requires rel(a, 0) === rel(b, 1) && rel(b, 0) === rel(a, 1)
+ensures  rel(res, 0) == -rel(res, 1)
+func CompareVersions(a, b Version) (res int) {
+	return (a.major - b.major) * 2 + (a.minor - b.minor)
+}

@@ -920,6 +920,7 @@ case class PFunctionSpec(
                           isAtomic: Boolean = false,
                           opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
+                          isHyper: Boolean = false,
                       ) extends PSpecification {
   /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
   def pres: Vector[PExpression] = clauses.collect {
@@ -1115,6 +1116,9 @@ case class PLow(exp: PExpression) extends PGhostExpression
 case class PLowContext() extends PGhostExpression
 
 case class PRel(exp: PExpression, lit: PIntLit) extends PGhostExpression
+
+/** `exp`, which is `low(e)` or a call to a hyperfunc, evaluated on the executions `indices` (in this order). */
+case class PReindex(indices: Vector[PIntLit], exp: PExpression) extends PGhostExpression
 
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 

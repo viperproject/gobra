@@ -731,7 +731,7 @@ object Desugar extends LazyLogging {
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
       in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
-        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque, funcInfo.isHyper)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -742,7 +742,8 @@ object Desugar extends LazyLogging {
                                         terminationMeasures: Vector[in.TerminationMeasure],
                                         backendAnnotations: Vector[BackendAnnotation],
                                         body: Option[in.Expr],
-                                        isOpaque: Boolean)
+                                        isOpaque: Boolean,
+                                        isHyper: Boolean)
 
 
     private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
@@ -802,7 +803,7 @@ object Desugar extends LazyLogging {
       }
       val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, decl.spec.isHyper)
     }
 
 
@@ -980,7 +981,7 @@ object Desugar extends LazyLogging {
           implicitConversion(res.typ, returns.head.typ, res)
       }
       val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, decl.spec.isHyper)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -3437,7 +3438,7 @@ object Desugar extends LazyLogging {
           val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None, isOpaque)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None, isOpaque, m.spec.isHyper)(src)
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None)(src)
           }
@@ -4639,6 +4640,23 @@ object Desugar extends LazyLogging {
           dExp <- go(exp)
           dLit <- go(lit)
         } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
+
+        // `low@(i₀, …, iₘ₋₁)(e)`: `e` agrees in the selected executions
+        case PReindex(indices, PLow(exp)) => for { dExp <- go(exp) } yield {
+          val rels = indices.map(i => in.Rel(dExp, in.IntLit(i.lit)(src))(src))
+          rels.tail.map(r => in.GhostEqCmp(rels.head, r)(src): in.Expr)
+            .reduceOption[in.Expr](in.And(_, _)(src)).getOrElse(in.BoolLit(b = true)(src))
+        }
+
+        // a call to a hyperfunc, evaluated on the selected executions
+        case PReindex(indices, call) => for { dCall <- go(call) } yield {
+          val is = Some(indices.map(_.lit.toInt))
+          dCall match {
+            case c: in.PureFunctionCall => c.copy(executions = is)(c.info)
+            case c: in.PureMethodCall => c.copy(executions = is)(c.info)
+            case c => Violation.violation(s"Expected a call to a hyperfunc, but got $c")
+          }
+        }
 
         case PElem(left, right) => for {
           dleft <- go(left)

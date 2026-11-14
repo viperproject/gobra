@@ -22,9 +22,9 @@ class CallEncoding extends Encoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-    case x@in.PureFunctionCall(func, args, typ, reveal) =>
+    case x@in.PureFunctionCall(func, args, typ, reveal, executions) =>
       val (pos, info, errT) = x.vprMeta
-      val annotatedInfo = VprInfo.maybeAttachReveal(info, reveal)
+      val annotatedInfo = VprInfo.maybeAttachExecutions(VprInfo.maybeAttachReveal(info, reveal), executions)
 
       val resultType = ctx.typ(typ)
 
@@ -33,9 +33,9 @@ class CallEncoding extends Encoding {
         app = vpr.FuncApp(func.name, vArgs)(pos, annotatedInfo, resultType, errT)
       } yield app
 
-    case x@in.PureMethodCall(recv, meth, args, typ, reveal) =>
+    case x@in.PureMethodCall(recv, meth, args, typ, reveal, executions) =>
       val (pos, info, errT) = x.vprMeta
-      val annotatedInfo = VprInfo.maybeAttachReveal(info, reveal)
+      val annotatedInfo = VprInfo.maybeAttachExecutions(VprInfo.maybeAttachReveal(info, reveal), executions)
 
       val resultType = ctx.typ(typ)
 

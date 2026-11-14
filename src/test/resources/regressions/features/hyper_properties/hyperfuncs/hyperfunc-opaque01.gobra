@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncopaque01
+
+// ##(--hyperMode on)
+
+// Hyperfuncs can be opaque: their body is only available after `reveal`.
+decreases
+opaque
+hyperfunc NonInterf(x, y int) bool {
+	return low(x) ==> low(y)
+}
+
+ensures NonInterf(x, res)
+func F(x int) (res int) {
+	res = x + 1
+	assert reveal NonInterf(x, res)
+	return res
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures NonInterf(x, res)
+func G(x int) (res int) {
+	return x + 1
+}

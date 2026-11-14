@@ -1,0 +1,57 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 3)
+
+package execquant01
+
+// Execution quantifiers range over the executions 0, …, k-1. Definitions written with them do not depend on k.
+
+decreases
+hyperfunc AllAgreeWithFirst(x int) bool {
+	return forall i exec :: low@(0, i)(x)
+}
+
+requires AllAgreeWithFirst(x)
+ensures  low(x)
+func FromFirst(x int) {}
+
+// Bounded leakage: among the k executions, two outputs agree (with k = 3: at most two distinct outputs).
+decreases
+hyperfunc SomeTwoAgree(x int) bool {
+	return exists i exec, j exec :: i < j && low@(i, j)(x)
+}
+
+ensures r == 0 || r == 1
+decreases
+func coin() (r int)
+
+ensures SomeTwoAgree(r)
+func OneBit() (r int) {
+	return coin()
+}
+
+ensures 0 <= r && r <= 2
+decreases
+func die() (r int)
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures SomeTwoAgree(r)
+func ThreeValues() (r int) {
+	return die()
+}
+
+// Execution variables can be used in rel, in re-indexed calls, and in comparisons, and they can be mixed with
+// ordinary bound variables.
+requires forall i exec :: rel(x, i) >= 0
+ensures  forall i exec, j exec :: i != j ==> rel(r, i) + rel(r, j) >= 0
+func NonNegative(x int) (r int) {
+	return x
+}
+
+ghost
+requires len(s) == 3 && low(len(s))
+requires forall i exec :: forall j int :: 0 <= j && j < 3 ==> (j == i ==> rel(s[j], i) == 1)
+ensures  forall i exec :: rel(s[i], i) == 1
+decreases
+func Diagonal(s seq[int]) {}

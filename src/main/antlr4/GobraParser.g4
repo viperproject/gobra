@@ -56,7 +56,8 @@ member: specMember | declaration | ghostMember;
 ghostMember: implementationProof
   | fpredicateDecl
   | mpredicateDecl
-  | explicitGhostMember;
+  | explicitGhostMember
+  | hyperMember;
 
 // Ghost statements
 
@@ -134,11 +135,17 @@ before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
-low: LOW L_PAREN expression R_PAREN;
+low: LOW (ADDR_MOD executionIndices)? L_PAREN expression R_PAREN;
+
+// the executions on which `low` or a hyperfunc call is evaluated, e.g., `low@(0, 2)(x)`
+executionIndices: L_PAREN executionIndex (COMMA executionIndex)* R_PAREN;
+
+// an execution: a literal, or a variable bound by an execution quantifier (`forall i exec :: …`)
+executionIndex: integer | IDENTIFIER;
 
 lowc: LOWC L_PAREN R_PAREN;
 
-hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
+hyperRelExpr: REL L_PAREN expression COMMA executionIndex R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
@@ -267,6 +274,13 @@ methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIF
 
 
 explicitGhostMember: GHOST (specMember | declaration);
+
+// Hyper functions (hyperfuncs) and hyper methods abstract over several executions. They are always ghost and pure.
+hyperMember: specification (hyperFunctionDecl[$specification.trusted] | hyperMethodDecl[$specification.trusted]);
+
+hyperFunctionDecl[boolean trusted]: HYPERFUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+
+hyperMethodDecl[boolean trusted]: HYPERFUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
@@ -414,6 +428,7 @@ primaryExpr:
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
   // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
+  | primaryExpr ADDR_MOD executionIndices arguments #reindexedInvokePrimaryExpr
   | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   // Predicate constructors are parsed as follows:
@@ -446,8 +461,13 @@ interfaceType:
 
 predicateSpec: PRED IDENTIFIER parameters;
 
+// The alternative for hyper methods must come first: during prediction, ANTLR treats the predicate of `eos` as
+// true and an assertion may be empty, so `requires Mem() hyperfunc M() bool` may also be read as a method `Mem()`
+// (with the precondition `requires <empty>`) followed by another member. ANTLR resolves this by choosing the first
+// alternative.
 methodSpec:
-  GHOST? specification IDENTIFIER parameters result
+  specification HYPERFUNC IDENTIFIER parameters result
+  | GHOST? specification IDENTIFIER parameters result
   | GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals

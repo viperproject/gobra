@@ -17,6 +17,62 @@ object VprInfo {
     }
   }
 
+  def isOpaque(info: vpr.Info): Boolean =
+    info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains("opaque"))
+
+  /** Key of the annotation marking Viper functions that encode hyper functions, see [[SIFLowGuardTransformer]]. */
+  val hyperFuncAnnotationKey: String = "hyperFunc"
+
+  def maybeAttachHyperFunc(info: vpr.Info, isHyper: Boolean): vpr.Info = {
+    if (isHyper) {
+      attachBackendAnnotation(info, hyperFuncAnnotationKey)
+    } else {
+      info
+    }
+  }
+
+  def isHyperFunc(info: vpr.Info): Boolean =
+    info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains(hyperFuncAnnotationKey))
+
+  /** Removes the annotation marking hyper functions, which is only used internally by Gobra. */
+  def removeHyperFunc(info: vpr.Info): vpr.Info = info match {
+    case vpr.ConsInfo(head, tail) => (removeHyperFunc(head), removeHyperFunc(tail)) match {
+      case (vpr.NoInfo, t) => t
+      case (h, vpr.NoInfo) => h
+      case (h, t) => vpr.ConsInfo(h, t)
+    }
+    case a: vpr.AnnotationInfo if a.values.contains(hyperFuncAnnotationKey) =>
+      val remaining = a.values - hyperFuncAnnotationKey
+      if (remaining.isEmpty) vpr.NoInfo else vpr.AnnotationInfo(remaining)
+    case i => i
+  }
+
+  /** Key of the annotation selecting the executions on which a call to a hyper function is evaluated. */
+  val executionsAnnotationKey: String = "executions"
+
+  def maybeAttachExecutions(info: vpr.Info, executions: Option[Vector[Int]]): vpr.Info = executions match {
+    case Some(is) => attachBackendAnnotation(info, executionsAnnotationKey, is.map(_.toString): _*)
+    case None => info
+  }
+
+  def executions(info: vpr.Info): Option[Vector[Int]] =
+    info.getAllInfos[vpr.AnnotationInfo].collectFirst {
+      case a if a.values.contains(executionsAnnotationKey) => a.values(executionsAnnotationKey).map(_.toInt).toVector
+    }
+
+  /** Removes the annotation selecting executions, which is only used internally by Gobra. */
+  def removeExecutions(info: vpr.Info): vpr.Info = info match {
+    case vpr.ConsInfo(head, tail) => (removeExecutions(head), removeExecutions(tail)) match {
+      case (vpr.NoInfo, t) => t
+      case (h, vpr.NoInfo) => h
+      case (h, t) => vpr.ConsInfo(h, t)
+    }
+    case a: vpr.AnnotationInfo if a.values.contains(executionsAnnotationKey) =>
+      val remaining = a.values - executionsAnnotationKey
+      if (remaining.isEmpty) vpr.NoInfo else vpr.AnnotationInfo(remaining)
+    case i => i
+  }
+
   def maybeAttachReveal(info: vpr.Info, reveal: Boolean): vpr.Info = {
     if (reveal) {
       attachBackendAnnotation(info, "reveal")

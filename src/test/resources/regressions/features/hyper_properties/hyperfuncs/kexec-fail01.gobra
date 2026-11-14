@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 3)
+
+package kexecfail01
+
+// with three executions, the execution indices are 0, 1, and 2
+requires rel(x, 2) == 0
+func ok(x int)
+
+//:: ExpectedOutput(type_error)
+requires rel(x, 3) == 0
+func outOfRange(x int)
+
+// selected executions must be in range, too
+//:: ExpectedOutput(type_error)
+requires low@(0, 3)(x)
+func reindexOutOfRange(x int)
+
+// only `low` and hyperfuncs can be evaluated on selected executions
+//:: ExpectedOutput(type_error)
+requires ok@(0, 1)(x)
+func reindexNonHyper(x int)

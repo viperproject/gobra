@@ -41,11 +41,12 @@ trait SIFLowGuardTransformer {
     val ctx = newContext(relPreds, noDups, onlyMajor, noMinor, hyperFuncs, Set.empty, executions)
 
     val splits = caseSplitPremises(p, ctx)
-    val unaryCopies = methodsNeedingUnaryCopies(p, splits.keySet, ctx)
+    val unary = unaryMethods(p, ctx) -- splits.keySet
+    val unaryCopies = methodsNeedingUnaryCopies(p, splits.keySet ++ unary, ctx)
     val pairCalls = if (executions > 2) pairwiseCallees(p, ctx) else PairwiseCalls.empty
 
     val members =
-      p.methods.flatMap(method(_, ctx, splits, pairCalls)) ++
+      p.methods.flatMap(method(_, ctx, splits, pairCalls, unary)) ++
       p.methods.filter(m => pairCalls.wrapped(m.name)).map(pairwiseWrapper(_, ctx)) ++
       p.methods.filter(m => unaryCopies(m.name)).flatMap(unaryMethodCopies(_, ctx, unaryCopies)) ++
       p.functions.flatMap(function(_, ctx)) ++
@@ -63,7 +64,7 @@ trait SIFLowGuardTransformer {
   }
 
   def method(m: Method, ctx: Context, splits: Map[String, Exp] = Map.empty,
-             pairCalls: PairwiseCalls = PairwiseCalls.empty): Vector[Member] = {
+             pairCalls: PairwiseCalls = PairwiseCalls.empty, unary: Set[String] = Set.empty): Vector[Member] = {
     if (ctx.onlyMajor(m.name)) {
       Vector(
         m.copy(
@@ -82,10 +83,13 @@ trait SIFLowGuardTransformer {
           pres = m.pres.map(assertion(_, ctx)),
           posts = m.posts.map(assertion(_, ctx)),
           body = m.body.map { s =>
-            val product = pairCalls.redirect(m.name, toSeqn(statement(s, ctx)))
-            splits.get(m.name) match {
-              case None => product
-              case Some(premise) => toSeqn(caseSplitBody(m, premise, product, ctx))
+            if (unary(m.name)) unaryCallsBody(m, ctx)
+            else {
+              val product = pairCalls.redirect(m.name, toSeqn(statement(s, ctx)))
+              splits.get(m.name) match {
+                case None => product
+                case Some(premise) => toSeqn(caseSplitBody(m, premise, product, ctx))
+              }
             }
           },
         )(m.pos, m.info, m.errT)
@@ -280,7 +284,8 @@ trait SIFLowGuardTransformer {
 
   def unaryMethodName(n: String, run: RunContext): String = run.rename(s"${n}_U")
 
-  def caseSplitBody(m: Method, premise: Exp, product: Seqn, ctx: Context): Stmt = {
+  /** Calls the unary copies of `m`, one per execution, with the arguments and results of that execution. */
+  def unaryCallsBody(m: Method, ctx: Context): Seqn = {
     val calls = ctx.runs.map { r =>
       MethodCall(
         unaryMethodName(m.name, r),
@@ -288,7 +293,40 @@ trait SIFLowGuardTransformer {
         m.formalReturns.map(v => runExp(v.localVar, r).asInstanceOf[LocalVar]),
       )(m.pos, m.info, m.errT)
     }
-    If(assertion(premise, ctx), product, Seqn(calls, Seq.empty)(m.pos, m.info, m.errT))(m.pos, m.info, m.errT)
+    Seqn(calls, Seq.empty)(m.pos, m.info, m.errT)
+  }
+
+  def caseSplitBody(m: Method, premise: Exp, product: Seqn, ctx: Context): Stmt =
+    If(assertion(premise, ctx), product, unaryCallsBody(m, ctx))(m.pos, m.info, m.errT)
+
+  /////////////////////////////// Unary methods ///////////////////////////////
+  //
+  // A method whose contract and body contain no relational assertion (no `low`, `rel`, low events, hyper functions or
+  // relational predicates), and whose callees are all such methods, relates the executions by nothing but its unary
+  // contract. As for the else-branch of a case split, it is verified as one unary copy, and its product calls the
+  // unary copies of all executions. In particular, its branch conditions need not be low. This allows adding
+  // relational specifications to some methods of a verified code base without proving all its branches low.
+
+  def unaryMethods(p: Program, ctx: Context): Set[String] = {
+    val methods = p.methods.map(m => m.name -> m).toMap
+    def relationalAtom(n: Node): Boolean = n match {
+      case _: SIFLowExp | _: SIFRelExp | _: SIFLowEventExp => true
+      case f: DomainFuncApp => isRelationalTrigger(f.funcname)
+      case f: FuncApp => ctx.isHyperFunction(f.funcname)
+      case a: PredicateAccess => ctx.isRelationalPredicate(a.predicateName)
+      case _ => false
+    }
+    def locallyUnary(m: Method): Boolean =
+      !ctx.onlyMajor(m.name) && !(m.pres ++ m.posts).exists(_.exists(relationalAtom)) &&
+        !m.body.exists(_.exists(relationalAtom))
+    def callees(m: Method): Set[String] = m.body.toSeq.flatMap(_.deepCollect { case c: MethodCall => c.methodName }).toSet
+
+    @tailrec
+    def fix(candidates: Set[String]): Set[String] = {
+      val next = candidates.filter(n => callees(methods(n)).forall(candidates))
+      if (next == candidates) candidates else fix(next)
+    }
+    fix(methods.values.filter(locallyUnary).map(_.name).toSet)
   }
 
   /** The unary copies of `m`, one per execution. Only the copy for execution 0 has a body. */
@@ -353,6 +391,8 @@ trait SIFLowGuardTransformer {
         Seqn(Seq(If(choice.localVar, toSeqn(go(s.thn)), toSeqn(go(s.els)))(s.pos, s.info, s.errT)), Seq(choice))(s.pos, s.info, s.errT)
       case s: If => If(runExp(s.cond, run), toSeqn(go(s.thn)), toSeqn(go(s.els)))(s.pos, s.info, s.errT)
       case s: While => While(runExp(s.cond, run), s.invs.map(proj), toSeqn(go(s.body)))(s.pos, s.info, s.errT)
+      case s: Package =>
+        Package(runExp(s.wand, run).asInstanceOf[MagicWand], toSeqn(go(s.proofScript)))(s.pos, s.info, s.errT)
 
       case s: Inhale => Inhale(proj(s.exp))(s.pos, s.info, s.errT)
       case s: Exhale => Exhale(proj(s.exp))(s.pos, s.info, s.errT)

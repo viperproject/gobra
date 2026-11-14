@@ -551,14 +551,17 @@ trait SIFLowGuardTransformer {
   }
 
   def isRelational(e: Exp, ctx: Context): Boolean = {
-    e.exists {
-      case _: SIFLowExp => true
-      case _: SIFRelExp => true
-      case f: DomainFuncApp => isRelationalTrigger(f.funcname)
-      case f: FuncApp => ctx.isHyperFunction(f.funcname)
-      case p: PredicateAccess => ctx.isRelationalPredicate(p.predicateName)
-      case _ => false
+    def go(n: Node): Boolean = n match {
+      case _: SIFLowExp | _: SIFRelExp => true
+      case f: DomainFuncApp if isRelationalTrigger(f.funcname) => true
+      case f: FuncApp if ctx.isHyperFunction(f.funcname) => true
+      case p: PredicateAccess if ctx.isRelationalPredicate(p.predicateName) => true
+      // Unfolding a relational predicate around a unary expression gives a value per execution: each execution
+      // unfolds its own instance of the predicate.
+      case u: Unfolding => u.acc.loc.args.exists(go) || u.acc.perm.exists(go) || go(u.body)
+      case _ => n.subnodes.exists(go)
     }
+    go(e)
   }
 
   /** Viper functions that encode hyper functions are marked with an annotation, see [[VprInfo.maybeAttachHyperFunc]]. */

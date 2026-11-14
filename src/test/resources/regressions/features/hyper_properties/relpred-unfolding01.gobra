@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relpredunfolding01
+
+// ##(--hyperMode on)
+
+// Unfolding a relational predicate around a unary expression gives a value per execution.
+
+type Cell struct { v int }
+
+pred (c *Cell) LowMem() { acc(&c.v) && low(c.v) }
+
+ghost
+requires acc(c.LowMem(), _)
+decreases
+pure func (c *Cell) Get() int { return unfolding acc(c.LowMem(), _) in c.v }
+
+requires c.LowMem()
+ensures  c.LowMem()
+ensures  (unfolding c.LowMem() in c.v) == old(unfolding c.LowMem() in c.v) + 1
+ensures  let x := (unfolding c.LowMem() in c.v) in x == c.Get()
+func (c *Cell) Inc() {
+	unfold c.LowMem()
+	c.v += 1
+	fold c.LowMem()
+}
+
+// the value is low, so it may be compared in a branch
+requires c.LowMem()
+ensures  c.LowMem()
+func (c *Cell) Branch() {
+	if (unfolding c.LowMem() in c.v) > 0 {
+		c.Inc()
+	}
+}

@@ -666,6 +666,12 @@ trait SIFLowGuardTransformer {
 
       case a: And => And(go(a.left, isPositive), go(a.right, isPositive))(a.pos, a.info, a.errT)
       case i: Implies => Implies(go(i.left, !isPositive), go(i.right, isPositive))(i.pos, i.info, i.errT)
+      // A non-relational disjunct is a premise for the other one: `a || b` is `!a ==> b`. Translating it on its own in
+      // a positive position may weaken it to `true` (see `positiveUnary`), which would drop the other disjunct.
+      case o: Or if !isRelational(o.left, ctx) =>
+        go(Implies(Not(o.left)(o.left.pos, o.left.info, o.left.errT), o.right)(o.pos, o.info, o.errT), isPositive)
+      case o: Or if !isRelational(o.right, ctx) =>
+        go(Implies(Not(o.right)(o.right.pos, o.right.info, o.right.errT), o.left)(o.pos, o.info, o.errT), isPositive)
       case c: CondExp => CondExp(go(c.cond, !isPositive), go(c.thn, isPositive), go(c.els, isPositive))(c.pos, c.info, c.errT)
 
       case u: Unfolding =>

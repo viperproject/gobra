@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 3)
+
+package execparamsfail01
+
+// `exec` is only allowed for parameters of hyperfuncs.
+
+//:: ExpectedOutput(type_error)
+func NotHyper(i exec) {}
+
+ghost
+decreases
+//:: ExpectedOutput(type_error)
+pure func NotHyperPure(i exec) bool { return true }
+
+ghost
+//:: ExpectedOutput(type_error)
+func Local() { var i exec }
+
+// the index of `rel` must be a literal or have type `exec`
+decreases
+//:: ExpectedOutput(type_error)
+hyperfunc IntIndex(x, i int) bool { return rel(x, i) == 0 }
+
+// an `exec` value is not an integer
+decreases
+//:: ExpectedOutput(type_error)
+hyperfunc Arith(x int, i exec) bool { return i + 1 == 2 }
+
+decreases
+hyperfunc Agree(x int, i, j exec) bool { return rel(x, i) == rel(x, j) }
+
+// arguments of type exec must be literals or execution parameters
+//:: ExpectedOutput(type_error)
+requires Agree(x, 0, y)
+func IntArgument(x, y int)

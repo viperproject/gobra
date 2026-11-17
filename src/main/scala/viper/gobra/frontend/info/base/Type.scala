@@ -179,6 +179,9 @@ object Type {
 
   case object PermissionT extends PrettyType(s"perm") with GhostType
 
+  /** execution identifiers 0, …, k-1 in hyper mode */
+  case object ExecT extends PrettyType("exec") with GhostType
+
   @tailrec
   def source(t: Type): Option[(PNode, ExternalTypeInfo)] = {
     t match {

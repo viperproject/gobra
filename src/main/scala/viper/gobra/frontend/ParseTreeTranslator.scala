@@ -247,6 +247,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     typ.name match {
       case "perm" => PPermissionType().at(typ)
       case "integer" => PIntegerGhostType().at(typ)
+      case "exec" => PExecType().at(typ)
       case "int" => PIntType().at(typ)
       case "int8" => PInt8Type().at(typ)
       case "int16" => PInt16Type().at(typ)
@@ -1391,10 +1392,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector(pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None)
   }
 
-  override def visitReindexedInvokePrimaryExpr(ctx: ReindexedInvokePrimaryExprContext): AnyRef = super.visitReindexedInvokePrimaryExpr(ctx) match {
-    case Vector(pe: PExpression, "@", ExecutionIndices(is), InvokeArgs(args)) => PReindex(is, PInvoke(pe, args, None).at(ctx))
-  }
-
   override def visitRevealInvokePrimaryExpr(ctx: RevealInvokePrimaryExprContext): AnyRef = super.visitRevealInvokePrimaryExpr(ctx) match {
     case Vector(_, pe : PExpression, InvokeArgs(args)) => PInvoke(pe, args, None, true)
   }
@@ -1575,24 +1572,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitLow(ctx: LowContext): AnyRef = super.visitLow(ctx) match {
     case Vector("low", "(", expr: PExpression, ")") => PLow(expr)
-    case Vector("low", "@", ExecutionIndices(is), "(", expr: PExpression, ")") => PReindex(is, PLow(expr).at(ctx))
   }
 
-  private object ExecutionIndices {
-    def unapply(v: Any): Option[Vector[PIntLit]] = v match {
-      case v: Vector[_] => Some(v.collect { case i: PIntLit => i })
-      case _ => None
-    }
-  }
-
-  override def visitExecutionIndices(ctx: ExecutionIndicesContext): Vector[PIntLit] =
-    ctx.executionIndex().asScala.toVector.map(visitExecutionIndex)
-
-  override def visitExecutionIndex(ctx: ExecutionIndexContext): PIntLit = {
+  override def visitExecutionIndex(ctx: ExecutionIndexContext): PExpression = {
     if (ctx.integer() != null) visitInteger(ctx.integer())
     else executionBindings.get(ctx.IDENTIFIER().getText) match {
       case Some(i) => PIntLit(i).at(ctx)
-      case None => fail(ctx, s"${ctx.IDENTIFIER().getText} is not an execution; executions are literals or variables bound by 'forall x exec' or 'exists x exec'")
+      // a parameter of type `exec`, checked by the type checker
+      case None => PNamedOperand(PIdnUse(ctx.IDENTIFIER().getText).at(ctx)).at(ctx)
     }
   }
 
@@ -1603,7 +1590,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitHyperRelExpr(ctx: HyperRelExprContext): AnyRef = super.visitHyperRelExpr(ctx) match {
-    case Vector("rel", "(", expr: PExpression, ",", lit: PIntLit, ")") => PRel(expr, lit)
+    case Vector("rel", "(", expr: PExpression, ",", index: PExpression, ")") => PRel(expr, index)
   }
 
   /**

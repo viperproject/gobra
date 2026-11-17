@@ -9,7 +9,7 @@ package execquant01
 
 decreases
 hyperfunc AllAgreeWithFirst(x int) bool {
-	return forall i exec :: low@(0, i)(x)
+	return forall i exec :: rel(x, 0) == rel(x, i)
 }
 
 requires AllAgreeWithFirst(x)
@@ -19,7 +19,7 @@ func FromFirst(x int) {}
 // Bounded leakage: among the k executions, two outputs agree (with k = 3: at most two distinct outputs).
 decreases
 hyperfunc SomeTwoAgree(x int) bool {
-	return exists i exec, j exec :: i < j && low@(i, j)(x)
+	return exists i exec, j exec :: i < j && rel(x, i) == rel(x, j)
 }
 
 ensures r == 0 || r == 1
@@ -41,7 +41,7 @@ func ThreeValues() (r int) {
 	return die()
 }
 
-// Execution variables can be used in rel, in re-indexed calls, and in comparisons, and they can be mixed with
+// Execution variables can be used in rel, as arguments of type exec, and in comparisons, and they can be mixed with
 // ordinary bound variables.
 requires forall i exec :: rel(x, i) >= 0
 ensures  forall i exec, j exec :: i != j ==> rel(r, i) + rel(r, j) >= 0

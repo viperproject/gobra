@@ -69,3 +69,32 @@ func test4() {
         r = d(x) as g
     }
 }
+
+requires acc(x)
+ensures acc(x) && *x == 1
+spec setter(x *int)
+
+func test5() {
+    x@ := 0
+    c := requires acc(p)
+         ensures acc(p) && *p == 1
+         func g(p *int) {
+            *p = 1
+         }
+    proof c implements setter {
+        c(x) as g
+    }
+    ghost gc := c
+    // a call with a ghost closure is ghost and, thus, requires a ghost or pure spec
+    //:: ExpectedOutput(type_error)
+    gc(&x) as setter
+}
+
+requires c implements setter
+ghost
+decreases
+func test6(c func(*int), ghost x *int) {
+    // closures with a non-ghost impure spec cannot be called in ghost code
+    //:: ExpectedOutput(type_error)
+    c(x) as setter
+}

@@ -44,7 +44,7 @@ trait GhostAssignability {
   }
 
   /** closure spec declaration or function literal referenced by `spec` */
-  private def closureSpecTarget(spec: PClosureSpecInstance): st.ClosureSpecTarget = resolve(spec.func) match {
+  private[separation] def closureSpecTarget(spec: PClosureSpecInstance): st.ClosureSpecTarget = resolve(spec.func) match {
     case Some(t: ap.ClosureSpecTarget) => t.symb
     case _ => Violation.violation(s"expected a closure spec or function literal, but got ${spec.func}")
   }

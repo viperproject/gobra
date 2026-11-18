@@ -90,8 +90,8 @@ func test5() {
     gc(&x) as setter
 }
 
-requires c implements setter
 ghost
+requires c implements setter
 decreases
 func test6(c func(*int), ghost x *int) {
     // closures with a non-ghost impure spec cannot be called in ghost code

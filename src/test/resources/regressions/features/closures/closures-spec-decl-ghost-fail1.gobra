@@ -47,3 +47,25 @@ func test3(c func(int, int) int) {
     //:: ExpectedOutput(type_error)
     r := c(0, g) as actualInc
 }
+
+func test4() {
+    ghost c := requires x >= 0
+               ensures r == x + 1
+               decreases
+               func f(x int) (r int) {
+                  return x + 1
+               }
+
+    d := requires x >= 0
+         ensures r == x + 1
+         decreases
+         func g(x int) (r int) {
+            return x + 1
+         }
+
+    // a ghost function literal specifies ghost closures, which non-pure actual closures cannot implement
+    //:: ExpectedOutput(type_error)
+    proof d implements f {
+        r = d(x) as g
+    }
+}

@@ -33,7 +33,7 @@ trait GhostAssignability {
   private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
     val target = closureSpecTarget(call.spec)
 
-    // If the closure variable being called is ghost or the spec specifies ghost closures,
+    // If the closure variable being called is ghost or the spec specifies ghost or pure closures,
     // ghost is assignable to all parameters.
     if (target.isPure || target.specifiesGhostClosures || isExprGhost(call.callee)) { return noMessages }
 

@@ -238,7 +238,7 @@ trait SIFLowGuardTransformer {
       case i: Implies if isRelational(i.left, ctx) && admissible(i.left, args) => Some(i.left)
       // Gobra encodes `P ==> Q` in the bodies of functions as `P ? Q : true`
       case c: CondExp if c.els == TrueLit()() && isRelational(c.cond, ctx) && admissible(c.cond, args) => Some(c.cond)
-      case f: FuncApp if depth > 0 && ctx.isHyperFunction(f.funcname) && VprInfo.executions(f.info).isEmpty =>
+      case f: FuncApp if depth > 0 && ctx.isHyperFunction(f.funcname) =>
         for {
           fn <- functions.get(f.funcname) if onlyTerminationPres(fn)
           body <- fn.body
@@ -772,39 +772,13 @@ trait SIFLowGuardTransformer {
     */
   def hyperFuncApp(f: FuncApp, ctx: Context): FuncApp = {
     def args(run: RunContext): Seq[Exp] = f.args.map(runWithRelational(_, ctx, run))
-    // A re-indexed call `H@(i₀, …, iₘ₋₁)(…)` evaluates `H` on the selected executions. If m < k, the tuple is padded
-    // by repeating the last selected execution, which is sound since `H` relates only its first m executions (see
-    // [[reindexingErrors]]).
-    val callRuns = VprInfo.executions(f.info) match {
-      case Some(is) =>
-        val padded = is ++ Seq.fill(ctx.runs.size - is.size)(is.last)
-        ctx.withRunIndices(padded.map(i => ctx.runs(i).index)).runs
-      case None => ctx.runs
-    }
-    f.copy(args = callRuns.flatMap(args))(f.pos, VprInfo.removeExecutions(f.info), f.typ, f.errT)
-  }
-
-  /**
-    * The m-ary prefix of a k-tuple padded with its last element denotes the same value of a hyper function as the
-    * m-tuple only if the hyper function relates only its first m executions. Returns an error for each re-indexed call
-    * with m < k to a hyper function that may relate more executions.
-    */
-  def reindexingErrors(p: Program, hyperFuncs: String => Boolean, executions: Int): Seq[AbstractError] = {
-    val functions = p.functions.map(f => f.name -> f).toMap
-    p.deepCollect {
-      case f: FuncApp if hyperFuncs(f.funcname) && VprInfo.executions(f.info).exists(_ != (0 until executions)) &&
-        functions.get(f.funcname).exists(isHeapDependent) =>
-        ConsistencyError(s"The hyperfunc ${f.funcname} reads the heap; it can only be applied to all ${executions} executions in order.", f.pos)
-      case f: FuncApp if hyperFuncs(f.funcname) && VprInfo.executions(f.info).exists(_.size < executions) &&
-        !functions.get(f.funcname).exists(fn => relatesOnlyFirst(fn, VprInfo.executions(f.info).get.size, functions, hyperFuncs)) =>
-        ConsistencyError(s"The hyperfunc ${f.funcname} may relate more than the ${VprInfo.executions(f.info).get.size} selected executions; select all ${executions} executions.", f.pos)
-    }
+    f.copy(args = ctx.runs.flatMap(args))(f.pos, f.info, f.typ, f.errT)
   }
 
   /**
     * Whether the hyper function `fn` reads the heap. Each execution has its own copy of the heap, and the i-th
     * arguments of a hyper function are evaluated in the heap of execution i. Thus, `fn` cannot be applied to a tuple
-    * of executions that differs from (0, …, k-1), for instance a padded or permuted one.
+    * of executions that differs from (0, …, k-1), for instance a padded one in the pairwise reuse of contracts.
     */
   def isHeapDependent(fn: Function): Boolean =
     fn.pres.exists(!_.isPure) || fn.body.exists(_.exists { case _: FieldAccess | _: Unfolding => true; case _ => false })
@@ -813,18 +787,48 @@ trait SIFLowGuardTransformer {
   def relatesOnlyFirst(fn: Function, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean): Boolean =
     !isHeapDependent(fn) && fn.body.nonEmpty && (fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, Set(fn.name)))
 
+  /**
+    * The execution parameters of a hyper function: parameters `i` of type `exec` in Gobra, which have the preconditions
+    * `low(i)` and `0 <= i && i < k`.
+    */
+  def executionParameters(fn: Function): Set[String] = {
+    def conjuncts(e: Exp): Seq[Exp] = e match {
+      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
+      case e => Seq(e)
+    }
+    val cs = fn.pres.flatMap(conjuncts)
+    fn.formalArgs.map(_.name).filter { n =>
+      cs.exists { case SIFLowExp(LocalVar(`n`, _), _, _) => true; case _ => false } &&
+        cs.exists { case LeCmp(IntLit(z), LocalVar(`n`, _)) => z == 0; case _ => false } &&
+        cs.exists { case LtCmp(LocalVar(`n`, _), _: IntLit) => true; case _ => false }
+    }.toSet
+  }
+
+  /**
+    * The body and contract of `fn` for a call with the arguments `args`: execution parameters whose arguments are
+    * literals are replaced by them, so that `rel(e, i)`, which selects an execution by a case distinction on `i`,
+    * relates only the selected executions.
+    */
+  def specialised(fn: Function, args: Seq[Exp]): Seq[Exp] = {
+    val execParams = executionParameters(fn)
+    val subst: Map[Exp, Exp] = fn.formalArgs.zip(args).collect {
+      case (p, a: IntLit) if execParams(p.name) => (p.localVar: Exp) -> (a: Exp)
+    }.toMap
+    val parts = fn.body.toSeq ++ fn.pres ++ fn.posts
+    if (subst.isEmpty) parts
+    else parts.map(e => Simplifier.simplify(e.transform { case v: LocalVar if subst.contains(v) => subst(v) }))
+  }
+
   def relatesOnlyFirst(n: Node, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean, seen: Set[String]): Boolean = !n.exists {
     case SIFRelExp(_, lit) => lit.i >= m
-    case f: FuncApp if hyperFuncs(f.funcname) => VprInfo.executions(f.info) match {
-      case Some(is) => is.exists(_ >= m) // the callee itself is checked at its own call
-      case None if seen(f.funcname) => false
-      case None => functions.get(f.funcname) match {
+    case f: FuncApp if hyperFuncs(f.funcname) =>
+      if (seen(f.funcname)) false
+      else functions.get(f.funcname) match {
         case Some(fn) if isHeapDependent(fn) => true // cannot be evaluated on a padded tuple, see [[isHeapDependent]]
         case Some(fn) if fn.body.nonEmpty =>
-          !(fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, seen + f.funcname))
+          !specialised(fn, f.args).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, seen + f.funcname))
         case _ => true // abstract hyper functions may relate any executions
       }
-    }
     case _ => false
   }
 
@@ -1234,9 +1238,7 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     config.hyperModeOrDefault match {
       case Hyper.Enabled =>
-        val errs = reindexingErrors(task.program, hyperFunctions(task.program), config.hyperExecutionsOrDefault)
-        if (errs.nonEmpty) Left(errs)
-        else Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false, config.hyperExecutionsOrDefault), task.backtrack))
+        Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false, config.hyperExecutionsOrDefault), task.backtrack))
 
       case Hyper.Disabled =>
         removeHyper(task.program).map(BackendVerifier.Task(_, task.backtrack))

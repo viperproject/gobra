@@ -3,7 +3,7 @@
 
 package hyperfuncsimple01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Hyperfuncs abstract over several executions. Non-interference is defined once and reused.
 // `low` compares values with mathematical equality, so no comparability side conditions are needed

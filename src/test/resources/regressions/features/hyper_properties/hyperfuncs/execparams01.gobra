@@ -1,0 +1,116 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 4 --experimentalHyperfuncs)
+
+package execparams01
+
+// Execution identifiers: a hyperfunc parameter of type `exec` denotes one of the executions 0, …, k-1. It has the
+// same value in all executions and can select executions in `rel` and in calls to other hyperfuncs.
+
+// `x` agrees in the executions `i` and `j`
+decreases
+hyperfunc Agree(x any, i, j exec) bool {
+	return rel(x, i) === rel(x, j)
+}
+
+// Robust declassification over four executions.
+decreases
+hyperfunc Square(pub, sec, att any) bool {
+	return low(pub) && Agree(att, 0, 1) && Agree(att, 2, 3) && Agree(sec, 0, 2) && Agree(sec, 1, 3)
+}
+
+decreases
+hyperfunc Robust(out any) bool {
+	return Agree(out, 0, 1) ==> Agree(out, 2, 3)
+}
+
+requires Square(dept, salary, offset)
+ensures  Robust(res)
+func Report(dept, salary, offset int) (res int) {
+	return dept * 1000 + salary + offset
+}
+
+requires Square(dept, salary, guess)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  Robust(res)
+func Leak(dept, salary, guess int) (res int) {
+	return salary * guess
+}
+
+// A two-execution definition with execution parameters, applied to selected pairs of executions.
+decreases
+hyperfunc NonInterfAt(input, output any, i, j exec) bool {
+	return Agree(input, i, j) ==> Agree(output, i, j)
+}
+
+requires Agree(x, 0, 2)
+ensures  NonInterfAt(x, res, 0, 2) && NonInterfAt(x, res, 1, 3)
+func Double(x int) (res int) {
+	return 2 * x
+}
+
+requires Agree(x, 0, 2)
+ensures  Agree(res, 0, 2)
+func UseDouble(x int) (res int) {
+	res = Double(x)
+	assert NonInterfAt(x, res, 0, 2)
+	return res
+}
+
+// The order of the arguments matters for asymmetric relations.
+decreases
+hyperfunc Le(x int, i, j exec) bool {
+	return rel(x, i) <= rel(x, j)
+}
+
+requires Le(x, 0, 1) && Le(x, 1, 2)
+ensures  Le(x, 0, 2)
+func Transitive(x int) {}
+
+requires Le(x, 0, 1)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  Le(x, 1, 0)
+func Reversed(x int) {}
+
+// Repeated executions: a relation on an execution and itself.
+ensures Agree(x, 1, 1) && NonInterfAt(x, y, 3, 3)
+func Diagonal(x, y int) {}
+
+// Execution parameters can be quantified over, and they can be compared.
+decreases
+hyperfunc AllPairs(x int) bool {
+	return forall i exec, j exec :: i != j ==> Agree(x, i, j)
+}
+
+requires AllPairs(x)
+ensures  low(x)
+func FromAllPairs(x int) {}
+
+requires low(x)
+ensures  AllPairs(x)
+func ToAllPairs(x int) {}
+
+// An execution parameter can be passed on, and compared with literals.
+decreases
+hyperfunc AgreeWithFirst(x int, i exec) bool {
+	return i == 0 || Agree(x, 0, i)
+}
+
+requires forall i exec :: AgreeWithFirst(x, i)
+ensures  low(x)
+func FromFirst(x int) {}
+
+// A contract that relates only executions 0 and 1, also through execution arguments, is reused on every pair of
+// executions in the 4-product. (Relational preconditions of the callee would have to hold on every pair, so the
+// relation is stated as an implication in the postcondition, like `NonInterf`.)
+ensures Agree(x, 0, 1) ==> Agree(res, 0, 1)
+func Inc(x int) (res int) {
+	return x + 1
+}
+
+requires Agree(x, 0, 2) && Agree(x, 1, 3)
+ensures  Agree(res, 0, 2) && Agree(res, 1, 3)
+func UseInc(x int) (res int) {
+	return Inc(x)
+}

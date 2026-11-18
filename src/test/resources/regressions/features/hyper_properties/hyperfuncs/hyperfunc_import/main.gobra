@@ -3,7 +3,7 @@
 
 package main
 
-// ##(-I ./ --hyperMode on)
+// ##(-I ./ --hyperMode on --experimentalHyperfuncs)
 
 import "security"
 

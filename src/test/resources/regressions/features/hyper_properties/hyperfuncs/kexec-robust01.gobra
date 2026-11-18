@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// ##(--hyperMode on --hyperExecutions 4)
+// ##(--hyperMode on --hyperExecutions 4 --experimentalHyperfuncs)
 
 // Robust declassification (Zdancewic & Myers, CSFW'01) is a 4-safety property: an attacker who controls the
 // untrusted inputs must not be able to influence what is declassified. The four executions form a square:

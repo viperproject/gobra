@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// ##(--hyperMode on --hyperExecutions 3)
+// ##(--hyperMode on --hyperExecutions 3 --experimentalHyperfuncs)
 
 // Bounded leakage: for each choice of the public inputs, the output takes at most two values, i.e., the program
 // leaks at most one bit (its channel capacity is at most log2(2) = 1, Smith FoSSaCS'09). This is a 3-safety

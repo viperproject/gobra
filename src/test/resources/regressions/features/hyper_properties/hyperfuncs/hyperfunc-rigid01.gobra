@@ -3,7 +3,7 @@
 
 package hyperfuncrigid01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Rigid parameters: a hyperfunc parameter `c` with the top-level precondition `low(c)` has the same value in all
 // executions, so the body and the postcondition may use it as a single value. Call sites must establish `low(c)`.

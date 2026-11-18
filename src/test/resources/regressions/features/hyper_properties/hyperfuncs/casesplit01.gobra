@@ -3,7 +3,7 @@
 
 package casesplit01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Relational case splits: a postcondition `P ==> Q` whose premise P depends only on the arguments holds vacuously
 // for executions that do not satisfy P. The low-guard encoding therefore verifies such methods with a case split on

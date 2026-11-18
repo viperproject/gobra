@@ -5,7 +5,7 @@ package hyperfuncdisabled01
 
 // Without hyper mode, hyperfuncs are dropped and calls to them are treated like `low`: they are accepted in
 // members without proof obligations.
-// ##(--hyperMode off)
+// ##(--hyperMode off --experimentalHyperfuncs)
 
 decreases
 hyperfunc NonInterf(input, output any) bool {

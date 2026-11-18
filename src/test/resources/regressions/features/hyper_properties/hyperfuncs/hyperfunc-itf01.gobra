@@ -3,7 +3,7 @@
 
 package hyperfuncitf01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Data abstraction for security specs: each implementation defines what "low" means for it.
 type Container interface {

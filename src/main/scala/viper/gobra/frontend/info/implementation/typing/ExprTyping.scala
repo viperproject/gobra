@@ -320,7 +320,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
           val hyperCallPosition = if (isHyperCall(n)) relationalPositionMessages(n) else noMessages
-          ghostCallsOpensInvOutsideOpen ++ callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation ++ hyperCallPosition
+          // arguments of type `exec` are executions: integer literals or parameters of type `exec`
+          val execArgs = exprType(callee) match {
+            case FunctionT(params, _) => (n.args zip params).flatMap {
+              case (_: PIntLit, ExecT) => noMessages
+              case (a, ExecT) => error(a, s"expected an execution, i.e., an integer literal or a parameter of type 'exec', but got $a",
+                exprType(a) != ExecT)
+              case _ => noMessages
+            }
+            case _ => noMessages
+          }
+          ghostCallsOpensInvOutsideOpen ++ execArgs ++ callToGhostInCriticalRegionIsValid ++ cannotCallItfIfInit ++ onlyRevealOpaqueFunc ++ isCallToInit ++ wellTypedArgs ++ mayInitSeparation ++ hyperCallPosition
 
         case (Left(_), Some(_: ap.ClosureCall)) =>
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a closure call.", n.reveal) ++
@@ -737,6 +747,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
         case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
+        // an execution: one of 0, …, k-1
+        case Some(ExecT) =>
+          val k = config.hyperExecutionsOrDefault
+          error(exp, s"executions are numbered from 0 to ${k - 1} (see option --hyperExecutions), but $exp was provided",
+            intConstantEval(exp).exists(i => i < 0 || k <= i))
         case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }

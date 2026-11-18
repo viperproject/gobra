@@ -130,26 +130,18 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PLow(e) => isExpr(e).out ++ relationalPositionMessages(n)
     case n: PLowContext => relationalPositionMessages(n)
-    case n: PRel =>
+    case n@PRel(e, index) =>
+      val k = config.hyperExecutionsOrDefault
+      val indexMessages = index match {
+        case lit: PIntLit => error(n, s"executions are numbered from 0 to ${k - 1} (see option --hyperExecutions), but ${lit.lit} was provided. ",
+          lit.lit < 0 || k <= lit.lit)
+        case _ => isExpr(index).out ++ error(index, s"expected an execution, i.e., an integer literal or an expression of type 'exec', but got $index",
+          exprType(index) != ExecT)
+      }
+      isExpr(e).out ++
       error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.Enabled.name}' is used, or if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.",
         config.hyperModeOrDefault == Hyper.EnabledExtended && !config.enableExperimentalHyperFeatures) ++
-      error(n, s"executions are numbered from 0 to ${config.hyperExecutionsOrDefault - 1} (see option --hyperExecutions), but ${n.lit.lit} was provided. ",
-        n.lit.lit < 0 || config.hyperExecutionsOrDefault <= n.lit.lit) ++
-      relationalPositionMessages(n)
-
-    case n@PReindex(indices, exp) =>
-      val k = config.hyperExecutionsOrDefault
-      val target = exp match {
-        case _: PLow => noMessages
-        case inv: PInvoke if isHyperCall(inv) => noMessages
-        case _ => error(n, "only 'low' and calls to hyperfuncs can be evaluated on selected executions")
-      }
-      target ++ error(n, "at least one execution must be selected", indices.isEmpty) ++
-        error(n, s"selecting executions is not yet supported in hyperMode '${Hyper.EnabledExtended.name}'.",
-          config.hyperModeOrDefault == Hyper.EnabledExtended) ++
-        error(n, s"at most $k executions can be selected (see option --hyperExecutions)", indices.size > k) ++
-        indices.flatMap(i => error(i, s"executions are numbered from 0 to ${k - 1} (see option --hyperExecutions), but ${i.lit} was provided.",
-          i.lit < 0 || k <= i.lit))
+      indexMessages ++ relationalPositionMessages(n)
 
     case n: PGhostEquals =>
       val lType = typ(n.left)
@@ -339,12 +331,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * Boolean expressions are always accepted, as they are lifted to hold in all executions.
     */
   private[typing] def isSingleValued(e: PExpression, rigidParameters: Set[String] = Set.empty): Boolean = e match {
-    case _: PRel | _: PLow | _: PLowContext | _: PReindex => true
+    case _: PRel | _: PLow | _: PLowContext => true
     case n: PInvoke if isHyperCall(n) => true
     case _ if underlyingType(exprType(e)) == BooleanT => true
     case n: PNamedOperand => entity(n.id) match {
       case _: BoundVariable | _: Constant => true
-      case _: InParameter => rigidParameters.contains(n.id.name)
+      case _: InParameter => rigidParameters.contains(n.id.name) || exprType(n) == ExecT
       case _ => false
     }
     case _: PBasicLiteral => true
@@ -427,7 +419,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PLow | _: PLowContext => BooleanT
     case PRel(exp, _) => exprType(exp)
-    case PReindex(_, exp) => exprType(exp)
     case _: PGhostEquals | _: PGhostUnequals => BooleanT
 
     case POptionNone(t) => OptionT(typeSymbType(t))
@@ -651,8 +642,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n: PLow => go(n.exp)
       case _: PLowContext => true
-      case n: PRel => go(n.exp)
-      case n: PReindex => go(n.exp)
+      case n: PRel => go(n.exp) && go(n.index)
 
       case PCompositeLit(typ, _) => typ match {
         case _: PImplicitSizeArrayType => true

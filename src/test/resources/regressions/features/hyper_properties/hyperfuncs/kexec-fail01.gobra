@@ -1,7 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-// ##(--hyperMode on --hyperExecutions 3)
+// ##(--hyperMode on --hyperExecutions 3 --experimentalHyperfuncs)
 
 package kexecfail01
 
@@ -13,12 +13,12 @@ func ok(x int)
 requires rel(x, 3) == 0
 func outOfRange(x int)
 
-// selected executions must be in range, too
-//:: ExpectedOutput(type_error)
-requires low@(0, 3)(x)
-func reindexOutOfRange(x int)
+// execution arguments must be in range, too
+decreases
+hyperfunc Agree(x int, i, j exec) bool {
+	return rel(x, i) == rel(x, j)
+}
 
-// only `low` and hyperfuncs can be evaluated on selected executions
 //:: ExpectedOutput(type_error)
-requires ok@(0, 1)(x)
-func reindexNonHyper(x int)
+requires Agree(x, 0, 3)
+func agreeOutOfRange(x int)

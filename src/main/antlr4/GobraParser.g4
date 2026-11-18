@@ -135,12 +135,10 @@ before: BEFORE L_PAREN expression R_PAREN;
 
 isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
-low: LOW (ADDR_MOD executionIndices)? L_PAREN expression R_PAREN;
+low: LOW L_PAREN expression R_PAREN;
 
-// the executions on which `low` or a hyperfunc call is evaluated, e.g., `low@(0, 2)(x)`
-executionIndices: L_PAREN executionIndex (COMMA executionIndex)* R_PAREN;
-
-// an execution: a literal, or a variable bound by an execution quantifier (`forall i exec :: …`)
+// an execution: a literal, a variable bound by an execution quantifier (`forall i exec :: …`), or a parameter of type
+// `exec` of a hyperfunc
 executionIndex: integer | IDENTIFIER;
 
 lowc: LOWC L_PAREN R_PAREN;
@@ -428,7 +426,6 @@ primaryExpr:
   | primaryExpr typeAssertion #typeAssertionPrimaryExpr
   // "REVEAL? primaryExpr arguments" doesn't work due to mutual left recursion
   | primaryExpr arguments #invokePrimaryExpr
-  | primaryExpr ADDR_MOD executionIndices arguments #reindexedInvokePrimaryExpr
   | REVEAL primaryExpr arguments #revealInvokePrimaryExpr
   | primaryExpr arguments AS closureSpecInstance #invokePrimaryExprWithSpec
   // Predicate constructors are parsed as follows:

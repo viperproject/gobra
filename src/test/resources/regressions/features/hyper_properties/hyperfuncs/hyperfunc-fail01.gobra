@@ -3,7 +3,7 @@
 
 package hyperfuncfail01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Relational expressions denote a single value for all executions. Positions in which they were silently
 // replaced by `true` (issue 846) are now rejected.

@@ -319,7 +319,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // package invariants.
           val mayInitSeparation = error(n, "Function called from 'mayInit' context is not 'mayInit'.",
             !isImported && isEnclosingMayInit(n) && !(isMayInit || isPure))
-          val hyperCallPosition = if (isHyperCall(n)) relationalPositionMessages(n) else noMessages
+          val hyperCallPosition = if (isHyperCall(n)) {
+            relationalPositionMessages(n) ++
+              error(n, viper.gobra.frontend.Config.experimentalHyperfuncsMessage, !config.enableExperimentalHyperfuncs)
+          } else noMessages
           // arguments of type `exec` are executions: integer literals or parameters of type `exec`
           val execArgs = exprType(callee) match {
             case FunctionT(params, _) => (n.args zip params).flatMap {

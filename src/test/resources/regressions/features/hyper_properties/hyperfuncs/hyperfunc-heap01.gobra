@@ -3,7 +3,7 @@
 
 package hyperfuncheap01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Hyper functions over the heap: SIF specs are layered on top of footprint specs (in the style of IDF).
 type Person struct {

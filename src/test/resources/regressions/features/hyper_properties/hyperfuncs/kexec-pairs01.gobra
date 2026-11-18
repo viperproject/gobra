@@ -3,7 +3,7 @@
 
 package kexecpairs01
 
-// ##(--hyperMode on --hyperExecutions 4)
+// ##(--hyperMode on --hyperExecutions 4 --experimentalHyperfuncs)
 
 // In a k-product, a callee whose contract relates only executions 0 and 1 can be used on every pair of the caller's
 // executions: its contract holds for all k-tuples, including (σᵢ, σⱼ, σⱼ, σⱼ), on which it means the same as on the

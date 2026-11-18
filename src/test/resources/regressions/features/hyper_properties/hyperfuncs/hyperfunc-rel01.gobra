@@ -3,7 +3,7 @@
 
 package hyperfuncrel01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Relations other than equality: monotonicity and sensitivity.
 decreases

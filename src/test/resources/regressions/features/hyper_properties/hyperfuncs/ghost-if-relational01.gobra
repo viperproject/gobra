@@ -3,7 +3,7 @@
 
 package ghostifrelational01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // A ghost if-statement with a relational condition is a case split in the relational proof: the condition denotes
 // the same value in both executions, so both executions take the same branch.

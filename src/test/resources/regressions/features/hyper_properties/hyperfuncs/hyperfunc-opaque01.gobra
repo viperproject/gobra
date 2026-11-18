@@ -3,7 +3,7 @@
 
 package hyperfuncopaque01
 
-// ##(--hyperMode on)
+// ##(--hyperMode on --experimentalHyperfuncs)
 
 // Hyperfuncs can be opaque: their body is only available after `reveal`.
 decreases

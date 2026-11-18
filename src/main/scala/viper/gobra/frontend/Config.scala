@@ -83,6 +83,7 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
+  val DefaultEnableExperimentalHyperfuncs: Boolean = false
   val DefaultAssertTimeout: Option[Int] = None
 }
 
@@ -249,6 +250,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                   enableExperimentalHyperfuncs: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperfuncs,
                    assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
 ) {
 
@@ -309,6 +311,7 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
+      enableExperimentalHyperfuncs = enableExperimentalHyperfuncs || input.enableExperimentalHyperfuncs.value.contains(true),
       assertTimeout = (assertTimeout, input.assertTimeout.value) match {
         case (Some(l), Some(r)) => Some(math.min(l, r))
         case (l, r) => l orElse r
@@ -362,6 +365,7 @@ case class Config(
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
+      "enableExperimentalHyperfuncs" -> enableExperimentalHyperfuncs,
       "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
@@ -384,6 +388,8 @@ object Config {
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 
   val enableExperimentalHyperFeaturesOptionName = "enableExperimentalHyperFeatures"
+  val experimentalHyperfuncsMessage: String = "hyperfuncs are an experimental feature. Pass the flag " +
+    "--experimentalHyperfuncs to allow them. This feature may change in the future."
 
   /** Options that must not appear in the `other` field of a JSON config because their paths
     * cannot be correctly resolved (they are turned into Source objects before path resolution). */
@@ -443,6 +449,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                      enableExperimentalHyperfuncs: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperfuncs,
                       assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
                      ) {
   def shouldParse: Boolean = true
@@ -528,6 +535,7 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
+  enableExperimentalHyperfuncs: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalHyperfuncs", None),
   assertTimeout: InputConfigOption[Int] = InputConfigOption("assertTimeout", None),
 ) {
   /** Derived field: extracts just the files from cutInputWithIdxs */
@@ -591,6 +599,7 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
+    enableExperimentalHyperfuncs = enableExperimentalHyperfuncs orElse other.enableExperimentalHyperfuncs,
     assertTimeout = assertTimeout orElse other.assertTimeout,
   )
 
@@ -600,7 +609,7 @@ case class InputConfig(
     * - backend, hyperMode: must match if both defined
     * - packageTimeout, assertTimeout: takes minimum
     * - logLevel: takes minimum (more verbose)
-    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
+    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses, enableExperimentalHyperfuncs: OR
     * - moreJoins: uses MoreJoins.merge */
   def merge(other: InputConfig): InputConfig = {
     // Helper to merge list options by concatenating and deduplicating
@@ -695,6 +704,7 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
+      enableExperimentalHyperfuncs = mergeOr(enableExperimentalHyperfuncs, other.enableExperimentalHyperfuncs),
       assertTimeout = InputConfigOption(assertTimeout.name, (assertTimeout.value, other.assertTimeout.value) match {
         case (Some(l), Some(r)) => Some(math.min(l, r)) // take minimum
         case (l, None) => l
@@ -1007,6 +1017,7 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
+    enableExperimentalHyperfuncs = enableExperimentalHyperfuncs.value.getOrElse(false),
     assertTimeout = assertTimeout.value,
   )
 }
@@ -1134,6 +1145,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
+    enableExperimentalHyperfuncs = baseConfig.enableExperimentalHyperfuncs,
     assertTimeout = baseConfig.assertTimeout,
   )
 }
@@ -1780,6 +1792,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val enableExperimentalHyperfuncs: ScallopOption[Boolean] = opt[Boolean](
+    name = "experimentalHyperfuncs",
+    descr = s"Enables the declaration and use of hyperfuncs (experimental).",
+    default = Some(ConfigDefaults.DefaultEnableExperimentalHyperfuncs),
+    noshort = true,
+  )
+
   val assertTimeout: ScallopOption[Int] = opt[Int](
     name = "assertTimeout",
     descr = "Sets a timeout (in milliseconds) for assert operations performed by Silicon. Does not have any effect on non-Silicon-based backends.",
@@ -1845,6 +1864,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
+    enableExperimentalHyperfuncs = toInputConfigOption(enableExperimentalHyperfuncs),
     assertTimeout = toInputConfigOption(assertTimeout),
   )
 

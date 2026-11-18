@@ -3,7 +3,7 @@
 
 package kexecpairs02
 
-// ##(--hyperMode on --hyperExecutions 3)
+// ##(--hyperMode on --hyperExecutions 3 --experimentalHyperfuncs)
 
 // Relational preconditions are obligations of the caller also when a callee's contract is used pairwise in a
 // k-product: a sink that requires a low argument must not accept a secret.

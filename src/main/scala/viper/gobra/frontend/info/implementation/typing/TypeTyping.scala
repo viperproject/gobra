@@ -92,9 +92,13 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
         val interfaceMethodsNotAtomic = t.methSpecs.flatMap { sig =>
           error(sig, s"Interface methods cannot be marked as atomic.", sig.spec.isAtomic)
         }
+        val hyperMembersExperimental = t.methSpecs.flatMap { sig =>
+          error(sig, viper.gobra.frontend.Config.experimentalHyperfuncsMessage, sig.spec.isHyper && !config.enableExperimentalHyperfuncs)
+        }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           interfaceMethodsNotAtomic ++
+          hyperMembersExperimental ++
           sigsWithWildcardMeasuresErrors ++
           sigsWithConditionalMeasuresErrors ++
           containsRedeclarations(t) // temporary check

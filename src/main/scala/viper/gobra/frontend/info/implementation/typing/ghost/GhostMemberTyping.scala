@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.frontend.Hyper
+import viper.gobra.frontend.Config
 import viper.gobra.ast.frontend.{PBlock, PBodyParameterInfo, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
@@ -132,6 +133,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     */
   private def hyperMemberIsWellFormed(member: PMember, spec: PFunctionSpec, body: Option[(PBodyParameterInfo, PBlock)]): Messages = {
     if (spec.isHyper) {
+      val experimental = error(member, Config.experimentalHyperfuncsMessage, !config.enableExperimentalHyperfuncs)
       val supportedMode = error(member, s"hyperfuncs are not yet supported in hyperMode '${Hyper.EnabledExtended.name}'.",
         config.hyperModeOrDefault == Hyper.EnabledExtended)
       val singleValuedBody = body.map(_._2.nonEmptyStmts) match {
@@ -141,7 +143,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             !isSingleValued(ret, rigidParameters(spec)))
         case _ => noMessages
       }
-      supportedMode ++ singleValuedBody
+      experimental ++ supportedMode ++ singleValuedBody
     } else noMessages
   }
 

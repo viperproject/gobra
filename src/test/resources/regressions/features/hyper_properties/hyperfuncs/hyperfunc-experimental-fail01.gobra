@@ -5,7 +5,7 @@
 
 package hyperfuncexperimentalfail01
 
-// hyperfuncs require the flag --experimentalHyperfuncs
+// declaring hyperfuncs requires the flag --experimentalHyperfuncs
 
 //:: ExpectedOutput(type_error)
 hyperfunc NonInterf(input, output int) bool {
@@ -24,7 +24,6 @@ type I interface {
 	hyperfunc LowContents() bool
 }
 
-//:: ExpectedOutput(type_error)
 ensures NonInterf(x, res)
 func Double(x int) (res int) {
 	return 2 * x

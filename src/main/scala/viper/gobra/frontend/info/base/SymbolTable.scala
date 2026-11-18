@@ -76,8 +76,9 @@ object SymbolTable extends Environments[Entity] {
   }
 
   /**
-    * Entities that can be used as the base of a closure spec instance (e.g., `spec` in `c(args) as spec{params}`),
-    * namely closure spec declarations and named function literals.
+    * Common supertype of the entities that a closure spec instance (e.g., `spec` in `c(args) as spec{params}`)
+    * can refer to: closure spec declarations ([[ClosureSpec]]) and named function literals ([[Closure]]).
+    * In both cases, the entity provides the signature and specification that the called closure has to satisfy.
     */
   sealed trait ClosureSpecTarget extends DataEntity with WithArguments with WithResult {
     /** specification of the closures specified by this target */
@@ -93,7 +94,8 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = lit.args
     override val result: PResult = lit.decl.result
     override def spec: PFunctionSpec = lit.spec
-    override def specifiesGhostClosures: Boolean = false
+    /** a ghost function literal is a ghost closure, so it specifies ghost closures when used as a spec */
+    override def specifiesGhostClosures: Boolean = ghost
   }
 
   sealed trait Constant extends DataEntity {

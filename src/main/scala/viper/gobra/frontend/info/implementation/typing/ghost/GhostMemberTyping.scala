@@ -56,9 +56,9 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     // the closures specified by a pure or a ghost spec have to terminate
     val needsTermination = spec.isPure || decl.isGhost
     val terminationErrors =
-      error(decl, "All pure or ghost closure specs must have termination measures, but none was found for this closure spec.",
-        needsTermination && !config.disableCheckTerminationPureFns && spec.terminationMeasures.isEmpty) ++
-        (if (needsTermination) noConditionalMeasureErrors(spec.terminationMeasures) else noMessages)
+      if (needsTermination) guaranteedTerminationErrors(decl, spec.terminationMeasures,
+        "All pure or ghost closure specs must have termination measures, but none was found for this closure spec.")
+      else noMessages
 
     wellDefVariadicArgs(decl.args) ++ modifierErrors ++ pureErrors ++ terminationErrors
   }

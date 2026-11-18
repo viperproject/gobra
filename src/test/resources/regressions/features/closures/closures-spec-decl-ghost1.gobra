@@ -73,3 +73,17 @@ func test4() {
 
     test3(c)
 }
+
+func test5() {
+    // a ghost function literal is a ghost closure and, thus, specifies ghost closures when used as a spec
+    ghost c := requires x >= 0
+               ensures r == x + 1
+               decreases
+               func f(x int) (r int) {
+                  return x + 1
+               }
+
+    ghost y := 1
+    ghost r := c(y) as f
+    assert r == 2
+}

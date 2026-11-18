@@ -4091,7 +4091,7 @@ object Desugar extends LazyLogging {
 
     def idName(id: PIdnNode, context: TypeInfo): String = context.regular(id) match {
       case f: st.Function => nm.function(id.name, f.context)
-      case s: st.ClosureSpec => nm.function(id.name, s.context)
+      case s: st.ClosureSpec => nm.closureSpec(id.name, s.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MethodSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.FPredicate => nm.function(id.name, f.context)
@@ -5191,6 +5191,7 @@ object Desugar extends LazyLogging {
     private val REFERENCE_PREFIX = "R"
     private val FUNCTION_PREFIX = "F"
     private val METHODSPEC_PREFIX = "S"
+    private val CLOSURE_SPEC_PREFIX = "CS"
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
@@ -5280,6 +5281,7 @@ object Desugar extends LazyLogging {
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
     def function(n: String, context: ExternalTypeInfo): String = topLevelName(FUNCTION_PREFIX)(n, context)
+    def closureSpec(n: String, context: ExternalTypeInfo): String = topLevelName(CLOSURE_SPEC_PREFIX)(n, context)
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
       topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {

@@ -9,8 +9,9 @@ package viper.gobra.frontend.info.base
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl, PTypeDef}
+import viper.gobra.frontend.GobraParser
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.util.TypeBounds
+import viper.gobra.util.{TypeBounds, Violation}
 
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
@@ -21,6 +22,13 @@ object Type {
 
   abstract class PrettyType(pretty: => String) extends Type {
     override lazy val toString: String = pretty
+  }
+
+  /** Returns the source-level keyword of a lexer token as defined in the grammar, e.g. `dict` for `GobraParser.DICT`. */
+  private def keyword(tokenType: Int): String = {
+    val literalName = GobraParser.VOCABULARY.getLiteralName(tokenType) // the literal is enclosed in single quotes, e.g. `'dict'`
+    Violation.violation(literalName != null, s"token ${GobraParser.VOCABULARY.getSymbolicName(tokenType)} has no literal name")
+    literalName.stripPrefix("'").stripSuffix("'")
   }
 
   sealed trait ContextualType extends Type {
@@ -175,7 +183,7 @@ object Type {
 
   case class MultisetT(elem : Type) extends PrettyType(s"mset[$elem]") with GhostUnorderedCollectionType
 
-  case class MathMapT(key : Type, elem : Type) extends PrettyType(s"mmap[$key]$elem") with GhostUnorderedCollectionType
+  case class MathMapT(key : Type, elem : Type) extends PrettyType(s"${keyword(GobraParser.DICT)}[$key]$elem") with GhostUnorderedCollectionType
 
   case object PermissionT extends PrettyType(s"perm") with GhostType
 

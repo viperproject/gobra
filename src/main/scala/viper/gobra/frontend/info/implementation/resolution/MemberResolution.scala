@@ -46,7 +46,12 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   private val fieldSuffix: Type => AdvancedMemberSet[StructMember] = {
 
-    def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
+    // one attribute per `pastDeref` polarity such that the recursive calls share the attributes' caches
+    def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = if (pastDeref) goPastDeref else goNoDeref
+    lazy val goNoDeref: Type => AdvancedMemberSet[StructMember] = mk(pastDeref = false)
+    lazy val goPastDeref: Type => AdvancedMemberSet[StructMember] = mk(pastDeref = true)
+
+    def mk(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
 
       case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
@@ -63,7 +68,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   val structMemberSet: Type => AdvancedMemberSet[StructMember] =
     attr[Type, AdvancedMemberSet[StructMember]] {
-      case Single(t) => fieldSuffix(t) union pastPromotions(fieldSuffix)(t)
+      case Single(t) => fieldSuffix(t) union pastPromotedFields(t)
       case _ => AdvancedMemberSet.empty
     }
 
@@ -82,7 +87,12 @@ trait MemberResolution { this: TypeInfoImpl =>
     **/
   private val adtSuffix: Type => AdvancedMemberSet[AdtMember] = {
 
-    def go(pastDeref: Boolean): Type => AdvancedMemberSet[AdtMember] = attr[Type, AdvancedMemberSet[AdtMember]] {
+    // one attribute per `pastDeref` polarity such that the recursive calls share the attributes' caches
+    def go(pastDeref: Boolean): Type => AdvancedMemberSet[AdtMember] = if (pastDeref) goPastDeref else goNoDeref
+    lazy val goNoDeref: Type => AdvancedMemberSet[AdtMember] = mk(pastDeref = false)
+    lazy val goPastDeref: Type => AdvancedMemberSet[AdtMember] = mk(pastDeref = true)
+
+    def mk(pastDeref: Boolean): Type => AdvancedMemberSet[AdtMember] = attr[Type, AdvancedMemberSet[AdtMember]] {
 
       case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
@@ -101,43 +111,39 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   lazy val adtMemberSet: Type => AdvancedMemberSet[AdtMember] =
     attr[Type, AdvancedMemberSet[AdtMember]] {
-      case Single(t) => adtSuffix(t) union pastPromotions(adtSuffix)(t)
+      case Single(t) => adtSuffix(t) union pastPromotedAdtMembers(t)
       case _ => AdvancedMemberSet.empty
     }
 
-  lazy val adtConstructorSet: Type => AdvancedMemberSet[AdtClause] = {
-
-    def constructorSuffix(t: Type): AdvancedMemberSet[AdtClause] = {
-      t match {
-        case t: AdtT =>
-          AdvancedMemberSet.init(
-            t.adtDecl.clauses.map { clause => AdtClause(clause, t.decl, t.context) }
-          )
-        case _ => AdvancedMemberSet.empty
-      }
+  private def adtConstructorSuffix(t: Type): AdvancedMemberSet[AdtClause] = {
+    t match {
+      case t: AdtT =>
+        AdvancedMemberSet.init(
+          t.adtDecl.clauses.map { clause => AdtClause(clause, t.decl, t.context) }
+        )
+      case _ => AdvancedMemberSet.empty
     }
+  }
 
+  lazy val adtConstructorSet: Type => AdvancedMemberSet[AdtClause] =
     attr[Type, AdvancedMemberSet[AdtClause]] {
-      case Single(t) => constructorSuffix(t) union pastPromotions(constructorSuffix)(t)
+      case Single(t) => adtConstructorSuffix(t) union pastPromotedAdtConstructors(t)
+      case _ => AdvancedMemberSet.empty
+    }
+
+  private def domainFunctionSuffix(t: Type): AdvancedMemberSet[DomainFunction] = {
+    t match {
+      case t: DomainT =>
+        AdvancedMemberSet.init(t.decl.funcs.map { f => DomainFunction(f, t.decl, t.context) })
       case _ => AdvancedMemberSet.empty
     }
   }
 
-  lazy val domainFunctionSet: Type => AdvancedMemberSet[DomainFunction] = {
-
-    def domainSuffix(t: Type): AdvancedMemberSet[DomainFunction] = {
-      t match {
-        case t: DomainT =>
-          AdvancedMemberSet.init(t.decl.funcs.map { f => DomainFunction(f, t.decl, t.context) })
-        case _ => AdvancedMemberSet.empty
-      }
-    }
-
+  lazy val domainFunctionSet: Type => AdvancedMemberSet[DomainFunction] =
     attr[Type, AdvancedMemberSet[DomainFunction]] {
-      case Single(t) => domainSuffix(t) union pastPromotions(domainSuffix)(t)
+      case Single(t) => domainFunctionSuffix(t) union pastPromotedDomainFunctions(t)
       case _ => AdvancedMemberSet.empty
     }
-  }
 
   // Methods
 
@@ -238,9 +244,14 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   // Promotion
 
-  private def pastPromotions[M <: TypeMember](cont: Type => AdvancedMemberSet[M]): Type => AdvancedMemberSet[M] = {
+  private def makePastPromotions[M <: TypeMember](cont: Type => AdvancedMemberSet[M]): Type => AdvancedMemberSet[M] = {
 
-    def go(pastDeref: Boolean): Type => AdvancedMemberSet[M] = attr[Type, AdvancedMemberSet[M]] {
+    // one attribute per `pastDeref` polarity such that the recursive calls share the attributes' caches
+    def go(pastDeref: Boolean): Type => AdvancedMemberSet[M] = if (pastDeref) goPastDeref else goNoDeref
+    lazy val goNoDeref: Type => AdvancedMemberSet[M] = mk(pastDeref = false)
+    lazy val goPastDeref: Type => AdvancedMemberSet[M] = mk(pastDeref = true)
+
+    def mk(pastDeref: Boolean): Type => AdvancedMemberSet[M] = attr[Type, AdvancedMemberSet[M]] {
 
       case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
@@ -259,6 +270,13 @@ trait MemberResolution { this: TypeInfoImpl =>
     go(pastDeref = false)
   }
 
+  // one memoized promotion closure per continuation such that repeated evaluations share the caches
+  private lazy val pastPromotedFields: Type => AdvancedMemberSet[StructMember] = makePastPromotions(fieldSuffix)
+  private lazy val pastPromotedAdtMembers: Type => AdvancedMemberSet[AdtMember] = makePastPromotions(adtSuffix)
+  private lazy val pastPromotedAdtConstructors: Type => AdvancedMemberSet[AdtClause] = makePastPromotions(adtConstructorSuffix)
+  private lazy val pastPromotedDomainFunctions: Type => AdvancedMemberSet[DomainFunction] = makePastPromotions(domainFunctionSuffix)
+  private lazy val pastPromotedMethods: Type => AdvancedMemberSet[TypeMember] = makePastPromotions(pastPromotionsMethodSuffix)
+
   // Methodsets
 
   private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[TypeMember] =
@@ -272,7 +290,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   val nonAddressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case Single(t) =>
-        pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
+        pastPromotedMethods(t) union (t match {
           case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
           case _ => receiverSet(t)
         })
@@ -282,7 +300,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   val addressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] {
       case Single(t) =>
-        pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
+        pastPromotedMethods(t) union (t match {
           case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
           // we do not add `receiverSet(GhostPointerT(t)).deref` since this would result in implicitly assuming that the receiver points to the ghost heap, which is not guaranteed:
           case _ => receiverSet(t) union receiverSet(ActualPointerT(t)).deref

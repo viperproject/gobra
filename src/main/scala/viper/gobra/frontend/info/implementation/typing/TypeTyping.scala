@@ -66,7 +66,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
       if (isRecursiveInterface.isEmpty) {
-        val methodSet = addressableMethodSet(InterfaceT(t, this))
+        val methodSet = addressableMethodSet(interfaceSymbType(t))
         val methodsContainMayInit = methodSet.exists {
           case (_, (m, _)) => m match {
             case m: SymbolTable.MethodSpec =>
@@ -113,10 +113,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       firstGhostEmbedding.fold(noMessages)(error(_, "embeddings cannot be ghost in a non-ghost struct", !isGhost))
     }
 
+    val structT = structSymbType(t, isGhost = isGhost)
     t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
       noGhostEmbeddings ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
-      structMemberSet(structSymbType(t, isGhost = isGhost)).errors(t) ++ addressableMethodSet(structSymbType(t, isGhost = isGhost)).errors(t) ++
+      structMemberSet(structT).errors(t) ++ addressableMethodSet(structT).errors(t) ++
       error(t, "invalid recursive struct", cyclicStructDef(t))
   }
 
@@ -192,10 +193,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 
-    case t: PInterfaceType =>
-      val res = InterfaceT(t, this)
-      addDemandedEmbeddedInterfaceImplements(res)
-      res
+    case t: PInterfaceType => interfaceSymbType(t)
 
     case n: PNamedOperand => idSymType(n.id)
 
@@ -208,18 +206,33 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PDot =>
       resolve(n) match {
-        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(p: ap.NamedType) => p.symb.context.declaredSymbType(p.symb.decl)
 
         // ADT clause is special since it is a type with a name that is not a named type
-        case Some(p: ap.AdtClause) =>
-          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ))
-          AdtClauseT(p.symb.getName, fields, p.symb.decl, p.symb.typeDecl, p.symb.context)
+        case Some(p: ap.AdtClause) => p.symb.context.adtClauseSymbType(p.symb.decl)
 
         case p => violation(s"expected type, but got $n with resolved pattern $p")
       }
   }
 
-  private[typing] def structSymbType(t: PStructType, isGhost: Boolean): StructT = {
+  override def interfaceSymbType(t: PInterfaceType): InterfaceT = interfaceSymbTypeAttr(t)
+
+  /** Canonical [[InterfaceT]] per interface declaration. Not gated on well-definedness (in contrast
+    * to [[typeSymbType]]), so that well-definedness checks can obtain the canonical instance without
+    * creating attribute cycles. Memoization also guarantees that the embedded interfaces are
+    * registered exactly once.
+    **/
+  private lazy val interfaceSymbTypeAttr: PInterfaceType => InterfaceT =
+    attr { t =>
+      val res = InterfaceT(t, this)
+      addDemandedEmbeddedInterfaceImplements(res)
+      res
+    }
+
+  private[typing] def structSymbType(t: PStructType, isGhost: Boolean): StructT = structSymbTypeAttr(isGhost)(t)
+
+  /** Canonical [[StructT]] per struct declaration and ghostness. Not gated on well-definedness. */
+  private lazy val structSymbTypeAttr: Boolean => PStructType => StructT = paramAttr { isGhost => (t: PStructType) => {
     def infoFromFieldDecl(f: PFieldDecl, isFieldGhost: Boolean): StructFieldT = StructFieldT(typeSymbType(f.typ), isFieldGhost)
 
     def makeFields(x: PFieldDecls, areFieldsGhost: Boolean): ListMap[String, StructClauseT] = {
@@ -238,7 +251,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x, isEmbeddedGhost = true)
     }
     StructT(clauses, isGhost = isGhost, t, this)
-  }
+  }}
 
   /**
     * Checks whether a struct is cyclically defined in terms of itself (if its name is provided)

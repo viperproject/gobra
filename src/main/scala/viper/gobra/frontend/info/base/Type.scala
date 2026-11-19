@@ -39,7 +39,7 @@ object Type {
 
   case object VoidType extends PrettyType("void")
 
-  case object NilType extends PrettyType("nil")
+  case object NilType extends PrettyType(keyword(GobraParser.NIL_LIT))
 
   case class DeclaredT(decl: PTypeDecl, context: ExternalTypeInfo) extends PrettyType(decl.left.name) with ContextualType
 
@@ -64,9 +64,9 @@ object Type {
 
   case class VariadicT(elem: Type) extends PrettyType(s"...$elem")
 
-  case class OptionT(elem : Type) extends PrettyType(s"option[$elem]")
+  case class OptionT(elem : Type) extends PrettyType(s"${keyword(GobraParser.OPT)}[$elem]")
 
-  case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
+  case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType(s"${keyword(GobraParser.DOM)}{...}") with ContextualType
 
   case class AdtT(clauses: Vector[AdtClauseT], decl: PTypeDef, context: ExternalTypeInfo) extends PrettyType(decl.left.name) with ContextualType {
     val adtDecl: PAdtType = decl.right.asInstanceOf[PAdtType]
@@ -84,7 +84,7 @@ object Type {
     }
   }
 
-  case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
+  case class MapT(key: Type, elem: Type) extends PrettyType(s"${keyword(GobraParser.MAP)}[$key]$elem")
 
   sealed trait PointerT {
     val elem: Type
@@ -96,7 +96,7 @@ object Type {
 
   case class ActualPointerT(elem: Type) extends PrettyType(s"*$elem") with PointerT
 
-  case class GhostPointerT(elem: Type) extends PrettyType(s"gpointer[$elem]") with PointerT with GhostType
+  case class GhostPointerT(elem: Type) extends PrettyType(s"${keyword(GobraParser.GPOINTER)}[$elem]") with PointerT with GhostType
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends PrettyType(s"$mod $elem")
 
@@ -104,11 +104,11 @@ object Type {
 
   object ChannelModus {
 
-    case object Bi extends ChannelModus("chan")
+    case object Bi extends ChannelModus(keyword(GobraParser.CHAN))
 
-    case object Recv extends ChannelModus("<-chan")
+    case object Recv extends ChannelModus(s"${keyword(GobraParser.RECEIVE)}${keyword(GobraParser.CHAN)}")
 
-    case object Send extends ChannelModus("chan<-")
+    case object Send extends ChannelModus(s"${keyword(GobraParser.CHAN)}${keyword(GobraParser.RECEIVE)}")
   }
 
   trait StructClauseT {
@@ -134,14 +134,15 @@ object Type {
     private def extractTyp(clause: (String, StructClauseT)): (String, Type) = (clause._1, clause._2.typ)
 
     override lazy val toString: String = {
-      val fields = clauses.map { case (n, i) => s"${if (i.isGhost) "ghost " else ""}$n $i" }
-      s"${if (isGhost) "ghost " else ""}struct{ ${fields.mkString("; ")} }"
+      val ghostPrefix = s"${keyword(GobraParser.GHOST)} "
+      val fields = clauses.map { case (n, i) => s"${if (i.isGhost) ghostPrefix else ""}$n $i" }
+      s"${if (isGhost) ghostPrefix else ""}${keyword(GobraParser.STRUCT)}{ ${fields.mkString("; ")} }"
     }
   }
 
-  case class FunctionT(args: Vector[Type], result: Type) extends PrettyType(s"func(${args.mkString(",")}) $result")
+  case class FunctionT(args: Vector[Type], result: Type) extends PrettyType(s"${keyword(GobraParser.FUNC)}(${args.mkString(",")}) $result")
 
-  case class PredT(args: Vector[Type]) extends PrettyType(s"pred(${args.mkString(",")})")
+  case class PredT(args: Vector[Type]) extends PrettyType(s"${keyword(GobraParser.PRED)}(${args.mkString(",")})")
 
   // TODO: at least add type info
   case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends ContextualType {
@@ -152,7 +153,8 @@ object Type {
     }
 
     override lazy val toString: String = {
-      if (isEmpty) "interface{}" else s"interface{ ${decl.methSpecs.map(_.id.name).mkString(", ")} }"
+      val interface = keyword(GobraParser.INTERFACE)
+      if (isEmpty) s"$interface{}" else s"$interface{ ${decl.methSpecs.map(_.id.name).mkString(", ")} }"
     }
   }
 
@@ -169,19 +171,19 @@ object Type {
 
   case object AssertionT extends PrettyType("assertion") with GhostType
 
-  case class GhostSliceT(elem: Type) extends PrettyType(s"ghost []$elem") with GhostType
+  case class GhostSliceT(elem: Type) extends PrettyType(s"${keyword(GobraParser.GHOST)} []$elem") with GhostType
 
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type
   }
 
-  case class SequenceT(elem : Type) extends PrettyType(s"seq[$elem]") with GhostCollectionType
+  case class SequenceT(elem : Type) extends PrettyType(s"${keyword(GobraParser.SEQ)}[$elem]") with GhostCollectionType
 
   sealed trait GhostUnorderedCollectionType extends GhostCollectionType
 
-  case class SetT(elem : Type) extends PrettyType(s"set[$elem]") with GhostUnorderedCollectionType
+  case class SetT(elem : Type) extends PrettyType(s"${keyword(GobraParser.SET)}[$elem]") with GhostUnorderedCollectionType
 
-  case class MultisetT(elem : Type) extends PrettyType(s"mset[$elem]") with GhostUnorderedCollectionType
+  case class MultisetT(elem : Type) extends PrettyType(s"${keyword(GobraParser.MSET)}[$elem]") with GhostUnorderedCollectionType
 
   case class MathMapT(key : Type, elem : Type) extends PrettyType(s"${keyword(GobraParser.DICT)}[$key]$elem") with GhostUnorderedCollectionType
 

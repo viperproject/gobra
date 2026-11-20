@@ -1,0 +1,100 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresSpecDeclGhostFail1
+
+// The `ghost` modifier of a closure spec declaration refers to the closures that the spec specifies.
+
+// specifies ghost closures
+ghost
+requires x >= 0
+ensures r == x + 1
+decreases
+spec ghostInc(x int) (r int)
+
+// specifies actual closures with a ghost argument
+requires x >= 0
+ensures r == x + 1
+spec actualInc(ghost g int, x int) (r int)
+
+func test1() {
+    c := requires x >= 0
+         ensures r == x + 1
+         decreases
+         func f(x int) (r int) {
+            return x + 1
+         }
+
+    // non-pure actual closures cannot implement ghost specs, as calls with the spec are ghost
+    //:: ExpectedOutput(type_error)
+    proof c implements ghostInc {
+        r = c(x) as f
+    }
+}
+
+requires c implements ghostInc
+func test2(c func(int) int) {
+    var r int
+    // the result of a call with a ghost spec is ghost
+    //:: ExpectedOutput(type_error)
+    r = c(1) as ghostInc
+}
+
+requires c implements actualInc
+func test3(c func(int, int) int) {
+    ghost g := 0
+    // ghost arguments may only be passed to ghost parameters
+    //:: ExpectedOutput(type_error)
+    r := c(0, g) as actualInc
+}
+
+func test4() {
+    ghost c := requires x >= 0
+               ensures r == x + 1
+               decreases
+               func f(x int) (r int) {
+                  return x + 1
+               }
+
+    d := requires x >= 0
+         ensures r == x + 1
+         decreases
+         func g(x int) (r int) {
+            return x + 1
+         }
+
+    // a ghost function literal specifies ghost closures, which non-pure actual closures cannot implement
+    //:: ExpectedOutput(type_error)
+    proof d implements f {
+        r = d(x) as g
+    }
+}
+
+requires acc(x)
+ensures acc(x) && *x == 1
+spec setter(x *int)
+
+func test5() {
+    x@ := 0
+    c := requires acc(p)
+         ensures acc(p) && *p == 1
+         func g(p *int) {
+            *p = 1
+         }
+    proof c implements setter {
+        c(x) as g
+    }
+    ghost gc := c
+    // a call with a ghost closure is ghost and, thus, requires a ghost or pure spec
+    //:: ExpectedOutput(type_error)
+    gc(&x) as setter
+}
+
+ghost
+requires c implements setter
+decreases
+func test6(c func(*int), ghost x *int) {
+    // closures with a non-ghost impure spec cannot be called in ghost code
+    //:: ExpectedOutput(type_error)
+    c(x) as setter
+}

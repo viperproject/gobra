@@ -18,11 +18,10 @@ type Calls interface {
     ghost pure res(x int, res int)bool
 }
 
-ghost
 requires x >= 0 && cs != nil && cs.inv()
 ensures cs.inv() && cs.called(x) && cs.res(x, res)
 ensures forall x int :: old(cs.called(x)) ==> cs.called(x)
-func spec(ghost cs Calls, x int) (res int)
+spec spec(ghost cs Calls, x int) (res int)
 
 requires f implements spec{cs}
 requires cs != nil && cs.inv()

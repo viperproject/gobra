@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
+import viper.gobra.ast.frontend.{PNode, PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 /**
@@ -45,6 +45,15 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
         "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
         isConditional(m))
     }
+
+  /**
+    * Returns errors unless `measures` guarantee termination, i.e., if no measure is present (unless termination
+    * checks for pure members are disabled) or if a measure is conditional.
+    * Used for members whose calls must terminate, e.g., ghost or pure members.
+    */
+  private[typing] def guaranteedTerminationErrors(n: PNode, measures: Vector[PTerminationMeasure], missingMeasureMsg: String): Messages =
+    error(n, missingMeasureMsg, !config.disableCheckTerminationPureFns && measures.isEmpty) ++
+      noConditionalMeasureErrors(measures)
 
   private[typing] def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
     val tupleMeasureTypes = measures

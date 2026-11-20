@@ -3,10 +3,9 @@
 
 package closuresFail6Proofs
 
-ghost
 requires x >= 0
 ensures y == x
-pure func pspec(x int) (y int)
+pure spec pspec(x int) (y int)
 
 func test1() {
     cl :=
@@ -42,9 +41,8 @@ pred inv1(x *int) {
     acc(x)
 }
 
-ghost
 requires inv(n) && unfolding inv(n) in (*n >= 0)
-pure func permpspec(n *int) (y int)
+pure spec permpspec(n *int) (y int)
 
 func test3() {
     x@ := 0
@@ -76,10 +74,9 @@ func test4() {
     }
 }
 
-ghost
 requires x >= 0
 ensures y == x + 2
-func spec(x int) (y int)
+spec spec(x int) (y int)
 
 func test5() {
     cl :=
@@ -130,10 +127,9 @@ func test7() {
     } 
 }
 
-ghost
 requires inv(n) && unfolding inv(n) in (*n >= 0)
 ensures inv1(n)
-func permspec(n *int) (y int)
+spec permspec(n *int) (y int)
 
 func test8() {
     x@ := 0

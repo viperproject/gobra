@@ -10,4 +10,4 @@ func test(f func()) {
 	f() as spec
 }
 
-func spec()
+spec spec()

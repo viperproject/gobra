@@ -29,10 +29,6 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     * A non-conditional wildcard measure also guarantees termination (albeit without proof).
     * Note that, unlike Viper, Gobra currently does not support marking a member as possibly
     * non-terminating by means of a termination measure.
-    * This function is the single place deciding whether termination measures guarantee
-    * termination: all checks that require a member or a loop to terminate use it instead of
-    * inspecting the measures themselves, which keeps them consistent and allows refining the
-    * reasoning in one place.
     *
     * `mustTerminateMsg` states why `n` has to terminate, and is used as the prefix of all
     * reported errors. If `measureMayBeOmitted` is set, the absence of any measure is not

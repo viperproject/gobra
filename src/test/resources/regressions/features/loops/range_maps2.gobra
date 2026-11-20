@@ -1,0 +1,114 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Ranging over a map exhales a fixed, very small, amount of permission to the map to
+// guarantee that it is not modified while iterating over it. That fixed amount may exceed
+// the permission at hand, in which case users may provide a smaller amount themselves
+// with the syntax `range x, p`.
+
+requires p > noPerm
+requires acc(x, p)
+ensures acc(x, p)
+decreases
+func symbolicPerm(x map[int]int, ghost p perm) {
+	invariant acc(x, p)
+	decreases len(domain(x)) - len(visited)
+	for k, v := range x, p/2 with visited {
+		assert k elem domain(x)
+		assert v == x[k]
+	}
+}
+
+// The permission exhaled by the loop is not available in the loop body, so the amount
+// provided by the user also determines how much permission the body may rely on.
+
+requires acc(x)
+ensures acc(x)
+decreases
+func exhalesHalf(x map[int]int) {
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, 1/2 with visited {
+		// exactly 1/2 was exhaled, so the loop body still holds the other half
+		assert acc(x, 1/2)
+		assert k elem domain(x)
+	}
+}
+
+// The permission amount may also be provided in the assignment form of the range clause,
+// with or without a value variable.
+
+func otherRangeClauses() {
+	x := map[int]int{1: 1, 2: 2}
+
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for _ = range x, 1/4 with visited {
+	}
+
+	var k int
+	var v int
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k, v = range x, perm(1/4) with visited {
+		assert k elem domain(x)
+		assert v == x[k]
+	}
+}
+
+// The permission amount may also be provided without a `with` clause.
+
+func noWithClause() {
+	x := map[int]int{1: 1, 2: 2}
+
+	invariant acc(x)
+	for k := range x, 1/4 {
+		assert k elem domain(x)
+	}
+}
+
+// A wildcard amount is always small enough to be available, so it is the amount to use
+// when all that is at hand is a wildcard itself. Note that the amount inhaled after the
+// loop body is a fresh wildcard rather than the one exhaled before it, so this only works
+// for loops whose invariant holds a wildcard amount too.
+
+requires acc(x, _)
+ensures acc(x, _)
+decreases
+func wildcardPerm(x map[int]int) {
+	invariant acc(x, _)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, _ with visited {
+		assert k elem domain(x)
+	}
+}
+
+// The permission amount is ghost code, so it may mention ghost variables and call ghost
+// pure functions.
+
+ghost
+decreases
+pure func half() perm {
+	return 1/2
+}
+
+requires acc(x)
+ensures acc(x)
+decreases
+func ghostPerm(x map[int]int) {
+	ghost var p perm = half() / 2
+
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, p with visited {
+		assert k elem domain(x)
+	}
+
+	invariant acc(x)
+	decreases len(domain(x)) - len(visited)
+	for k := range x, half() with visited {
+		assert k elem domain(x)
+	}
+}

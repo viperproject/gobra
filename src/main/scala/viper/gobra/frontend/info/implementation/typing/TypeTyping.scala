@@ -84,9 +84,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => noMessages
           }
         }
-        val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
+        // Pure or ghost interface methods must terminate.
+        val sigsTerminateIfGhostOrPure = t.methSpecs.flatMap { sig =>
           if (sig.isGhost || sig.spec.isPure)
-            noConditionalMeasureErrors(sig.spec.terminationMeasures)
+            guaranteedTerminationErrors(sig, sig.spec.terminationMeasures, "Pure or ghost interface methods must terminate",
+              measureMayBeOmitted = config.disableCheckTerminationPureFns)
           else noMessages
         }
         val interfaceMethodsNotAtomic = t.methSpecs.flatMap { sig =>
@@ -96,7 +98,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           interfaceMethodsNotAtomic ++
           sigsWithWildcardMeasuresErrors ++
-          sigsWithConditionalMeasuresErrors ++
+          sigsTerminateIfGhostOrPure ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

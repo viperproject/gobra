@@ -56,37 +56,26 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     // the closures specified by a pure or a ghost spec have to terminate
     val needsTermination = spec.isPure || decl.isGhost
     val terminationErrors =
-      if (needsTermination) guaranteedTerminationErrors(decl, spec.terminationMeasures,
-        "All pure or ghost closure specs must have termination measures, but none was found for this closure spec.")
+      if (needsTermination) guaranteedTerminationErrors(decl, spec.terminationMeasures, "Pure or ghost closure specs must terminate",
+        measureMayBeOmitted = config.disableCheckTerminationPureFns)
       else noMessages
 
     wellDefVariadicArgs(decl.args) ++ modifierErrors ++ pureErrors ++ terminationErrors
   }
 
-  private[typing] def wellFoundedIfNeeded(member: PMember): Messages = {
+  /**
+    * Pure and ghost functions and methods must terminate on every call. Thus, their termination measures have to
+    * guarantee termination.
+    */
+  private[typing] def terminatesIfGhostOrPure(member: PMember): Messages = {
     val spec = member match {
       case m: PMethodDecl => m.spec
       case f: PFunctionDecl => f.spec
       case _ => Violation.violation("Unexpected member type")
     }
-    val hasMeasureIfNeeded =
-      if (spec.isPure || isEnclosingGhost(member))
-        config.disableCheckTerminationPureFns || spec.terminationMeasures.nonEmpty
-      else
-        true
-    val needsMeasureError =
-      error(member, "All pure or ghost functions and methods must have termination measures, but none was found for this member.", !hasMeasureIfNeeded)
-    needsMeasureError
-  }
-
-  private[typing] def noConditionalMeasureIfGhostOrPure(member: PMember): Messages = {
-    val spec = member match {
-      case m: PMethodDecl => m.spec
-      case f: PFunctionDecl => f.spec
-      case _ => return noMessages
-    }
     if (spec.isPure || isEnclosingGhost(member))
-      noConditionalMeasureErrors(spec.terminationMeasures)
+      guaranteedTerminationErrors(member, spec.terminationMeasures, "Pure or ghost functions and methods must terminate",
+        measureMayBeOmitted = config.disableCheckTerminationPureFns)
     else noMessages
   }
 
@@ -149,11 +138,10 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       "Ghost members cannot be marked as atomic.",
       spec.isAtomic && isGhost
     )
-    val atomicMethodsTerminate = error(
-      member,
-      "Atomic members must be guaranteed to terminate on every call. Their specification must contain a non-conditional decreases-clause.",
-      spec.isAtomic && !measuresGuaranteeTermination(spec.terminationMeasures)
-    )
+    val atomicMethodsTerminate =
+      if (spec.isAtomic) guaranteedTerminationErrors(member, spec.terminationMeasures, "Atomic members must be guaranteed to terminate on every call",
+        measureMayBeOmitted = false)
+      else noMessages
     atomicsAreAbstract ++ atomicsAreActual ++ atomicMethodsTerminate
   }
 

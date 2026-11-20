@@ -681,6 +681,8 @@ case class PBoolType() extends PActualPredeclaredType("bool")
 case class PStringType() extends PActualPredeclaredType("string")
 case class PPermissionType() extends PGhostPredeclaredType("perm")
 case class PIntegerGhostType() extends PGhostPredeclaredType("integer") with PIntegerType
+/** The type of execution identifiers 0, …, k-1 in hyper mode; only allowed for parameters of hyperfuncs. */
+case class PExecType() extends PGhostPredeclaredType("exec")
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PActualPredeclaredType("int") with PIntegerType
@@ -920,6 +922,7 @@ case class PFunctionSpec(
                           isAtomic: Boolean = false,
                           opensInvs: Boolean = false,
                           mayBeUsedInInit: Boolean = false,
+                          isHyper: Boolean = false,
                       ) extends PSpecification {
   /** returns all expressions that constitute the precondition, i.e., includes preserved clauses */
   def pres: Vector[PExpression] = clauses.collect {
@@ -1114,7 +1117,8 @@ case class PLow(exp: PExpression) extends PGhostExpression
 
 case class PLowContext() extends PGhostExpression
 
-case class PRel(exp: PExpression, lit: PIntLit) extends PGhostExpression
+/** `rel(exp, index)`: the value of `exp` in the execution `index`, which is an integer literal or has type `exec`. */
+case class PRel(exp: PExpression, index: PExpression) extends PGhostExpression
 
 case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 

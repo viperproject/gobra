@@ -121,13 +121,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: spec only function") {
     frontend.parseMemberOrFail("func foo() { b.bar() }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: spec only function with nested blocks") {
     frontend.parseMemberOrFail("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
@@ -160,7 +160,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(specOnly => {
       frontend.parseMemberOrFail("func bar()", specOnly) should matchPattern {
-        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false), None)) =>
+        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), None)) =>
       }
     })
   }
@@ -2692,19 +2692,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse normal termination measure") {
     frontend.parseMemberOrFail("decreases n; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), None)), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: should be able to parse underscore termination measure") {
     frontend.parseMemberOrFail("decreases _; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PWildcardMeasure(None)), Vector(), false, false, false, false, false, false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PWildcardMeasure(None)), Vector(), false, false, false, false, false, false, false), None)) =>
     }
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
     frontend.parseMemberOrFail("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), Vector(), false, false, false, false, false, false), None)) if one == 1 && two == 2 =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), Vector(), false, false, false, false, false, false, false), None)) if one == 1 && two == 2 =>
     }
   }
 
@@ -2774,6 +2774,42 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should point out that 'proof' is a reserved word") {
     frontend.parseMember("func test(proof ProofType)") should matchPattern {
       case Left(Vector(ParserError(msg, _))) if msg contains "Unexpected reserved word proof" =>
+    }
+  }
+
+  test("Parser: should parse a hyperfunc as a ghost, pure, and hyper function") {
+    val modes: Set[Boolean] = Set(false, true)
+    modes.foreach(specOnly => {
+      frontend.parseMemberOrFail("decreases; hyperfunc NonInterf(x, y int) bool { return low(x) ==> low(y) }", specOnly) should matchPattern {
+        case Vector(PExplicitGhostMember(PFunctionDecl(PIdnDef("NonInterf"), Vector(_, _), PResult(Vector(PUnnamedParameter(PBoolType()))), PFunctionSpec(Vector(), Vector(_), Vector(), true, false, false, false, false, false, true), Some((_, PBlock(Vector(PReturn(Vector(PImplication(PLow(_), PLow(_))))))))))) =>
+      }
+    })
+  }
+
+  test("Parser: should parse a hyper method") {
+    frontend.parseMemberOrFail("requires p.Mem(); hyperfunc (p *P) LowData() bool") should matchPattern {
+      case Vector(PExplicitGhostMember(PMethodDecl(PIdnDef("LowData"), PNamedReceiver(PIdnDef("p"), PMethodReceiveActualPointer(PNamedOperand(PIdnUse("P"))), _), Vector(), _, PFunctionSpec(Vector(_), Vector(), Vector(), true, false, false, false, false, false, true), None))) =>
+    }
+  }
+
+  test("Parser: should not translate the body of a trusted hyperfunc") {
+    frontend.parseMemberOrFail("trusted; hyperfunc H(x int) bool { return low(x) }") should matchPattern {
+      case Vector(PExplicitGhostMember(PFunctionDecl(PIdnDef("H"), _, _, PFunctionSpec(_, _, _, true, true, false, false, false, false, true), None))) =>
+    }
+  }
+
+  test("Parser: should parse a hyperfunc in an interface") {
+    frontend.parseTypeOrFail("interface { pred Mem(); requires Mem(); hyperfunc LowContents() bool; Size() int }") should matchPattern {
+      case PInterfaceType(Vector(), Vector(
+        PMethodSig(PIdnDef("LowContents"), Vector(), _, PFunctionSpec(Vector(_), Vector(), Vector(), true, false, false, false, false, false, true), true),
+        PMethodSig(PIdnDef("Size"), Vector(), _, PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), false)
+      ), Vector(_)) =>
+    }
+  }
+
+  test("Parser: 'hyperfunc' is a keyword") {
+    frontend.parseMember("func hyperfunc()") should matchPattern {
+      case Left(_) =>
     }
   }
 }

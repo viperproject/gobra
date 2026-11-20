@@ -22,7 +22,14 @@ import scala.annotation.unused
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
-class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boolean = false) extends GobraParserBaseVisitor[AnyRef] {
+class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boolean = false, executions: Int = 2) extends GobraParserBaseVisitor[AnyRef] {
+
+  /**
+    * Execution quantifiers (`forall i exec :: e`, `exists i exec :: e`) range over the executions 0, …, k-1. Since k is
+    * fixed per verification run, they are unrolled during parsing into a conjunction (disjunction) of copies of `e`,
+    * in which the variables are bound to the literals given here.
+    */
+  private var executionBindings: Map[String, BigInt] = Map.empty
 
   val warnings : ListBuffer[TranslationWarning] = ListBuffer.empty
 
@@ -240,6 +247,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     typ.name match {
       case "perm" => PPermissionType().at(typ)
       case "integer" => PIntegerGhostType().at(typ)
+      case "exec" => PExecType().at(typ)
       case "int" => PIntType().at(typ)
       case "int8" => PInt8Type().at(typ)
       case "int16" => PInt16Type().at(typ)
@@ -434,7 +442,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
-    val ghost = has(ctx.GHOST())
+    // hyper methods (`hyperfunc` members) are always ghost
+    val ghost = has(ctx.GHOST()) || has(ctx.HYPERFUNC())
     val spec = if (ctx.specification() != null)
       visitSpecification(ctx.specification())
     else
@@ -929,16 +938,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         Right(visitTerminationMeasure(s.terminationMeasure()))
     }
 
+    // hyper functions and hyper methods (declared with `hyperfunc`) are always pure
+    val isHyper = ctx.getParent match {
+      case _: HyperMemberContext => true
+      case m: MethodSpecContext => has(m.HYPERFUNC())
+      case _ => false
+    }
+
     PFunctionSpec(
       clauses,
       terms,
       annotations,
-      isPure = ctx.pure,
+      isPure = ctx.pure || isHyper,
       isTrusted = ctx.trusted,
       isOpaque = ctx.opaque,
       isAtomic = ctx.atomic,
       opensInvs = ctx.opensInv,
       mayBeUsedInInit = ctx.mayInit,
+      isHyper = isHyper,
     )
   }
 
@@ -985,6 +1002,36 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitExplicitGhostMember(ctx: ExplicitGhostMemberContext): Vector[PExplicitGhostMember] = super.visitExplicitGhostMember(ctx) match {
     case Vector("ghost", decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl).at(ctx))
     case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
+  }
+
+  /**
+    * Visits the rule
+    * hyperMember: specification (hyperFunctionDecl | hyperMethodDecl);
+    *
+    * Hyper functions and hyper methods (hyperfuncs) are ghost and pure. Their specification is marked as hyper and
+    * pure by [[visitSpecification]].
+    */
+  override def visitHyperMember(ctx: HyperMemberContext): Vector[PExplicitGhostMember] = super.visitHyperMember(ctx) match {
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
+      Vector(PExplicitGhostMember(PFunctionDecl(id, args, result, spec, body).at(ctx)).at(ctx))
+    case Vector(spec : PFunctionSpec, (id: PIdnDef, receiver: PReceiver, args: Vector[PParameter@unchecked], result: PResult, body: Option[(PBodyParameterInfo, PBlock)@unchecked])) =>
+      Vector(PExplicitGhostMember(PMethodDecl(id, receiver, args, result, spec, body).at(ctx)).at(ctx))
+  }
+
+  override def visitHyperFunctionDecl(ctx: HyperFunctionDeclContext): (PIdnDef, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val sig = visitNode[Signature](ctx.signature())
+    // hyperfuncs are pure, so their bodies are translated unless they are trusted
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, sig._1, sig._2, body)
+  }
+
+  override def visitHyperMethodDecl(ctx: HyperMethodDeclContext): (PIdnDef, PReceiver, Vector[PParameter], PResult, Option[(PBodyParameterInfo, PBlock)]) = {
+    val id = goIdnDef.get(ctx.IDENTIFIER())
+    val recv = visitNode[PReceiver](ctx.receiver())
+    val sig = visitNode[Signature](ctx.signature())
+    val body = if (has(ctx.blockWithBodyParameterInfo()) && !ctx.trusted) Some(visitNode[(PBodyParameterInfo, PBlock)](ctx.blockWithBodyParameterInfo())) else None
+    (id, recv, sig._1, sig._2, body)
   }
 
   override def visitSingleBackendAnnotation(ctx: SingleBackendAnnotationContext): PBackendAnnotation = {
@@ -1134,6 +1181,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     visitChildren(ctx) match {
       case idnUseLike(id) => id match {
         case id@PIdnUse(name) => name match {
+          case n if executionBindings.contains(n) => PIntLit(executionBindings(n)).at(id)
           case "iota" => PIota().at(id)
           case _ => PNamedOperand(id).at(id)
         }
@@ -1526,6 +1574,15 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     case Vector("low", "(", expr: PExpression, ")") => PLow(expr)
   }
 
+  override def visitExecutionIndex(ctx: ExecutionIndexContext): PExpression = {
+    if (ctx.integer() != null) visitInteger(ctx.integer())
+    else executionBindings.get(ctx.IDENTIFIER().getText) match {
+      case Some(i) => PIntLit(i).at(ctx)
+      // a parameter of type `exec`, checked by the type checker
+      case None => PNamedOperand(PIdnUse(ctx.IDENTIFIER().getText).at(ctx)).at(ctx)
+    }
+  }
+
   /**
     */
   override def visitLowc(ctx: LowcContext): AnyRef = super.visitLowc(ctx) match {
@@ -1533,14 +1590,41 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitHyperRelExpr(ctx: HyperRelExprContext): AnyRef = super.visitHyperRelExpr(ctx) match {
-    case Vector("rel", "(", expr: PExpression, ",", lit: PIntLit, ")") => PRel(expr, lit)
+    case Vector("rel", "(", expr: PExpression, ",", index: PExpression, ")") => PRel(expr, index)
   }
 
   /**
     * Visits the rule
     * isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
     */
-  override def visitQuantification(ctx: QuantificationContext): AnyRef = super.visitQuantification(ctx) match {
+  override def visitQuantification(ctx: QuantificationContext): AnyRef = {
+    val decls = ctx.boundVariables().boundVariableDecl().asScala.toVector
+    val (execDecls, otherDecls) = decls.partition(_.elementType().getText == "exec")
+    if (execDecls.isEmpty) visitOrdinaryQuantification(ctx)
+    else {
+      val isForall = ctx.FORALL() != null
+      val names = execDecls.flatMap(_.IDENTIFIER().asScala.map(_.getText))
+      val assignments = names.foldLeft(Vector(Map.empty[String, BigInt])) { (acc, n) =>
+        for (a <- acc; i <- 0 until executions) yield a + (n -> BigInt(i))
+      }
+      val copies = assignments.map { a =>
+        val saved = executionBindings
+        executionBindings = saved ++ a
+        try {
+          val body = visitNode[PExpression](ctx.expression())
+          if (otherDecls.isEmpty) body
+          else {
+            val vars = otherDecls.flatMap(visitBoundVariableDecl)
+            val triggers = visitTriggers(ctx.triggers())
+            (if (isForall) PForall(vars, triggers, body) else PExists(vars, triggers, body)).at(ctx)
+          }
+        } finally executionBindings = saved
+      }
+      copies.reduceLeft[PExpression]((l, r) => (if (isForall) PAnd(l, r) else POr(l, r)).at(ctx))
+    }
+  }
+
+  private def visitOrdinaryQuantification(ctx: QuantificationContext): AnyRef = super.visitQuantification(ctx) match {
     case Vector(quantifier: String,
       vars : Vector[PBoundVariable@unchecked], ":", ":", triggers : Vector[PTrigger@unchecked], body : PExpression) =>
       (quantifier match {

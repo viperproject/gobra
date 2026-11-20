@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode on --hyperExecutions 3 --experimentalHyperfuncs)
+
+package kexecfail01
+
+// with three executions, the execution indices are 0, 1, and 2
+requires rel(x, 2) == 0
+func ok(x int)
+
+//:: ExpectedOutput(type_error)
+requires rel(x, 3) == 0
+func outOfRange(x int)
+
+// execution arguments must be in range, too
+decreases
+hyperfunc Agree(x int, i, j exec) bool {
+	return rel(x, i) == rel(x, j)
+}
+
+//:: ExpectedOutput(type_error)
+requires Agree(x, 0, 3)
+func agreeOutOfRange(x int)

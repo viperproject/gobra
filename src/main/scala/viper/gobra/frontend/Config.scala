@@ -72,6 +72,7 @@ object ConfigDefaults {
   val DefaultMCEMode: MCE.Mode = MCE.Enabled
   val DefaultHyperMode: Hyper.Mode = Hyper.Disabled
   val DefaultEnableExperimentalHyperFeatures: Boolean = false
+  val DefaultHyperExecutions: Int = 2
   val DefaultNoVerify: Boolean = false
   val DefaultNoStreamErrors: Boolean = false
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
@@ -82,6 +83,7 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
+  val DefaultEnableExperimentalHyperfuncs: Boolean = false
   val DefaultAssertTimeout: Option[Int] = None
 }
 
@@ -236,6 +238,8 @@ case class Config(
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
                    enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
+                   // `None` indicates that the number of executions has not been specified, i.e., the default is used
+                   hyperExecutions: Option[Int] = None,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
@@ -246,6 +250,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                   enableExperimentalHyperfuncs: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperfuncs,
                    assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
 ) {
 
@@ -291,6 +296,12 @@ case class Config(
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
       enableExperimentalHyperFeatures = enableExperimentalHyperFeatures || input.enableExperimentalHyperFeatures.value.contains(true),
+      hyperExecutions = (hyperExecutions, input.hyperExecutions.value) match {
+        case (l, None) => l
+        case (None, r) => r
+        case (l, r) if l == r => l
+        case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing numbers of hyper executions from in-file configuration options, got $l and $r")
+      },
       shouldVerify = shouldVerify && !input.noVerify.value.contains(true),
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
       requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
@@ -300,6 +311,7 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
+      enableExperimentalHyperfuncs = enableExperimentalHyperfuncs || input.enableExperimentalHyperfuncs.value.contains(true),
       assertTimeout = (assertTimeout, input.assertTimeout.value) match {
         case (Some(l), Some(r)) => Some(math.min(l, r))
         case (l, r) => l orElse r
@@ -309,6 +321,8 @@ case class Config(
 
   val backendOrDefault: ViperBackend = backend getOrElse ConfigDefaults.DefaultBackend
   val hyperModeOrDefault: Hyper.Mode = hyperMode getOrElse ConfigDefaults.DefaultHyperMode
+  /** number of executions related by hyper properties, i.e., the arity of the product program */
+  val hyperExecutionsOrDefault: Int = hyperExecutions getOrElse ConfigDefaults.DefaultHyperExecutions
 
   lazy val typeBounds: TypeBounds =
     if (int32bit) {
@@ -343,6 +357,7 @@ case class Config(
       "mceMode" -> mceMode.value,
       "hyperMode" -> hyperModeOrDefault,
       "enableExperimentalHyperFeatures" -> enableExperimentalHyperFeatures,
+      "hyperExecutions" -> hyperExecutionsOrDefault,
       "requireTriggers" -> requireTriggers,
       "moreJoins" -> moreJoins.value,
       "disableSetAxiomatization" -> disableSetAxiomatization,
@@ -350,6 +365,7 @@ case class Config(
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
+      "enableExperimentalHyperfuncs" -> enableExperimentalHyperfuncs,
       "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
@@ -372,6 +388,8 @@ object Config {
   def sourceHasHeader(s: Source): Boolean = header.findFirstIn(s.content).nonEmpty
 
   val enableExperimentalHyperFeaturesOptionName = "enableExperimentalHyperFeatures"
+  val experimentalHyperfuncsMessage: String = "hyperfuncs are an experimental feature. Pass the flag " +
+    "--experimentalHyperfuncs to allow them. This feature may change in the future."
 
   /** Options that must not appear in the `other` field of a JSON config because their paths
     * cannot be correctly resolved (they are turned into Source objects before path resolution). */
@@ -420,6 +438,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       mceMode: MCE.Mode = ConfigDefaults.DefaultMCEMode,
                       hyperMode: Option[Hyper.Mode] = None,
                       enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
+                      hyperExecutions: Option[Int] = None,
                       noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                       noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
@@ -430,6 +449,7 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                      enableExperimentalHyperfuncs: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperfuncs,
                       assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
                      ) {
   def shouldParse: Boolean = true
@@ -507,6 +527,7 @@ case class InputConfig(
   respectFunctionPrePermAmounts: InputConfigOption[Boolean] = InputConfigOption("respectFunctionPrePermAmounts", None),
   hyperMode: InputConfigOption[Hyper.Mode] = InputConfigOption("hyperMode", None),
   enableExperimentalHyperFeatures: InputConfigOption[Boolean] = InputConfigOption(Config.enableExperimentalHyperFeaturesOptionName, None),
+  hyperExecutions: InputConfigOption[Int] = InputConfigOption("hyperExecutions", None),
   requireTriggers: InputConfigOption[Boolean] = InputConfigOption("requireTriggers", None),
   noVerify: InputConfigOption[Boolean] = InputConfigOption("noVerify", None),
   noStreamErrors: InputConfigOption[Boolean] = InputConfigOption("noStreamErrors", None),
@@ -514,6 +535,7 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
+  enableExperimentalHyperfuncs: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalHyperfuncs", None),
   assertTimeout: InputConfigOption[Int] = InputConfigOption("assertTimeout", None),
 ) {
   /** Derived field: extracts just the files from cutInputWithIdxs */
@@ -569,6 +591,7 @@ case class InputConfig(
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts orElse other.respectFunctionPrePermAmounts,
     hyperMode = hyperMode orElse other.hyperMode,
     enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
+    hyperExecutions = hyperExecutions orElse other.hyperExecutions,
     requireTriggers = requireTriggers orElse other.requireTriggers,
     noVerify = noVerify orElse other.noVerify,
     noStreamErrors = noStreamErrors orElse other.noStreamErrors,
@@ -576,6 +599,7 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
+    enableExperimentalHyperfuncs = enableExperimentalHyperfuncs orElse other.enableExperimentalHyperfuncs,
     assertTimeout = assertTimeout orElse other.assertTimeout,
   )
 
@@ -585,7 +609,7 @@ case class InputConfig(
     * - backend, hyperMode: must match if both defined
     * - packageTimeout, assertTimeout: takes minimum
     * - logLevel: takes minimum (more verbose)
-    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
+    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses, enableExperimentalHyperfuncs: OR
     * - moreJoins: uses MoreJoins.merge */
   def merge(other: InputConfig): InputConfig = {
     // Helper to merge list options by concatenating and deduplicating
@@ -672,6 +696,7 @@ case class InputConfig(
       respectFunctionPrePermAmounts = mergeOr(respectFunctionPrePermAmounts, other.respectFunctionPrePermAmounts),
       hyperMode = mergeMustMatch(hyperMode, other.hyperMode, "hyper modes"),
       enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
+      hyperExecutions = mergeMustMatch(hyperExecutions, other.hyperExecutions, "numbers of hyper executions"),
       requireTriggers = requireTriggers orElse other.requireTriggers,
       noVerify = mergeOr(noVerify, other.noVerify),
       noStreamErrors = mergeOr(noStreamErrors, other.noStreamErrors),
@@ -679,6 +704,7 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
+      enableExperimentalHyperfuncs = mergeOr(enableExperimentalHyperfuncs, other.enableExperimentalHyperfuncs),
       assertTimeout = InputConfigOption(assertTimeout.name, (assertTimeout.value, other.assertTimeout.value) match {
         case (Some(l), Some(r)) => Some(math.min(l, r)) // take minimum
         case (l, None) => l
@@ -980,6 +1006,7 @@ case class InputConfig(
     mceMode = mceMode.value.getOrElse(ConfigDefaults.DefaultMCEMode),
     hyperMode = hyperMode.value,
     enableExperimentalHyperFeatures = enableExperimentalHyperFeatures.value.getOrElse(false),
+    hyperExecutions = hyperExecutions.value,
     noVerify = noVerify.value.getOrElse(false),
     noStreamErrors = noStreamErrors.value.getOrElse(false),
     parseAndTypeCheckMode = parseAndTypeCheckMode.value.getOrElse(ConfigDefaults.DefaultParseAndTypeCheckMode),
@@ -990,6 +1017,7 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
+    enableExperimentalHyperfuncs = enableExperimentalHyperfuncs.value.getOrElse(false),
     assertTimeout = assertTimeout.value,
   )
 }
@@ -1107,6 +1135,7 @@ trait RawConfig {
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
     enableExperimentalHyperFeatures = baseConfig.enableExperimentalHyperFeatures,
+    hyperExecutions = baseConfig.hyperExecutions,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
@@ -1116,6 +1145,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
+    enableExperimentalHyperfuncs = baseConfig.enableExperimentalHyperfuncs,
     assertTimeout = baseConfig.assertTimeout,
   )
 }
@@ -1698,6 +1728,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val hyperExecutions: ScallopOption[Int] = opt[Int](
+    name = "hyperExecutions",
+    descr = s"Number of executions related by hyper properties (default: ${ConfigDefaults.DefaultHyperExecutions}). " +
+      s"Values other than ${ConfigDefaults.DefaultHyperExecutions} are only supported in hyperMode '${Hyper.Enabled.name}'.",
+    default = None,
+    noshort = true,
+    validate = _ >= 2,
+  )
+
   val requireTriggers: ScallopOption[Boolean] = opt[Boolean](
     name = "requireTriggers",
     descr = s"Enforces that all quantifiers have a user-provided trigger.",
@@ -1750,6 +1789,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "experimentalFriendClauses",
     descr = s"Enables the use of 'friendPkg' clauses (experimental).",
     default = Some(ConfigDefaults.DefaultEnableExperimentalFriendClauses),
+    noshort = true,
+  )
+
+  val enableExperimentalHyperfuncs: ScallopOption[Boolean] = opt[Boolean](
+    name = "experimentalHyperfuncs",
+    descr = s"Enables the declaration and use of hyperfuncs (experimental).",
+    default = Some(ConfigDefaults.DefaultEnableExperimentalHyperfuncs),
     noshort = true,
   )
 
@@ -1810,6 +1856,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     respectFunctionPrePermAmounts = toInputConfigOption(respectFunctionPrePermAmounts),
     hyperMode = toInputConfigOption(hyperMode),
     enableExperimentalHyperFeatures = toInputConfigOption(enableExperimentalHyperFeatures),
+    hyperExecutions = toInputConfigOption(hyperExecutions),
     requireTriggers = toInputConfigOption(requireTriggers),
     noVerify = toInputConfigOption(noVerify),
     noStreamErrors = toInputConfigOption(noStreamErrors),
@@ -1817,6 +1864,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
+    enableExperimentalHyperfuncs = toInputConfigOption(enableExperimentalHyperfuncs),
     assertTimeout = toInputConfigOption(assertTimeout),
   )
 

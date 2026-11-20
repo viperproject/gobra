@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
@@ -132,6 +133,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l, r, mayInit)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r, mayInit)
       case (IntT(_), PermissionT) => successProp
+      // integer literals denote executions; that the argument is a literal or an execution is checked at calls
+      case (IntT(TypeBounds.UnboundedInteger), ExecT) => successProp
 
         // conservative choice
       case _ => errorProp()

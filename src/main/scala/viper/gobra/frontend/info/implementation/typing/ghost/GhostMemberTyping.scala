@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PClosureSpecDecl, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PClosureSpecDecl, PCodeRootWithResult, PCodeRootWithSpec, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PMethodSig, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -46,17 +46,13 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         disallowedModifier("atomic", spec.isAtomic)
 
     val pureErrors = if (spec.isPure) {
-      isSingleResultArg(decl) ++
-        isPurePostcondition(spec) ++
-        pureMembersCannotHavePreserves(spec) ++
-        nonVariadicArguments(decl.args) ++
+      wellDefPureSpec(decl) ++
         error(decl, pureFunctionsDoNotNeedMayInitMsg, spec.mayBeUsedInInit)
     } else noMessages
 
-    // the closures specified by a pure or a ghost spec have to terminate
-    val needsTermination = spec.isPure || decl.isGhost
+    // the closures specified by a ghost spec have to terminate (for pure specs, `wellDefPureSpec` checks this)
     val terminationErrors =
-      if (needsTermination) guaranteedTerminationErrors(decl, spec.terminationMeasures, "Pure or ghost closure specs must terminate",
+      if (decl.isGhost && !spec.isPure) guaranteedTerminationErrors(decl, spec.terminationMeasures, "Ghost closure specs must terminate",
         measureMayBeOmitted = config.disableCheckTerminationPureFns)
       else noMessages
 
@@ -64,17 +60,18 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Pure and ghost functions and methods must terminate on every call. Thus, their termination measures have to
-    * guarantee termination.
+    * Ghost functions and methods must terminate on every call. Thus, their termination measures have to guarantee
+    * termination. Pure members, whether ghost or not, are checked uniformly in `wellDefPureSpec`, which is why they
+    * are excluded here.
     */
-  private[typing] def terminatesIfGhostOrPure(member: PMember): Messages = {
+  private[typing] def wellFoundedIfGhost(member: PMember): Messages = {
     val spec = member match {
       case m: PMethodDecl => m.spec
       case f: PFunctionDecl => f.spec
       case _ => Violation.violation("Unexpected member type")
     }
-    if (spec.isPure || isEnclosingGhost(member))
-      guaranteedTerminationErrors(member, spec.terminationMeasures, "Pure or ghost functions and methods must terminate",
+    if (isEnclosingGhost(member) && !spec.isPure)
+      guaranteedTerminationErrors(member, spec.terminationMeasures, "Ghost functions and methods must terminate",
         measureMayBeOmitted = config.disableCheckTerminationPureFns)
     else noMessages
   }
@@ -84,11 +81,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
     if (member.spec.isPure) {
-      isSingleResultArg(member) ++
+      wellDefPureSpec(member) ++
         isSinglePureReturnExpr(member) ++
-        isPurePostcondition(member.spec) ++
-        pureMembersCannotHavePreserves(member.spec) ++
-        nonVariadicArguments(member.args) ++
         error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
   }
@@ -111,13 +105,48 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
-      isSingleResultArg(member) ++
+      wellDefPureSpec(member) ++
         isSinglePureReturnExpr(member) ++
-        isPurePostcondition(member.spec) ++
-        pureMembersCannotHavePreserves(member.spec) ++
-        nonVariadicArguments(member.args) ++
         error(member, pureFunctionsDoNotNeedMayInitMsg, member.spec.mayBeUsedInInit)
     } else noMessages
+  }
+
+  private[typing] def wellDefIfPureClosure(lit: PFunctionLit): Messages = {
+    if (lit.spec.isPure) {
+      wellDefPureSpec(lit.decl) ++
+        isSinglePureReturnExpr(lit.decl) ++
+        error(lit, pureFunctionsDoNotNeedMayInitMsg, lit.spec.mayBeUsedInInit)
+    } else noMessages
+  }
+
+  /**
+    * Well-definedness checks that every pure member must satisfy, whether it is a pure function, a pure method,
+    * a pure closure, a pure closure spec, or the signature of a pure interface method: exactly one result, pure
+    * postconditions, no `preserves` clauses, non-variadic arguments, and termination measures that guarantee
+    * termination. Checks specific to a particular kind of member (e.g., `mayInit`) are added by the callers.
+    */
+  private[typing] def wellDefPureSpec(member: PCodeRootWithSpec): Messages = {
+    Violation.violation(member.spec.isPure, "wellDefPureSpec may only be called for a pure member.")
+    isSingleResultArg(member) ++
+      isPurePostcondition(member.spec) ++
+      pureMembersCannotHavePreserves(member.spec) ++
+      nonVariadicArguments(member.args) ++
+      guaranteedTerminationErrors(member, member.spec.terminationMeasures, "Pure members must terminate",
+        measureMayBeOmitted = config.disableCheckTerminationPureFns)
+  }
+
+  /**
+    * Well-definedness checks for the signature of an interface method. This is the counterpart of
+    * `wellDefActualMember` for the members declared by an interface, and imposes the same requirements on ghost
+    * and pure signatures as the ones imposed on ghost and pure implementations.
+    */
+  private[typing] def wellDefMethodSig(sig: PMethodSig): Messages = {
+    error(sig, "Interface methods cannot be marked as atomic.", sig.spec.isAtomic) ++
+      noWildcardMeasureErrors(sig.spec.terminationMeasures) ++
+      (if (sig.spec.isPure) wellDefPureSpec(sig)
+       else if (sig.isGhost) guaranteedTerminationErrors(sig, sig.spec.terminationMeasures, "Ghost interface methods must terminate",
+         measureMayBeOmitted = config.disableCheckTerminationPureFns)
+       else noMessages)
   }
 
   private[typing] def atomicMemberIsWellFormed(member: PMember): Messages = {

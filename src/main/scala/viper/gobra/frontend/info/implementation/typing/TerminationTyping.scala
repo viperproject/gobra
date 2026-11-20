@@ -39,7 +39,7 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     error(n, s"$mustTerminateMsg, but no termination measure was found.", !measureMayBeOmitted && measures.isEmpty) ++
       measures.flatMap { m =>
         error(m,
-          s"$mustTerminateMsg, but conditional termination measures only guarantee termination if one of their conditions holds.",
+          s"$mustTerminateMsg, but Gobra does currently not support conditional termination measures to establish termination.",
           isConditional(m))
       }
 

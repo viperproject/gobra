@@ -120,11 +120,14 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       if (firstChecks.isEmpty) latterChecks else firstChecks
 
     case n@PForStmt(_, cond, _, spec, _) =>
-      val isGhost = isEnclosingGhost(n)
-      val noTerminationMeasureMsg = "Loop occurring in ghost context does not have a termination measure"
+      // like ghost members, loops occurring in ghost context must terminate
+      val terminatesIfGhost =
+        if (isEnclosingGhost(n)) guaranteedTerminationErrors(n, spec.terminationMeasure.toVector, "Loops occurring in ghost context must terminate",
+          measureMayBeOmitted = false)
+        else noMessages
       isExpr(cond).out ++
         comparableTypes.errors(exprType(cond), BooleanT)(n) ++
-        error(n, noTerminationMeasureMsg, isGhost && spec.terminationMeasure.isEmpty)
+        terminatesIfGhost
 
     case r@PShortForRange(range, shorts, _, _, _) =>
       val mayInit = isEnclosingMayInit(r)

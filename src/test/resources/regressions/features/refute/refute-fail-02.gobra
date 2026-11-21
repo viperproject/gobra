@@ -28,6 +28,7 @@ func i(x *int) {
 
 ensures res == x + 1
 pure
+decreases
 func inc(x int) (res int) {
 	return x + 1
 }

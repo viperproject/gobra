@@ -31,12 +31,10 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
     * non-terminating by means of a termination measure.
     *
     * `mustTerminateMsg` states why `n` has to terminate, and is used as the prefix of all
-    * reported errors. If `measureMayBeOmitted` is set, the absence of any measure is not
-    * reported (e.g., because `config.disableCheckTerminationPureFns` is set); measures that are present still have
-    * to guarantee termination.
+    * reported errors.
     */
-  private[typing] def guaranteedTerminationErrors(n: PNode, measures: Vector[PTerminationMeasure], mustTerminateMsg: String, measureMayBeOmitted: Boolean): Messages =
-    error(n, s"$mustTerminateMsg, but no termination measure was found.", !measureMayBeOmitted && measures.isEmpty) ++
+  private[typing] def guaranteedTerminationErrors(n: PNode, measures: Vector[PTerminationMeasure], mustTerminateMsg: String): Messages =
+    error(n, s"$mustTerminateMsg, but no termination measure was found.", measures.isEmpty) ++
       measures.flatMap { m =>
         error(m,
           s"$mustTerminateMsg, but Gobra does currently not support conditional termination measures to establish termination.",

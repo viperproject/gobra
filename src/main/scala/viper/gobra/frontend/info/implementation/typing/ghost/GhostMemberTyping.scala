@@ -52,8 +52,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
     // the closures specified by a ghost spec have to terminate (for pure specs, `wellDefPureSpec` checks this)
     val terminationErrors =
-      if (decl.isGhost && !spec.isPure) guaranteedTerminationErrors(decl, spec.terminationMeasures, "Ghost closure specs must terminate",
-        measureMayBeOmitted = config.disableCheckTerminationPureFns)
+      if (decl.isGhost && !spec.isPure) guaranteedTerminationErrors(decl, spec.terminationMeasures, "Ghost closure specs must terminate")
       else noMessages
 
     wellDefVariadicArgs(decl.args) ++ modifierErrors ++ pureErrors ++ terminationErrors
@@ -71,8 +70,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => Violation.violation("Unexpected member type")
     }
     if (isEnclosingGhost(member) && !spec.isPure)
-      guaranteedTerminationErrors(member, spec.terminationMeasures, "Ghost functions and methods must terminate",
-        measureMayBeOmitted = config.disableCheckTerminationPureFns)
+      guaranteedTerminationErrors(member, spec.terminationMeasures, "Ghost functions and methods must terminate")
     else noMessages
   }
 
@@ -131,8 +129,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isPurePostcondition(member.spec) ++
       pureMembersCannotHavePreserves(member.spec) ++
       nonVariadicArguments(member.args) ++
-      guaranteedTerminationErrors(member, member.spec.terminationMeasures, "Pure members must terminate",
-        measureMayBeOmitted = config.disableCheckTerminationPureFns)
+      guaranteedTerminationErrors(member, member.spec.terminationMeasures, "Pure members must terminate")
   }
 
   /**
@@ -144,8 +141,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     error(sig, "Interface methods cannot be marked as atomic.", sig.spec.isAtomic) ++
       noWildcardMeasureErrors(sig.spec.terminationMeasures) ++
       (if (sig.spec.isPure) wellDefPureSpec(sig)
-       else if (sig.isGhost) guaranteedTerminationErrors(sig, sig.spec.terminationMeasures, "Ghost interface methods must terminate",
-         measureMayBeOmitted = config.disableCheckTerminationPureFns)
+       else if (sig.isGhost) guaranteedTerminationErrors(sig, sig.spec.terminationMeasures, "Ghost interface methods must terminate")
        else noMessages)
   }
 
@@ -168,8 +164,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       spec.isAtomic && isGhost
     )
     val atomicMethodsTerminate =
-      if (spec.isAtomic) guaranteedTerminationErrors(member, spec.terminationMeasures, "Atomic members must be guaranteed to terminate on every call",
-        measureMayBeOmitted = false)
+      if (spec.isAtomic) guaranteedTerminationErrors(member, spec.terminationMeasures, "Atomic members must be guaranteed to terminate on every call")
       else noMessages
     atomicsAreAbstract ++ atomicsAreActual ++ atomicMethodsTerminate
   }

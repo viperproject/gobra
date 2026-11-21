@@ -4,9 +4,8 @@
 package issue000841
 
 // Issue #841: pure method signatures declared in an interface must satisfy the same requirements as
-// pure functions and pure methods. The requirement of carrying a termination measure is gated behind
-// `disableCheckTerminationPureFns`, which this test suite enables; that case is covered by the tests
-// in `src/test/resources/check_termination` instead.
+// pure functions and pure methods. The requirement of carrying a termination measure is covered by
+// `features/termination/ghost-and-pure-members-need-measures.gobra`.
 
 type J interface {
 	// Type error, a pure member must have exactly one result parameter.

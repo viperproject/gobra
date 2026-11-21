@@ -3,12 +3,14 @@
 
 package closuresFail6Proofs
 
+decreases
 requires x >= 0
 ensures y == x
 pure spec pspec(x int) (y int)
 
 func test1() {
     cl :=
+        decreases
         requires x >= 10
         pure func id(x int) int {
             return x
@@ -22,6 +24,7 @@ func test1() {
 
 func test2() {
     cl :=
+        decreases
         requires x >= 0
         pure func id(x int) int {
             return x + 1
@@ -41,6 +44,7 @@ pred inv1(x *int) {
     acc(x)
 }
 
+decreases
 requires inv(n) && unfolding inv(n) in (*n >= 0)
 pure spec permpspec(n *int) (y int)
 
@@ -48,6 +52,7 @@ func test3() {
     x@ := 0
 
     cl :=
+        decreases _
         requires acc(&x) && x >= 0
         pure func getx() int {
             return x
@@ -63,6 +68,7 @@ func test4() {
     x@ := 0
 
     cl :=
+        decreases _
         requires acc(&x) && x >= 0
         pure func getx() int {
             return x

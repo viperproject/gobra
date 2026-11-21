@@ -3,10 +3,9 @@
 
 package closures_fail_pure
 
-// Pure closure literals must satisfy the same requirements as pure functions and pure methods. Note
-// that the requirement of carrying a termination measure is gated behind
-// `disableCheckTerminationPureFns`, which this test suite enables; that case is covered by the tests
-// in `src/test/resources/check_termination` instead.
+// Pure closure literals must satisfy the same requirements as pure functions and pure methods. The
+// requirement of carrying a termination measure is covered by
+// `features/termination/ghost-and-pure-members-need-measures.gobra`.
 
 func twoResults() {
 	// Type error, a pure member must have exactly one result parameter.

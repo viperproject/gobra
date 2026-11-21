@@ -77,7 +77,6 @@ object ConfigDefaults {
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   val DefaultRequireTriggers: Boolean = false
   val DefaultDisableSetAxiomatization: Boolean = false
-  val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
@@ -241,7 +240,6 @@ case class Config(
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
@@ -295,7 +293,6 @@ case class Config(
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
       requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
       disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns || input.disableCheckTerminationPureFns.value.contains(true),
       unsafeWildcardOptimization = unsafeWildcardOptimization || input.unsafeWildcardOptimization.value.contains(true),
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
@@ -346,7 +343,6 @@ case class Config(
       "requireTriggers" -> requireTriggers,
       "moreJoins" -> moreJoins.value,
       "disableSetAxiomatization" -> disableSetAxiomatization,
-      "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
@@ -425,7 +421,6 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
@@ -510,7 +505,6 @@ case class InputConfig(
   requireTriggers: InputConfigOption[Boolean] = InputConfigOption("requireTriggers", None),
   noVerify: InputConfigOption[Boolean] = InputConfigOption("noVerify", None),
   noStreamErrors: InputConfigOption[Boolean] = InputConfigOption("noStreamErrors", None),
-  disableCheckTerminationPureFns: InputConfigOption[Boolean] = InputConfigOption("disableCheckTerminationPureFns", None),
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
@@ -572,7 +566,6 @@ case class InputConfig(
     requireTriggers = requireTriggers orElse other.requireTriggers,
     noVerify = noVerify orElse other.noVerify,
     noStreamErrors = noStreamErrors orElse other.noStreamErrors,
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
@@ -675,7 +668,6 @@ case class InputConfig(
       requireTriggers = requireTriggers orElse other.requireTriggers,
       noVerify = mergeOr(noVerify, other.noVerify),
       noStreamErrors = mergeOr(noStreamErrors, other.noStreamErrors),
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
@@ -985,7 +977,6 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode.value.getOrElse(ConfigDefaults.DefaultParseAndTypeCheckMode),
     requireTriggers = requireTriggers.value.getOrElse(ConfigDefaults.DefaultRequireTriggers),
     disableSetAxiomatization = disableSetAxiomatization.value.getOrElse(ConfigDefaults.DefaultDisableSetAxiomatization),
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns.value.getOrElse(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
     unsafeWildcardOptimization = unsafeWildcardOptimization.value.getOrElse(ConfigDefaults.DefaultUnsafeWildcardOptimization),
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
@@ -1111,7 +1102,6 @@ trait RawConfig {
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
-    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
@@ -1719,13 +1709,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
-  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
-    name = "disablePureFunctsTerminationRequirement",
-    descr = "Do not enforce that all pure functions must have termination measures",
-    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
-    noshort = true,
-  )
-
   val parseAndTypeCheckMode: ScallopOption[TaskManagerMode] = choice(
     name = "parseAndTypeCheckMode",
     choices = Seq("LAZY", "SEQUENTIAL", "PARALLEL"),
@@ -1813,7 +1796,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     requireTriggers = toInputConfigOption(requireTriggers),
     noVerify = toInputConfigOption(noVerify),
     noStreamErrors = toInputConfigOption(noStreamErrors),
-    disableCheckTerminationPureFns = toInputConfigOption(disableCheckTerminationPureFns),
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),

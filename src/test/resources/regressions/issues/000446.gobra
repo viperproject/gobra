@@ -8,6 +8,7 @@ type I interface {
 
     requires acc(mem(), _)
     ensures  r >= 5
+    decreases
     pure f() (r int)
 }
 
@@ -22,6 +23,7 @@ type J interface {
 
     requires acc(m(), _)
     ensures  r <= 5
+    decreases
     pure g() (r int)
 }
 
@@ -35,6 +37,7 @@ pred (s *S) m() {
 
 //:: ExpectedOutput(generated_implementation_proof:postcondition_error)
 requires acc(s.m(), _)
+decreases
 pure func (s *S) g() int {
     return unfolding acc(s.m(), _) in s.x
 }

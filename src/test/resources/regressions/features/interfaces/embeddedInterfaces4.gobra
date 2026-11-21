@@ -4,11 +4,13 @@
 package pkg
 
 type A interface {
+	decreases
 	pure f() int
 }
 
 type B interface {
 	A
+	decreases
 	pure g() int
 }
 
@@ -16,6 +18,7 @@ type X struct {
 	x int
 }
 
+decreases
 pure func (self *X) f() int {
 	return 0
 }
@@ -24,10 +27,12 @@ type Y struct {
 	y int
 }
 
+decreases
 pure func (self *Y) f() int {
 	return 1
 }
 
+decreases
 pure func (self *Y) g() int {
 	return 2
 }

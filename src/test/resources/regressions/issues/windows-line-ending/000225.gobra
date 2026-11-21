@@ -5,4 +5,5 @@
 package main
 
 ghost
+decreases
 func f()

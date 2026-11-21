@@ -11,8 +11,7 @@ import f "foo"
 
 type FooImpl2 struct{}
 
-// Rejected: method without a termination measure tries to implement method with termination measure
-//:: ExpectedOutput(type_error)
+decreases
 pure func (foo FooImpl2) PureFn() bool {
     return true
 }

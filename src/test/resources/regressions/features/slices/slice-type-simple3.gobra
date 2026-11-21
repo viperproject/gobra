@@ -15,12 +15,14 @@ type Comp interface{
 // interfaces can also be compared with ghost equality (===)
 ghost
 requires c1 === c2
+decreases
 func bar1(c1, c2 Comp) bool {
 	return c1 === c2
 }
 
 ghost
 requires c1 !== c2 // ghost disequality
+decreases
 func bar2(c1, c2 Comp) bool {
 	return c1 !== c2
 }

@@ -16,9 +16,18 @@ pred tree(self *Tree) {
 }
 
 requires self != nil ==> tree(self)
-decreases _
+decreases
 pure func (self *Tree) Contains(v int) bool {
-  return self != nil && (unfolding tree(self) in self.Value == v || (self.Left.Contains(v) || self.Right.Contains(v)))
+  return self != nil && self.contains(v)
+}
+
+// helper for non-nil trees, such that the tree predicate instance can serve as termination measure:
+requires tree(self)
+decreases tree(self)
+pure func (self *Tree) contains(v int) bool {
+  return unfolding tree(self) in self.Value == v ||
+    (self.Left != nil && self.Left.contains(v)) ||
+    (self.Right != nil && self.Right.contains(v))
 }
 
 requires self != nil ==> tree(self)

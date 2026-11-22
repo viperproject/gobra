@@ -31,3 +31,23 @@ trusted
 func trustedFunction(i int, j int) (ret int) {
   return 0
 }
+
+// A closure spec declaration is a member of its own in the Viper encoding; the stats collector
+// used to recurse forever when it attributed that member.
+requires x > 0
+ensures y > 0
+spec positive(x int) (y int)
+
+func useClosure() {
+  f :=
+    requires x > 0
+    ensures y == x
+    func identity(x int) (y int) {
+      return x
+    }
+  proof f implements positive {
+    y = f(x) as identity
+  }
+  r := f(1) as positive
+  assert r > 0
+}

@@ -111,6 +111,7 @@ class StatsCollectorTests extends AnyFunSuite with BeforeAndAfterAll {
         case p: PFunctionDecl => Vector(p)
         case p: PMethodDecl => Vector(p)
         case p: PFPredicateDecl => Vector(p)
+        case p: PClosureSpecDecl => Vector(p)
         case p: PImplementationProof => p.memberProofs
         // The result will only contain predicates of non-implemented structs, since the other ones are merged together
         // into a single predicate, that we do not receive, since it gets filtered because there isn't a single gobra

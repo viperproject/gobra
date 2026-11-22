@@ -8,7 +8,7 @@ package viper.gobra.reporting
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.NodeNotInTreeException
-import viper.gobra.ast.frontend.{PClosureDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
+import viper.gobra.ast.frontend.{PClosureDecl, PClosureSpecDecl, PDomainType, PExpression, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PMPredicateDecl, PMPredicateSig, PMethodDecl, PMethodImplementationProof, PMethodSig, PNode, PPackage, PParameter, PPredConstructor, PProgram}
 import viper.gobra.ast.internal.BuiltInMember
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -28,7 +28,7 @@ import java.io.File
 object GobraNodeType extends Enumeration {
   type GobraNodeType = Value
   val MethodDeclaration, FunctionDeclaration, MethodSignature, FunctionPredicateDeclaration, MethodPredicateDeclaration,
-  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, Package, Program = Value
+  MethodImplementationProof, MethodPredicateSignature, PredicateConstructor, ClosureSpecDeclaration, Package, Program = Value
 }
 
 /**
@@ -352,6 +352,13 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
           isAbstractAndNotImported = false,
           isImported,
           isBuiltIn)
+      case p: PClosureSpecDecl =>
+        GobraMemberInfo(pkgId, pkgName, p.id.name, formatArgs(p.args), ClosureSpecDeclaration,
+          hasSpecification = hasFormalSpec(p.spec),
+          isTrusted = p.spec.isTrusted,
+          isAbstractAndNotImported = false,
+          isImported,
+          isBuiltIn)
       case _: PProgram =>
         GobraMemberInfo(
           pkgId = pkgId,
@@ -379,7 +386,11 @@ case class StatsCollector(reporter: GobraReporter) extends GobraReporter {
       // Consider the enclosing function, for closure declarations
       case p: PClosureDecl => getMemberInformation(nodeTypeInfo.enclosingFunctionOrMethod(p).get, typeInfo, viperMember)
       // Fallback to the node's code root if we can't match the node
-      case p: PNode => getMemberInformation(nodeTypeInfo.codeRoot(p), typeInfo, viperMember)
+      case p: PNode =>
+        val root = nodeTypeInfo.codeRoot(p)
+        // every kind of code root has to be handled by one of the cases above, otherwise we would recurse forever
+        Violation.violation(root ne p, s"StatsCollector: no member information for ${p.getClass.getSimpleName} ${p.formattedShort}")
+        getMemberInformation(root, typeInfo, viperMember)
     }
   }
 

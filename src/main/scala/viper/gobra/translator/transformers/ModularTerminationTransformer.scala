@@ -40,7 +40,7 @@ class ModularTerminationTransformer extends ViperTransformer {
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     var errors: Seq[AbstractError] = Seq.empty
     val checks = new ModularTerminationChecks(task.program, e => errors :+= e)
-    val newProgram = ModularTerminationTransformer.pruneLevelEncoding(checks.transformedProgram)
+    val newProgram = ModularTerminationTransformer.pruneKindMarkers(ModularTerminationTransformer.pruneLevelEncoding(checks.transformedProgram))
     if (errors.nonEmpty) Left(errors) else Right(task.copy(program = newProgram))
   }
 }
@@ -52,6 +52,42 @@ object ModularTerminationTransformer {
     * [[viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl]]).
     */
   val checkMethodMarker: String = "termination_levels"
+
+  /**
+    * Removes the kind markers that end termination tuples (see [[TerminationEncoding]]) that the program does not use,
+    * together with the axioms about them. The axioms order all kinds of markers, most of them with quantifiers over
+    * ranks, while a program typically uses only a few kinds (e.g., no outlines and no implementation proofs). Removing
+    * axioms only weakens the encoding. Unused axioms are not harmless: they change the SMT solver's search on unrelated
+    * proof obligations, e.g., in `parallel_search_replace_shared.gobra`, whose proofs are fragile.
+    */
+  def pruneKindMarkers(p: vpr.Program): vpr.Program = {
+    val markerDomain = TerminationEncoding.domainName
+    val orderDomain = s"${markerDomain}WellFoundedOrder"
+    p.domains.find(_.name == markerDomain) match {
+      case None => p
+      case Some(markers) =>
+        val markerNames = markers.functions.map(_.name).toSet
+        val others: Seq[vpr.Node] = p.domains.filterNot(d => d.name == markerDomain || d.name == orderDomain) ++
+          p.fields ++ p.functions ++ p.predicates ++ p.methods ++ p.extensions
+        val usedApps = others.flatMap(_.deepCollect { case app: vpr.DomainFuncApp if markerNames.contains(app.funcname) => app })
+        val used = usedApps.map(_.funcname).toSet
+        def mentionsUnused(n: vpr.Node): Boolean =
+          n.existsDefined { case app: vpr.DomainFuncApp if markerNames.contains(app.funcname) && !used.contains(app.funcname) => }
+        // If all markers have literal ranks, which is the case for the markers that the encoding creates, the quantified
+        // axioms are replaced by their instances for these markers. This makes the order on markers ground, as it was
+        // before ranks were introduced.
+        val literal = usedApps.forall(m => TerminationEncoding.markerLt(m, m).isDefined)
+        val markersWithoutPos = usedApps.map(m => vpr.DomainFuncApp(m.funcname, m.args, m.typVarMap)(vpr.NoPosition, vpr.NoInfo, m.typ, m.domainName, vpr.NoTrafos))
+        val domains = p.domains.map {
+          case d if d.name == markerDomain => d.copy(functions = d.functions.filter(f => used.contains(f.name)))(d.pos, d.info, d.errT)
+          case d if d.name == orderDomain && literal =>
+            d.copy(axioms = TerminationEncoding.groundOrderAxioms(markersWithoutPos).map(e => vpr.AnonymousDomainAxiom(e)(domainName = orderDomain)))(d.pos, d.info, d.errT)
+          case d if d.name == orderDomain => d.copy(axioms = d.axioms.filterNot(a => mentionsUnused(a.exp)))(d.pos, d.info, d.errT)
+          case d => d
+        }
+        p.copy(domains = domains)(p.pos, p.info, p.errT)
+    }
+  }
 
   /**
     * Removes the parts of the encoding of termination levels that the program does not use. The measures of members

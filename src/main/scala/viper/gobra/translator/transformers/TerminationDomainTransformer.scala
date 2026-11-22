@@ -39,7 +39,11 @@ class TerminationDomainTransformer extends ViperTransformer {
       case vpr.SetType(_) => "decreases/set.vpr"
       case vpr.DomainType(name, _) if name == PredicateInstanceDomainName => "decreases/predicate_instance.vpr"
       // the well-founded order on termination levels is defined by the level encoding
-      case vpr.DomainType(name, _) if name == LevelEncoding.levelDomainName || name == "TerminationDomain" => declarationImport
+      case vpr.DomainType(name, _) if name == LevelEncoding.levelDomainName => declarationImport
+      // The kind markers that end every termination tuple (see `TerminationEncoding`) define their own well-founded
+      // order too, but they keep the fallback, as before termination levels: then every program with a tuple measure
+      // imports the orders of all types. Importing fewer domains is not neutral: it changes the SMT solver's search
+      // on unrelated proof obligations, and made the magic-wand proofs of `wands/ghost-list.gobra` 15x slower.
       case _ => allImport // fallback
     }
 

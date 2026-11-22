@@ -156,6 +156,41 @@ object TerminationEncoding {
   val domainName = "TerminationDomain"
   val domainType: vpr.DomainType = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty)
 
+  /**
+    * The order of the kind markers that the axioms of `finalize` define, for markers with literal ranks: `Some(true)` if
+    * `l` is below `r`, `Some(false)` if not, and `None` if a rank is not a literal.
+    */
+  def markerLt(l: vpr.DomainFuncApp, r: vpr.DomainFuncApp): Option[Boolean] = {
+    def rank(m: vpr.DomainFuncApp): Option[BigInt] = m.args match {
+      case Seq() => Some(0)
+      case Seq(vpr.IntLit(i)) => Some(i)
+      case _ => None
+    }
+    for { i <- rank(l); j <- rank(r) } yield (l.funcname, r.funcname) match {
+      case (`outlineMarkerName`, `outlineMarkerName`) => 0 <= i && i < j
+      case (`outlineMarkerName`, _) => true
+      case (`nonItfMarkerName`, `proofMarkerName` | `itfMarkerName` | `closureProofMarkerName`) => true
+      case (`proofMarkerName`, `itfMarkerName`) => i <= j
+      case (`itfMarkerName`, `proofMarkerName`) => i < j
+      case (`itfMarkerName`, `itfMarkerName`) | (`proofMarkerName`, `proofMarkerName`) => i < j
+      case (`proofMarkerName` | `itfMarkerName`, `closureProofMarkerName`) => true
+      case _ => false
+    }
+  }
+
+  /**
+    * Ground instances of the axioms of `finalize` for the given markers, which must have literal ranks: every marker is
+    * bounded, and the order between them. They replace the quantified axioms when the markers of a program are known.
+    */
+  def groundOrderAxioms(markers: Seq[vpr.DomainFuncApp]): Seq[vpr.Exp] = {
+    val typVarMap = Map(vpr.TypeVar("T") -> domainType)
+    def wfApp(fname: String, args: Seq[vpr.Exp]): vpr.Exp =
+      vpr.DomainFuncApp(funcname = fname, args = args, typVarMap = typVarMap)(NoPosition, NoInfo, typ = vpr.Bool, domainName = "WellFoundedOrder", NoTrafos)
+    val distinct = markers.distinct
+    distinct.map(m => wfApp("bounded", Seq(m))) ++
+      (for { l <- distinct; r <- distinct if markerLt(l, r).contains(true) } yield wfApp("decreasing", Seq(l, r)))
+  }
+
   private val nonItfMarkerName = "NonItfMethodMeasure"
   private val closureProofMarkerName = "ClosureProofMeasure"
   private val itfMarkerName = "ItfMethodMeasure"

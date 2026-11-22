@@ -519,6 +519,14 @@ axioms, when the final program does not use them. Without this, the multiset the
 perturbed Z3 on unrelated members. One closure test went from 14 s to minutes in about half of the runs,
 with Z3 above 10 GB.
 
+The kind markers that a program does not use are removed as well, together with their axioms. Most of
+these axioms quantify over ranks. A typical program uses two kinds, `NonItfMethodMeasure` and
+`ItfMethodMeasure`. With all axioms present, the fragile proofs of `parallel_search_replace_shared.gobra`
+ran for minutes in the test harness, with Z3 above 8 GB. Without them, the test takes about 30 s.
+Conversely, the well-founded orders of Viper's standard types are still imported whenever a program has a
+tuple measure, as before termination levels (`TerminationDomainTransformer`): importing only the order
+on levels made the magic-wand proofs of `wands/ghost-list.gobra` take 230 s instead of 10 s.
+
 The order facts are spread over small domains (`$AtomOrder0`, `$AtomOrder1`, ...). Viper's chopper,
 which VerifiedSCION's router uses (`chop: 10`), hashes the enclosing domain of every axiom it considers.
 With all facts in one domain, chopping the router took longer than 30 minutes.

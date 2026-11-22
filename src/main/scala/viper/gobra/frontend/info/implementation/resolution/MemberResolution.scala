@@ -231,17 +231,27 @@ trait MemberResolution { this: TypeInfoImpl =>
         val topLevel = AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
           AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m)))
         AdvancedMemberSet.union {
-          topLevel +: es.map(e => interfaceMethodSet(
-            entity(e.typ.id) match {
-              case NamedType(PTypeDef(t: PInterfaceType, _), _, ownerCtxt) =>
-                ownerCtxt.symbType(t) match {
-                  case itf: InterfaceT => itf
-                  case other => Violation.violation(s"expected interface type, but got $other")
-                }
-            }
-          ).promoteItf(e.typ.name))
+          // an embedded name that does not denote a well-defined interface type contributes no members: `wellDefType`
+          // reports it if it does not denote an interface type, and an erroneous embedded interface is reported at
+          // its own declaration
+          topLevel +: es.flatMap(e => embeddedInterfaceT(e).map(itf => interfaceMethodSet(itf).promoteItf(e.typ.name)))
         }
     }
+
+  /** Returns whether the name embedded by `e` denotes an interface type (which might itself be erroneous). */
+  def embedsInterfaceType(e: PInterfaceName): Boolean = entity(e.typ.id) match {
+    case NamedType(PTypeDef(_: PInterfaceType, _), _, _) => true
+    case _ => false
+  }
+
+  /** Returns the interface type embedded by `e` if `e` embeds a well-defined interface type. */
+  def embeddedInterfaceT(e: PInterfaceName): Option[InterfaceT] = entity(e.typ.id) match {
+    case NamedType(PTypeDef(t: PInterfaceType, _), _, ownerCtxt) => ownerCtxt.symbType(t) match {
+      case itf: InterfaceT => Some(itf)
+      case _ => None
+    }
+    case _ => None
+  }
 
   // Promotion
 

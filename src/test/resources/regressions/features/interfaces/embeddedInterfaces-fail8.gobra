@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type erroneous interface {
+	//:: ExpectedOutput(type_error)
+	f(x Undefined) int
+}
+
+// Embedding an interface that is erroneous must not crash the type checker. The error is
+// reported at the embedded interface only.
+type embedding interface {
+	erroneous
+}
+
+type T struct{}
+
+// dependent error: nothing implements an erroneous interface
+//:: ExpectedOutput(type_error)
+T implements embedding

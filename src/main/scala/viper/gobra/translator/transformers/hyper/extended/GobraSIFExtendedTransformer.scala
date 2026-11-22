@@ -11,6 +11,7 @@ package viper.gobra.translator.transformers.hyper.extended
 import viper.silver.plugin.sif._
 
 import viper.silver.ast._
+import viper.gobra.translator.util.VprInfo
 import viper.silver.ast.utility.Simplifier
 import viper.silver.plugin.standard.predicateinstance.PredicateInstance
 import viper.silver.plugin.standard.refute.Refute
@@ -215,7 +216,14 @@ trait SIFExtendedTransformer {
     newFields = p.fields.map(f => f.name -> f.copy(name = primedNames(f.name))(f.pos, f.info, f.errT)).toMap
     val productFields = p.fields ++ newFields.values
 
-    for (fn <- p.functions) {
+    hyperFuncNames = p.functions.filter(f => VprInfo.isHyperFunc(f.info)).map(_.name).toSet
+    activeFuncNames = p.functions.filter(f => VprInfo.isActiveExecution(f.info)).map(_.name).toSet
+    lowMarkerNames = p.functions.filter(f => HyperfuncMarkerTransformer.isLowMarker(f.info)).map(_.name).toSet
+    relMarkerNames = p.functions.filter(f => HyperfuncMarkerTransformer.isRelMarker(f.info)).map(_.name).toSet
+    defaultValueFuncs.clear()
+    anyValueFuncs.clear()
+
+    for (fn <- p.functions if !hyperFuncNames(fn.name) && !activeFuncNames(fn.name) && !isMarker(fn.name)) {
       val parts = fn.pres ++ fn.posts ++ fn.body.toSeq
       for (part <- parts) {
         if (isRelational(part)) {
@@ -224,7 +232,9 @@ trait SIFExtendedTransformer {
       }
     }
 
-    var newFunctions: Seq[Function] = p.functions.flatMap(f => translateFunction(f))
+    requiredActive = requiredExecutions(p)
+    var newFunctions: Seq[Function] = p.functions.filterNot(f => activeFuncNames(f.name) || isMarker(f.name)).flatMap(f =>
+      if (hyperFuncNames(f.name)) Seq(translateHyperFunction(f)) else translateFunction(f))
     newPredicates = Seq()
     for (pred <- p.predicates) {
       val (newPs, predFuncs) = translatePredicate(pred)
@@ -243,7 +253,8 @@ trait SIFExtendedTransformer {
       p.methods.map(m => translateMethod(m))
     }
 
-    val res = p.copy(domains = newDomains, fields = productFields, functions = newFunctions, predicates = newPredicates,
+    val res = p.copy(domains = newDomains, fields = productFields,
+      functions = newFunctions ++ defaultValueFuncs.values.toSeq ++ anyValueFuncs.values.toSeq, predicates = newPredicates,
       methods = newMethods)(p.pos, p.info, p.errT)
     Config.transformedProgramCallback.foreach(fn => fn(res))
     res
@@ -264,7 +275,8 @@ trait SIFExtendedTransformer {
       primedNames.update(f.name, NameTransformer.getPrimedFieldName(f))
     }
     // duplicate names for functions which depend on the heap
-    for (f <- p.functions) {
+    for (f <- p.functions if !VprInfo.isHyperFunc(f.info) && !VprInfo.isActiveExecution(f.info) &&
+      !HyperfuncMarkerTransformer.isLowMarker(f.info) && !HyperfuncMarkerTransformer.isRelMarker(f.info)) {
       if (isHeapDependent(f, p)) primedNames.update(f.name, NameTransformer.getUnusedName(f.name))
     }
     // duplicate names for predicates
@@ -362,6 +374,7 @@ trait SIFExtendedTransformer {
     *
     */
   def translateMethod(m: Method) : Method = {
+    if (VprInfo.isHyperFunc(m.info)) return translateHyperfuncProofMethod(m)
     val primedBefore = primedNames.clone() // to restore primed names
     val (p1d, p1r) = getNewBool("p1")
     val (p2d, p2r) = getNewBool("p2")
@@ -639,6 +652,263 @@ trait SIFExtendedTransformer {
       translateSIFAss(SIFLowExp(terminates.cond)(pos, info, condLowReasonPair), ctx)
         .asInstanceOf[Implies].copy()(pos, info, condLowReasonPair)
     )
+  }
+
+  ///////////////////////////////// Hyperfuncs, `active(i)`, and partial `rel` /////////////////////////////////
+  //
+  // Gobra's semantics of hyperfuncs for secret control flow (hyperfuncs paper, Section "Secret Control Flow"):
+  //  - `active(i)` holds if execution i is active, i.e., it is the activation condition of execution i;
+  //  - `rel(e, i)` is partial: it is defined only if `active(i)` holds (`asserting active(i) in e_i`);
+  //  - `low(e)` relates the active executions, as before;
+  //  - a hyperfunc H(x̄) is translated into one function H(a₀, a₁, x̄, x̄') over the activation flags and the
+  //    arguments of both executions, which reads the heap of execution 0 through the original fields and
+  //    predicates and that of execution 1 through the primed ones. Arguments of an inactive execution are not
+  //    evaluated; a placeholder value is passed instead, which the body cannot read since `rel` requires
+  //    activity.
+
+  /** Names of the functions that encode hyperfuncs and `active(i)`, set by [[transform]]. */
+  var hyperFuncNames: Set[String] = Set.empty
+  var activeFuncNames: Set[String] = Set.empty
+  /** Marker functions for `low` and `rel` in hyperfunc definitions, see [[HyperfuncMarkerTransformer]]. */
+  var lowMarkerNames: Set[String] = Set.empty
+  var relMarkerNames: Set[String] = Set.empty
+  private def isMarker(n: String): Boolean = lowMarkerNames(n) || relMarkerNames(n)
+
+  /** Replaces the marker functions by `low` and `rel`. */
+  def unmark(e: Exp): Exp = e.transform {
+    case f: FuncApp if lowMarkerNames(f.funcname) => SIFLowExp(unmark(f.args.head))(f.pos, f.info, f.errT)
+    case f: FuncApp if relMarkerNames(f.funcname) =>
+      SIFRelExp(unmark(f.args.head), f.args(1).asInstanceOf[IntLit])(f.pos, f.info, f.errT)
+  }
+
+  /**
+    * The executions that each hyperfunc reads outside a guard that mentions `active`, directly with `rel` or through
+    * the hyperfuncs it calls. A hyperfunc is defined only where these executions are active, which becomes its
+    * precondition. (Reads under a guard such as `active(1) ==> rel(x, 1) > 0` are checked in the body instead.)
+    */
+  var requiredActive: Map[String, Set[Int]] = Map.empty
+
+  def requiredExecutions(p: Program): Map[String, Set[Int]] = {
+    val hyper = p.functions.filter(f => hyperFuncNames(f.name)).map(f => f.name -> f).toMap
+    def mentionsActive(e: Exp): Boolean = e.exists { case f: FuncApp => activeFuncNames(f.funcname); case _ => false }
+    // (executions read by rel, hyperfuncs called), outside active-guards
+    def reads(e: Exp, guarded: Boolean): (Set[Int], Set[String]) = {
+      def all(es: Seq[(Exp, Boolean)]): (Set[Int], Set[String]) =
+        es.map { case (x, g) => reads(x, g) }.foldLeft((Set.empty[Int], Set.empty[String])) { case ((a, b), (c, d)) => (a ++ c, b ++ d) }
+      e match {
+        case Implies(l, r) => all(Seq(l -> guarded, r -> (guarded || mentionsActive(l))))
+        case And(l, r) => all(Seq(l -> guarded, r -> (guarded || mentionsActive(l))))
+        case CondExp(c, t, f) => val g = guarded || mentionsActive(c); all(Seq(c -> guarded, t -> g, f -> g))
+        case f: FuncApp if relMarkerNames(f.funcname) =>
+          val (rs, cs) = reads(f.args.head, guarded)
+          val i = f.args(1) match { case IntLit(n) => n.toInt; case _ => -1 }
+          (if (guarded) rs else rs + i, cs)
+        case f: FuncApp if hyperFuncNames(f.funcname) =>
+          val (rs, cs) = all(f.args.map(_ -> guarded))
+          (rs, if (guarded) cs else cs + f.funcname)
+        case e => all(e.subExps.map(_ -> guarded))
+      }
+    }
+    val direct = hyper.map { case (n, f) =>
+      val parts = f.pres ++ f.posts ++ f.body.toSeq
+      n -> parts.map(reads(_, guarded = false)).foldLeft((Set.empty[Int], Set.empty[String])) { case ((a, b), (c, d)) => (a ++ c, b ++ d) }
+    }
+    var req: Map[String, Set[Int]] = direct.map { case (n, (rs, _)) => n -> rs }
+    var changed = true
+    while (changed) {
+      val next = req.map { case (n, rs) => n -> (rs ++ direct(n)._2.flatMap(c => req.getOrElse(c, Set.empty))) }
+      changed = next != req
+      req = next
+    }
+    req
+  }
+
+  /** Unconstrained values, one abstract function per type, applied to a distinct literal at each use. */
+  val anyValueFuncs: mutable.LinkedHashMap[Type, Function] = mutable.LinkedHashMap.empty
+  private var anyValueCounter: Int = 0
+  private def anyValue(t: Type, n: Node with Positioned): Exp = {
+    val f = anyValueFuncs.getOrElseUpdate(t,
+      Function(NameTransformer.getUnusedName("hf_unconstrained"), Seq(LocalVarDecl("k", Int)()), t, Seq.empty, Seq.empty, None)())
+    anyValueCounter += 1
+    FuncApp(f, Seq(IntLit(anyValueCounter)(n.pos)))(n.pos)
+  }
+
+  /**
+    * The termination proof that Viper's termination plugin generates for a hyperfunc (a method with the hyperfunc's
+    * annotation). Termination is a property of each execution, so the proof stays a unary method. Its relational
+    * values (`low`, `rel`, `active`, and calls of hyperfuncs) are replaced by unconstrained values, a distinct one at
+    * each occurrence, such that every path through the hyperfunc's body is checked; relational atoms in its
+    * precondition are dropped, which only weakens the assumptions of the proof.
+    */
+  def translateHyperfuncProofMethod(m: Method): Method = {
+    def isRelationalApp(f: FuncApp): Boolean =
+      isMarker(f.funcname) || activeFuncNames(f.funcname) || hyperFuncNames(f.funcname)
+    def unconstrained(e: Exp): Exp = e.transform {
+      case f: FuncApp if isRelationalApp(f) => anyValue(f.typ, f)
+    }
+    val pres = m.pres.map(e => translateToUnary(unmark(e)))
+    val body = m.body.map(b => b.transform { case e: Exp => unconstrained(e) })
+    m.copy(pres = pres, body = body)(m.pos, VprInfo.removeHyperFunc(m.info), m.errT)
+  }
+
+  /** Placeholder values for the arguments of inactive executions, one abstract function per type. */
+  val defaultValueFuncs: mutable.LinkedHashMap[Type, Function] = mutable.LinkedHashMap.empty
+
+  private def defaultValue(t: Type): Exp = {
+    val f = defaultValueFuncs.getOrElseUpdate(t,
+      Function(NameTransformer.getUnusedName("hf_placeholder"), Seq.empty, t, Seq.empty, Seq.empty, None)())
+    FuncApp(f, Seq.empty)()
+  }
+
+  private def isConnective(e: Exp): Boolean = e match {
+    case _: And | _: Or | _: Implies | _: Not => true
+    case _ => false
+  }
+
+  /** The activation condition of execution `i` (an integer expression). */
+  private def activeOf(i: Exp, p1: Exp, p2: Exp): Exp = i match {
+    case IntLit(n) if n == 0 => p1
+    case IntLit(_) => p2
+    case _ => CondExp(EqCmp(i, IntLit(0)())(), p1, p2)(i.pos, i.info, i.errT)
+  }
+
+  def translateActive(f: FuncApp, p1: Exp, p2: Exp): Exp = {
+    requireActivation(f, p1, p2)
+    activeOf(f.args.head, p1, p2)
+  }
+
+  def translateRel(r: SIFRelExp, p1: Exp, p2: Exp): Exp = {
+    requireActivation(r, p1, p2)
+    val (act, e) = if (r.i.i == BigInt(1)) (p2, translatePrime(r.exp, p1, p2)) else (p1, translateNormal(r.exp, p1, p2))
+    Asserting(activeCondition(act, r.i.i.toInt, r), e)(r.pos, r.info, r.errT)
+  }
+
+  /**
+    * The activation condition `act` of execution `i`, with source information that makes errors read
+    * "Assertion active(i) might not hold" at the position of `at`.
+    */
+  private def activeCondition(act: Exp, i: Int, at: Node with Infoed with Positioned): Exp = {
+    val found = at.info.getUniqueInfo[viper.gobra.reporting.Source.Verifier.Info]
+      .orElse(viper.gobra.reporting.Source.searchInfo(at))
+    val info = found match {
+      case Some(vi) => vi.copy(origin = viper.gobra.reporting.Source.Origin(vi.origin.pos, s"active($i)"))
+      case None => NoInfo
+    }
+    EqCmp(act, TrueLit()())(at.pos, info, NoTrafos)
+  }
+
+  def translateHyperFuncApp(f: FuncApp, p1: Exp, p2: Exp): Exp = {
+    requireActivation(f, p1, p2)
+    val args0 = f.args.map(a => CondExp(p1, translateNormal(a, p1, p2), defaultValue(a.typ))(a.pos, a.info, a.errT))
+    val args1 = f.args.map(a => CondExp(p2, translatePrime(a, p1, p2), defaultValue(a.typ))(a.pos, a.info, a.errT))
+    FuncApp(f.funcname, Seq(p1, p2) ++ args0 ++ args1)(f.pos, f.info, f.typ, f.errT)
+  }
+
+  private def requireActivation(n: Exp, p1: Exp, p2: Exp): Unit =
+    if (p1 == null || p2 == null)
+      reportError(Internal(n, FeatureUnsupported(n, "Relational expressions are not supported in this position.")))
+
+  /**
+    * Translates a hyperfunc H(x̄) into H(a₀, a₁, x̄, x̄'): its contract and body are translated with the activation
+    * flags a₀ and a₁, as assertions over the active executions (permissions of an execution are required only if
+    * it is active). A rigid parameter `n` (top-level precondition `low(n)`) is read from an active execution.
+    */
+  def translateHyperFunction(marked: Function): Function = {
+    val f = marked.copy(pres = marked.pres.map(unmark), posts = marked.posts.map(unmark), body = marked.body.map(unmark))(
+      marked.pos, marked.info, marked.errT)
+    val primedBefore = primedNames.clone()
+    val (a0d, a0) = getNewBool("act0")
+    val (a1d, a1) = getNewBool("act1")
+    val primedArgs = f.formalArgs.map { a =>
+      val newName = NameTransformer.getUnusedName(a.name)
+      primedNames.update(a.name, newName)
+      a.copy(name = newName)(a.pos, a.info, a.errT)
+    }
+
+    // rigid parameters are read from an active execution
+    def conjuncts(e: Exp): Seq[Exp] = e match {
+      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
+      case e => Seq(e)
+    }
+    val params = f.formalArgs.map(_.name).toSet
+    val rigid = f.pres.flatMap(conjuncts).collect { case SIFLowExp(v: LocalVar, _, _) if params(v.name) => v }.distinct
+    val placeholders = rigid.map(v => v.name -> LocalVar(NameTransformer.getUnusedName(v.name + "_rigid"), v.typ)(v.pos)).toMap
+    def readRigid(e: Exp): Exp = if (placeholders.isEmpty) e else {
+      def go(e: Exp): Exp = e match {
+        case _: SIFRelExp | _: SIFLowExp => e
+        case v: LocalVar if placeholders.contains(v.name) => placeholders(v.name)
+        case e => e.withChildren(e.children.map {
+          case c: Exp => go(c)
+          case cs: Seq[_] => cs.map { case c: Exp => go(c); case c => c }
+          case c => c
+        })
+      }
+      go(e)
+    }
+    def resolveRigid(e: Exp): Exp = if (placeholders.isEmpty) e else e.transform {
+      case v: LocalVar if placeholders.values.exists(_.name == v.name) =>
+        val orig = rigid.find(r => placeholders(r.name).name == v.name).get
+        CondExp(a0, orig, LocalVar(primedNames(orig.name), orig.typ)())(v.pos, v.info, v.errT)
+    }
+
+    def assertion(e: Exp): Exp = resolveRigid(hyperAssertion(readRigid(e), a0, a1))
+    // the hyperfunc is defined only where the executions it reads are active
+    val activity = requiredActive.getOrElse(marked.name, Set.empty).toSeq.sorted.map(i =>
+      activeCondition(if (i == 0) a0 else a1, i, marked))
+    val newPres = activity ++ f.pres.map(assertion)
+    val newPosts = f.posts.map(assertion)
+    val newBody = f.body.map { b =>
+      if (b.typ == Bool) assertion(b) else resolveRigid(hyperValue(readRigid(b), a0, a1))
+    }
+    primedNames.clear()
+    primedNames ++= primedBefore
+    f.copy(formalArgs = Seq(a0d, a1d) ++ f.formalArgs ++ primedArgs, pres = newPres, posts = newPosts, body = newBody)(
+      f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
+  }
+
+  /** An assertion over the active executions, for a hyperfunc's contract and boolean body. */
+  def hyperAssertion(e: Exp, a0: Exp, a1: Exp): Exp = e match {
+    case a@And(l, r) => And(hyperAssertion(l, a0, a1), hyperAssertion(r, a0, a1))(a.pos, a.info, a.errT)
+    case o@Or(l, r) if isRelational(o) => Or(hyperAssertion(l, a0, a1), hyperAssertion(r, a0, a1))(o.pos, o.info, o.errT)
+    case i@Implies(l, r) if isRelational(i) =>
+      Implies(hyperAssertion(l, a0, a1), hyperAssertion(r, a0, a1))(i.pos, i.info, i.errT)
+    case n@Not(x) if isRelational(n) => Not(hyperAssertion(x, a0, a1))(n.pos, n.info, n.errT)
+    // also Gobra's encoding of `b ==> e` in function bodies, `b ? e : true`: a unary condition is lifted, i.e., it
+    // must hold in every active execution, as in the lockstep encoding
+    case c@CondExp(cond, t, f) if isRelational(c) =>
+      CondExp(hyperAssertion(cond, a0, a1), hyperAssertion(t, a0, a1), hyperAssertion(f, a0, a1))(c.pos, c.info, c.errT)
+    case l: SIFLowExp => Implies(And(a0, a1)(), translateSIFLowExpComparison(l, a0, a1))(l.pos, l.info, l.errT)
+    case q@Forall(vars, triggers, body) if isRelational(q) =>
+      val newTriggers = triggers.flatMap(t => Seq(
+        Trigger(t.exps.map(x => translateNormal(x, a0, a1)))(t.pos, t.info, t.errT),
+        Trigger(t.exps.map(x => translatePrime(x, a0, a1)))(t.pos, t.info, t.errT)))
+      Forall(vars, newTriggers, hyperAssertion(body, a0, a1))(q.pos, q.info, q.errT)
+    case q@Exists(vars, triggers, body) if isRelational(q) =>
+      Exists(vars, triggers, hyperAssertion(body, a0, a1))(q.pos, q.info, q.errT)
+    case u@Unfolding(pap: PredicateAccessPredicate, body) if isRelational(body) =>
+      unfoldBoth(u, pap, hyperAssertion(body, a0, a1), a0, a1)
+    case e =>
+      // an atom: evaluated in each active execution
+      And(Implies(a0, translateNormal(e, a0, a1))(e.pos, e.info, e.errT),
+        Implies(a1, translatePrime(e, a0, a1))(e.pos, e.info, e.errT))(e.pos, e.info, e.errT)
+  }
+
+  /** A non-boolean hyperfunc body, which denotes one value for the tuple of executions. */
+  def hyperValue(e: Exp, a0: Exp, a1: Exp): Exp = e match {
+    case u@Unfolding(pap: PredicateAccessPredicate, body) if isRelational(body) =>
+      unfoldBoth(u, pap, hyperValue(body, a0, a1), a0, a1)
+    case c@CondExp(cond, t, f) if isRelational(c) =>
+      val newCond = if (isRelational(cond)) hyperAssertion(cond, a0, a1) else translateNormal(cond, a0, a1)
+      CondExp(newCond, hyperValue(t, a0, a1), hyperValue(f, a0, a1))(c.pos, c.info, c.errT)
+    case e => translateNormal(e, a0, a1)
+  }
+
+  /** Unfolds the predicate instance in each active execution around `body`. */
+  private def unfoldBoth(u: Unfolding, pap: PredicateAccessPredicate, body: Exp, a0: Exp, a1: Exp): Exp = {
+    val pap0 = translateNormal(pap, a0, a1)
+    val pap1 = translatePrime(pap, a0, a1)
+    val second = CondExp(a1, Unfolding(pap1, body)(u.pos, u.info, u.errT), body)(u.pos, u.info, u.errT)
+    CondExp(a0, Unfolding(pap0, second)(u.pos, u.info, u.errT), second)(u.pos, u.info, u.errT)
   }
 
   /** Translate a function into MPP. Create two versions (one per execution) if it is heap dependent.
@@ -1677,6 +1947,7 @@ trait SIFExtendedTransformer {
 
   def isDirectlyUnary(e: Exp): Boolean = {
     !e.exists{
+      case f: FuncApp if hyperFuncNames(f.funcname) || activeFuncNames(f.funcname) => true
       case _: SIFLowExp => true
       case _: SIFLowEventExp => true
       case _: SIFRelExp => true
@@ -1704,9 +1975,11 @@ trait SIFExtendedTransformer {
     * Exp1[e] -> N[e]              // otherwise
     **/
   def translateSIFExp1(e: Exp, p1: Exp, p2: Exp): Exp = {
-    if (isDirectlyRelational(e)) {
-      Implies(And(p1, p2)(), translateNormal(e, p1, p2))(e.pos, e.info, errT = fwTs(e, e))
-    } else translateNormal(e, p1, p2)
+    // A relational atom is evaluated in each active execution, like a unary one: `rel(e, i)` is defined only if
+    // execution i is active (see `translateRel`), and `low` relates the active executions (Gobra's semantics of
+    // hyperfuncs for secret control flow). Viper's plugin instead evaluated relational atoms only where both
+    // executions are active.
+    translateNormal(e, p1, p2)
   }
 
   /**
@@ -1716,9 +1989,7 @@ trait SIFExtendedTransformer {
     * Exp2[e] -> P[e]  // otherwise
     * */
   def translateSIFExp2(e: Exp, p1: Exp, p2: Exp): Exp = {
-    if (isDirectlyRelational(e)) {
-      TrueLit()(e. pos, errT = fwTs(e, e))
-    } else translatePrime(e, p1, p2)
+    translatePrime(e, p1, p2)
   }
 
   /**
@@ -1952,10 +2223,9 @@ trait SIFExtendedTransformer {
       case pi@PredicateInstance(name, args) =>
         PredicateInstance(primedNames(name), args.map(a => translatePrime(a, p1, p2)))(e.pos, e.info, fwTs(pi, pi))
       case l: SIFLowExp => Implies(And(p1, p2)(), translateSIFLowExpComparison(l, p1, p2))(errT = fwTs(l, l))
-      case r@SIFRelExp(e, i) =>
-        if (!Config.enableExperimentalFeatures)
-          reportError(Internal(r, FeatureUnsupported(r, "rel-expressions are an experimental feature and must be explicitly enabled.")))
-        if(i.i == BigInt.int2bigInt(1)) translatePrime(e, p1, p2) else translateNormal(e, p1, p2)
+      case r: SIFRelExp => translateRel(r, p1, p2)
+      case f: FuncApp if activeFuncNames(f.funcname) => translateActive(f, p1, p2)
+      case f: FuncApp if hyperFuncNames(f.funcname) => translateHyperFuncApp(f, p1, p2)
       case DomainFuncApp("Low", _, _) if Config.enableNaginiSpecificFeatures => TrueLit()()
       case DomainFuncApp("LowEvent", Seq(), _) if Config.enableNaginiSpecificFeatures => TrueLit()()
       case f@ForPerm(vars, location, body) => ForPerm(vars,
@@ -1978,10 +2248,9 @@ trait SIFExtendedTransformer {
     e.transform{
       case l: SIFLowExp => Implies(And(p1, p2)(), translateSIFLowExpComparison(l, p1, p2))(errT = fwTs(l, l))
       case _: SIFLowEventExp => And(p1, p2)()
-      case r@SIFRelExp(e, i) =>
-        if (!Config.enableExperimentalFeatures)
-          reportError(Internal(r, FeatureUnsupported(r, "rel-expressions are an experimental feature and must be explicitly enabled.")))
-        if (i.i == BigInt.int2bigInt(1)) translatePrime(e, p1, p2) else translateNormal(e, p1, p2)
+      case r: SIFRelExp => translateRel(r, p1, p2)
+      case f: FuncApp if activeFuncNames(f.funcname) => translateActive(f, p1, p2)
+      case f: FuncApp if hyperFuncNames(f.funcname) => translateHyperFuncApp(f, p1, p2)
       case DomainFuncApp("Low", args, _) if Config.enableNaginiSpecificFeatures => Implies(And(p1, p2)(), translateSIFLowExpComparison(SIFLowExp(args.head)(), p1, p2))()
       case DomainFuncApp("LowEvent", Seq(), _) if Config.enableNaginiSpecificFeatures => And(p1, p2)()
     }
@@ -2000,6 +2269,11 @@ trait SIFExtendedTransformer {
     * */
   def translateToUnary(e: Exp): Exp = {
     val transformed = e.transform{
+      case a: Exp if a.typ == Bool && !isConnective(a) && a.exists {
+        case f: FuncApp => hyperFuncNames(f.funcname) || activeFuncNames(f.funcname)
+        case _: SIFRelExp => true
+        case _ => false
+      } => TrueLit()(a.pos, a.info, a.errT)
       case _: SIFLowExp => TrueLit()()
       case _: SIFLowEventExp => TrueLit()()
       case DomainFuncApp("Low", _, _) if Config.enableNaginiSpecificFeatures => TrueLit()()
@@ -2042,6 +2316,14 @@ trait SIFExtendedTransformer {
         translatePrime(left, null, null))(),
         translatePredLowFuncBody(right)
       )(i.pos, i.info, i.errT)
+      // a predicate's low function is used only where both executions are active
+      case a if a.typ == Bool && a.exists {
+        case f: FuncApp => hyperFuncNames(f.funcname) || activeFuncNames(f.funcname)
+        case _: SIFRelExp => true
+        case _ => false
+      } =>
+        val t = TrueLit()(a.pos)
+        And(translateNormal(a, t, t), translatePrime(a, t, t))(a.pos, a.info, a.errT)
       case _ => TrueLit()()
     }
     Simplifier.simplify(translated)

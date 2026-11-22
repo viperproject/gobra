@@ -3,13 +3,18 @@
 
 package relfail05
 
-// hyperMode "extended" without setting "enableExperimentalHyperFeatures" does not support `rel` expressions
 // ##(--hyperMode extended)
 
-//:: ExpectedOutput(type_error)
+// rel(e, i) is defined only if execution i is active. The callee is verified for every activation, so an unguarded
+// `rel` in a contract is not well-defined.
+//:: ExpectedOutput(contract_not_well_formed:assertion_error)
 requires rel(b, 0)
-//:: ExpectedOutput(type_error)
 requires rel(b, 1)
 func foo(b bool) {
+    return
+}
+
+requires active(1) ==> rel(b, 1)
+func bar(b bool) {
     return
 }

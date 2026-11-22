@@ -1235,16 +1235,29 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
     (x: String) => nameBased(x) || annotationBased.contains(x)
   }
 
+  /**
+    * In the lockstep encoding (and without hyper properties), every execution is always active, so `active(i)` is
+    * `true`. The function encoding `active` is removed.
+    */
+  def removeActive(p: Program): Program = {
+    val active = p.functions.filter(f => VprInfo.isActiveExecution(f.info)).map(_.name).toSet
+    if (active.isEmpty) p
+    else {
+      val replaced = p.transform { case f: FuncApp if active(f.funcname) => TrueLit()(f.pos, f.info, f.errT) }
+      replaced.copy(functions = replaced.functions.filterNot(f => active(f.name)))(p.pos, p.info, p.errT)
+    }
+  }
+
   override def transform(task: BackendVerifier.Task): Either[Seq[AbstractError], BackendVerifier.Task] = {
     config.hyperModeOrDefault match {
       case Hyper.Enabled =>
-        Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = false, config.hyperExecutionsOrDefault), task.backtrack))
+        Right(BackendVerifier.Task(program(removeActive(task.program), onlyMajor(task.program), noMinor = false, config.hyperExecutionsOrDefault), task.backtrack))
 
       case Hyper.Disabled =>
-        removeHyper(task.program).map(BackendVerifier.Task(_, task.backtrack))
+        removeHyper(removeActive(task.program)).map(BackendVerifier.Task(_, task.backtrack))
 
       case Hyper.NoMajor =>
-        Right(BackendVerifier.Task(program(task.program, onlyMajor(task.program), noMinor = true, config.hyperExecutionsOrDefault), task.backtrack))
+        Right(BackendVerifier.Task(program(removeActive(task.program), onlyMajor(task.program), noMinor = true, config.hyperExecutionsOrDefault), task.backtrack))
 
       case Hyper.EnabledExtended => Violation.violation(s"SIFLowGuardTransformer does not support hyper mode 'extended'")
     }

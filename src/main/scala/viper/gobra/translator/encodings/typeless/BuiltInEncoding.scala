@@ -16,6 +16,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.MemberWriter
+import viper.gobra.translator.util.VprInfo
 import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation
 import viper.gobra.util.Violation.violation
@@ -385,6 +386,22 @@ class BuiltInEncoding extends Encoding {
       )
 
     (x.tag, x.argsT) match {
+      case (ActiveFunctionTag, _) =>
+        // `active(i)`, encoded as an abstract function marked with an annotation. The low-guard encoding replaces
+        // calls by `true`, and the extended encoding by the activation condition of execution `i`.
+        val params = Vector(in.Parameter.In("exec", in.IntT(Addressability.Exclusive))(src))
+        val out = Vector(in.Parameter.Out("res", in.BoolT(Addressability.Exclusive))(src))
+        in.PureFunction(
+          x.name,
+          params,
+          out,
+          Vector.empty,
+          Vector.empty,
+          Vector(in.NonItfTupleTerminationMeasure(Vector.empty, None)(src)),
+          Vector(viper.gobra.util.BackendAnnotation(VprInfo.activeExecutionAnnotationKey, Vector.empty)),
+          None,
+          false
+        )(src)
       case (InvariantFunctionTag, _) =>
         val params = Vector(
           in.Parameter.In("arg", in.PredT(Vector.empty, Addressability.Exclusive))(src)

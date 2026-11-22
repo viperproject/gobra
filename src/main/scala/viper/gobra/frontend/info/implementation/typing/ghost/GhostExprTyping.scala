@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BoundVariable, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Closure, Constant, DomainFunction, Embbed, Field, Function, InParameter, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.Hyper
+import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -139,6 +139,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           exprType(index) != ExecT)
       }
       isExpr(e).out ++
+      error(n, s"rel expressions are currently only supported if hyperMode '${Hyper.Enabled.name}' is used, or if hyperMode '${Hyper.EnabledExtended.name}' and the '${Config.enableExperimentalHyperFeaturesOptionName}' flag are used.",
+        config.hyperModeOrDefault == Hyper.EnabledExtended && !config.enableExperimentalHyperFeatures) ++
       indexMessages ++ relationalPositionMessages(n)
 
     case n: PGhostEquals =>

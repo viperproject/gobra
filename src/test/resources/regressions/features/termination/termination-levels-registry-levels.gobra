@@ -18,7 +18,7 @@ type Path interface {
 // Spec of registered constructors: the created path is below the constructor.
 ensures p != nil && p.Mem() && levelOf(p) < ownLevel()
 decreases
-func NewSpec() (p Path)
+spec NewSpec() (p Path)
 
 type Registry struct {
 	scion  func() Path

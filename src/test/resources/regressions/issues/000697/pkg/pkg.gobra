@@ -7,10 +7,9 @@ type Calls interface {
 	pred inv()
 }
 
-ghost
 requires cs != nil
 preserves cs.inv()
-func ClosureSpec(ghost cs Calls) (res int)
+spec ClosureSpec(ghost cs Calls) (res int)
 
 requires fn implements ClosureSpec{cs}
 requires cs != nil && cs.inv()

@@ -18,6 +18,4 @@ func intSeq() {
 }
 
 preserves acc(x, 1/2)
-func spec(x *int) int {
-	return *x
-}
+spec spec(x *int) int

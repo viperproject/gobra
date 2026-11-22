@@ -12,7 +12,7 @@ decreases
 func (c Counter) Get() int { return c.n }
 
 decreases
-func getSpec() int
+spec getSpec() int
 
 decreases
 func useMethodValue() int {

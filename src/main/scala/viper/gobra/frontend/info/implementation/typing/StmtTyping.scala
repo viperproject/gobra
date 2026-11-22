@@ -120,11 +120,14 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       if (firstChecks.isEmpty) latterChecks else firstChecks
 
     case n@PForStmt(_, cond, _, spec, _) =>
-      val isGhost = isEnclosingGhost(n)
-      val noTerminationMeasureMsg = "Loop occurring in ghost context does not have a termination measure"
+      // like ghost members, loops occurring in ghost context must terminate
+      val terminatesIfGhost =
+        if (isEnclosingGhost(n)) guaranteedTerminationErrors(n, spec.terminationMeasure.toVector, "Loops occurring in ghost context must terminate",
+          measureMayBeOmitted = false)
+        else noMessages
       isExpr(cond).out ++
         comparableTypes.errors(exprType(cond), BooleanT)(n) ++
-        error(n, noTerminationMeasureMsg, isGhost && spec.terminationMeasure.isEmpty)
+        terminatesIfGhost
 
     case r@PShortForRange(range, shorts, _, _, _) =>
       val mayInit = isEnclosingMayInit(r)
@@ -357,8 +360,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     val closureImplProof = tryEnclosingClosureImplementationProof(n)
     if (closureImplProof.nonEmpty) {
       (resolve(closureImplProof.get.impl.spec.func) match {
-        case Some(AstPattern.Function(id, f)) => (idType(id).asInstanceOf[FunctionT].result, f.result.outs)
-        case Some(AstPattern.Closure(id, c)) => (idType(id).asInstanceOf[FunctionT].result, c.result.outs)
+        case Some(t: AstPattern.ClosureSpecTarget) => (idType(t.id).asInstanceOf[FunctionT].result, t.symb.result.outs)
         case _ => violation("this case should be unreachable")
       }) match {
         case (InternalTupleT(types), ps) => types zip ps
@@ -380,9 +382,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     val PClosureImplProof(impl@PClosureImplements(closure, spec), b: PBlock) = p
 
     val func = resolve(spec.func) match {
-      case Some(ap.Function(_, f)) => f
-      case Some(ap.Closure(_, c)) => c
-      case _ => Violation.violation(s"expected a function or closure, but got ${spec.func}")
+      case Some(t: ap.ClosureSpecTarget) => t.symb
+      case _ => Violation.violation(s"expected a closure spec or closure, but got ${spec.func}")
     }
 
     val specArgs = if (spec.params.forall(_.key.isEmpty)) func.args.drop(spec.params.size)
@@ -391,10 +392,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       func.args.filter(nameFromParam(_).fold(true)(!paramSet.contains(_)))
     }
 
-    val isPure = func match {
-      case f: st.Function => f.isPure
-      case c: st.Closure => c.isPure
-    }
+    val isPure = func.isPure
 
     lazy val expectedCallArgs = specArgs.flatMap(nameFromParam).map(a => PNamedOperand(PIdnUse(a)))
 
@@ -451,10 +449,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         .asReason(b, "invalid body of an implementation proof")
 
     def wellDefIfTerminationMeasuresConsistent: Messages = {
-      val specMeasures = func match {
-        case st.Function(decl, _, _) => decl.spec.terminationMeasures
-        case st.Closure(lit, _, _) => lit.spec.terminationMeasures
-      }
+      val specMeasures = func.spec.terminationMeasures
 
       lazy val callMeasures = terminationMeasuresForProofCall(p)
 
@@ -597,8 +592,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => Violation.violation("this case should be unreachable")
       }
       case Some(ap.ClosureCall(_, _, spec)) => resolve(spec.func) match {
-        case Some(ap.Function(_, f)) => f.decl.spec.terminationMeasures
-        case Some(ap.Closure(_, c)) => c.lit.spec.terminationMeasures
+        case Some(t: ap.ClosureSpecTarget) => t.symb.spec.terminationMeasures
         case _ => Violation.violation("this case should be unreachable")
       }
       case _ => Violation.violation("this case should be unreachable")

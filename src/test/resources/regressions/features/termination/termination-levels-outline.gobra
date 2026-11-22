@@ -32,31 +32,31 @@ type Cell struct {
 	f func(*Cell) int
 }
 
-requires acc(c) && c.f implements spec
+requires acc(c) && c.f implements cellSpec
 decreases
-func spec(c *Cell) int
+spec cellSpec(c *Cell) int
 
 // Landin's knot through a closure stored in the heap, hidden in an outline.
 decreases
 func run() int {
 	cell := &Cell{}
-	g := requires acc(c) && c.f implements spec
+	g := requires acc(c) && c.f implements cellSpec
 		decreases
 		func lit(c *Cell) int {
 			var r int
-			requires acc(c) && c.f implements spec
+			requires acc(c) && c.f implements cellSpec
 			decreases
 			outline (
 				//:: ExpectedOutput(function_termination_error)
-				r = c.f(c) as spec
+				r = c.f(c) as cellSpec
 			)
 			return r
 		}
-	proof g implements spec {
+	proof g implements cellSpec {
 		return g(c) as lit
 	}
 	cell.f = g
-	return g(cell) as spec
+	return g(cell) as cellSpec
 }
 
 // The measure of the block has to be at most the measure of the enclosing member.

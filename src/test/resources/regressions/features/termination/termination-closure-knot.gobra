@@ -12,9 +12,7 @@ type Box struct {
 
 requires b.f implements spec1
 decreases
-func spec1(b Box) (r int) {
-	return 0
-}
+spec spec1(b Box) (r int)
 
 decreases
 func run() int {
@@ -41,9 +39,7 @@ type Box2 struct {
 
 requires b.f != nil ==> b.f implements spec2
 decreases levelOf(b.f)
-func spec2(b Box2) (r int) {
-	return 0
-}
+spec spec2(b Box2) (r int)
 
 decreases
 func run2() int {

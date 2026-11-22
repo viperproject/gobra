@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// Ghost levels form the lattice actual ⊑ ghost ⊑ predicted: a value may flow to code and locations of its own level
+// or above, but never below. Predicted code is verified and erased like ghost code.
+
+predicted
+ensures res == x + 1
+decreases
+func predict(x int) (res int) {
+	return x + 1
+}
+
+ghost
+ensures res == 2 * x
+decreases
+func double(x int) (res int) {
+	return 2 * x
+}
+
+decreases
+pure func inc(x int) int {
+	return x + 1
+}
+
+// specifications sit at the top of the lattice, so values of every level may occur in them
+requires n >= 0 && g >= 0 && p >= 0
+ensures p + g + n >= 0
+func flows(n int, ghost g int, predicted p int) {
+	ghost var h int = double(n)      // ghost from actual
+	predicted var q int = predict(h) // predicted from ghost
+	predicted var r int = n          // predicted from actual
+	predicted r = q + h + p          // predicted code assigns a predicted location from values of every level
+	ghost h = g                      // ghost from ghost
+	ghost r = h                      // ghost code may assign predicted locations
+	// a call to a pure actual function with a predicted argument is implicitly predicted, like with ghost arguments
+	predicted var s int = inc(p)
+	// proof-only statements sit at the top of the lattice as well
+	assert q == 2 * n + 1 && r == g && s == p + 1
+}
+
+func caller() {
+	ghost var g int = 1
+	flows(1, 2, 3)
+	flows(1, g, g)
+}

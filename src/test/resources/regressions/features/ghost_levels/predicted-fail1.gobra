@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ghost
+decreases
+func ghostFn(x int) int {
+	return x
+}
+
+predicted
+decreases
+func predictedFn(x int) int {
+	return x
+}
+
+func actualFn(x int) {
+}
+
+// the error of the `return` statement below is reported at the actual result that the predicted value flows into
+//:: ExpectedOutput(type_error)
+func flows(n int, ghost g int, predicted p int) (res int, ghost gres int) {
+	var a int = 0
+	ghost var b int = 0
+	//:: ExpectedOutput(type_error)
+	a = g
+	//:: ExpectedOutput(type_error)
+	a = p
+	//:: ExpectedOutput(type_error)
+	ghost b = p
+	//:: ExpectedOutput(type_error)
+	actualFn(p)
+	//:: ExpectedOutput(type_error)
+	ghost b = predictedFn(n)
+	//:: ExpectedOutput(type_error)
+	ghost if p > 0 { }
+	// an impure ghost function cannot be called from predicted code, as it would modify ghost state
+	//:: ExpectedOutput(type_error)
+	predicted var e int = ghostFn(n)
+	// predicted code cannot assign ghost locations
+	//:: ExpectedOutput(type_error)
+	predicted g = n
+	return p, g
+}
+
+type I interface {
+	ghost
+	decreases
+	f() int
+}
+
+type T struct{}
+
+predicted
+decreases
+func (t T) f() int {
+	return 0
+}
+
+// a predicted method does not implement a ghost interface method
+//:: ExpectedOutput(type_error)
+T implements I

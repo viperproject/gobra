@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2026 ETH Zurich.
 
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -15,6 +16,11 @@ import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssi
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.util.Violation
 
+/**
+  * Classifies members, statements, expressions, and identifiers by their ghost level, see
+  * [[viper.gobra.frontend.info.base.GhostLattice]]. The Boolean classifications ("is this ghost code of any level?")
+  * are what ghost erasure relies on; the level-valued typings are what the ghost separation checks compare.
+  */
 trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   /** returns true iff member is classified as ghost */
@@ -76,13 +82,16 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     import GhostType._
 
     createGhostTyping[PExpression]{
-      case _: PGhostExpression => isGhost
-      case e if exprType(e).isInstanceOf[Type.GhostType] => isGhost
+      // inherently ghost constructs are at least ghost and at least as high as their parts
+      // (e.g., `old(x)` for a predicted `x` is predicted):
+      case e: PGhostExpression => ofLevel(ghostLattice.lub(ghostLattice.ghost, levelFromChildren(e)))
+      case e if exprType(e).isInstanceOf[Type.GhostType] => ofLevel(ghostLattice.lub(ghostLattice.ghost, levelFromChildren(e)))
 
-      case PNamedOperand(id) => ghost(ghostIdClassification(id))
+      case PNamedOperand(id) => ofLevel(ghostIdLevel(id))
 
       case _: PFunctionLit => notGhost
-      case e: PCompositeLit if isEnclosingGhost(e) => isGhost // struct literals occurring in ghost code are treated as ghost no matter whether the type is ghost or not
+      // struct literals occurring in ghost code are treated as ghost no matter whether the type is ghost or not
+      case e: PCompositeLit if isEnclosingGhost(e) => ofLevel(ghostLattice.lub(enclosingGhostLevel(e), levelFromChildren(e)))
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
@@ -96,12 +105,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
             case Some(t: ap.ClosureSpecTarget) if t.symb.specifiesGhostClosures => isGhost
             case _ => ghostExprTyping(n.base.asInstanceOf[PExpression])
           }
-        case (Left(_), Some(_: ap.PredicateCall)) => isGhost
+        case (Left(_), Some(_: ap.PredicateCall)) => ofLevel(ghostLattice.lub(ghostLattice.ghost, levelFromChildren(n)))
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
       // catches ghost field reads, method calls, function calls since their id is ghost
-      case exp => ghost(!noGhostPropagationFromChildren(exp))
+      case exp => ofLevel(levelFromChildren(exp))
     }
   }
 
@@ -118,7 +127,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
         case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
         case (Left(_), Some(_: ap.ClosureCall)) => closureCallReturnGhostTyping(n)
-        case (Left(_), Some(_: ap.PredicateCall)) => isGhost
+        case (Left(_), Some(_: ap.PredicateCall)) => ofLevel(ghostLattice.lub(ghostLattice.ghost, levelFromChildren(n)))
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
@@ -130,41 +139,44 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   private[separation] lazy val ghostLocationClassification: PExpression => Boolean =
     createGhostClassification[PExpression](e => ghostLocationTyping(e).isGhost)
 
-  /** returns ghost typing of the location that expression represents */
+  /** returns ghost typing of the location that expression represents; a location always has a level (at least
+    * `actual`), as it is a sink that values flow into */
   private[separation] lazy val ghostLocationTyping: PExpression => GhostType = {
     import GhostType._
+    val actualLocation = ofLevel(ghostLattice.actual)
+    val ghostLocation = ofLevel(ghostLattice.ghost)
 
     createGhostTyping[PExpression] {
-      case PNamedOperand(id) => ghost(ghostIdClassification(id))
+      case PNamedOperand(id) => ofLevel(ghostIdLevel(id))
       case e: PDeref => resolve(e) match {
         case Some(ap.Deref(base)) => underlyingType(exprType(base)) match {
-          case _: Type.GhostPointerT => isGhost
-          case _ => notGhost
+          case _: Type.GhostPointerT => ghostLocation
+          case _ => actualLocation
         }
         case _ => Violation.violation(s"type-checker should only permit PDeref assignees that have the Deref pattern")
       }
       case e: PDot => resolve(e) match {
         case Some(s: ap.FieldSelection) =>
-          val isGhostField = ghostIdClassification(s.id)
+          val fieldLevel = ghostIdLevel(s.id)
           val isGhostEmbedding = s.path.exists {
             case MemberPath.Next(decl) => decl.ghost
             case _ => false
           }
-          (underlyingType(typ(s.base)), isGhostField || isGhostEmbedding) match {
-            case (_, true) => isGhost // ghost fields and ghost embeddings are always ghost memory
-            case (tb: Type.PointerT, _) => ghost(tb.isInstanceOf[Type.GhostPointerT]) // (implicitly) dereferencing a field of a ghost pointer leads to a ghost heap location
+          (underlyingType(typ(s.base)), fieldLevel.isGhost || isGhostEmbedding) match {
+            case (_, true) => ofLevel(ghostLattice.lub(fieldLevel, ghostLattice.ghost)) // ghost fields and ghost embeddings are always ghost memory
+            case (tb: Type.PointerT, _) => if (tb.isInstanceOf[Type.GhostPointerT]) ghostLocation else actualLocation // (implicitly) dereferencing a field of a ghost pointer leads to a ghost heap location
             case _ => ghostLocationTyping(s.base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable
           }
-        case Some(g: ap.GlobalVariable) => ghost(g.symb.ghost)
+        case Some(g: ap.GlobalVariable) => ofLevel(g.symb.level)
         case _ => Violation.violation(s"type-checker should only permit PDot assignees that are either field or global variable accesses")
       }
       case PIndexedExp(base, _) => underlyingType(typ(base)) match {
         case t if !isPointerType(t) => ghostLocationTyping(base) // assignee is on the stack, recurse to find out if it's a ghost or actual variable
-        case _: Type.GhostPointerT | _: Type.GhostSliceT => isGhost // (implicitly) dereferencing a ghost pointer leads to a ghost heap location
-        case _ => notGhost
+        case _: Type.GhostPointerT | _: Type.GhostSliceT => ghostLocation // (implicitly) dereferencing a ghost pointer leads to a ghost heap location
+        case _ => actualLocation
       }
 
-      case e => ghostExprTyping(e)
+      case e => ofLevel(ghostLattice.lub(ghostLattice.actual, ghostExprTyping(e).level))
     }
   }
 
@@ -188,37 +200,47 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
   }
 
-  /** returns true iff identifier is classified as ghost */
-  private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
+  /** returns the ghost level of the entity an identifier refers to */
+  private[separation] lazy val ghostIdLevel: PIdnNode => GhostLevel = createGhostLevelTyping[PIdnNode]{
     id => {
       val ent = entity(id)
       ent match {
-        case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
-        case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
-        case _: Closure => true
-        case r: Regular => r.ghost
+        // a local variable is at least as high as its declaration and the value it is initialized with
+        case r: SingleLocalVariable => ghostLattice.lub(r.level, r.exp.map(e => ghostExprResultTyping(e).level).getOrElse(ghostLattice.bottom))
+        case r: MultiLocalVariable => ghostLattice.lub(r.level, ghostExprResultTyping(r.exp).levelAt(r.idx))
+        case r: Closure => ghostLattice.lub(ghostLattice.ghost, r.level)
+        case r: Regular => r.level
         case _ => Violation.violation("expected Regular Entity")
       }
     }
   }
 
-  /** returns true iff parameter is classified as ghost */
-  private[separation] lazy val ghostParameterClassification: PParameter => Boolean = createGhostClassification[PParameter] {
-    case _: PActualParameter => false
-    case _: PExplicitGhostParameter => true
+  /** returns true iff identifier is classified as ghost */
+  private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = id => ghostIdLevel(id).isGhost
+
+  /** returns the ghost level of a parameter, which is purely syntactic: only explicitly marked parameters are ghost */
+  private[separation] lazy val ghostParameterLevel: PParameter => GhostLevel = createGhostLevelTyping[PParameter] {
+    case _: PActualParameter => ghostLattice.actual
+    case p: PExplicitGhostParameter => p.level
   }
 
-  /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
-  private[separation] lazy val noGhostPropagationFromChildren: PNode => Boolean =
-    attr[PNode, Boolean] { node =>
+  /** returns true iff parameter is classified as ghost */
+  private[separation] lazy val ghostParameterClassification: PParameter => Boolean = p => ghostParameterLevel(p).isGhost
 
-      def noGhostPropagationFromSelfAndChildren(n: PNode): Boolean = n match {
-        case i: PIdnNode => !ghostIdClassification(i)
-        case e: PExpression => !ghostExprClassification(e)
-        case _: PStatement => true
-        case _: PParameter => true
-        case _: PResult => true
-        case x => noGhostPropagationFromChildren(x)
+  /**
+    * returns the least upper bound of the levels of all expressions and identifiers contained in `node` that are not
+    * contained in another statement, parameter, or result; i.e., the level that `node` obtains from its children
+    */
+  private[separation] lazy val levelFromChildren: PNode => GhostLevel =
+    attr[PNode, GhostLevel] { node =>
+
+      def levelFromSelfAndChildren(n: PNode): GhostLevel = n match {
+        case i: PIdnNode => ghostIdLevel(i)
+        case e: PExpression => ghostExprTyping(e).level
+        case _: PStatement => ghostLattice.bottom
+        case _: PParameter => ghostLattice.bottom
+        case _: PResult => ghostLattice.bottom
+        case x => levelFromChildren(x)
       }
 
       val childrenToVisit: Iterable[PNode] = node match {
@@ -226,12 +248,19 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case _ => tree.child(node)
       }
 
-      childrenToVisit.forall(noGhostPropagationFromSelfAndChildren)
+      ghostLattice.lub(childrenToVisit.map(levelFromSelfAndChildren))
     }
+
+  /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
+  private[separation] def noGhostPropagationFromChildren(node: PNode): Boolean = !levelFromChildren(node).isGhost
 
   private[separation] def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =
     createWellDefInference[X, GhostType](wellGhostSeparated.valid)(typing)
       .andThen(_.getOrElse(Violation.violation("ghost typing on unsafe node")))
+
+  private[separation] def createGhostLevelTyping[X <: PNode](typing: X => GhostLevel): X => GhostLevel =
+    createWellDefInference[X, GhostLevel](wellGhostSeparated.valid)(typing)
+      .andThen(_.getOrElse(Violation.violation("ghost level typing on unsafe node")))
 
   private[separation] def createGhostClassification[X <: PNode](classification: X => Boolean): X => Boolean =
     createWellDefInference[X, Boolean](wellGhostSeparated.valid)(classification)
@@ -253,11 +282,11 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   override def isTypeGhost(typ: PType): Boolean =
     ghostTypeClassification(typ)
 
-  override def isIdGhost(id: PIdnNode): Boolean =
-    ghostIdClassification(id)
+  override def idGhostLevel(id: PIdnNode): GhostLevel =
+    ghostIdLevel(id)
 
-  override def isParamGhost(param: PParameter): Boolean =
-    ghostParameterClassification(param)
+  override def paramGhostLevel(param: PParameter): GhostLevel =
+    ghostParameterLevel(param)
 
   override def isGhostLocation(expr: PExpression): Boolean =
     ghostLocationClassification(expr)
@@ -275,7 +304,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   override def expectedReturnGhostTyping(ret: PReturn): GhostType = {
     val res = enclosingCodeRootWithResult(ret).result
-    GhostType.ghostTuple(res.outs.map(isParamGhost))
+    GhostType.levelTuple(res.outs.map(paramGhostLevel))
   }
 
   override def expectedArgGhostTyping(n: PInvoke): GhostType = {

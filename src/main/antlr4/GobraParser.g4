@@ -61,7 +61,7 @@ ghostMember: implementationProof
 // Ghost statements
 
 ghostStatement:
-  GHOST statement  #explicitGhostStatement
+  (GHOST | PREDICTED) statement  #explicitGhostStatement
   | fold_stmt=(FOLD | UNFOLD) predicateAccess #foldStatement
   | kind=(ASSUME | REFUTE | INHALE | EXHALE) expression #proofStatement
   | ASSERT expression (BY CONTRA? block)? #assertStatement
@@ -272,7 +272,7 @@ methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIF
 
 
 
-explicitGhostMember: GHOST (specMember | declaration);
+explicitGhostMember: (GHOST | PREDICTED) (specMember | declaration);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 
@@ -298,7 +298,7 @@ parameterDecl: actualParameterDecl | ghostParameterDecl;
 
 actualParameterDecl:  identifierList? parameterType;
 
-ghostParameterDecl: GHOST identifierList? parameterType;
+ghostParameterDecl: (GHOST | PREDICTED) identifierList? parameterType;
 
 parameterType: ELLIPSIS? type_;
 

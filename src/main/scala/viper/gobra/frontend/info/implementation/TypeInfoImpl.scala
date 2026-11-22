@@ -11,6 +11,7 @@ import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.{Config, PackageInfo}
+import viper.gobra.frontend.info.base.GhostLattice
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
@@ -66,6 +67,9 @@ class TypeInfoImpl(final val tree: Info.GoTree, override final val dependentType
   with Errors
   with StrictLogging
 {
+
+  /** The lattice of ghost levels that classifies code, locations, and values; the type checker works for any lattice. */
+  implicit val ghostLattice: GhostLattice = GhostLattice.default
   import viper.gobra.util.Violation._
 
   import org.bitbucket.inkytonik.kiama.attribution.Decorators

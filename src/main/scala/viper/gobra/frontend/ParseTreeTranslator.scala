@@ -10,6 +10,8 @@ import org.antlr.v4.runtime.{ParserRuleContext, Token}
 import org.antlr.v4.runtime.tree.{ParseTree, RuleNode, TerminalNode}
 import org.bitbucket.inkytonik.kiama.util.{Position, Source}
 import viper.carbon.boogie.Implicits.lift
+import viper.gobra.frontend.info.base.{GhostLattice, GhostLevel}
+import viper.gobra.util.Violation
 import viper.gobra.ast.frontend._
 import viper.gobra.util.{Binary, GoString, Hexadecimal, Octal}
 import viper.gobra.frontend.GobraParser._
@@ -397,11 +399,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitGhostParameterDecl(ctx: GhostParameterDeclContext): AnyRef = super.visitGhostParameterDecl(ctx) match {
-    case Vector("ghost", rest@_*) => rest match {
-      case Vector(goIdnDefList(ids), typ : PType) => ids.map(id => PExplicitGhostParameter(PNamedParameter(id, typ.copy).at(id)).at(id))
-      case Vector(typ : PType) => Vector(PExplicitGhostParameter(PUnnamedParameter(typ).at(typ)).at(typ))
-    }
+    case Vector(modifier: String, rest@_*) =>
+      val level = ghostLevelOf(modifier)
+      rest match {
+        case Vector(goIdnDefList(ids), typ : PType) => ids.map(id => PExplicitGhostParameter(PNamedParameter(id, typ.copy).at(id), level).at(id))
+        case Vector(typ : PType) => Vector(PExplicitGhostParameter(PUnnamedParameter(typ).at(typ), level).at(typ))
+      }
   }
+
+  /** the ghost level that a modifier keyword (`ghost`, `predicted`) denotes */
+  private def ghostLevelOf(modifier: String): GhostLevel =
+    GhostLattice.default.ofKeyword.getOrElse(modifier, Violation.violation(s"unknown ghost modifier $modifier"))
 
   override def visitParameterType(ctx: ParameterTypeContext): AnyRef = super.visitParameterType(ctx) match {
     case Vector("...", typ : PType) => PVariadicType(typ)
@@ -1002,8 +1010,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     // the ghost modifier of a closure spec declaration specifies that the closures implementing it are ghost,
     // i.e., it does not affect the ghostness of the declaration itself, which is always ghost code.
     case Vector("ghost", decl : PClosureSpecDecl) => Vector(decl.copy(isGhost = true).at(ctx))
-    case Vector("ghost", decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl).at(ctx))
-    case Vector("ghost", decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_).at(ctx))
+    case Vector(modifier: String, _ : PClosureSpecDecl) =>
+      fail(ctx, s"the modifier `$modifier` is not supported for closure spec declarations; use `ghost` to specify ghost closures")
+    case Vector(modifier: String, decl : PGhostifiableMember) => Vector(PExplicitGhostMember(decl, ghostLevelOf(modifier)).at(ctx))
+    case Vector(modifier: String, decl : Vector[PGhostifiableMember] @unchecked) => decl.map(PExplicitGhostMember(_, ghostLevelOf(modifier)).at(ctx))
   }
 
   override def visitSingleBackendAnnotation(ctx: SingleBackendAnnotationContext): PBackendAnnotation = {
@@ -2286,7 +2296,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * GHOST statement
    **/
   override def visitExplicitGhostStatement(ctx: ExplicitGhostStatementContext): PExplicitGhostStatement = super.visitExplicitGhostStatement(ctx) match {
-    case Vector("ghost", stmt : PStatement) => PExplicitGhostStatement(stmt)
+    case Vector(modifier: String, stmt : PStatement) => PExplicitGhostStatement(stmt, ghostLevelOf(modifier))
   }
 
   /**

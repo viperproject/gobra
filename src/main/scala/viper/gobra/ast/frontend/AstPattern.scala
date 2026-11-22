@@ -7,6 +7,7 @@
 package viper.gobra.ast.frontend
 
 import viper.gobra.frontend.info.base.Type.PredT
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 
@@ -63,6 +64,7 @@ object AstPattern {
   sealed trait FunctionKind extends Expr with Symbolic {
     def id: PIdnUse
     def ghost: Boolean = symb.ghost
+    def level: GhostLevel = symb.level
     def isPure: Boolean
   }
 

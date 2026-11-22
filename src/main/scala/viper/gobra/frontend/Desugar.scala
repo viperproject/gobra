@@ -294,7 +294,7 @@ object Desugar extends LazyLogging {
       } else {
         val argsToIdx = fArgs.zipWithIndex.collect {
           case (PNamedParameter(a, _), idx) => a.name -> (idx+1)
-          case (PExplicitGhostParameter(PNamedParameter(a, _)), idx) => a.name -> (idx+1)
+          case (PExplicitGhostParameter(PNamedParameter(a, _), _), idx) => a.name -> (idx+1)
         }.toMap
         (s.paramKeys zip s.paramExprs) map { case (k, exp) => argsToIdx(k) -> exprD(ctx, info)(exp).res }
       }
@@ -4285,8 +4285,8 @@ object Desugar extends LazyLogging {
       }.toVector
 
     def structMemberD(m: st.StructMember, addrMod: Addressability)(src: Meta): in.Field = m match {
-      case st.Field(decl, isGhost, context) => fieldDeclD(decl, addrMod, isGhost, context)(src)
-      case st.Embbed(decl, isGhost, context) => embeddedDeclD(decl, addrMod, isGhost, context)(src)
+      case st.Field(decl, level, context) => fieldDeclD(decl, addrMod, level.isGhost, context)(src)
+      case st.Embbed(decl, level, context) => embeddedDeclD(decl, addrMod, level.isGhost, context)(src)
     }
 
     def embeddedDeclD(embedded: (String, StructEmbeddedT), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
@@ -4389,7 +4389,7 @@ object Desugar extends LazyLogging {
             dCond <- exprD(ctx, info)(cond)
           } yield in.AssignSuchThat(v, dCond)(src)
 
-        case PExplicitGhostStatement(actual) => stmtD(ctx, info)(actual)
+        case PExplicitGhostStatement(actual, _) => stmtD(ctx, info)(actual)
 
         case PMatchStatement(exp, clauses, strict) =>
           def goC(clause: PMatchStmtCase): Writer[in.PatternMatchCaseStmt] = {
@@ -4505,7 +4505,7 @@ object Desugar extends LazyLogging {
       // We need to substitute the argument and result names with the corresponding fresh variables.
       ((argSubs zip func.args) ++ (retSubs zip func.result.outs)) foreach {
         case (s, PNamedParameter(id, _)) => newCtx.addSubst(id, s, funcTypeInfo)
-        case (s, PExplicitGhostParameter(PNamedParameter(id, _))) => newCtx.addSubst(id, s, funcTypeInfo)
+        case (s, PExplicitGhostParameter(PNamedParameter(id, _), _)) => newCtx.addSubst(id, s, funcTypeInfo)
         case _ =>
       }
 

@@ -46,7 +46,10 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait Regular extends Entity with Product {
     def rep: PNode
-    def ghost: Boolean
+    /** the ghost level of the entity, see [[GhostLattice]] */
+    def level: GhostLevel
+    /** true iff the entity is ghost code of any level */
+    final def ghost: Boolean = level.isGhost
     def context: ExternalTypeInfo
     override def toString: String = rep.formattedShort
   }
@@ -67,7 +70,7 @@ object SymbolTable extends Environments[Entity] {
     def context: ExternalTypeInfo
   }
 
-  case class Function(decl: PFunctionDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
+  case class Function(decl: PFunctionDecl, level: GhostLevel, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
@@ -89,7 +92,7 @@ object SymbolTable extends Environments[Entity] {
     def specifiesGhostClosures: Boolean
   }
 
-  case class Closure(lit: PFunctionLit, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with ClosureSpecTarget {
+  case class Closure(lit: PFunctionLit, level: GhostLevel, context: ExternalTypeInfo) extends ActualDataEntity with ClosureSpecTarget {
     override def rep: PNode = lit
     override val args: Vector[PParameter] = lit.args
     override val result: PResult = lit.decl.result
@@ -104,7 +107,7 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait ActualConstant extends Constant with ActualDataEntity
 
-  case class SingleConstant(decl: PConstSpec, idDef: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
+  case class SingleConstant(decl: PConstSpec, idDef: PIdnDef, exp: PExpression, opt: Option[PType], level: GhostLevel, context: ExternalTypeInfo) extends ActualConstant {
     override def rep: PNode = decl
   }
 
@@ -114,10 +117,10 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
-  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     require(exp.isDefined || opt.isDefined)
   }
-  case class MultiLocalVariable(idx: Int, exp: PExpression, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class MultiLocalVariable(idx: Int, exp: PExpression, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
   }
 
@@ -126,7 +129,7 @@ object SymbolTable extends Environments[Entity] {
                             idx: Int,
                             expOpt: Option[PExpression],
                             typOpt: Option[PType],
-                            ghost: Boolean,
+                            level: GhostLevel,
                             override val addressable: Boolean,
                             isSingleModeDecl: Boolean,
                             context: ExternalTypeInfo
@@ -139,27 +142,27 @@ object SymbolTable extends Environments[Entity] {
 
   case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular with ActualDataEntity {
     override def rep: PNode = decl
-    override def ghost: Boolean = false
+    override def level: GhostLevel = GhostLattice.default.actual
   }
 
-  case class InParameter(decl: PNamedParameter, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class InParameter(decl: PNamedParameter, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class ReceiverParameter(decl: PNamedReceiver, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class ReceiverParameter(decl: PNamedReceiver, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class OutParameter(decl: PNamedParameter, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class OutParameter(decl: PNamedParameter, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class TypeSwitchVariable(decl: PTypeSwitchStmt, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class TypeSwitchVariable(decl: PTypeSwitchStmt, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
     override def toString: String = decl.binder.fold("unknown")(_.toString)
   }
-  case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class RangeVariable(idx: Int, exp: PRange, level: GhostLevel, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
   }
 
-  case class RangeEnumerateVariable(exp: PRange, ghost: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class RangeEnumerateVariable(exp: PRange, level: GhostLevel, context: ExternalTypeInfo) extends ActualVariable {
     override def addressable: Boolean = false
     override def rep: PNode = exp
   }
@@ -170,10 +173,10 @@ object SymbolTable extends Environments[Entity] {
     val decl: PTypeDecl
   }
 
-  case class NamedType(decl: PTypeDef, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
+  case class NamedType(decl: PTypeDef, level: GhostLevel, context: ExternalTypeInfo) extends ActualTypeEntity {
     override def rep: PNode = decl
   }
-  case class TypeAlias(decl: PTypeAlias, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
+  case class TypeAlias(decl: PTypeAlias, level: GhostLevel, context: ExternalTypeInfo) extends ActualTypeEntity {
     override def rep: PNode = decl
   }
 
@@ -186,11 +189,11 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait ActualStructMember extends StructMember with ActualTypeMember
 
-  case class Field(decl: PFieldDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualStructMember {
+  case class Field(decl: PFieldDecl, level: GhostLevel, context: ExternalTypeInfo) extends ActualStructMember {
     override def rep: PNode = decl
   }
 
-  case class Embbed(decl: PEmbeddedDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualStructMember {
+  case class Embbed(decl: PEmbeddedDecl, level: GhostLevel, context: ExternalTypeInfo) extends ActualStructMember {
     override def rep: PNode = decl
   }
 
@@ -201,7 +204,7 @@ object SymbolTable extends Environments[Entity] {
     def isAtomic: Boolean
   }
 
-  case class MethodImpl(decl: PMethodDecl, ghost: Boolean, context: ExternalTypeInfo) extends Method {
+  case class MethodImpl(decl: PMethodDecl, level: GhostLevel, context: ExternalTypeInfo) extends Method {
     override def rep: PNode = decl
     override def isPure: Boolean = decl.spec.isPure
     override val args: Vector[PParameter] = decl.args
@@ -211,7 +214,7 @@ object SymbolTable extends Environments[Entity] {
 
   }
 
-  case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, ghost: Boolean, context: ExternalTypeInfo) extends Method {
+  case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, level: GhostLevel, context: ExternalTypeInfo) extends Method {
     override def rep: PNode = spec
     override def isPure: Boolean = spec.spec.isPure
     override val args: Vector[PParameter] = spec.args
@@ -224,7 +227,7 @@ object SymbolTable extends Environments[Entity] {
   case class Import(decl: PImport, context: ExternalTypeInfo) extends ActualRegular with TypeEntity {
     override def rep: PNode = decl
     // TODO: requires checks that no actual entity from package is taken
-    override def ghost: Boolean = false
+    override def level: GhostLevel = GhostLattice.default.actual
   }
 
   /**
@@ -232,7 +235,7 @@ object SymbolTable extends Environments[Entity] {
     */
 
   sealed trait GhostRegular extends Regular {
-    override def ghost: Boolean = true
+    override def level: GhostLevel = GhostLattice.default.ghost
   }
 
   sealed trait GhostDataEntity extends DataEntity with GhostRegular
@@ -328,7 +331,7 @@ object SymbolTable extends Environments[Entity] {
     def tag: BuiltInMemberTag
   }
   sealed trait BuiltInActualEntity extends BuiltInEntity with ActualRegular {
-    override def ghost: Boolean = tag.ghost
+    override def level: GhostLevel = if (tag.ghost) GhostLattice.default.ghost else GhostLattice.default.actual
   }
 
   sealed trait BuiltInMethodLike extends BuiltInEntity with TypeMember

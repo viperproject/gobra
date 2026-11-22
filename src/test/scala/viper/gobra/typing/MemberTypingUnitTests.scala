@@ -25,7 +25,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val typ = PTypeDef(PIntType(), idnDef)
     val decl = PExplicitGhostMember(typ)
     frontend.symbolTableEntry(decl)(idnDef) should matchPattern {
-      case SymbolTable.NamedType(typDef, true, _) if typDef == typ =>
+      case SymbolTable.NamedType(typDef, level, _) if typDef == typ && level.isGhost =>
     }
   }
 
@@ -35,7 +35,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val typ = PTypeDef(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType()))))), idnDef)
     val decl = PExplicitGhostMember(typ)
     frontend.symbolTableEntry(decl)(idnDef) should matchPattern {
-      case SymbolTable.NamedType(typDef, true, _) if typDef == typ =>
+      case SymbolTable.NamedType(typDef, level, _) if typDef == typ && level.isGhost =>
     }
   }
 
@@ -44,7 +44,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val idnDef = PIdnDef("MyStruct")
     val typ = PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), idnDef)
     frontend.symbolTableEntry(typ)(idnDef) should matchPattern {
-      case SymbolTable.NamedType(typDef, false, _) if typDef == typ =>
+      case SymbolTable.NamedType(typDef, level, _) if typDef == typ && !level.isGhost =>
     }
     frontend.typeDeclUnderlyingTyp(typ) should matchPattern {
       case Type.StructT(_, true, _, _) =>
@@ -56,7 +56,7 @@ class MemberTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val idnDef = PIdnDef("MyStruct")
     val typ = PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), idnDef)
     frontend.symbolTableEntry(PExplicitGhostMember(typ))(idnDef) should matchPattern {
-      case SymbolTable.NamedType(typDef, true, _) if typDef == typ =>
+      case SymbolTable.NamedType(typDef, level, _) if typDef == typ && level.isGhost =>
     }
     frontend.typeDeclUnderlyingTyp(typ) should matchPattern {
       case Type.StructT(_, true, _, _) =>

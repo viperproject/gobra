@@ -152,7 +152,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     tree.root.declarations
       .collect {
         case m: PMethodDecl => createMethodImpl(m)
-        case PExplicitGhostMember(m: PMethodDecl) => createMethodImpl(m)
+        case PExplicitGhostMember(m: PMethodDecl, _) => createMethodImpl(m)
       }
       .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
       .transform((_, ms) => AdvancedMemberSet.init(ms))

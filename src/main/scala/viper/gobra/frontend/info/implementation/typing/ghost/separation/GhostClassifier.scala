@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.GhostLevel
 
 trait GhostClassifier {
 
@@ -20,9 +21,15 @@ trait GhostClassifier {
 
   def isTypeGhost(typ: PType): Boolean
 
-  def isIdGhost(id: PIdnNode): Boolean
+  def isParamGhost(param: PParameter): Boolean = paramGhostLevel(param).isGhost
 
-  def isParamGhost(param: PParameter): Boolean
+  /** the ghost level of a parameter, see [[viper.gobra.frontend.info.base.GhostLattice]] */
+  def paramGhostLevel(param: PParameter): GhostLevel
+
+  def isIdGhost(id: PIdnNode): Boolean = idGhostLevel(id).isGhost
+
+  /** the ghost level of the entity an identifier refers to */
+  def idGhostLevel(id: PIdnNode): GhostLevel
 
   def isGhostLocation(expr: PExpression): Boolean
 

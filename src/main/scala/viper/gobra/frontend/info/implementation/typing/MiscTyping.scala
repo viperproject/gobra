@@ -76,13 +76,13 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
                   val expectedReceiverOpt = n.receiver match {
                     case _: PUnnamedParameter => None
                     case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case PExplicitGhostParameter(_: PUnnamedParameter) => None
-                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case PExplicitGhostParameter(_: PUnnamedParameter, _) => None
+                    case PExplicitGhostParameter(p: PNamedParameter, _) => Some(PNamedOperand(PIdnUse(p.id.name)))
                   }
 
                   val expectedArgs = n.args.flatMap {
                     case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
-                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case PExplicitGhostParameter(p: PNamedParameter, _) => Some(PNamedOperand(PIdnUse(p.id.name)))
                     case _ => None
                   }
 

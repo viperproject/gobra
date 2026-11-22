@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2026 ETH Zurich.
 
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
@@ -11,25 +11,45 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignMode}
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType.ghost
 import viper.gobra.util.Violation
 
+/**
+  * Checks that values only flow to locations, parameters, and results of at least their own ghost level, see
+  * [[viper.gobra.frontend.info.base.GhostLattice]].
+  */
 trait GhostAssignability {
   this: TypeInfoImpl =>
 
-  /** checks that ghost arguments are not assigned to non-ghost arguments  */
+  /**
+    * Checks that the values an operation reads may flow into everything it writes: the join of the levels read has
+    * to be assignable to the meet of the levels written. An operation without writes (meet = top), such as a
+    * specification, accepts every read, and one without reads (join = bottom) may write anywhere.
+    * `msg` produces the error message from the join of the reads and the meet of the writes.
+    */
+  private[separation] def flow(n: PNode, reads: Iterable[GhostLevel], writes: Iterable[GhostLevel])(msg: (GhostLevel, GhostLevel) => String): Messages = {
+    val read = ghostLattice.lub(reads)
+    val written = ghostLattice.glb(writes)
+    error(n, msg(read, written), !ghostLattice.leq(read, written))
+  }
+
+  /** message that a value of level `right` cannot be assigned to a target of level `left` */
+  private def assignMsg(right: GhostLevel, left: GhostLevel): String =
+    s"ghost error: ${ghostLattice.show(right)} cannot be assigned to ${if (left.isGhost) ghostLattice.show(left) else "non-ghost"}"
+
+  /** checks that arguments are not assigned to parameters of a lower ghost level */
   private[separation] def ghostAssignableToCallExpr(call: ap.FunctionCall): Messages = {
-    val argTyping = calleeArgGhostTyping(call).toTuple
+    val argTyping = calleeArgGhostTyping(call).levels
     argsAssignable(call, argTyping)
   }
 
-  private def argsAssignable(call: ap.FunctionCall, argTyping: Vector[Boolean]): Messages = generalGhostAssignableTo[PExpression, Boolean](ghostExprResultTyping){
-    case (g, l) => error(call.callee.id, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
+  private def argsAssignable(call: ap.FunctionCall, argTyping: Vector[GhostLevel]): Messages = generalGhostAssignableTo[PExpression, GhostLevel](ghostExprResultTyping){
+    case (r, l) => flow(call.callee.id, Seq(r), Seq(l))(assignMsg)
   }(call.args: _*)(argTyping: _*)
 
-  /** checks that ghost arguments are not assigned to non-ghost arguments in a call with spec  */
+  /** checks that arguments are not assigned to parameters of a lower ghost level in a call with spec */
   private[separation] def ghostAssignableToClosureCall(call: ap.ClosureCall): Messages = {
     val target = closureSpecTarget(call.spec)
 
@@ -37,9 +57,9 @@ trait GhostAssignability {
     // ghost is assignable to all parameters.
     if (target.isPure || target.specifiesGhostClosures || isExprGhost(call.callee)) { return noMessages }
 
-    val argTyping = closureSpecArgsAndResGhostTyping(call.maybeSpec.get)._1.toTuple
+    val argTyping = closureSpecArgsAndResGhostTyping(call.maybeSpec.get)._1.levels
     call.args.zip(argTyping).flatMap {
-      case (g, l) => error(g, "ghost error: ghost cannot be assigned to non-ghost", isExprGhost(g) && !l)
+      case (g, l) => flow(g, Seq(exprGhostTyping(g).level), Seq(l))(assignMsg)
     }
   }
 
@@ -55,8 +75,9 @@ trait GhostAssignability {
   private [separation] def closureSpecArgsAndResGhostTyping(spec: PClosureSpecInstance): (GhostType, GhostType) = {
     val target = closureSpecTarget(spec)
     // all arguments and results of closures specified by a ghost closure spec are ghost
+    val specLevel = if (target.specifiesGhostClosures) ghostLattice.ghost else ghostLattice.bottom
     def paramTyping(params: Vector[PParameter], context: ExternalTypeInfo): GhostType =
-      GhostType.ghostTuple(params.map(p => target.specifiesGhostClosures || context.isParamGhost(p)))
+      GhostType.levelTuple(params.map(p => ghostLattice.lub(specLevel, context.paramGhostLevel(p))))
 
     val (fArgs, fRes, context) = (target.args, target.result.outs, target.context)
 
@@ -66,7 +87,7 @@ trait GhostAssignability {
       val pSet = spec.paramKeys.toSet
       paramTyping(fArgs.filter {
         case PNamedParameter(id, _) if pSet.contains(id.name) => false
-        case PExplicitGhostParameter(PNamedParameter(id, _)) if pSet.contains(id.name) => false
+        case PExplicitGhostParameter(PNamedParameter(id, _), _) if pSet.contains(id.name) => false
         case _ => true
       }, context)
     }
@@ -78,57 +99,65 @@ trait GhostAssignability {
   private[separation] def ghostAssignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
     generalGhostAssignableTo(ghostExprResultTyping)(ghostAssigneeAssignmentMsg)(exprs: _*)(lefts: _*)
 
-  private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages =
-    if (isEnclosingGhost(left)) ghostAssigneeAssignmentMsgInGhostCode(left) else ghostAssigneeAssignmentMsgInActualCode(isRightGhost, left)
+  private def ghostAssigneeAssignmentMsg(rightLevel: GhostLevel, left: PAssignee): Messages =
+    if (isEnclosingGhost(left)) ghostAssigneeAssignmentMsgInGhostCode(rightLevel, left) else ghostAssigneeAssignmentMsgInActualCode(rightLevel, left)
 
   // handles the case of assignments in actual code
-  private def ghostAssigneeAssignmentMsgInActualCode(isRightGhost: Boolean, left: PAssignee): Messages = left match {
+  private def ghostAssigneeAssignmentMsgInActualCode(rightLevel: GhostLevel, left: PAssignee): Messages = left match {
 
     case _: PDeref => // *x := e ~ !ghost(e)
-      error(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
+      error(left, "ghost error: ghost cannot be assigned to pointer", rightLevel.isGhost)
 
     case PIndexedExp(_, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
-      error(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
+      error(left, "ghost error: ghost cannot be assigned to index expressions", rightLevel.isGhost) ++
         error(left, "ghost error: ghost index are not permitted in index expressions", ghostExprResultClassification(index))
 
-    case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
-      error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
+    case PNamedOperand(id) => // x := e ~ level(e) ⊑ level(x)
+      flow(left, Seq(rightLevel, enclosingGhostLevel(left)), Seq(ghostIdLevel(id)))(assignMsg)
 
     case n: PDot => exprOrType(n.base) match {
-      case Left(_) => // x.f := e ~ ghost(e) ==> ghostassignee(x.f)
-        error(left, "ghost error: ghost cannot be assigned to non-ghost location", isRightGhost && !ghostLocationClassification(left))
+      case Left(_) => // x.f := e ~ level(e) ⊑ level(x.f)
+        flow(left, Seq(rightLevel, enclosingGhostLevel(left)), Seq(ghostLocationTyping(left).level))((r, w) => s"${assignMsg(r, w)} location")
       case _ if resolve(n).exists(_.isInstanceOf[ap.GlobalVariable]) =>
-        error(left, "ghost error: ghost cannot be assigned to a global variable", isRightGhost)
+        error(left, "ghost error: ghost cannot be assigned to a global variable", rightLevel.isGhost)
       case _ => error(left, "ghost error: selections on types are not assignable")
     }
 
     case PBlankIdentifier() => noMessages
   }
 
-  // handles the case of assignments in ghost code
-  private def ghostAssigneeAssignmentMsgInGhostCode(left: PAssignee): Messages =
-    error(left, s"ghost error: only ghost locations can be assigned to in ghost code", !ghostLocationClassification(left))
+  // handles the case of assignments in ghost code of any level: the location has to be at least at the level of the
+  // surrounding code and at least at the level of the assigned value
+  private def ghostAssigneeAssignmentMsgInGhostCode(rightLevel: GhostLevel, left: PAssignee): Messages = {
+    val contextLevel = enclosingGhostLevel(left)
+    val leftLevel = ghostLocationTyping(left).level
+    // the location is written by code of the context's level with a value of the right-hand side's level
+    flow(left, Seq(contextLevel, rightLevel), Seq(leftLevel)) { (_, written) =>
+      if (!ghostLattice.leq(contextLevel, written)) s"ghost error: only ${ghostLattice.show(contextLevel)} locations can be assigned to in ${ghostLattice.show(contextLevel)} code"
+      else assignMsg(rightLevel, written)
+    }
+  }
 
   /** conservative ghost separation assignment check */
   private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
-    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PIdnNode](wellGhostSeparated)(ghostIdClassification))(exprs: _*)(lefts: _*)
+    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PIdnNode](wellGhostSeparated)(ghostIdLevel))(exprs: _*)(lefts: _*)
 
-  /** conservative ghost separation assignment check */
+  /** conservative ghost separation assignment check; a result parameter of a ghost member is at least at the member's level */
   private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
-    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PParameter](wellGhostSeparated)(ghostParameterClassification))(exprs: _*)(lefts: _*)
+    generalGhostAssignableTo(ghostExprResultTyping)(dfltGhostAssignableMsg[PParameter](wellGhostSeparated)(p => ghostLattice.lub(ghostParameterLevel(p), enclosingGhostLevel(p))))(exprs: _*)(lefts: _*)
 
   /**
-    * default factory for producing messages that a ghost right-hand side cannot be assigned to a non-ghost left-hand side
-    * @param pre well-definedness condition for a left-hand side that must hold before `ghost` might be invoked
-    * @param ghost classifier whether a left-hand side is ghost
+    * default factory for producing messages that a right-hand side cannot be assigned to a left-hand side of a lower level
+    * @param pre well-definedness condition for a left-hand side that must hold before `level` might be invoked
+    * @param level the ghost level of a left-hand side
     * @tparam L type of the left-hand sides
     * @return
     */
-  private def dfltGhostAssignableMsg[L <: PNode](pre: WellDefinedness[L])(ghost: L => Boolean): (Boolean, L) => Messages = {
-    case (g, l) =>
+  private def dfltGhostAssignableMsg[L <: PNode](pre: WellDefinedness[L])(level: L => GhostLevel): (GhostLevel, L) => Messages = {
+    case (r, l) =>
       if (pre(l).valid) {
         // `l` is well-defined
-        error(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
+        flow(l, Seq(r), Seq(level(l)))(assignMsg)
       } else {
         // we skip all dependent checks as `l` is not well-defined.
         // we assume that the corresponding messages about `l` non-well-definedness are reported when visiting `l` in the AST.
@@ -136,22 +165,22 @@ trait GhostAssignability {
       }
   }
 
-  private def generalGhostAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =
+  private def generalGhostAssignableTo[R, L](typing: R => GhostType)(msg: (GhostLevel, L) => Messages)(rights: R*)(lefts: L*): Messages =
     NonStrictAssignMode(lefts.size, rights.size) match {
 
-      case AssignMode.Single => rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+      case AssignMode.Single => rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).level, l) }.toVector
 
       case AssignMode.Multi =>
         val gt = typing(rights.head)
-        lefts.zipWithIndex.flatMap{ case (l, idx) => msg(gt.isIdxGhost(idx), l) }.toVector
+        lefts.zipWithIndex.flatMap{ case (l, idx) => msg(gt.levelAt(idx), l) }.toVector
 
       case AssignMode.Variadic =>
         if(lefts.length - 1 == rights.length) {
           // if the variadic argument is not passed
-          rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+          rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).level, l) }.toVector
         } else if(rights.length >= lefts.length) {
           val dummyFill = rights(0)
-          rights.zipAll(lefts, dummyFill, lefts.last).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+          rights.zipAll(lefts, dummyFill, lefts.last).flatMap{ case (r,l) => msg(typing(r).level, l) }.toVector
         } else {
           Violation.violation("assignment mismatch")
         }
@@ -164,77 +193,79 @@ trait GhostAssignability {
   /** ghost type of the arguments of a callee */
   private[separation] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
     val explicitGhostType = explicitCalleeArgGhostTyping(call)
-    val isImplicitlyGhost = isCallImplicitlyGhost(call)
-    // preserve the amount of entries in `explicitGhostType` but set all to true
-    // if the call is implicitly ghost. In case there are no entries (i.e., it's not ghost),
-    // simply return `isGhost`:
-    if (isImplicitlyGhost && explicitGhostType.toTuple.isEmpty) {
-      GhostType.isGhost
-    } else if (isImplicitlyGhost) {
-      GhostType.ghostTuple(Seq.fill(explicitGhostType.length)(true).toVector)
-    } else explicitGhostType
+    val implicitLevel = implicitCallLevel(call)
+    // preserve the amount of entries in `explicitGhostType` but raise all of them to the level of the call
+    // if the call is implicitly ghost. In case there are no entries (i.e., it's not ghost), simply return the
+    // level of the call:
+    if (!implicitLevel.isGhost) {
+      explicitGhostType
+    } else if (explicitGhostType.length == 0) {
+      GhostType.ofLevel(implicitLevel)
+    } else {
+      GhostType.levelTuple(explicitGhostType.levels.map(l => ghostLattice.lub(l, implicitLevel)))
+    }
   }
 
   /** ghost type of the arguments of a callee based on explicit annotations of the parameter or callee */
   private def explicitCalleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
-    // a parameter of a ghost member is ghost (even if such a explicit declaration is missing)
-    def argTyping(args: Vector[PParameter], isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType =
-      GhostType.ghostTuple(args.map(p => isMemberGhost || context.isParamGhost(p)))
+    // a parameter of a ghost member is at least at the member's level (even if such a explicit declaration is missing)
+    def argTyping(args: Vector[PParameter], memberLevel: GhostLevel, context: ExternalTypeInfo): GhostType =
+      GhostType.levelTuple(args.map(p => ghostLattice.lub(memberLevel, context.paramGhostLevel(p))))
 
     call.callee match {
-      case p: ap.Function => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
-      case p: ap.Closure => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
-      case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case p: ap.Function => argTyping(p.symb.args, p.symb.level, p.symb.context)
+      case p: ap.Closure => argTyping(p.symb.args, p.symb.level, p.symb.context)
+      case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.level, p.symb.context)
       // first argument is the receiver which inherits its ghostness from the method's ghostness
-      case p: ap.MethodExpr => GhostType.ghostTuple(p.symb.ghost +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
+      case p: ap.MethodExpr => GhostType.levelTuple(p.symb.level +: argTyping(p.symb.args, p.symb.level, p.symb.context).levels)
       case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => argGhostTyping(symb.tag, call.args.map(typ))
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => argGhostTyping(symb.tag, Vector(typ(recv)))
       // first argument is the receiver which inherits its ghostness from the method's ghostness
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(symb.ghost +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
-      case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.levelTuple(symb.level +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).levels)
+      case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.level, p.symb.context)
       case _ => GhostType.notGhost // conservative choice
     }
   }
 
   /* ghost type of the callee itself (not considering its arguments or results) */
-  private[separation] def calleeGhostTyping(call: ap.FunctionCall): GhostType = {
-    val isExplicitlyGhost = call.callee.ghost
-    ghost(isExplicitlyGhost || isCallImplicitlyGhost(call))
-  }
+  private[separation] def calleeGhostTyping(call: ap.FunctionCall): GhostType =
+    GhostType.ofLevel(ghostLattice.lub(call.callee.level, implicitCallLevel(call)))
 
   /** ghost type of the result of a callee */
   private[separation] def calleeReturnGhostTyping(call: ap.FunctionCall): GhostType = {
-    // a result of a ghost member is ghost (even if such a explicit declaration is missing)
-    def resultTyping(result: PResult, isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType = {
-      GhostType.ghostTuple(result.outs.map(p => isMemberGhost || context.isParamGhost(p) || isCallImplicitlyGhost(call)))
+    // a result of a ghost member is at least at the member's level (even if such a explicit declaration is missing)
+    def resultTyping(result: PResult, memberLevel: GhostLevel, context: ExternalTypeInfo): GhostType = {
+      val callLevel = ghostLattice.lub(memberLevel, implicitCallLevel(call))
+      GhostType.levelTuple(result.outs.map(p => ghostLattice.lub(callLevel, context.paramGhostLevel(p))))
     }
 
     call.callee match {
-      case p: ap.Function => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
-      case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
-      case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case p: ap.Function => resultTyping(p.symb.result, p.symb.level, p.symb.context)
+      case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.level, p.symb.context)
+      case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.level, p.symb.context)
       case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => returnGhostTyping(symb.tag, call.args.map(typ))
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => returnGhostTyping(symb.tag, Vector(typ(recv)))
       case ap.BuiltInMethodExpr(typ, _, _, symb) => returnGhostTyping(symb.tag, Vector(typeSymbType(typ)))
-      case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.level, p.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
   }
 
-  /** returns true if `call` should be treated as being ghost because it is not explicitly
-    * annotated as being ghost _and_ one of the arguments is ghost even though the corresponding
-    * parameter is not explicitly annotated as being ghost.
+  /** returns the level at which `call` is implicitly treated although the callee is not explicitly declared at that
+    * level: a call to a pure function is at the level of its arguments if they are not assignable to the parameters.
+    * Otherwise, the bottom level is returned.
     */
-  private def isCallImplicitlyGhost(call: ap.FunctionCall): Boolean = {
+  private def implicitCallLevel(call: ap.FunctionCall): GhostLevel = {
     // we only do this special treatment for calls to pure functions as the call
     // can be erased without losing any side-effects. Furthermore, we have to do
     // this implicit treatment only if assignability of arguments to parameters
     // would otherwise fail:
-    val argTyping = explicitCalleeArgGhostTyping(call).toTuple
+    val argTyping = explicitCalleeArgGhostTyping(call).levels
     val assignable = argsAssignable(call, argTyping)
-    call.callee.isPure && assignable.nonEmpty
+    if (call.callee.isPure && assignable.nonEmpty) ghostLattice.lub(call.args.map(a => ghostExprResultTyping(a).level))
+    else ghostLattice.bottom
   }
 
   /* If a closure is not ghost, the arguments and results of all the specs it can be called with must have
@@ -271,15 +302,16 @@ trait GhostAssignability {
   }
 
   private[separation] def closureCallReturnGhostTyping(call: PInvoke): GhostType = {
-    // a result is ghost if the closure is ghost (even if such a explicit declaration is missing)
-    def resultTyping(result: PResult, isClosureGhost: Boolean, context: ExternalTypeInfo): GhostType = {
-      GhostType.ghostTuple(result.outs.map(p => isClosureGhost || context.isParamGhost(p)))
+    // a result is at least at the level of the call (even if such a explicit declaration is missing)
+    def resultTyping(result: PResult, callLevel: GhostLevel, context: ExternalTypeInfo): GhostType = {
+      GhostType.levelTuple(result.outs.map(p => ghostLattice.lub(callLevel, context.paramGhostLevel(p))))
     }
 
     resolve(call.spec.get.func) match {
       case Some(t: ap.ClosureSpecTarget) =>
-        val isCallGhost = t.symb.specifiesGhostClosures || isExprGhost(call.base.asInstanceOf[PExpression])
-        resultTyping(t.symb.result, isCallGhost, t.symb.context)
+        val specLevel = if (t.symb.specifiesGhostClosures) ghostLattice.ghost else ghostLattice.bottom
+        val callLevel = ghostLattice.lub(specLevel, exprGhostTyping(call.base.asInstanceOf[PExpression]).level)
+        resultTyping(t.symb.result, callLevel, t.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
   }

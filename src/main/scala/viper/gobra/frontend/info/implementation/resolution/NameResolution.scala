@@ -11,6 +11,7 @@ import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.base.Type.{AdtT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
@@ -30,7 +31,7 @@ trait NameResolution {
       case w: PWildcard => Wildcard(w, this)
       case id@tree.parent(p) =>
 
-        val isGhost = isGhostDef(id)
+        val level = ghostLevelDef(id)
 
         p match {
 
@@ -39,7 +40,7 @@ trait NameResolution {
 
             StrictAssignMode(decl.left.size, decl.right.size) match {
               case AssignMode.Single => decl.left(idx) match {
-                case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+                case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, level, this)
                 case w: PWildcard => Wildcard(w, this)
               }
               case _ => UnknownEntity()
@@ -47,52 +48,52 @@ trait NameResolution {
           case decl: PVarDecl if isGlobalVarDeclaration(decl) =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
             StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => GlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), isSingleModeDecl = true,  this)
-              case AssignMode.Multi  => GlobalVariable(decl, idx, decl.right.headOption, decl.typ, isGhost, decl.addressable(idx), isSingleModeDecl = false, this)
-              case _ if decl.right.isEmpty => GlobalVariable(decl, idx, None, decl.typ, isGhost, decl.addressable(idx), isSingleModeDecl = true, this)
+              case AssignMode.Single => GlobalVariable(decl, idx, Some(decl.right(idx)), decl.typ, level, decl.addressable(idx), isSingleModeDecl = true,  this)
+              case AssignMode.Multi  => GlobalVariable(decl, idx, decl.right.headOption, decl.typ, level, decl.addressable(idx), isSingleModeDecl = false, this)
+              case _ if decl.right.isEmpty => GlobalVariable(decl, idx, None, decl.typ, level, decl.addressable(idx), isSingleModeDecl = true, this)
               case _ => UnknownEntity()
             }
           case decl: PVarDecl =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
             StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
-              case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-              case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
+              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, level, decl.addressable(idx), this)
+              case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, level, decl.addressable(idx), this)
+              case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, level, decl.addressable(idx), this)
               case _ => UnknownEntity()
             }
           case decl: PAssignSuchThat =>
             // Variables declared by `var x T :| P` are always ghost, non-addressable,
             // and their type is given explicitly by the annotation.
-            SingleLocalVariable(None, Some(decl.typ), decl, ghost = true, addressable = false, this)
+            SingleLocalVariable(None, Some(decl.typ), decl, level = ghostLattice.ghost, addressable = false, this)
 
-          case decl: PTypeDef => NamedType(decl, isGhost, this)
-          case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
-          case decl: PFunctionDecl => Function(decl, isGhost, this)
-          case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
+          case decl: PTypeDef => NamedType(decl, level, this)
+          case decl: PTypeAlias => TypeAlias(decl, level, this)
+          case decl: PFunctionDecl => Function(decl, level, this)
+          case decl: PMethodDecl => MethodImpl(decl, level, this)
           case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) =>
             // note that a ghost method is not wrapped in a ghost wrapper. Instead, `spec` has a ghost field.
-            // therefore, we do not use `isGhost` but `spec.isGhost`:
-            MethodSpec(spec, tdef, spec.isGhost, this)
+            // therefore, we do not use `level` but `spec.isGhost`:
+            MethodSpec(spec, tdef, if (spec.isGhost) ghostLattice.ghost else ghostLattice.actual, this)
 
           case tree.parent.pair(decl: PFieldDecl, tree.parent.pair(_: PFieldDecls, _: PExplicitGhostStructClause)) =>
             // this field declaration has an explicit ghost modifier
-            Field(decl, ghost = true, this)
-          case decl: PFieldDecl => Field(decl, ghost = false, this)
+            Field(decl, level = ghostLattice.ghost, this)
+          case decl: PFieldDecl => Field(decl, level = ghostLattice.actual, this)
           case tree.parent.pair(decl: PEmbeddedDecl, _: PExplicitGhostStructClause) =>
             // this embedded declaration has an explicit ghost modifier
-            Embbed(decl, ghost = true, this)
-          case decl: PEmbeddedDecl => Embbed(decl, ghost = false, this)
+            Embbed(decl, level = ghostLattice.ghost, this)
+          case decl: PEmbeddedDecl => Embbed(decl, level = ghostLattice.actual, this)
 
-          case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
-          case decl: PNamedParameter => InParameter(decl, isGhost, canParameterBeUsedAsShared(decl), this)
-          case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, canReceiverBeUsedAsShared(decl), this)
+          case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, level, canParameterBeUsedAsShared(decl), this)
+          case decl: PNamedParameter => InParameter(decl, level, canParameterBeUsedAsShared(decl), this)
+          case decl: PNamedReceiver => ReceiverParameter(decl, level, canReceiverBeUsedAsShared(decl), this)
 
-          case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
+          case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, level, addressable = false, this) // TODO: check if type switch variables are addressable in Go
 
           case decl: PImport => Import(decl, this)
 
           // Closure literals
-          case decl: PFunctionLit => Closure(decl, isGhost, this)
+          case decl: PFunctionLit => Closure(decl, level, this)
 
           // Ghost additions
           case decl: PBoundVariable => BoundVariable(decl, this)
@@ -123,43 +124,44 @@ trait NameResolution {
     attr[PIdnUnk, Entity] {
       case id@tree.parent(p) =>
 
-        val isGhost = isGhostDef(id)
+        val level = ghostLevelDef(id)
 
         p match {
           case decl: PShortVarDecl =>
             val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
             StrictAssignMode(decl.left.size, decl.right.size) match {
-              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, isGhost, decl.addressable(idx), this)
-              case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+              case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, level, decl.addressable(idx), this)
+              case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, level, decl.addressable(idx), this)
               case _ => UnknownEntity()
             }
 
           case decl: PShortForRange =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-            RangeVariable(idx, decl.range, isGhost, addressable = decl.addressable(idx), this)
+            RangeVariable(idx, decl.range, level, addressable = decl.addressable(idx), this)
 
           case decl: PSelectShortRecv =>
             val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
             val len = decl.shorts.size
 
             StrictAssignMode(len, 1) match { // TODO: check if selection variables are addressable in Go
-              case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
-              case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
+              case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, level, addressable = false, this)
+              case AssignMode.Multi => MultiLocalVariable(idx, decl.recv, level, addressable = false, this)
               case _ => UnknownEntity()
             }
           case decl: PRange =>
-            RangeEnumerateVariable(decl, isGhost, this)
+            RangeEnumerateVariable(decl, level, this)
 
           case _ => violation("unexpected parent of unknown id")
         }
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  // `isGhostDef` returns true if a node is part of ghost code. However, implementation proofs are considered being
-  // non-ghost, independently of whether they are for a ghost or non-ghost method. Thus, implementation proofs for ghost
-  // and non-ghost methods are type-checked in the same way, which is unproblematic due to their syntactic restrictions.
-  private[resolution] lazy val isGhostDef: PNode => Boolean = n => isEnclosingGhost(n)
+  // `ghostLevelDef` returns the ghost level of the code a node is part of. However, implementation proofs are
+  // considered being non-ghost, independently of whether they are for a ghost or non-ghost method. Thus, implementation
+  // proofs for ghost and non-ghost methods are type-checked in the same way, which is unproblematic due to their
+  // syntactic restrictions.
+  private[resolution] lazy val ghostLevelDef: PNode => GhostLevel = n => enclosingGhostLevel(n)
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 
@@ -281,7 +283,7 @@ trait NameResolution {
         case _: PImplementationProof => Vector.empty
       }
       case g: PGhostMember => g match {
-        case PExplicitGhostMember(a) => packageLevelDefinitions(a)
+        case PExplicitGhostMember(a, _) => packageLevelDefinitions(a)
         case p: PMPredicateDecl => Vector(p.id)
         case p: PFPredicateDecl => Vector(p.id)
         case p: PClosureSpecDecl => Vector(p.id)
@@ -307,7 +309,7 @@ trait NameResolution {
         case d: PTypeDecl => leakingIdentifier(d.right)
         case _ => Vector.empty
       }
-      case PExplicitGhostMember(a) => latePackageLevelDefinitions(a)
+      case PExplicitGhostMember(a, _) => latePackageLevelDefinitions(a)
       case _ => Vector.empty
     }
   }
@@ -471,7 +473,7 @@ trait NameResolution {
   private def lookupParamForClosureSpec(id: PIdnUse, func: ClosureSpecTarget): Option[ActualVariable] = {
     def namedParam(p: PParameter): Option[PNamedParameter] = p match {
       case p: PNamedParameter => Some(p)
-      case PExplicitGhostParameter(p: PNamedParameter) => Some(p)
+      case PExplicitGhostParameter(p: PNamedParameter, _) => Some(p)
       case _ => None
     }
 
@@ -479,12 +481,12 @@ trait NameResolution {
     // This is to be as permissive as possible at this point, since all ghostness-related checks are done later on.
     val inParam = func.args.flatMap(namedParam)
       .find(_.id.name == id.name)
-      .map(InParameter(_, ghost = false, addressable = false, func.context))
+      .map(InParameter(_, level = ghostLattice.actual, addressable = false, func.context))
 
     inParam.orElse {
       func.result.outs.flatMap(namedParam)
         .find(_.id.name == id.name)
-        .map(OutParameter(_, ghost = true, addressable = false, func.context))
+        .map(OutParameter(_, level = ghostLattice.ghost, addressable = false, func.context))
     }
   }
 

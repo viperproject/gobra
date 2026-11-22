@@ -25,7 +25,7 @@ trait LabelResolution { this: TypeInfoImpl =>
     attr[PDefLikeLabel, Entity] {
       case id@ tree.parent(p) =>
 
-        val isGhost = isGhostDef(id)
+        val isGhost = ghostLevelDef(id).isGhost
 
         p match {
           case decl: PLabeledStmt => Label(decl, isGhost)

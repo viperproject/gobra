@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.{Closure, Function, Regular, SingleLocalVariable}
@@ -16,6 +17,17 @@ import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
+
+  /** message that an expression of level `read` occurs in code of level `written` */
+  private def childMsg(read: GhostLevel, written: GhostLevel): String = {
+    val expected = if (written.isGhost) s"expected at most ${ghostLattice.show(written)}" else "expected none"
+    s"ghost error: Found ${ghostLattice.show(read)} child expression but $expected"
+  }
+
+  /** checks that the expressions `n` contains may flow into the code `n` belongs to, e.g., that control flow does not
+    * depend on values of a higher level than the code it controls */
+  private def childrenFlowIntoContext(n: PNode): Messages =
+    flow(n, Seq(levelFromChildren(n)), Seq(enclosingGhostLevel(n)))(childMsg)
 
   private def selfWellGhostSeparated(n: PNode): Boolean = n match {
     case i: PIdnNode => idGhostSeparation(i).valid
@@ -63,13 +75,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
     case _: PGhostStatement => noMessages
-    case s if isEnclosingGhost(s) => noMessages
 
-    case stmt @ PForStmt(pre, cond, post, _, body) => {
-      // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
-      val ghostChildFound = Seq(pre, post, Some(cond), Some(body)).flatten.map(noGhostPropagationFromChildren)
-      error(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
-    }
+    case stmt @ PForStmt(pre, cond, post, _, body) =>
+      // NOTE the loop specification *is* allowed to contain ghost constructs; the rest has to flow into the code the
+      // loop belongs to
+      flow(stmt, Seq(pre, post, Some(cond), Some(body)).flatten.map(levelFromChildren), Seq(enclosingGhostLevel(stmt)))(childMsg)
 
     case m: PMember => memberGhostSeparation(m)
 
@@ -95,7 +105,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PContinue
       |  _: PGoto
       |  _: PDeferStmt
-      ) => error(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
+      ) => childrenFlowIntoContext(n)
 
     case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
@@ -134,14 +144,18 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PReceive
-      ) => error(n, "ghost error: Found ghost child expression, but expected none", !isEnclosingGhost(n) && !noGhostPropagationFromChildren(n))
+      ) => childrenFlowIntoContext(n)
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => noMessages
       case (Left(_), Some(call: ap.FunctionCall)) =>
-        error(n, "ghost error: Found call to non-ghost impure function in ghost code",
-          // call must be in a ghost context and callee must be actual and impure
-          isEnclosingGhost(n) && !calleeGhostTyping(call).isGhost && isPureExpr(n).nonEmpty) ++
+        val contextLevel = enclosingGhostLevel(n)
+        // an impure callee modifies state of its own level, so the code calling it has to flow into that level;
+        // impure calls in specifications, which write nothing, are reported by the purity checks instead
+        val impureCallInCode = isPureExpr(n).nonEmpty && contextLevel != ghostLattice.top
+        (if (impureCallInCode) flow(n, Seq(contextLevel), Seq(calleeGhostTyping(call).level)) { (read, written) =>
+          s"ghost error: Found call to impure ${ghostLattice.show(written)} function in ${ghostLattice.show(read)} code"
+        } else noMessages) ++
           ghostAssignableToCallExpr(call)
       case (Left(_), Some(call: ap.ClosureCall)) =>
         val target = closureSpecTarget(call.spec)
@@ -180,8 +194,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
         isTypeGhost(f.typ) && !isEnclosingGhost(f))
     })
     case _: PInterfaceType => noMessages
-    case n: PType => error(n, "ghost error: Found ghost child expression, but expected none",
-      !isEnclosingGhost(n) && !noGhostPropagationFromChildren(n))
+    case n: PType => childrenFlowIntoContext(n)
   }
 
   private lazy val idGhostSeparation: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages {

@@ -88,7 +88,7 @@ trait ProgramTyping extends BaseTyping { this: TypeInfoImpl =>
         require(tree.root.programs.contains(p))
         // the following may only be called once per package, otherwise wildcard identifiers may be desugared multiple
         // times, leading to different names being generated on different occasions.
-        val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl) => d }
+        val unsortedDecls = p.declarations.collect { case d: PVarDecl => d; case PExplicitGhostMember(d: PVarDecl, _) => d }
         unsortedDecls.sortBy { decl =>
           tree.root.positions.positions.getStart(decl) match {
             case Some(pos) => (pos.line, pos.column)

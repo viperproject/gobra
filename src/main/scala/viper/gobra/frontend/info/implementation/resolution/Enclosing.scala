@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -99,8 +100,28 @@ trait Enclosing { this: TypeInfoImpl =>
       case x: PVarDecl if isGlobalVarDeclaration(x) => Some(x)
     }
 
-  lazy val isEnclosingGhost: PNode => Boolean =
-    down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
+  /**
+    * The ghost level of the code that `n` belongs to: the least upper bound of the levels of all markers of ghost code
+    * enclosing `n` (including `n` itself). Explicit ghost markers (`ghost`, `predicted`) carry their level, inherently
+    * ghost constructs have level `ghost`, and specifications as well as proof-only statements, which cannot modify
+    * state, have the top level. The block of an `assert ... by` statement is a proof and not a proof-only statement.
+    */
+  lazy val enclosingGhostLevel: PNode => GhostLevel = attr[PNode, GhostLevel] { n =>
+    val own = n match {
+      case g: PGhostifier[_] => g.level
+      case _: PSpecification | _: PAssert | _: PRefute | _: PAssume | _: PInhale | _: PExhale => ghostLattice.top
+      case e: PExpression if (e match { case tree.parent(p: PAssertBy) => p.exp eq e; case _ => false }) => ghostLattice.top
+      case _: PGhostNode => ghostLattice.ghost
+      case _ => ghostLattice.actual
+    }
+    n match {
+      case tree.parent(p) => ghostLattice.lub(own, enclosingGhostLevel(p))
+      case _ => own
+    }
+  }
+
+  /** true iff `n` belongs to ghost code of any level */
+  lazy val isEnclosingGhost: PNode => Boolean = n => enclosingGhostLevel(n).isGhost
 
   // Returns true iff n occurs in an init() function, or a function marked with
   // 'mayInit' or in the rhs of a global variable declaration.

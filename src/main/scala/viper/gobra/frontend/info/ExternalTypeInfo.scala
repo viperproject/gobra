@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend.{PAdtClause, PCodeRoot, PEmbeddedDecl, PExpressi
 import viper.gobra.frontend.PackageInfo
 import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
+import viper.gobra.frontend.info.base.GhostLevel
 import viper.gobra.frontend.info.base.Type.{AbstractType, AdtClauseT, DeclaredT, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
@@ -42,6 +43,9 @@ trait ExternalTypeInfo {
   def tryNonAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])]
 
   def isParamGhost(param: PParameter): Boolean
+
+  /** the ghost level of a parameter, see [[viper.gobra.frontend.info.base.GhostLattice]] */
+  def paramGhostLevel(param: PParameter): GhostLevel
 
   /**
     * Returns true if a symbol table lookup was made through `externalRegular` for the given member

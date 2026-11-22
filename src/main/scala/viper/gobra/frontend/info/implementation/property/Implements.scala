@@ -68,8 +68,8 @@ trait Implements { this: TypeInfoImpl =>
                   // all other members must have an identical signature
                   if (!identicalTypes(memberType(itfMember), memberType(implMember))) {
                     Vector(s"The member $name has a different signature for implementation and interface")
-                  } else if (implMember.ghost != itfMember.ghost) {
-                    Vector(s"For member $name, the 'ghost' declaration for implementation and interface does not match")
+                  } else if (implMember.level != itfMember.level) {
+                    Vector(s"For member $name, the ghost level of implementation (${ghostLattice.show(implMember.level)}) and interface (${ghostLattice.show(itfMember.level)}) does not match")
                   } else if ({
                     (implMember, itfMember) match {
                       case (implMember: Method, itfMember: Method) => implMember.isPure != itfMember.isPure

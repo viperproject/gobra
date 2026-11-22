@@ -8,6 +8,7 @@ package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.frontend.info.base.{GhostLattice, GhostLevel}
 import viper.gobra.util.{Binary, Constants, Decimal, Hexadecimal, Octal}
 
 trait PrettyPrinter {
@@ -121,6 +122,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // members
 
+  /** the modifier keyword denoting a ghost level */
+  def showGhostLevel(level: GhostLevel): Doc = GhostLattice.default.show(level)
+
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
       case n: PConstDecl => showConstDecl(n)
@@ -139,7 +143,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           )
     }
     case member: PGhostMember => member match {
-      case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
+      case PExplicitGhostMember(m, level) => showGhostLevel(level) <+> showMember(m)
       case PFPredicateDecl(id, args, body) =>
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case PMPredicateDecl(id, recv, args, body) =>
@@ -241,7 +245,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showParameter(para: PParameter): Doc = para match {
-    case PExplicitGhostParameter(p) => "ghost" <+> showParameter(p)
+    case PExplicitGhostParameter(p, level) => showGhostLevel(level) <+> showParameter(p)
     case PUnnamedParameter(typ) => showType(typ)
     case PNamedParameter(id, typ) => showId(id) <+> showType(typ)
   }
@@ -319,7 +323,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PClosureImplProof(impl, PBlock(stmts)) => "proof" <+> showExpr(impl) <> block(showStmtList(stmts))
     }
     case statement: PGhostStatement => statement match {
-      case PExplicitGhostStatement(actual) => "ghost" <+> showStmt(actual)
+      case PExplicitGhostStatement(actual, level) => showGhostLevel(level) <+> showStmt(actual)
       case PAssert(exp) => "assert" <+> showExpr(exp)
       case statement: PAssertBy => statement match {
         case PAssertByProof(exp, block) => "assert" <+> showExpr(exp) <+> "by" <+> showStmt(block)
@@ -779,7 +783,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDottedBase(expr) => showExprOrType(expr)
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
-      case PExplicitGhostParameter(actual) => showParameter(actual)
+      case PExplicitGhostParameter(actual, _) => showParameter(actual)
       case PDomainFunction(id, args, res) =>
         "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case PDomainAxiom(exp) => "axiom" <+> block(showExpr(exp))
@@ -820,7 +824,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         showType(ip.subT) <+> "implements" <+> showType(ip.superT)
     }
     case member: PGhostMember => member match {
-      case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
+      case PExplicitGhostMember(m, level) => showGhostLevel(level) <+> showMember(m)
       case PFPredicateDecl(id, args, _) =>
         "pred" <+> showId(id) <> parens(showParameterList(args))
       case PMPredicateDecl(id, recv, args, _) =>

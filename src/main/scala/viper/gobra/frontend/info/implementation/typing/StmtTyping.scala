@@ -373,7 +373,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def nameFromParam(p: PParameter): Option[String] = p match {
     case PNamedParameter(id, _) => Some(id.name)
-    case PExplicitGhostParameter(PNamedParameter(id, _)) => Some(id.name)
+    case PExplicitGhostParameter(PNamedParameter(id, _), _) => Some(id.name)
     case _ => None
   }
 
@@ -405,7 +405,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     def wellDefIfNecessaryArgsNamed: Messages = error(spec,
       s"cannot find a name for all arguments or results required by $spec",
       cond = !specArgs.forall {
-        case _: PUnnamedParameter | PExplicitGhostParameter(_: PUnnamedParameter) => false
+        case _: PUnnamedParameter | PExplicitGhostParameter(_: PUnnamedParameter, _) => false
         case _ => true
       }
     )

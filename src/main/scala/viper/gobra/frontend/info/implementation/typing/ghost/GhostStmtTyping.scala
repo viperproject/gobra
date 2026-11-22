@@ -16,7 +16,7 @@ import viper.gobra.frontend.info.implementation.typing.BaseTyping
 trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostStmt(stmt: PGhostStatement): Messages = stmt match {
-    case n@PExplicitGhostStatement(s) => error(n, "ghost error: expected ghostifiable statement", !s.isInstanceOf[PGhostifiableStatement])
+    case n@PExplicitGhostStatement(s, _) => error(n, "ghost error: expected ghostifiable statement", !s.isInstanceOf[PGhostifiableStatement])
     case PAssert(exp) => assignableToSpec(exp)
     case PRefute(exp) => assignableToSpec(exp)
     case PExhale(exp) => assignableToSpec(exp)

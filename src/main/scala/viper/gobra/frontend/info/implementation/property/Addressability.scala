@@ -150,7 +150,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
           case _ => false
         }
       case _: PUnnamedParameter => false
-      case PExplicitGhostParameter(p) => canParameterBeUsedAsShared(p)
+      case PExplicitGhostParameter(p, _) => canParameterBeUsedAsShared(p)
     }
 
   /** a receiver can be used as shared if it is included in the shared clause of the enclosing function or method */

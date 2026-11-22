@@ -11,6 +11,7 @@ import org.scalatest.exceptions.TestFailedException
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.LinearGhostLattice
 import viper.gobra.reporting.ParserError
 import viper.gobra.util.{Decimal, GoString, Hexadecimal}
 
@@ -2567,7 +2568,16 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PExplicitGhostStatement(PShortVarDecl(
         Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))), None, false)),
         Vector(PIdnUnk("res")),
-        Vector(false))) =>
+        Vector(false)), LinearGhostLattice.Ghost(1)) =>
+    }
+  }
+
+  test("Parser: should be able to parse an explicit short var decl with the predicted modifier") {
+    frontend.parseStmtOrFail("predicted res := test(s)") should matchPattern {
+      case PExplicitGhostStatement(PShortVarDecl(
+        Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))), None, false)),
+        Vector(PIdnUnk("res")),
+        Vector(false)), LinearGhostLattice.Ghost(2)) =>
     }
   }
 
@@ -2576,7 +2586,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PExplicitGhostStatement(PShortVarDecl(
       Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))), None, false)),
       Vector(PIdnUnk("ghostRes")),
-      Vector(false))) =>
+      Vector(false)), LinearGhostLattice.Ghost(1)) =>
     }
   }
 
@@ -2748,13 +2758,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse an int ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyInt int") should matchPattern {
-      case Vector(PExplicitGhostMember(PTypeDef(PIntType(), PIdnDef("MyInt")))) =>
+      case Vector(PExplicitGhostMember(PTypeDef(PIntType(), PIdnDef("MyInt")), _)) =>
     }
   }
 
   test("Parser: should be able to parse a struct ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyStruct struct { Value int }") should matchPattern {
-      case Vector(PExplicitGhostMember(PTypeDef(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType()))))), PIdnDef("MyStruct")))) =>
+      case Vector(PExplicitGhostMember(PTypeDef(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType()))))), PIdnDef("MyStruct")), _)) =>
     }
   }
 
@@ -2767,7 +2777,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a ghost struct ghost type declaration") {
     frontend.parseMemberOrFail("ghost type MyStruct ghost struct { Value int }") should matchPattern {
-      case Vector(PExplicitGhostMember(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct")))) =>
+      case Vector(PExplicitGhostMember(PTypeDef(PExplicitGhostStructType(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Value"), PIntType())))))), PIdnDef("MyStruct")), _)) =>
     }
   }
 

@@ -6,6 +6,8 @@
 
 package viper.gobra.ast.frontend
 
+import viper.gobra.frontend.info.base.{GhostLattice, GhostLevel}
+
 import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
@@ -891,8 +893,10 @@ case class PEmbeddedPointer(typ: PUnqualifiedTypeName) extends PEmbeddedType
 
 sealed trait PGhostNode extends PNode
 
+/** Wraps an actual node and classifies it as ghost code of the given level, see [[viper.gobra.frontend.info.base.GhostLattice]]. */
 sealed trait PGhostifier[T <: PNode] extends PGhostNode {
   def actual: T
+  def level: GhostLevel
 }
 
 object PGhostifier {
@@ -967,7 +971,7 @@ case class PLoopSpec(
 
 sealed trait PGhostMember extends PMember with PGhostNode
 
-case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMember with PGhostifier[PGhostifiableMember]
+case class PExplicitGhostMember(actual: PGhostifiableMember, level: GhostLevel = GhostLattice.default.ghost) extends PGhostMember with PGhostifier[PGhostifiableMember]
 
 /**
   * Declaration of a closure specification, i.e., a specification that closures can be proven to implement and with
@@ -1031,7 +1035,7 @@ sealed trait PNameOrDot extends PExpression
 
 sealed trait PGhostStatement extends PStatement with PGhostNode
 
-case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement with PGhostifier[PStatement]
+case class PExplicitGhostStatement(actual: PStatement, level: GhostLevel = GhostLattice.default.ghost) extends PGhostStatement with PGhostifier[PStatement]
 
 case class PAssert(exp: PExpression) extends PGhostStatement
 
@@ -1356,7 +1360,9 @@ case class POptionType(elem : PType) extends PGhostLiteralType
 /** The type of ghost pointers */
 case class PGhostPointerType(elem: PType) extends PGhostLiteralType
 
-case class PExplicitGhostStructType(actual: PStructType) extends PGhostLiteralType with PGhostifier[PStructType]
+case class PExplicitGhostStructType(actual: PStructType) extends PGhostLiteralType with PGhostifier[PStructType] {
+  override def level: GhostLevel = GhostLattice.default.ghost
+}
 
 /** The type of ADT types */
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
@@ -1389,11 +1395,13 @@ case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
 
 case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
 
-case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
+case class PExplicitGhostParameter(actual: PActualParameter, level: GhostLevel = GhostLattice.default.ghost) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ
 }
 // TODO: maybe change to misc
-case class PExplicitGhostStructClause(actual: PActualStructClause) extends PStructClause with PGhostNode with PGhostifier[PActualStructClause]
+case class PExplicitGhostStructClause(actual: PActualStructClause) extends PStructClause with PGhostNode with PGhostifier[PActualStructClause] {
+  override def level: GhostLevel = GhostLattice.default.ghost
+}
 
 /**
   * Required for parsing

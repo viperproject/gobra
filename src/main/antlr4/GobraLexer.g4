@@ -48,6 +48,7 @@ ASSERTING   : 'asserting';
 LET         : 'let';
 IN          : 'in';
 GHOST       : 'ghost';
+PREDICTED   : 'predicted';
 ELEM        : 'elem';
 MULTI       : '#';
 SUBSET      : 'subset';

@@ -30,7 +30,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
-    case PExplicitGhostParameter(_) => noMessages
+    case PExplicitGhostParameter(_, _) => noMessages
     case p: PPredConstructorBase => p match {
       case PFPredBase(id) => entity(id) match {
         case _: SymbolTable.FPredicate | _: SymbolTable.BuiltInFPredicate => noMessages
@@ -107,13 +107,13 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         val paramSet = spec.paramKeys.toSet
         fType.copy(args = (f.args zip fType.args).filter{
           case (PNamedParameter(id, _), _) if paramSet.contains(id.name) => false
-          case (PExplicitGhostParameter(PNamedParameter(id, _)), _) if paramSet.contains(id.name) => false
+          case (PExplicitGhostParameter(PNamedParameter(id, _), _), _) if paramSet.contains(id.name) => false
           case _ => true
         }.map(_._2))
       }
     case PBoundVariable(_, typ) => typeSymbType(typ)
     case PTrigger(_) => BooleanT
-    case PExplicitGhostParameter(param) => miscType(param)
+    case PExplicitGhostParameter(param, _) => miscType(param)
     case b: PPredConstructorBase => b match {
       case PDottedBase(recvWithId) => exprOrTypeType(recvWithId)
       case PFPredBase(id) => idType(id)
@@ -159,7 +159,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       val ownOutParams: Vector[PNamedParameter] = tree.parent(n).head match {
         case p: PCodeRootWithResult => p.result.outs.collect {
           case np: PNamedParameter => np
-          case PExplicitGhostParameter(np: PNamedParameter) => np
+          case PExplicitGhostParameter(np: PNamedParameter, _) => np
         }
         case _ => Vector.empty
       }
@@ -194,7 +194,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case spec@PClosureSpecInstance(fName, ps) if spec.paramKeys.size == ps.size =>
       val argsTypeMap = fArgs.collect {
         case (PNamedParameter(id, _), t) => id.name -> t
-        case (PExplicitGhostParameter(PNamedParameter(id, _)), t) => id.name -> t
+        case (PExplicitGhostParameter(PNamedParameter(id, _), _), t) => id.name -> t
       }.toMap
       val wellDefIfNoDuplicateParams = (spec.paramKeys foldLeft (Set[String](), noMessages)) {
         case ((seen, msg), k) => (seen + k, msg ++ (if (seen.contains(k)) error(k, s"duplicate parameter key $k") else noMessages))

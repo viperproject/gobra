@@ -53,6 +53,7 @@ func otherRangeClauses() {
 	invariant acc(x)
 	decreases len(domain(x)) - len(visited)
 	for k, v = range x, perm(1/4) with visited {
+		assert acc(x, 3/4)
 		assert k elem domain(x)
 		assert v == x[k]
 	}

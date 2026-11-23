@@ -6,8 +6,8 @@ package pkg
 // The permission amount provided by the user is the amount that is exhaled, so it must be
 // available when entering the loop.
 
-requires acc(x, 1/2)
-ensures acc(x, 1/2)
+requires acc(x)
+ensures acc(x)
 decreases
 func tooMuch(x map[int]int) {
 	invariant acc(x, 1/2)

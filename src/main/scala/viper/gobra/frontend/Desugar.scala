@@ -1398,27 +1398,18 @@ object Desugar extends LazyLogging {
       } yield enc))
 
       /**
-        * Desugars the amount of permission to the range expression that is exhaled while iterating
-        * over it. The result is the statements that have to be executed before the loop, together
-        * with the expression denoting the amount.
-        *
-        * By default, a very small (but positive) amount is used, which suffices to guarantee that
-        * the range expression is not modified by the loop body. Users may provide a different
-        * amount with the syntax `range exp, p`. Such an amount is stored in `permVar`, so that the
-        * same amount is exhaled before and inhaled after the loop body, and is checked to be
-        * strictly positive.
-        *
-        * The exception is a wildcard amount, `range exp, _`, which is not stored: as in an `acc`
-        * expression, every occurrence of a wildcard denotes a fresh positive amount that is small
-        * enough to be available. In particular, the amount inhaled after the body need not be the
-        * one exhaled before it, so a wildcard is only useful for loops whose invariant holds a
-        * wildcard amount itself. There is nothing to check, since wildcards are positive by
-        * construction (and cannot be compared to other amounts).
+        * Desugars the permission to the range expression that is held while iterating over it.
+        * Returns the setup statements and the permission, which defaults to 1/MapExhalePermDenom.
+        * A user-provided permission other than a wildcard is stored and checked to be positive.
         */
-      def rangePermD(range: PRange, permVar: in.LocalVar)(src: Source.Parser.Info): Writer[(Vector[in.Stmt], in.Expr)] =
+      def rangePermD(n: PNode, range: PRange)(src: Source.Parser.Info): Writer[(Vector[in.Stmt], in.Expr)] = {
+        def freshPermVar: Writer[in.LocalVar] =
+          freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
+
         range.perm match {
           case None =>
-            unit((Vector[in.Stmt](singleAss(in.Assignee.Var(permVar), in.PermLit(1, MapExhalePermDenom)(src))(src)), permVar))
+            for { permVar <- freshPermVar } yield
+              (Vector[in.Stmt](singleAss(in.Assignee.Var(permVar), in.PermLit(1, MapExhalePermDenom)(src))(src)), permVar)
 
           case Some(w: PWildcardPerm) =>
             unit((Vector.empty[in.Stmt], in.WildcardPerm(meta(w, info))))
@@ -1426,12 +1417,16 @@ object Desugar extends LazyLogging {
           case Some(p) =>
             val permSrc = meta(p, info)
             val checkSrc = permSrc.createAnnotatedInfo(Source.NonPositivePermissionToRangeExpressionAnnotation())
-            for { dPerm <- permissionD(ctx, info)(p) } yield (Vector[in.Stmt](
+            for {
+              permVar <- freshPermVar
+              dPerm <- permissionD(ctx, info)(p)
+            } yield (Vector[in.Stmt](
               singleAss(in.Assignee.Var(permVar), dPerm)(permSrc),
               // check that the permission amount provided by the user is valid
               in.Assert(in.ExprAssertion(in.PermLtCmp(in.NoPerm(checkSrc), permVar)(checkSrc))(checkSrc))(checkSrc)
             ), permVar)
         }
+      }
 
       /**
         * This case handles for loops with a range clause of a map expression of the form:
@@ -1497,9 +1492,7 @@ object Desugar extends LazyLogging {
         visitedT = in.SetT(keyType, Addressability.exclusiveVariable)
         visited <- leftOfAssignmentD(range.enumerated, info)(visitedT)
 
-        perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
-
-        (initPerm, permAmount) <- rangePermD(range, perm)(src)
+        (initPerm, permAmount) <- rangePermD(n, range)(src)
 
         exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
@@ -1580,9 +1573,7 @@ object Desugar extends LazyLogging {
         visitedT = in.SetT(keyType, Addressability.exclusiveVariable)
         visited <- leftOfAssignmentD(range.enumerated, info)(visitedT)
 
-        perm <- freshDeclaredExclusiveVar(in.PermissionT(Addressability.exclusiveVariable), n, info)(src)
-
-        (initPerm, permAmount) <- rangePermD(range, perm)(src)
+        (initPerm, permAmount) <- rangePermD(n, range)(src)
 
         exhSrc = meta(range.exp, info).createAnnotatedInfo(Source.InsufficientPermissionToRangeExpressionAnnotation())
 
@@ -1618,7 +1609,7 @@ object Desugar extends LazyLogging {
 
         tempk = in.LocalVar(nm.fresh(n, info), keyType)(src)
         k <- goL(ass(0))
-        v <- if (hasValue) goL(ass(1)) else unit(in.Assignee.Var(perm))
+        v <- if (hasValue) goL(ass(1)) else unit(k) // v is only used if hasValue holds
 
         updateKeyVal = in.Seqn(Vector(
           in.Inhale(in.ExprAssertion(in.And(

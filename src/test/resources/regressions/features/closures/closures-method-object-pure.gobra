@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package closuresMethodObjectPure
+
+// Method objects can be created in pure functions with a termination measure: the function that Gobra
+// generates to convert a receiver to a closure carries a termination measure itself.
+
+type T struct{ v int }
+
+decreases
+func (t T) m() int { return t.v }
+
+decreases
+pure func asClosure(t T) func() int { return t.m }
+
+type I interface {
+	decreases
+	m() int
+}
+
+T implements I
+
+requires i != nil
+decreases
+pure func itfAsClosure(i I) func() int { return i.m }

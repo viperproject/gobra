@@ -28,7 +28,7 @@ func test2() {
 
 func test3() {
     x@ := 0
-    cl := decreases _
+    cl := decreases
     	  requires acc(&x) && x >= 0
           pure func s()int {
             return x + 1
@@ -91,7 +91,7 @@ pure spec pspec()(res int)
 
 func test7() {
     x@ := 1
-    cl := decreases _
+    cl := decreases
     	  requires acc(&x)
           pure func s()(res int) {
             return x
@@ -118,7 +118,7 @@ func test8() {
 
 func test9() {
     x@ := 1
-    cl := decreases _
+    cl := decreases
     	  requires acc(&x)
           pure func s()(res int) {
             return x

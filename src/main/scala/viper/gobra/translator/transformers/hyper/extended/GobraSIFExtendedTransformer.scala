@@ -232,7 +232,6 @@ trait SIFExtendedTransformer {
       }
     }
 
-    requiredActive = requiredExecutions(p)
     var newFunctions: Seq[Function] = p.functions.filterNot(f => activeFuncNames(f.name) || isMarker(f.name)).flatMap(f =>
       if (hyperFuncNames(f.name)) Seq(translateHyperFunction(f)) else translateFunction(f))
     newPredicates = Seq()
@@ -660,6 +659,7 @@ trait SIFExtendedTransformer {
   //  - `active(i)` holds if execution i is active, i.e., it is the activation condition of execution i;
   //  - `rel(e, i)` is partial: it is defined only if `active(i)` holds (`asserting active(i) in e_i`);
   //  - `low(e)` relates the active executions, as before;
+  //  - a hyperfunc that reads an execution must require that it is active in its precondition (no inference);
   //  - a hyperfunc H(x̄) is translated into one function H(a₀, a₁, x̄, x̄') over the activation flags and the
   //    arguments of both executions, which reads the heap of execution 0 through the original fields and
   //    predicates and that of execution 1 through the primed ones. Arguments of an inactive execution are not
@@ -679,48 +679,6 @@ trait SIFExtendedTransformer {
     case f: FuncApp if lowMarkerNames(f.funcname) => SIFLowExp(unmark(f.args.head))(f.pos, f.info, f.errT)
     case f: FuncApp if relMarkerNames(f.funcname) =>
       SIFRelExp(unmark(f.args.head), f.args(1).asInstanceOf[IntLit])(f.pos, f.info, f.errT)
-  }
-
-  /**
-    * The executions that each hyperfunc reads outside a guard that mentions `active`, directly with `rel` or through
-    * the hyperfuncs it calls. A hyperfunc is defined only where these executions are active, which becomes its
-    * precondition. (Reads under a guard such as `active(1) ==> rel(x, 1) > 0` are checked in the body instead.)
-    */
-  var requiredActive: Map[String, Set[Int]] = Map.empty
-
-  def requiredExecutions(p: Program): Map[String, Set[Int]] = {
-    val hyper = p.functions.filter(f => hyperFuncNames(f.name)).map(f => f.name -> f).toMap
-    def mentionsActive(e: Exp): Boolean = e.exists { case f: FuncApp => activeFuncNames(f.funcname); case _ => false }
-    // (executions read by rel, hyperfuncs called), outside active-guards
-    def reads(e: Exp, guarded: Boolean): (Set[Int], Set[String]) = {
-      def all(es: Seq[(Exp, Boolean)]): (Set[Int], Set[String]) =
-        es.map { case (x, g) => reads(x, g) }.foldLeft((Set.empty[Int], Set.empty[String])) { case ((a, b), (c, d)) => (a ++ c, b ++ d) }
-      e match {
-        case Implies(l, r) => all(Seq(l -> guarded, r -> (guarded || mentionsActive(l))))
-        case And(l, r) => all(Seq(l -> guarded, r -> (guarded || mentionsActive(l))))
-        case CondExp(c, t, f) => val g = guarded || mentionsActive(c); all(Seq(c -> guarded, t -> g, f -> g))
-        case f: FuncApp if relMarkerNames(f.funcname) =>
-          val (rs, cs) = reads(f.args.head, guarded)
-          val i = f.args(1) match { case IntLit(n) => n.toInt; case _ => -1 }
-          (if (guarded) rs else rs + i, cs)
-        case f: FuncApp if hyperFuncNames(f.funcname) =>
-          val (rs, cs) = all(f.args.map(_ -> guarded))
-          (rs, if (guarded) cs else cs + f.funcname)
-        case e => all(e.subExps.map(_ -> guarded))
-      }
-    }
-    val direct = hyper.map { case (n, f) =>
-      val parts = f.pres ++ f.posts ++ f.body.toSeq
-      n -> parts.map(reads(_, guarded = false)).foldLeft((Set.empty[Int], Set.empty[String])) { case ((a, b), (c, d)) => (a ++ c, b ++ d) }
-    }
-    var req: Map[String, Set[Int]] = direct.map { case (n, (rs, _)) => n -> rs }
-    var changed = true
-    while (changed) {
-      val next = req.map { case (n, rs) => n -> (rs ++ direct(n)._2.flatMap(c => req.getOrElse(c, Set.empty))) }
-      changed = next != req
-      req = next
-    }
-    req
   }
 
   /** Unconstrained values, one abstract function per type, applied to a distinct literal at each use. */
@@ -851,14 +809,16 @@ trait SIFExtendedTransformer {
         CondExp(a0, orig, LocalVar(primedNames(orig.name), orig.typ)())(v.pos, v.info, v.errT)
     }
 
-    def assertion(e: Exp): Exp = resolveRigid(hyperAssertion(readRigid(e), a0, a1))
-    // the hyperfunc is defined only where the executions it reads are active
-    val activity = requiredActive.getOrElse(marked.name, Set.empty).toSeq.sorted.map(i =>
-      activeCondition(if (i == 0) a0 else a1, i, marked))
-    val newPres = activity ++ f.pres.map(assertion)
+    // rigid variables: rigid parameters (including execution parameters), read through their placeholders
+    val rigidVars = placeholders.values.map(_.name).toSet
+    def assertion(e: Exp): Exp = resolveRigid(hyperAssertion(readRigid(e), a0, a1, rigidVars))
+    // No implicit preconditions: a hyperfunc that reads an execution with `rel` (directly or through another hyperfunc)
+    // must require that it is active, e.g. with `requires AllActive()` or `requires active(i)`. Otherwise, Viper's
+    // well-definedness check of the hyperfunc fails at the read ("Assertion active(i) might not hold").
+    val newPres = f.pres.map(assertion)
     val newPosts = f.posts.map(assertion)
     val newBody = f.body.map { b =>
-      if (b.typ == Bool) assertion(b) else resolveRigid(hyperValue(readRigid(b), a0, a1))
+      if (b.typ == Bool) assertion(b) else resolveRigid(hyperValue(readRigid(b), a0, a1, rigidVars))
     }
     primedNames.clear()
     primedNames ++= primedBefore
@@ -866,40 +826,67 @@ trait SIFExtendedTransformer {
       f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
   }
 
-  /** An assertion over the active executions, for a hyperfunc's contract and boolean body. */
-  def hyperAssertion(e: Exp, a0: Exp, a1: Exp): Exp = e match {
-    case a@And(l, r) => And(hyperAssertion(l, a0, a1), hyperAssertion(r, a0, a1))(a.pos, a.info, a.errT)
-    case o@Or(l, r) if isRelational(o) => Or(hyperAssertion(l, a0, a1), hyperAssertion(r, a0, a1))(o.pos, o.info, o.errT)
-    case i@Implies(l, r) if isRelational(i) =>
-      Implies(hyperAssertion(l, a0, a1), hyperAssertion(r, a0, a1))(i.pos, i.info, i.errT)
-    case n@Not(x) if isRelational(n) => Not(hyperAssertion(x, a0, a1))(n.pos, n.info, n.errT)
-    // also Gobra's encoding of `b ==> e` in function bodies, `b ? e : true`: a unary condition is lifted, i.e., it
-    // must hold in every active execution, as in the lockstep encoding
-    case c@CondExp(cond, t, f) if isRelational(c) =>
-      CondExp(hyperAssertion(cond, a0, a1), hyperAssertion(t, a0, a1), hyperAssertion(f, a0, a1))(c.pos, c.info, c.errT)
-    case l: SIFLowExp => Implies(And(a0, a1)(), translateSIFLowExpComparison(l, a0, a1))(l.pos, l.info, l.errT)
-    case q@Forall(vars, triggers, body) if isRelational(q) =>
-      val newTriggers = triggers.flatMap(t => Seq(
-        Trigger(t.exps.map(x => translateNormal(x, a0, a1)))(t.pos, t.info, t.errT),
-        Trigger(t.exps.map(x => translatePrime(x, a0, a1)))(t.pos, t.info, t.errT)))
-      Forall(vars, newTriggers, hyperAssertion(body, a0, a1))(q.pos, q.info, q.errT)
-    case q@Exists(vars, triggers, body) if isRelational(q) =>
-      Exists(vars, triggers, hyperAssertion(body, a0, a1))(q.pos, q.info, q.errT)
-    case u@Unfolding(pap: PredicateAccessPredicate, body) if isRelational(body) =>
-      unfoldBoth(u, pap, hyperAssertion(body, a0, a1), a0, a1)
-    case e =>
-      // an atom: evaluated in each active execution
-      And(Implies(a0, translateNormal(e, a0, a1))(e.pos, e.info, e.errT),
-        Implies(a1, translatePrime(e, a0, a1))(e.pos, e.info, e.errT))(e.pos, e.info, e.errT)
+  /**
+    * Is `e` rigid, i.e., does it have one value for both executions? Conservative: an expression that reads a unary
+    * variable or the heap outside `rel`, `low`, `active`, or a hyperfunc call is unary. `rigid` are the names of the
+    * rigid variables in scope (placeholders of rigid parameters and variables bound in a relational context).
+    */
+  def isRigid(e: Exp, rigid: Set[String]): Boolean = e match {
+    case _: SIFRelExp | _: SIFLowExp => true
+    case f: FuncApp if hyperFuncNames(f.funcname) || activeFuncNames(f.funcname) || isMarker(f.funcname) => true
+    case _: Literal | _: Result => true
+    case v: LocalVar => rigid(v.name)
+    case f: FuncApp => !_program.findFunctionOptionally(f.funcname).exists(fn => fn.pres.exists(_.isHeapDependent(_program))) &&
+      f.args.forall(isRigid(_, rigid))
+    case _: LocationAccess | _: AccessPredicate | _: Old | _: LabelledOld | _: CurrentPerm | _: ForPerm => false
+    case q: QuantifiedExp => isRigid(q.exp, rigid ++ q.variables.map(_.name))
+    case Let(v, value, body) => isRigid(value, rigid) && isRigid(body, rigid + v.name)
+    case u: Unfolding => isRigid(u.body, rigid)
+    case e => e.subExps.forall(isRigid(_, rigid))
+  }
+
+  /**
+    * An assertion over the active executions, for a hyperfunc's contract and boolean body. Unary atoms are lifted:
+    * they must hold in each active execution. Rigid atoms (`active(i)`, `rel(x, 0) <= rel(x, 1)`, calls of hyperfuncs)
+    * have one value for both executions and are evaluated once, also where no execution is active, so that, e.g.,
+    * `requires AllActive()` means that both executions are active.
+    */
+  def hyperAssertion(e: Exp, a0: Exp, a1: Exp, rigid: Set[String]): Exp = {
+    def rec(x: Exp): Exp = hyperAssertion(x, a0, a1, rigid)
+    e match {
+      case a@And(l, r) => And(rec(l), rec(r))(a.pos, a.info, a.errT)
+      case o@Or(l, r) if isRelational(o) => Or(rec(l), rec(r))(o.pos, o.info, o.errT)
+      case i@Implies(l, r) if isRelational(i) => Implies(rec(l), rec(r))(i.pos, i.info, i.errT)
+      case n@Not(x) if isRelational(n) => Not(rec(x))(n.pos, n.info, n.errT)
+      // also Gobra's encoding of `b ==> e` in function bodies, `b ? e : true`: a unary condition is lifted
+      case c@CondExp(cond, t, f) if isRelational(c) => CondExp(rec(cond), rec(t), rec(f))(c.pos, c.info, c.errT)
+      case l: SIFLowExp => Implies(And(a0, a1)(), translateSIFLowExpComparison(l, a0, a1))(l.pos, l.info, l.errT)
+      case q@Forall(vars, triggers, body) if isRelational(q) =>
+        val newTriggers = triggers.flatMap(t => Seq(
+          Trigger(t.exps.map(x => translateNormal(x, a0, a1)))(t.pos, t.info, t.errT),
+          Trigger(t.exps.map(x => translatePrime(x, a0, a1)))(t.pos, t.info, t.errT)))
+        Forall(vars, newTriggers, hyperAssertion(body, a0, a1, rigid ++ vars.map(_.name)))(q.pos, q.info, q.errT)
+      case q@Exists(vars, triggers, body) if isRelational(q) =>
+        Exists(vars, triggers, hyperAssertion(body, a0, a1, rigid ++ vars.map(_.name)))(q.pos, q.info, q.errT)
+      case u@Unfolding(pap: PredicateAccessPredicate, body) if isRelational(body) =>
+        unfoldBoth(u, pap, rec(body), a0, a1)
+      case e if isRelational(e) && isRigid(e, rigid) =>
+        // a rigid atom: one value for both executions
+        translateNormal(e, a0, a1)
+      case e =>
+        // a unary atom: evaluated in each active execution
+        And(Implies(a0, translateNormal(e, a0, a1))(e.pos, e.info, e.errT),
+          Implies(a1, translatePrime(e, a0, a1))(e.pos, e.info, e.errT))(e.pos, e.info, e.errT)
+    }
   }
 
   /** A non-boolean hyperfunc body, which denotes one value for the tuple of executions. */
-  def hyperValue(e: Exp, a0: Exp, a1: Exp): Exp = e match {
+  def hyperValue(e: Exp, a0: Exp, a1: Exp, rigid: Set[String]): Exp = e match {
     case u@Unfolding(pap: PredicateAccessPredicate, body) if isRelational(body) =>
-      unfoldBoth(u, pap, hyperValue(body, a0, a1), a0, a1)
+      unfoldBoth(u, pap, hyperValue(body, a0, a1, rigid), a0, a1)
     case c@CondExp(cond, t, f) if isRelational(c) =>
-      val newCond = if (isRelational(cond)) hyperAssertion(cond, a0, a1) else translateNormal(cond, a0, a1)
-      CondExp(newCond, hyperValue(t, a0, a1), hyperValue(f, a0, a1))(c.pos, c.info, c.errT)
+      val newCond = if (isRelational(cond)) hyperAssertion(cond, a0, a1, rigid) else translateNormal(cond, a0, a1)
+      CondExp(newCond, hyperValue(t, a0, a1, rigid), hyperValue(f, a0, a1, rigid))(c.pos, c.info, c.errT)
     case e => translateNormal(e, a0, a1)
   }
 

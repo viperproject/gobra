@@ -20,7 +20,8 @@ hyperfunc NonInterf(input, output any) bool {
 	return low(input) ==> low(output)
 }
 
-// written with `rel`: defined only where both executions are active
+// written with `rel`: defined only where both executions are active, which its precondition states
+requires AllActive()
 decreases
 hyperfunc Dist(x int) int {
 	return rel(x, 0) >= rel(x, 1) ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0)
@@ -106,7 +107,8 @@ func CallInPublicBranch(pub int) (res int) {
 	return res
 }
 
-// execution parameters
+// execution parameters; the precondition names the executions that are read
+requires active(i) && active(j)
 decreases
 hyperfunc Agree(x any, i, j exec) bool {
 	return rel(x, i) === rel(x, j)
@@ -119,6 +121,7 @@ func Inc(x int) (res int) {
 }
 
 // recursive and heap-independent, with a rigid parameter
+requires AllActive()
 requires low(n) && 0 <= n && n <= len(s)
 decreases n
 hyperfunc Hamming(s seq[int], n int) int {
@@ -171,4 +174,35 @@ requires R(x)
 ensures  R(res)
 func Id(x int) (res int) {
 	return x
+}
+
+// Activity preconditions are explicit, not inferred: a hyperfunc that reads an execution without requiring that it
+// is active is not well-defined.
+//:: ExpectedOutput(pure_function_not_well_defined:assertion_error)
+decreases
+hyperfunc DistNoPre(x int) int {
+	return rel(x, 0) - rel(x, 1)
+}
+
+// also when it reads through another hyperfunc
+decreases
+hyperfunc Close(x int) bool {
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	return Dist(x) <= 1
+}
+
+// guarded reads need no precondition
+decreases
+hyperfunc PositiveIn1(x int) bool {
+	return active(1) ==> rel(x, 1) > 0
+}
+
+// a precise precondition: Agree(x, 1, 1) reads only execution 1
+func OnlyOne(x int, s bool) {
+	if s {
+		assert active(1) ==> Agree(x, 1, 1)
+		assert PositiveIn1(x) || !PositiveIn1(x)
+		//:: ExpectedOutput(precondition_error:assertion_error)
+		assert Agree(x, 0, 1)
+	}
 }

@@ -10,7 +10,6 @@ import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.TypePatterns.Sh
 
 /** Polymorphic value that can fit all countable types. */
 class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends PolymorphValueComponent {
@@ -80,26 +79,17 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
 
 
   /**
-    * Generates the following axiom:
-    *
-    *   // If T is known to have infinitely many values (see [[infiniteCardinality]]):
-    *
-    *   axiom { forall y: Ref :: {(unbox(y): [T])} box((unbox(y): [T])) == y }
-    *
-    *   // Otherwise:
+    * Generates the following axiom for the type T:
     *
     *   axiom {
     *     forall y: Itf :: {(unbox(polyValOf(y)): [T])} typeOf(y) == [T] ==> box((unbox(polyValOf(y)): [T])) == polyValOf(y)
     *   }
     *
-    *
     *   Info:
-    *   The second axiom is conservative, but also complete: it only talks about polymorphic values that stem from
-    *   interface values of dynamic type T, which are boxed values of T by construction. Every type could be handled
-    *   by it. The first axiom is more lightweight, but it states that box is a bijection between T and Ref and is
-    *   thus only sound if T has infinitely many values in every model. For a finite type T, it would bound the
-    *   number of references by the number of values of T, from which false could be derived.
-    *
+    *   The axiom only talks about the polymorphic values of interface values with dynamic type T, which are boxed
+    *   values of T by construction. It is thus sound and complete for every type. The unguarded variant
+    *   `forall y: Ref :: box((unbox(y): [T])) == y` would state that box is a bijection between T and Ref, which is
+    *   unsound for types with finitely many values, since it bounds the number of references.
     */
   private def genAxiom(t: in.Type)(ctx: Context): Unit = {
     if (!genAxiomSet.contains(t)) {
@@ -116,38 +106,22 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
         func = unboxFunc, args = Vector(arg), typVarMap = typeVarMap
       )()
 
+      val yDecl = vpr.LocalVarDecl("y", handle.typ(imageType)(ctx))()
+      val y = yDecl.localVar
+      val z = handle.polyValOf(y)()(ctx) // polyValOf(y)
 
-      val axiom = if (!PolymorphValueComponentImpl.infiniteCardinality(t)(ctx.lookup)) {
-        val yDecl = vpr.LocalVarDecl("y", handle.typ(imageType)(ctx))()
-        val y = yDecl.localVar
-        val z = handle.polyValOf(y)()(ctx) // polyValOf(y)
-
-        vpr.AnonymousDomainAxiom(
-          vpr.Forall(
-            variables = Seq(yDecl),
-            triggers = Seq(vpr.Trigger(Seq(unboxApp(z)))()),
-            exp = vpr.Implies(
-              // typeOf(y) == [T]
-              vpr.EqCmp(handle.dynTypeOf(y)()(ctx), handle.typeToExpr(t)()(ctx))(),
-              // box((unbox(polyValOf(y)): [T])) == polyValOf(y)
-              vpr.EqCmp(boxApp(unboxApp(z)), z)()
-            )()
+      val axiom = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          variables = Seq(yDecl),
+          triggers = Seq(vpr.Trigger(Seq(unboxApp(z)))()),
+          exp = vpr.Implies(
+            // typeOf(y) == [T]
+            vpr.EqCmp(handle.dynTypeOf(y)()(ctx), handle.typeToExpr(t)()(ctx))(),
+            // box((unbox(polyValOf(y)): [T])) == polyValOf(y)
+            vpr.EqCmp(boxApp(unboxApp(z)), z)()
           )()
-        )(domainName = extraDomainName)
-
-      }  else {
-
-        val yDecl = vpr.LocalVarDecl("y", imageType)()
-        val y = yDecl.localVar
-
-        vpr.AnonymousDomainAxiom(
-          vpr.Forall(
-            variables = Seq(yDecl),
-            triggers = Seq(vpr.Trigger(Seq(unboxApp(y)))()),
-            exp = vpr.EqCmp(boxApp(unboxApp(y)), y)() // box((unbox(y): [T])) == y
-          )()
-        )(domainName = extraDomainName)
-      }
+        )()
+      )(domainName = extraDomainName)
 
       genAxioms ::= axiom
     }
@@ -217,38 +191,6 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
   private var isUsed: Boolean = false
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = if (isUsed) { genDomain.foreach(addMemberFn) }
-}
-
-object PolymorphValueComponentImpl {
-  /**
-    * Returns whether the encoding of 'typ' is known to have infinitely many values in every model. Only for such
-    * types, the lightweight axiom stating that box is a bijection between the type and Ref is sound. Types whose
-    * cardinality is finite or unknown (e.g., user-defined domains and ADTs, whose axioms might bound their number of
-    * values) are treated conservatively and get the guarded axiom.
-    */
-  def infiniteCardinality(typ: in.Type)(ctx: in.DefinedT => in.Type): Boolean = {
-    def go(t: in.Type): Boolean = infiniteCardinality(t)(ctx)
-
-    typ match {
-      case Sh() => true // shared values are encoded as references
-      case t: in.DefinedT => go(ctx(t))
-      // encoded as Int, Perm, or Ref:
-      case _: in.IntT | _: in.Float32T | _: in.Float64T | _: in.StringT | _: in.PermissionT | _: in.PointerT
-           | _: in.MapT | _: in.ChannelT => true
-      // encoded as Viper sequences and multisets, which have infinitely many values for any element type:
-      case _: in.SequenceT | _: in.MultisetT => true
-      // encoded as slices and interfaces, which contain Int resp. Ref components:
-      case _: in.SliceT | _: in.InterfaceT => true
-      case t: in.SetT => go(t.t)
-      case t: in.MathMapT => go(t.keys) || go(t.values)
-      case t: in.ArrayT => t.length > 0 && go(t.elems)
-      case t: in.StructT => t.fields.exists(f => go(f.typ))
-      case t: in.TupleT => t.ts.exists(go)
-      case t: in.OptionT => go(t.t)
-      // finite (Bool, Void) or of unknown cardinality (domains, ADTs, closures, predicates, ...):
-      case _ => false
-    }
-  }
 }
 
 trait PolymorphValueInterfaceHandle {

@@ -59,8 +59,8 @@ pure func (self Times3) res(ghost calls seq[int]) int {
 func test1() {
     v := []int{1,2,3}
 
-    cl := decreases
-    	pure func t3(ghost seq[int], x int)int {
+    cl :=   decreases
+    	    pure func t3(ghost seq[int], x int)int {
                 return x * 3
             }
     proof cl implements fspec{Times3{}} {

@@ -13,8 +13,8 @@ pred (p proof1) inv() { acc(p.x, 1/2) && *p.x >= 0 }
 
 func main() {
 	x@ := 10
-	c := decreases _
-		requires acc(&x, _)
+	c := decreases
+		 requires acc(&x, _)
 		 ensures m == x + n
 		 pure func f(n int) (m int) {
 		    return x + n

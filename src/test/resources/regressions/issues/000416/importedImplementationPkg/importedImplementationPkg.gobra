@@ -15,8 +15,8 @@ pred (r *Rect) mem() {
   acc(r, 1/2)
 }
 
-decreases
 requires acc(r, _)
+decreases
 pure func (r *Rect) Size() bool {
   return r.width >= 0 && r.height >= 0
 }

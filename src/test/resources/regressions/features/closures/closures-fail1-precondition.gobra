@@ -85,8 +85,8 @@ func test6() {
     cl() as spec
 }
 
-decreases
 ensures res >= 0
+decreases
 pure spec pspec()(res int)
 
 func test7() {

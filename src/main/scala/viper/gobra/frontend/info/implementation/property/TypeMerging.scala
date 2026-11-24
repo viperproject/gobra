@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{ActualPointerT, ArrayT, AssertionT, BooleanT, ChannelT, FloatT, GhostPointerT, GhostSliceT, IntT, InternalTupleT, MapT, MultisetT, PermissionT, SequenceT, SetT, Single, SliceT, Type, UnboundedFloatT}
+import viper.gobra.frontend.info.base.Type.{ActualPointerT, ArrayT, AssertionT, BooleanT, ChannelT, FloatT, GhostPointerT, GhostSliceT, IntT, InternalTupleT, MapT, MultisetT, SequenceT, SetT, Single, SliceT, Type, UnboundedFloatT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>

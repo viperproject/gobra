@@ -30,7 +30,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   val decorators = new Decorators(info.tree)
   lazy val isInGoifiedScope: PNode => Boolean =
     decorators.down(false){
-      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding | _: PAsserting  => true
+      case _: PFPredicateDecl | _: PMPredicateDecl | _: PClosureSpecDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding | _: PAsserting  => true
       case m: PMember => classifier.isMemberGhost(m)
       case s: PStatement => classifier.isStmtGhost(s)
     }
@@ -149,6 +149,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
     case pred: PMPredicateDecl => blockSpecComment(super.showMember(pred))
 
+    case decl: PClosureSpecDecl => blockSpecComment(super.showMember(decl))
+
     case m => super.showMember(m)
   }
 
@@ -256,12 +258,10 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
         opt(n.spec)(s => emptyDoc <+> inlinedSpecComment("as" <+> showMisc(s))) <>
           (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
 
-    case e: PProofAnnotation => e match {
-      case e: PUnfolding =>
-        parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
-      case e: PAsserting =>
-        parens(inlinedSpecComment(asserting_keyword <+> super.showExpr(e.ass)) <+> showExpr(e.op))
-    }
+    case e: PUnfolding =>
+      parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
+    case e: PAsserting =>
+      parens(inlinedSpecComment(asserting_keyword <+> super.showExpr(e.ass)) <+> showExpr(e.op))
 
     case e => super.showExpr(e)
   }

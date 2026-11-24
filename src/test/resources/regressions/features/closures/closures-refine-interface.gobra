@@ -15,10 +15,9 @@ pure func (self S1) f(n int) int {
     return 2*n + 2*int(self.x)
 }
 
-ghost
 requires -1000000 <= n && n <= 1000000 // bounded argument keeps 2*n exact
 ensures r >= 2*n && r <= 4000000 && r % 2 == 0 // upper bound keeps r + 2 exact for callers
-pure func more(n int) (r int)
+pure spec more(n int) (r int)
 
 requires i != nil && i.f implements more
 requires -1000000 <= a && a <= 1000000 // needed for more's precondition

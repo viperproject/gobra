@@ -1,0 +1,71 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// Go evaluates constant expressions exactly: "Constant expressions are always evaluated exactly;
+// intermediate values and the constants themselves may require precision significantly larger than
+// supported by any predeclared type in the language". Representability in the target type is
+// required only where the constant is given a type, i.e. at the outermost node of the constant
+// expression - never at its intermediate nodes.
+//
+// Everything in this file is valid Go and must be accepted by Gobra.
+
+// The intermediate value 1 << 16 == 65536 does not fit uint16; the result 65535 does.
+const MaxISD uint16 = (1 << 16) - 1
+
+// Neither operand of the multiplication fits uint16; the result does.
+const Small uint16 = (1 * 70000) - 69999
+
+func exactEvaluation() {
+	// The intermediate value 300 does not fit uint8; the result 200 does.
+	var a uint8 = 300 - 100
+	assert a == 200
+
+	var b uint16 = (1 * 70000) - 69999
+	assert b == 1
+
+	assert MaxISD == 65535
+	assert Small == 1
+}
+
+func constantShifts() {
+	// A constant shift expression is evaluated exactly too. The shift count is not bounded by the
+	// width of the left operand's type ("there is no upper limit on the shift count"); only the
+	// resulting value, 1024 >> 3 == 128, has to be representable in uint8.
+	var c uint8 = (1 << 10) >> 3
+	assert c == 128
+
+	var d uint16 = (1 << 20) >> 8
+	assert d == 4096
+}
+
+func nonConstantShift() {
+	// The shift count is not bounded by the width of the left operand's type here either: Go
+	// accepts this and shifts v ten times by one, yielding 0.
+	var v uint8 = 1
+	var w uint8 = v << 10
+	_ = w
+}
+
+// A reference to an untyped constant is itself an untyped constant expression.
+const Big = 300
+
+func namedUntypedConstants() {
+	// Go accepts: Big - 100 == 200 is representable in uint8, even though Big alone is not.
+	var a uint8 = Big - 100
+	assert a == 200
+
+	// Nested references are followed too.
+	var b uint16 = (Big * Big) - 89999
+	assert b == 1
+}
+
+func untypedConstantComparison() {
+	// Both operands are untyped constant expressions, so the comparison is itself an untyped
+	// constant: the operands are compared exactly and neither has to be representable in the
+	// other's type. This used to abort Gobra with a Kiama attribute-evaluation cycle.
+	assert 1 + 2 == 2 + 1
+	assert (1 << 10) >> 3 == 64 + 64
+	assert 300 - 100 != 100 + 200
+}

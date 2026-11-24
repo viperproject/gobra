@@ -12,7 +12,6 @@ import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.PermissionType
 import viper.gobra.frontend.info.base.Type.{AdtT, FunctionT, ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.Violation.violation
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
@@ -60,6 +59,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
         case s: st.Closure => Some(ap.Closure(n.id, s))
+        case s: st.ClosureSpec => Some(ap.ClosureSpec(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case s: st.DomainFunction => Some(ap.DomainFunction(n.id, s))
         // built-in members
@@ -95,6 +95,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(_), Some((s: st.Constant, _))) => Some(ap.Constant(n.id, s))
         case (Right(_), Some((s: st.GlobalVariable, _))) => Some(ap.GlobalVariable(n.id, s))
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
+        case (Right(_), Some((s: st.ClosureSpec, _))) => Some(ap.ClosureSpec(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
         case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))
         case (Right(_), Some((s: st.AdtClause, _))) => Some(ap.AdtClause(n.id, s))
@@ -111,11 +112,14 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     case n: PInvoke =>
       exprOrType(n.base) match {
         case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
+        // `perm(num, den)` is the only "conversion" taking two arguments: it constructs a permission
+        // amount. Any other type applied to a number of arguments other than one is not resolvable,
+        // which the well-definedness check reports as a type error.
         case Right(t) if n.args.length == 2 =>
           resolve(t) match {
             case Some(ap.BuiltInType(_, st.BuiltInType(PermissionType, _, _))) =>
               Some(ap.FractionalPermConstructor(n.args(0), n.args(1)))
-            case _ => violation(s"type conversion with ${n.args.length} arguments is not supported")
+            case _ => None
           }
         case Left(e) =>
           resolve(e) match {
@@ -127,7 +131,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args, exprType(e).asInstanceOf[PredT]))
             case _ => None
           }
-        case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")
+        case Right(_) => None
       }
 
     case n: PIndexedExp => exprOrType(n.base) match {

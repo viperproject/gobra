@@ -1,0 +1,71 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// The counterpart of const-expr-exact-eval.gobra: relaxing the checks on the intermediate nodes of
+// a constant expression must not stop Gobra from rejecting constant expressions whose *result* is
+// not representable in the type it is given. All of these are rejected by the Go compiler too.
+
+const (
+	// Go: "constant 300 overflows uint8"
+	//:: ExpectedOutput(type_error)
+	C1 uint8 = 100 + 200
+
+	// Go: "constant 1024 overflows int8". The shift count is irrelevant here - what makes this
+	// invalid is the value, not that 10 exceeds int8's width.
+	//:: ExpectedOutput(type_error)
+	C2 = int8(1) << 10
+
+	// Go: "constant 6144 overflows int8"
+	//:: ExpectedOutput(type_error)
+	C3 = int8(12) << 9
+
+	// Go: "invalid operation: negative shift count"
+	//:: ExpectedOutput(type_error)
+	C4 = int16(12) << -1
+
+	// Gobra's own implementation limit on evaluating constant shifts (MAX_SHIFT).
+	//:: ExpectedOutput(type_error)
+	C5 = 1 << 1024
+
+	// Go: "cannot convert 1000 (untyped int constant) to type uint8". One operand is typed, so the
+	// untyped one is converted to its type and must be representable in it.
+	//:: ExpectedOutput(type_error)
+	C6 = uint8(4) < 1000
+)
+
+func typedOperandStillChecksEachOperand() {
+	// Go: "constant 400 overflows uint8" - not an untyped constant expression, the conversion gives
+	// the left operand a type.
+	//:: ExpectedOutput(type_error)
+	var a uint8 = uint8(200) << 1
+	_ = a
+
+	// Go: "cannot convert -1 (untyped int constant) to type uint8"
+	//:: ExpectedOutput(type_error)
+	var b uint8 = uint8(1) * (-1)
+	_ = b
+}
+
+// `Typed` is a *typed* constant even though its declaration gives no type, because its defining
+// expression is typed. Referring to it therefore does not make an expression untyped, and each
+// operand still has to be representable in int8.
+const Typed = int8(5)
+
+func typedNamedConstant() {
+	// Go: "constant 300 overflows int8"
+	//:: ExpectedOutput(type_error)
+	var a int8 = Typed + 300
+	_ = a
+}
+
+// From the spec: "the divisor of a constant division or remainder operation must not be zero".
+// These used to abort Gobra with a java.lang.ArithmeticException.
+const (
+	//:: ExpectedOutput(type_error)
+	D1 = 1 / 0
+
+	//:: ExpectedOutput(type_error)
+	D2 = 5 % 0
+)

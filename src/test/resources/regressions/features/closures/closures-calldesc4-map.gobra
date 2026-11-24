@@ -15,12 +15,11 @@ type Inv interface {
     pure res(ghost calls seq[int]) int
 }
 
-ghost
 // the call count is capped so that concrete counters tracking it stay exact
 requires len(prev_calls) < math.MaxInt32
 requires inv != nil && inv.inv(prev_calls)
 ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int]{x})
-func fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
+spec fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
 ghost
 requires len(v) <= math.MaxInt64 // keeps the index len(v) - 1 exact in the recursion

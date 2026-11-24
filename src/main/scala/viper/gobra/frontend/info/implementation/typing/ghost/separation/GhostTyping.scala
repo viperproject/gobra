@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, NamedType, Regular, SingleLocalVariable, TypeAlias}
+import viper.gobra.frontend.info.base.SymbolTable.{Closure, MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -90,9 +90,13 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case (Left(_), Some(call: ap.FunctionCall)) =>
           if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
           else calleeGhostTyping(call)
-        case (Left(_), Some(_: ap.ClosureCall)) =>
+        case (Left(_), Some(call: ap.ClosureCall)) =>
           if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
-          else ghostExprTyping(n.base.asInstanceOf[PExpression])
+          else resolve(call.spec.func) match {
+            // calls with a spec that specifies ghost closures are ghost
+            case Some(t: ap.ClosureSpecTarget) if t.symb.specifiesGhostClosures => isGhost
+            case _ => ghostExprTyping(n.base.asInstanceOf[PExpression])
+          }
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
@@ -175,11 +179,6 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case PMapType(key, elem) => isTypeGhost(key) || isTypeGhost(elem)
     case t: PChannelType => isTypeGhost(t.elem)
     case t: PMethodRecvType => isTypeGhost(t.typ)
-    case t: PTypeDecl => entity(t.left) match {
-      case nt: NamedType => nt.ghost
-      case at: TypeAlias => at.ghost
-      case _ => false
-    }
     case _: PStructType => false // `PExplicitGhostStructType` is already captured by the `PGhostType` case above
     case PVariadicType(elem) => isTypeGhost(elem)
     case t @ (_: PNamedOperand | _: PDeref | _: PDot) => resolve(t) match {

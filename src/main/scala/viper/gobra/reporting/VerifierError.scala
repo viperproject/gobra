@@ -61,6 +61,12 @@ case class TimeoutError(message: String) extends VerifierError {
   val id = "timeout_error"
 }
 
+case class ExceptionError(pkgId: String, throwable: Throwable) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "exception_error"
+  val message = s"Verifying package $pkgId resulted in the exception ${throwable.getMessage}."
+}
+
 case class ConsistencyError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "consistency_error"
 }

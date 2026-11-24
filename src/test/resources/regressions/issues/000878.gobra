@@ -15,7 +15,7 @@ type Struct struct {
 }
 
 decreases
-func NewPathSpec() (p Path)
+spec NewPathSpec() (p Path)
 
 func test() {
 	tmp := Struct{

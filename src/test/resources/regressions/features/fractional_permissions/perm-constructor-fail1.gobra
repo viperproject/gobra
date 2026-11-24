@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Only `perm` takes two arguments; any other type applied to two arguments is
+// a type error, not an internal error.
+func twoArgConversion() {
+	//:: ExpectedOutput(type_error)
+	x := int(1, 2)
+}
+
+// The arguments of perm(num, den) must be integers (or, for the numerator, a permission amount).
+func nonIntegerOperands(b bool, s string) {
+	//:: ExpectedOutput(type_error)
+	p := perm(b, 2)
+	//:: ExpectedOutput(type_error)
+	q := perm(1, s)
+}
+
+requires acc(x, perm(1, 2))
+func permNumerator(x *int) {
+	// a permission amount may only appear as the numerator
+	//:: ExpectedOutput(type_error)
+	assert acc(x, perm(1, perm(1, 2)))
+}

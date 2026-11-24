@@ -28,14 +28,13 @@ type Calls interface {
     ghost pure res(x int, res int)bool
 }
 
-ghost
 // the argument is bounded so that accumulated values and sums of results stay exact
 decreases
 requires x >= 0 && x <= math.MaxInt32 && cs != nil && cs.inv()
 ensures cs.inv() && cs.called(x) && cs.res(x, res)
 ensures 0 <= res && res <= math.MaxInt32 // result bound keeps sums of results exact
 ensures cs.mark() >= old(cs.mark()) // earlier call evidence is preserved (quantifier-free)
-func spec(ghost cs Calls, x int) (res int)
+spec spec(ghost cs Calls, x int) (res int)
 
 requires f implements spec{cs}
 requires cs != nil && cs.inv()

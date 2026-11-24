@@ -285,9 +285,9 @@ object Desugar extends LazyLogging {
 
     def closureSpecD(ctx: FunctionContext, info: TypeInfo)(s: PClosureSpecInstance): in.ClosureSpec = {
       val (funcTypeInfo, fArgs, proxy) = info.resolve(s.func) match {
-        case Some(ap.Function(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
+        case Some(ap.ClosureSpec(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
         case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.args, functionLitProxyD(id, info))
-        case _ => violation("expected function or function literal")
+        case _ => violation("expected closure spec or function literal")
       }
       val paramsWithIdx = if (s.paramKeys.isEmpty) s.paramExprs.zipWithIndex.map {
         case (exp, idx) => idx+1 -> exprD(ctx, info)(exp).res
@@ -426,6 +426,7 @@ object Desugar extends LazyLogging {
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
+        case x: PClosureSpecDecl => Vector(registerClosureSpec(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
@@ -2104,13 +2105,30 @@ object Desugar extends LazyLogging {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(_, _, _: in.MapT) if lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable), astCtx, info)(src)
           in.Block(
             Vector(resTarget, successTarget),
             Vector(
               in.SafeMapLookup(resTarget, successTarget, l)(l.info),
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
+
+        case l@ in.IndexedExp(base, idx, t: in.MathMapT) if lefts.size == 2 =>
+          // in contrast to a lookup in a map, a lookup in a mathematical map is only well-defined if the key is
+          // contained in the map. Thus, the zero value of the value type is assigned for keys that are not contained.
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable), astCtx, info)(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable), astCtx, info)(src)
+          val contains = in.Contains(idx, in.MapKeys(base, t)(src))(src)
+          val lookup = in.Conditional(contains, l, in.DfltVal(l.typ)(src), l.typ)(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector( // the results are computed before they are assigned because a target may occur in `l`
+              singleAss(in.Assignee.Var(resTarget), lookup)(src),
+              singleAss(in.Assignee.Var(successTarget), contains)(src),
               singleAss(lefts(0), resTarget)(src),
               singleAss(lefts(1), successTarget)(src)
             )
@@ -2390,9 +2408,8 @@ object Desugar extends LazyLogging {
       * This method encodes closure calls, i.e. calls of the type c(_) as _, where c is a closure expression (and not a function/method proxy). */
     def closureCallDAux(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       val (func, isPure) = info.resolve(expr.spec.get.func) match {
-        case Some(ap.Function(_, f)) => (f, f.isPure)
-        case Some(ap.Closure(_, c)) => (c, c.isPure)
-        case _ => violation("expected function or function literal")
+        case Some(t: ap.ClosureSpecTarget) => (t.symb, t.symb.isPure)
+        case _ => violation("expected closure spec or function literal")
       }
 
       val spec = closureSpecD(ctx, info)(expr.spec.get)
@@ -2495,6 +2512,15 @@ object Desugar extends LazyLogging {
       case _ => true
     }
 
+    /**
+      * Converts `e` to the expected type `to`: first aligns its integer kind (see [[alignElementKind]]),
+      * then applies an implicit conversion (see [[implicitConversion]]), e.g., to an interface type.
+      */
+    def alignAndConvert(e: in.Expr, to: in.Type): in.Expr = {
+      val aligned = alignElementKind(e, to)
+      implicitConversion(aligned.typ, to, aligned)
+    }
+
     def implicitConversion(from: in.Type, to: in.Type, exp: in.Expr): in.Expr = {
 
       val fromUt = underlyingType(from)
@@ -2524,6 +2550,40 @@ object Desugar extends LazyLogging {
         case _ =>
           exp
       }
+    }
+
+    /**
+      * Returns the type that an index of `typ` has, if `typ` can be indexed. The index type of a (mathematical) map
+      * is its key type; all other indexable types are indexed with integers.
+      */
+    def indexType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.MapT => Some(t.keys)
+      case t: in.MathMapT => Some(t.keys)
+      case _: in.ArrayT | _: in.SliceT | _: in.SequenceT | _: in.StringT => Some(in.IntT(Addressability.rValue))
+      case in.PointerT(base, _) if underlyingType(base).isInstanceOf[in.ArrayT] => Some(in.IntT(Addressability.rValue))
+      case _ => None
+    }
+
+    /** Returns the type of the elements contained in `typ`, if `typ` is a collection type. */
+    def elementType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case t: in.ArrayT => Some(t.elems)
+      case t: in.SliceT => Some(t.elems)
+      case t: in.SequenceT => Some(t.t)
+      case t: in.SetT => Some(t.t)
+      case t: in.MultisetT => Some(t.t)
+      case t: in.MapT => Some(t.values)
+      case t: in.MathMapT => Some(t.values)
+      case _ => None
+    }
+
+    /**
+      * Returns the type that the left-hand side of a membership expression `x elem c` must have, where `c` has type
+      * `typ`. Membership in a (mathematical) map ranges over its keys, whereas membership in any other collection
+      * ranges over its elements.
+      */
+    def membershipType(typ: in.Type): Option[in.Type] = underlyingType(typ) match {
+      case _: in.MapT | _: in.MathMapT => indexType(typ)
+      case t => elementType(t)
     }
 
     def singleAss(left: in.Assignee, right: in.Expr)(info: Source.Parser.Info): in.SingleAss = {
@@ -2608,8 +2668,9 @@ object Desugar extends LazyLogging {
         baseUnderlyingType = underlyingType(dbase.typ)
         // For seq/slice/array/string indexes the encoding expects a Viper Int (not a bounded
         // integer domain value). Demote a bounded-int index to integer via Conversion, which
-        // routes through the (precondition-free) `from` bridge function. For maps, retype the
-        // index to match the map's declared key type.
+        // routes through the (precondition-free) `from` bridge function. For maps, align the
+        // index's integer kind with the map's declared key type and apply an implicit conversion,
+        // e.g., when the key type of the map is an interface type and `index` has a concrete type.
         dindex = baseUnderlyingType match {
           case _: in.SliceT | _: in.ArrayT | _: in.SequenceT | _: in.StringT =>
             // Resolve the index's *underlying* type: the index may have a defined type whose
@@ -2619,8 +2680,8 @@ object Desugar extends LazyLogging {
                 in.Conversion(in.IntT(Addressability.rValue, viper.gobra.util.TypeBounds.UnboundedInteger), dindexRaw)(dindexRaw.info)
               case _ => dindexRaw
             }
-          case t: in.MapT      => alignElementKind(dindexRaw, t.keys)
-          case t: in.MathMapT  => alignElementKind(dindexRaw, t.keys)
+          case t: in.MapT      => alignAndConvert(dindexRaw, t.keys)
+          case t: in.MathMapT  => alignAndConvert(dindexRaw, t.keys)
           case _ => dindexRaw
         }
       } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
@@ -3389,7 +3450,7 @@ object Desugar extends LazyLogging {
       sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
-            entryKeyRaw <- key match {
+            dKey <- key match {
               case v: PCompositeVal => compositeValD(ctx, info)(v, keys)
               case k: PIdentifierKey => info.regular(k.id) match {
                 case _: st.Variable => unit(varD(ctx, info)(k.id))
@@ -3397,9 +3458,10 @@ object Desugar extends LazyLogging {
                 case _ => violation(s"unexpected key $key")
               }
             }
-            // Identifier keys (variables/constants) bypass compositeValD's implicit
-            // conversion, so their integer kind may not match the declared key type.
-            entryKey = alignElementKind(entryKeyRaw, keys)
+            // keys that are not composite values do not go through `compositeValD` and, thus, may still require
+            // an implicit conversion, e.g., when the key type is an interface type. Their integer kind may also not
+            // match the declared key type.
+            entryKey = alignAndConvert(dKey, keys)
             // Align the value's integer kind with the declared value type as well: an
             // untyped literal value (e.g. `5` in `dict[string]int{"k": 5}`) may otherwise
             // keep a kind whose Viper sort differs from the map's value sort.
@@ -3983,6 +4045,27 @@ object Desugar extends LazyLogging {
       }
     }
 
+    /**
+      * Closure spec declarations are desugared to abstract functions, which are only used by the encoding of closures.
+      * The type checker ensures that closure spec declarations are never called directly.
+      */
+    def registerClosureSpec(decl: PClosureSpecDecl): in.FunctionMember = {
+      val proxy = in.FunctionProxy(idName(decl.id, info))(meta(decl, info))
+      val fsrc = meta(decl, info)
+      val emptyCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc))
+      val spec: in.FunctionMember = if (decl.spec.isPure) {
+        val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, emptyCtx, info)
+        in.PureFunction(proxy, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts,
+          funcInfo.terminationMeasures, funcInfo.backendAnnotations, None, isOpaque = false)(fsrc)
+      } else {
+        val funcInfo = functionMemberOrLitD(decl, fsrc, emptyCtx)
+        in.Function(proxy, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts,
+          funcInfo.terminationMeasures, funcInfo.backendAnnotations, None)(fsrc)
+      }
+      definedFunctions += proxy -> spec
+      spec
+    }
+
     def registerMPredicate(decl: PMPredicateDecl): in.MPredicate = {
       val mPredProxy = mpredicateProxyD(decl, info)
       val mPred = mpredicateD(decl)
@@ -4126,6 +4209,7 @@ object Desugar extends LazyLogging {
 
     def idName(id: PIdnNode, context: TypeInfo): String = context.regular(id) match {
       case f: st.Function => nm.function(id.name, f.context)
+      case s: st.ClosureSpec => nm.closureSpec(id.name, s.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MethodSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.FPredicate => nm.function(id.name, f.context)
@@ -4151,6 +4235,7 @@ object Desugar extends LazyLogging {
         case decl: PFunctionDecl   => idName(decl.id, context)
         case decl: PMPredicateDecl => idName(decl.id, context)
         case decl: PFPredicateDecl => idName(decl.id, context)
+        case decl: PClosureSpecDecl => idName(decl.id, context)
         case decl: PMethodSig      => idName(decl.id, context)
         case decl: PMPredicateSig  => idName(decl.id, context)
         case decl: PDomainFunction => idName(decl.id, context)
@@ -4485,9 +4570,8 @@ object Desugar extends LazyLogging {
       */
     private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
       val (func, funcTypeInfo) = info.resolve(proof.impl.spec.func) match {
-        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo)
-        case Some(ap.Closure(_, c)) => (c, c.context.getTypeInfo)
-        case _ => violation("expected function member or literal")
+        case Some(t: ap.ClosureSpecTarget) => (t.symb, t.symb.context.getTypeInfo)
+        case _ => violation("expected closure spec or function literal")
       }
 
       // Generate a new local variable for an argument or result of the spec function.
@@ -4558,11 +4642,7 @@ object Desugar extends LazyLogging {
               singleAss(in.Assignee(v), exp)(src)
           }
 
-      val fSpec = func match {
-        case f: st.Function => f.decl.spec
-        case c: st.Closure => c.lit.spec
-        case _ => violation("function or closure expected")
-      }
+      val fSpec = func.spec
 
       // Desugar the precondition of spec, replacing the argument and results with their aliases
       val pres = fSpec.pres map specificationD(newCtx, funcTypeInfo)
@@ -4596,6 +4676,59 @@ object Desugar extends LazyLogging {
     }
 
     // Ghost Expression
+
+    /**
+      * Desugars the assignment of a let expression `let ass in ...` to the pairs of variables and the expressions
+      * that they are bound to, in the order in which they are introduced by `ass`.
+      * Besides the case where every variable on the left is bound to the expression at the same position on the
+      * right, the "comma-ok" form of map lookups is supported: `let v, ok := m[k] in ...` binds `v` to `m[k]` and
+      * `ok` to `k in m`. The type checker rejects all other assignments of a let expression.
+      */
+    def letBindingsD(ctx: FunctionContext, info: TypeInfo)(ass: PShortVarDecl)(src: Meta): Vector[(in.LocalVar, in.Expr)] = {
+      // The binder is typed with the variable's frontend type, not right.typ: the two can
+      // differ in integer kind (e.g. `let x := len(b)` — the variable is a bounded `int`
+      // while the internal length expression is unbounded), and the body's references to
+      // the variable are resolved at the frontend type. The encoding aligns the bound
+      // right-hand side with the binder's sort (see AssertionEncoding.alignLetBinding).
+      def binder(id: PUnkLikeId): in.LocalVar = in.LocalVar(
+        nm.variable(id.name, info.scope(id), info),
+        typeD(info.typ(id), Addressability.exclusiveVariable)(src)
+      )(src)
+
+      if (ass.left.length == ass.right.length) {
+        (ass.left zip ass.right).map { case (id, exp) =>
+          val right = pureExprD(ctx, info)(exp)
+          (binder(id), right)
+        }
+      } else {
+        // the type checker guarantees that all remaining cases are of the form `v, ok := m[k]`
+        val lookup = ass.right match {
+          case Vector(idx: PIndexedExp) =>
+            val dIdx = indexedExprD(idx)(ctx, info)
+            Violation.violation(dIdx.stmts.isEmpty && dIdx.decls.isEmpty, s"expected pure expression, but got $idx")
+            dIdx.res
+          case rights => violation(s"expected the comma-ok form of a map lookup, but got $rights")
+        }
+        // `ok` holds iff the key is contained in the map. If it is not, then the zero value of the map's value type
+        // is bound instead of the value stored in the map.
+        val (value, contains) = lookup.baseUnderlyingType match {
+          case _: in.MapT =>
+            // a lookup in a map already yields the zero value if the key is not contained in the map
+            (lookup, in.Contains(lookup.index, lookup.base)(src))
+          case t: in.MathMapT =>
+            // in contrast, a lookup in a mathematical map is only well-defined if the key is contained in the map
+            val contains = in.Contains(lookup.index, in.MapKeys(lookup.base, t)(src))(src)
+            val dflt = in.DfltVal(lookup.typ)(src)
+            (in.Conditional(contains, lookup, dflt, lookup.typ)(src), contains)
+          case t => violation(s"expected a map type, but got $t")
+        }
+        Vector(
+          (binder(ass.left(0)), value),
+          (binder(ass.left(1)), contains)
+        )
+      }
+    }
+
     def ghostExprD(ctx: FunctionContext, info: TypeInfo)(expr: PGhostExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx, info)(e)
@@ -4617,20 +4750,11 @@ object Desugar extends LazyLogging {
 
         case PLet(ass, op) =>
           val dOp = pureExprD(ctx, info)(op)
-          unit((ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-            val right = pureExprD(ctx, info)(lr._2)
-            // The binder is typed with the variable's frontend type, not right.typ: the two can
-            // differ in integer kind (e.g. `let x := len(b)` — the variable is a bounded `int`
-            // while the internal length expression is unbounded), and the body's references to
-            // the variable are resolved at the frontend type. The encoding aligns the bound
-            // right-hand side with the binder's sort (see AssertionEncoding.alignLetBinding).
-            val leftTyp = typeD(info.typ(lr._1), Addressability.exclusiveVariable)(src)
-            val left = in.LocalVar(
-              nm.variable(lr._1.name, info.scope(lr._1), info),
-              leftTyp
-            )(src)
+          // Binders are typed with the variables' frontend types (see `letBindingsD`); the encoding aligns the
+          // bound right-hand side with the binder's sort (see AssertionEncoding.alignLetBinding).
+          unit(letBindingsD(ctx, info)(ass)(src).foldRight(dOp) { case ((left, right), letop) =>
             in.PureLet(left, right, letop)(src)
-          }))
+          })
 
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx, info)(vars, triggers, body)(ctx => exprD(ctx, info)) }
@@ -4661,21 +4785,17 @@ object Desugar extends LazyLogging {
         } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
 
         case PElem(left, right) => for {
-          dleftRaw <- go(left)
+          dleft <- go(left)
           dright <- go(right)
-          // Align the element kind with the container's element type to avoid mixed-kind
-          // arguments at the encoding level (e.g. `0 elem set[int]{...}` where 0 is untyped).
-          dleft = underlyingType(dright.typ) match {
-            case t: in.SequenceT => alignElementKind(dleftRaw, t.t)
-            case t: in.SetT      => alignElementKind(dleftRaw, t.t)
-            case t: in.MultisetT => alignElementKind(dleftRaw, t.t)
-            case t: in.MapT      => alignElementKind(dleftRaw, t.keys)
-            case _ => dleftRaw
-          }
+          // the left-hand side may require an implicit conversion, e.g., when the elements of the collection have
+          // an interface type and `left` has a concrete type. Its integer kind is also aligned with the collection's
+          // element type to avoid mixed-kind arguments at the encoding level (e.g. `0 elem set[int]{...}` where 0 is
+          // untyped).
+          delem = membershipType(dright.typ).fold(dleft)(alignAndConvert(dleft, _))
         } yield underlyingType(dright.typ) match {
-          case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
-          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
-          case _: in.MapT => in.Contains(dleft, dright)(src)
+          case _: in.SequenceT | _: in.SetT => in.Contains(delem, dright)(src)
+          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(delem, dright)(src))(src)
+          case _: in.MapT => in.Contains(delem, dright)(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
@@ -4742,8 +4862,9 @@ object Desugar extends LazyLogging {
         } yield dop.typ match {
           case _: in.SequenceT => dop
           case _: in.ArrayT => in.SequenceConversion(dop)(src)
+          case _: in.SliceT => in.SequenceConversion(dop)(src)
           case _: in.OptionT => in.SequenceConversion(dop)(src)
-          case t => violation(s"expected a sequence, array or option type, but got $t")
+          case t => violation(s"expected a sequence, array, slice or option type, but got $t")
         }
 
         case PSetConversion(op) => for {
@@ -4967,16 +5088,9 @@ object Desugar extends LazyLogging {
         case PLet(ass, op) =>
           for {
             dOp <- assertionD(ctx, info)(op)
-            lets = (ass.left zip ass.right).foldRight(dOp)((lr, letop) => {
-              val right = pureExprD(ctx, info)(lr._2)
-              // binder typed at the frontend type — see the PureLet case for the rationale
-              val leftTyp = typeD(info.typ(lr._1), Addressability.exclusiveVariable)(src)
-              val left = in.LocalVar(
-                nm.variable(lr._1.name, info.scope(lr._1), info),
-                leftTyp
-              )(src)
+            lets = letBindingsD(ctx, info)(ass)(src).foldRight(dOp) { case ((left, right), letop) =>
               in.Let(left, right, letop)(src)
-            })
+            }
           } yield lets
 
         case m: PMatchExp =>
@@ -5251,6 +5365,7 @@ object Desugar extends LazyLogging {
     private val REFERENCE_PREFIX = "R"
     private val FUNCTION_PREFIX = "F"
     private val METHODSPEC_PREFIX = "S"
+    private val CLOSURE_SPEC_PREFIX = "CS"
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
@@ -5340,6 +5455,7 @@ object Desugar extends LazyLogging {
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
     def function(n: String, context: ExternalTypeInfo): String = topLevelName(FUNCTION_PREFIX)(n, context)
+    def closureSpec(n: String, context: ExternalTypeInfo): String = topLevelName(CLOSURE_SPEC_PREFIX)(n, context)
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
       topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {

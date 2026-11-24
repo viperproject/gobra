@@ -49,7 +49,13 @@ lazy val gobra = (project in file("."))
 
     scalacOptions ++= Seq(
       "-encoding", "UTF-8", // Enforce UTF-8, instead of relying on properly set locales
-      "-Ypatmat-exhaust-depth", "40"
+      // With a lower budget, the pattern matcher gives up on some of Gobra's larger matches and
+      // reports that it could not check them instead of checking them.
+      "-Ypatmat-exhaust-depth", "80",
+      // Gobra's own sources must compile without warnings. Note that this only applies to this
+      // project, i.e. the sources of the imported projects (silver, silicon, carbon, and
+      // viperserver) may still produce warnings.
+      "-Werror"
     ),
 
     javacOptions := Seq("-encoding", "UTF-8"),

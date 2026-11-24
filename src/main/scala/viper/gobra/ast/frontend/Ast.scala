@@ -763,7 +763,7 @@ sealed trait PMethodRecvType extends PType { // TODO: will have to be removed fo
 
 case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType with PActualType
 
-trait PMethodReceivePointer extends PMethodRecvType
+sealed trait PMethodReceivePointer extends PMethodRecvType
 
 case class PMethodReceiveActualPointer(typ: PNamedOperand) extends PMethodReceivePointer with PActualType
 
@@ -959,6 +959,24 @@ case class PLoopSpec(
 sealed trait PGhostMember extends PMember with PGhostNode
 
 case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMember with PGhostifier[PGhostifiableMember]
+
+/**
+  * Declaration of a closure specification, i.e., a specification that closures can be proven to implement and with
+  * which closures can be called (`c(args) as id{params}`). A closure spec declaration is not a function and,
+  * thus, it cannot be called directly and has no body.
+  *
+  * @param isGhost whether the closures specified by this spec are ghost. Note that this flag does not refer to the
+  *                declaration itself (which is always ghost code).
+  */
+case class PClosureSpecDecl(
+                             id: PIdnDef,
+                             args: Vector[PParameter],
+                             result: PResult,
+                             spec: PFunctionSpec,
+                             isGhost: Boolean
+                           ) extends PGhostMember with PFunctionOrClosureDecl with PCodeRootWithResult {
+  override def body: Option[(PBodyParameterInfo, PBlock)] = None
+}
 
 case class PFPredicateDecl(
                          id: PIdnDef,

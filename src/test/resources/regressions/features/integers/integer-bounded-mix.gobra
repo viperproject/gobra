@@ -3,12 +3,10 @@
 
 package pkg
 
-// `len` on a ghost collection has the mathematical `integer` type, while `i` is a bounded
-// `int`. The type-checker accepts the mix (TypeMerging makes `integer` the common type of
-// itself and any bounded kind), and the desugarer carries both kinds through unchanged, so
-// in.BinaryIntExpr.typ has to merge `integer` with `int`. It therefore uses
-// TypeBounds.mergeLenient; with the strict TypeBounds.merge this crashes the encoder with
-// "kinds IntegerKind(integer) and IntegerKind(int) cannot be merged".
+// Arithmetic may mix the mathematical `integer` type with a bounded integer kind: the bounded
+// operand is promoted to `integer`, and so is the result. Here, `len` on a ghost collection has
+// type `integer`, while `i` is a bounded `int`. Converting the result back to a bounded kind
+// requires an explicit conversion.
 
 ghost
 requires 0 <= i && i <= len(s)
@@ -23,7 +21,14 @@ requires 0 <= i && i <= len(s)
 decreases
 func mixInStatement(s seq[int], i int) {
 	assert len(s) - i >= 0
-	// the merged type is `integer`, so converting back to a bounded kind is explicit
 	ghost var n int = int(len(s) - i)
 	assert n >= 0
+}
+
+ghost
+requires 0 <= i && i <= len(s)
+decreases
+func mixRequiresConversion(s seq[int], i int) {
+	//:: ExpectedOutput(type_error)
+	ghost var n int = len(s) - i
 }

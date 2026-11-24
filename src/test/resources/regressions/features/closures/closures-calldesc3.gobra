@@ -16,7 +16,7 @@ type Once interface {
 requires o != nil && o.invBefore()
 ensures o.invAfter(n) && res == o.res(n)
 ensures res >= n
-func onceGT(ghost o Once, n int) (res int)
+spec onceGT(ghost o Once, n int) (res int)
 
 requires f implements onceGT{o}
 requires o != nil && o.invBefore()

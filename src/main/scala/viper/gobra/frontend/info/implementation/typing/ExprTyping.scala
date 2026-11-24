@@ -47,6 +47,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // the structural predicate and the constant's value.
         case Some(_: ap.Constant) if isUntypedIntConst(n) && !isInnerNodeOfUntypedIntConst(n) =>
           intExprWithinTypeBounds(n, UNTYPED_INT_CONST)
+        case Some(_: ap.ClosureSpec) => closureSpecOnlyUsedInSpecInstance(n)
         case _ => noMessages
       } // no more checks to avoid cycles
 
@@ -75,6 +76,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.GlobalVariable) => noMessages
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.Closure) => violation(s"the name of a function literal should not be accessible from a different package")
+        case Some(_: ap.ClosureSpec) => closureSpecOnlyUsedInSpecInstance(n)
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.BuiltInType) => noMessages
         case Some(_: ap.Predicate) => noMessages
@@ -151,6 +153,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             }
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
+        case Some(p: ap.ClosureSpec) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
         case Some(_: ap.BuiltInType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
@@ -379,6 +382,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
           error(n, "Only calls to pure functions and pure methods can be revealed: Cannot reveal a predicate expression instance.", n.reveal) ++ wellTypedArguments
+
+        case (Left(callee), _) if n.spec.isEmpty && !resolve(callee).exists(_.isInstanceOf[ap.ClosureSpec]) &&
+          underlyingType(exprType(callee)).isInstanceOf[FunctionT] =>
+          error(n, s"closures can only be called with a closure spec, e.g., '$n as spec', where 'spec' is a closure spec declaration or a named function literal")
 
         case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
       }
@@ -1416,6 +1423,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         error(expr, s"the divisor of the perm expression $expr evaluates to 0", constExprOpt.exists(_._2 == 0))
     case _ => error(expr, s"expected a constant expression, but got $expr instead")
   }
+
+  /** a closure spec declaration can only be referred to as part of a closure spec instance (e.g., in `c(args) as spec` or `c implements spec`). */
+  private def closureSpecOnlyUsedInSpecInstance(n: PNameOrDot): Messages =
+    error(n, s"closure spec $n can only be used to specify closures, e.g., in '... as $n' or '... implements $n', but not as an expression",
+      !tree.parent(n).headOption.exists(_.isInstanceOf[PClosureSpecInstance]))
 
   private[typing] def wellDefCallWithSpec(n: PInvoke): Messages = {
     val mayInit = isEnclosingMayInit(n)

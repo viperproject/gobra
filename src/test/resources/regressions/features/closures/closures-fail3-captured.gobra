@@ -39,9 +39,9 @@ func test4() {
     x@ := 0
 
     cl :=
-        decreases
         //:: ExpectedOutput(contract_not_well_formed:permission_error)   
         requires x == 0
+        decreases
         pure func(n int)int {
             return n
         }

@@ -61,7 +61,7 @@ type reader interface {
 	//:: ExpectedOutput(type_error)
 	ensures r == old(r)
 	decreases
-	pure get() (r int)
+	pure getValue() (r int)
 }
 
 // old expressions are not permitted in postconditions of ghost pure functions

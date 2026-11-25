@@ -17,19 +17,17 @@ pred (self OddInv) inv() {
     acc(self.e, 1/2) && *self.e implements even_spec{EvenInv{self.e, self.o}} && EvenInv{self.e, self.o}.inv()
 }
 
-ghost
 requires x >= 0
 preserves i.inv()
 ensures (x%2 == 0 ==> even) && (even ==> x%2 == 0)
 decreases x
-func even_spec(i Inv, x int)(even bool)
+spec even_spec(i Inv, x int)(even bool)
 
-ghost
 requires y >= 0
 preserves i.inv()
 ensures (y%2 == 1 ==> odd) && (odd ==> y%2 == 1)
 decreases y
-func odd_spec(i Inv, y int)(odd bool)
+spec odd_spec(i Inv, y int)(odd bool)
 
 func main() {
     var e@ func(int)bool

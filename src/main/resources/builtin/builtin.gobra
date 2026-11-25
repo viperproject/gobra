@@ -17,7 +17,7 @@ type error interface {
 	pred ErrorMem()
 
 	ghost
-	requires  acc(ErrorMem(), _)
+	requires  ErrorMem()
 	decreases ErrorMem()
 	pure IsDuplicableMem() bool
 

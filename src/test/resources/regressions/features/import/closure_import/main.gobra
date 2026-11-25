@@ -7,7 +7,8 @@ package main
 import foo "foo"
 
 func test1() {
-    c := pure func f() (r int) {
+    c := decreases
+    	 pure func f() (r int) {
             return 2
          }
 

@@ -14,6 +14,7 @@ import viper.gobra.translator.context.Context
 import viper.gobra.translator.encodings.interfaces.{InterfaceComponent, InterfaceComponentImpl, InterfaceUtils, PolymorphValueComponent, PolymorphValueComponentImpl, TypeComponent, TypeComponentImpl}
 import viper.gobra.translator.util.ViperWriter.CodeLevel.errorT
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.silver.plugin.standard.termination
 import viper.silver.verifier.{errors => vprerr}
 import viper.silver.{ast => vpr}
 
@@ -56,8 +57,8 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
     * Otherwise, for interface types, the following function is generated:
     *
     *     function closureGet$[meth](thisItf: [recvType]): Closure
-    *       requires decreases _ // the conversion always terminates
     *       requires [thisItf != nil]
+    *       requires decreases _ // the conversion always terminates
     *         // foreach type T that implements the interface type
     *       ensures [typeOf(thisItf) == T] ==> result == closureGet$[meth]([unbox(thisItf)])
     *
@@ -68,6 +69,9 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
 
       val proxy = getterFunctionProxy(meth)
       val receiver = in.Parameter.In("self", recvType)(meth.info)
+      // the measure is needed because the conversion is applied in pure functions and specifications whose
+      // termination is checked:
+      val terminates = termination.DecreasesWildcard()(pos, info, errT)
       val vprReceiver =  ctx.variable(receiver)
       val vprReceiverVar = vprReceiver.localVar
 
@@ -83,10 +87,10 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
             vpr.EqCmp(vpr.Result(domain.vprType)(), defTCall(t))()
           )()
           val posts = ctx.table.getImplementations(recvType).toSeq.map(valueMatchesIfTypeIs)
-          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(recvNotNil), posts, None)(pos, info, errT)
+          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(recvNotNil, terminates), posts, None)(pos, info, errT)
 
         case _ =>
-          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq.empty, Seq.empty, None)(pos, info, errT)
+          vpr.Function(proxy.uniqueName, Seq(ctx.variable(receiver)), domain.vprType, Seq(terminates), Seq.empty, None)(pos, info, errT)
       }
 
       generatedConversions += (meth -> result)

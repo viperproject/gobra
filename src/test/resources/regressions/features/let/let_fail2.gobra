@@ -11,7 +11,7 @@ pure func f1(x interface{}) bool {
 }
 
 ghost
-requires acc(m, _)
+requires acc(m)
 pure func f2(m map[int]int) int {
 	// the "comma-ok" form of a map lookup binds exactly two variables
 	//:: ExpectedOutput(type_error)

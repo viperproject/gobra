@@ -43,6 +43,7 @@ func test4() {
     // x is not addressable
 
     cl :=
+        decreases
         pure func(n int)int {
             //:: ExpectedOutput(type_error)   
             return n + x

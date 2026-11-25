@@ -46,7 +46,7 @@ protected class ClosureSpecsEncoder {
     *   return closureGet$funcName()
     */
   def callToClosureGetter(func: in.FunctionMemberOrLitProxy, captured: Vector[(in.Expr, in.Parameter.In)] = Vector.empty)(ctx: Context): CodeWriter[vpr.Exp] = {
-    val errorTransformers = register(in.ClosureSpec(func, Map.empty)(func.info))(ctx, func.info)
+    val errorTransformers = register(in.ClosureSpec(func, Map.empty)(func.info), withGetter = true)(ctx, func.info)
     for {
       exp <- ctx.expression(in.PureFunctionCall(closureGetterFunctionProxy(func), captured.map(c => c._1), genericFuncType, false)(func.info))
       _ <- errorT(errorTransformers: _*)
@@ -129,12 +129,16 @@ protected class ClosureSpecsEncoder {
     *   > generates a closureImplements$[spec] domain function (see [[implementsFunction]])
     *   > generates a closureCall$[spec] method/function (see [[callableMemberWithClosure]])
     *   > collects any error transformers generated while encoding closureCall$[...]
-    * - if no spec with base function fName has already been registered:
+    * - if no getter for fName has already been generated and fName is a function literal or `withGetter` is set:
     *   > generates a closureGet$fName getter function (see [[closureGetter]])
+    *   Getters of function members are only referenced when the function member is used as a closure value (in which
+    *   case `withGetter` is set). In particular, no getter is generated for closure spec declarations, as they can
+    *   never be used as values. Otherwise, the getter's postcondition would claim that a closure implementing
+    *   the spec exists.
     * - Adds all of the generated members to [[genMembers]]
     * - Returns the collected error transformers
     * */
-  private def register(spec: in.ClosureSpec)(ctx: Context, info: Source.Parser.Info): Vector[ErrorTransformer] = {
+  private def register(spec: in.ClosureSpec, withGetter: Boolean = false)(ctx: Context, info: Source.Parser.Info): Vector[ErrorTransformer] = {
     var errorTransformers: Vector[ErrorTransformer] = Vector.empty
     updateCaptVarTypes(ctx)(captured(ctx)(spec.func).map(_._1.typ))
     if (!specsSeen.contains((spec.func, spec.params.keySet))) {
@@ -145,7 +149,8 @@ protected class ClosureSpecsEncoder {
       genDomFuncs :+= implementsF
       genMembers :+= callable
     }
-    if (!funcsUsedAsClosures.contains(spec.func)) {
+    val needsGetter = withGetter || spec.func.isInstanceOf[in.FunctionLitProxy]
+    if (needsGetter && !funcsUsedAsClosures.contains(spec.func)) {
       funcsUsedAsClosures += spec.func
       val getter = closureGetter(spec.func)(ctx)
       genMembers :+= getter
@@ -202,6 +207,7 @@ protected class ClosureSpecsEncoder {
     * function closureGet$[fName](captvar1_0: Type0, captvar2_0: Type0, captvar1_1: Type1, ...): Closure
     *   ensures [result implements fName]
     *   for X-th captured variable of T-th type: ensures captVarXClosure_T(result) == captvarX_T(result)
+    *   decreases _ // getting the closure always terminates
     * */
   private def closureGetter(func: in.FunctionMemberOrLitProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureGetterFunctionProxy(func)
@@ -210,7 +216,8 @@ protected class ClosureSpecsEncoder {
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val notNil = in.ExprAssertion(in.UneqCmp(result, in.NilLit(genericFuncType)(info))(info))(info)
-    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector.empty, Vector.empty, None, false)(memberOrLit(ctx)(func).info)
+    val terminates = in.NonItfMethodWildcardMeasure(None)(info)
+    val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector(terminates), Vector.empty, None, false)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }
 

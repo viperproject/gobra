@@ -214,7 +214,7 @@ object Desugar extends LazyLogging {
     }
 
     def domainFunctionProxy(symb: st.DomainFunction): in.DomainFuncProxy = {
-      val domainName = nm.domain(Type.DomainT(symb.domain, symb.context))
+      val domainName = nm.domain(symb.context.symbType(symb.domain).asInstanceOf[Type.DomainT])
       val functionName = idName(symb.decl.id, symb.context.getTypeInfo)
       in.DomainFuncProxy(functionName, domainName)(meta(symb.decl.id, symb.context.getTypeInfo))
     }
@@ -285,9 +285,9 @@ object Desugar extends LazyLogging {
 
     def closureSpecD(ctx: FunctionContext, info: TypeInfo)(s: PClosureSpecInstance): in.ClosureSpec = {
       val (funcTypeInfo, fArgs, proxy) = info.resolve(s.func) match {
-        case Some(ap.Function(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
+        case Some(ap.ClosureSpec(id, symb)) => (symb.context.getTypeInfo, symb.decl.args, functionProxy(id, info))
         case Some(ap.Closure(id, symb)) => (symb.context.getTypeInfo, symb.lit.args, functionLitProxyD(id, info))
-        case _ => violation("expected function or function literal")
+        case _ => violation("expected closure spec or function literal")
       }
       val paramsWithIdx = if (s.paramKeys.isEmpty) s.paramExprs.zipWithIndex.map {
         case (exp, idx) => idx+1 -> exprD(ctx, info)(exp).res
@@ -426,6 +426,7 @@ object Desugar extends LazyLogging {
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => registerFunction(x).toVector
+        case x: PClosureSpecDecl => Vector(registerClosureSpec(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case x: PImplementationProof => registerImplementationProof(x); Vector.empty
@@ -582,8 +583,8 @@ object Desugar extends LazyLogging {
     //       However, currently, this would require to have versions of [[typeD]].
     /** desugars a defined type for each addressability modifier to register them with [[definedTypes]] */
     def desugarAllTypeDefVariants(decl: PTypeDef): Unit = {
-      typeD(DeclaredT(decl, info), Addressability.Shared)(meta(decl, info))
-      typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl, info))
+      typeD(info.declaredSymbType(decl), Addressability.Shared)(meta(decl, info))
+      typeD(info.declaredSymbType(decl), Addressability.Exclusive)(meta(decl, info))
     }
 
     def desugarBackendAnnotations(annotations: Vector[PBackendAnnotation]): Vector[BackendAnnotation] = {
@@ -2164,7 +2165,7 @@ object Desugar extends LazyLogging {
           )(src))(src)
 
         case disc: st.AdtDiscriminator =>
-          val declT = Type.DeclaredT(disc.typeDecl, disc.context)
+          val declT = disc.context.declaredSymbType(disc.typeDecl)
           in.AdtDiscriminator(
             base,
             adtClauseProxy(nm.adt(declT), disc.decl, disc.context.getTypeInfo)
@@ -2406,9 +2407,8 @@ object Desugar extends LazyLogging {
       * This method encodes closure calls, i.e. calls of the type c(_) as _, where c is a closure expression (and not a function/method proxy). */
     def closureCallDAux(ctx: FunctionContext, info: TypeInfo)(expr: PInvoke)(src: Meta): Writer[Either[(Vector[in.LocalVar], in.Stmt), in.Expr]] = {
       val (func, isPure) = info.resolve(expr.spec.get.func) match {
-        case Some(ap.Function(_, f)) => (f, f.isPure)
-        case Some(ap.Closure(_, c)) => (c, c.isPure)
-        case _ => violation("expected function or function literal")
+        case Some(t: ap.ClosureSpecTarget) => (t.symb, t.symb.isPure)
+        case _ => violation("expected closure spec or function literal")
       }
 
       val spec = closureSpecD(ctx, info)(expr.spec.get)
@@ -3927,6 +3927,27 @@ object Desugar extends LazyLogging {
       }
     }
 
+    /**
+      * Closure spec declarations are desugared to abstract functions, which are only used by the encoding of closures.
+      * The type checker ensures that closure spec declarations are never called directly.
+      */
+    def registerClosureSpec(decl: PClosureSpecDecl): in.FunctionMember = {
+      val proxy = in.FunctionProxy(idName(decl.id, info))(meta(decl, info))
+      val fsrc = meta(decl, info)
+      val emptyCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc))
+      val spec: in.FunctionMember = if (decl.spec.isPure) {
+        val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, emptyCtx, info)
+        in.PureFunction(proxy, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts,
+          funcInfo.terminationMeasures, funcInfo.backendAnnotations, None, isOpaque = false)(fsrc)
+      } else {
+        val funcInfo = functionMemberOrLitD(decl, fsrc, emptyCtx)
+        in.Function(proxy, funcInfo.args, funcInfo.results, funcInfo.pres, funcInfo.posts,
+          funcInfo.terminationMeasures, funcInfo.backendAnnotations, None)(fsrc)
+      }
+      definedFunctions += proxy -> spec
+      spec
+    }
+
     def registerMPredicate(decl: PMPredicateDecl): in.MPredicate = {
       val mPredProxy = mpredicateProxyD(decl, info)
       val mPred = mpredicateD(decl)
@@ -4070,6 +4091,7 @@ object Desugar extends LazyLogging {
 
     def idName(id: PIdnNode, context: TypeInfo): String = context.regular(id) match {
       case f: st.Function => nm.function(id.name, f.context)
+      case s: st.ClosureSpec => nm.closureSpec(id.name, s.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MethodSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.FPredicate => nm.function(id.name, f.context)
@@ -4095,6 +4117,7 @@ object Desugar extends LazyLogging {
         case decl: PFunctionDecl   => idName(decl.id, context)
         case decl: PMPredicateDecl => idName(decl.id, context)
         case decl: PFPredicateDecl => idName(decl.id, context)
+        case decl: PClosureSpecDecl => idName(decl.id, context)
         case decl: PMethodSig      => idName(decl.id, context)
         case decl: PMPredicateSig  => idName(decl.id, context)
         case decl: PDomainFunction => idName(decl.id, context)
@@ -4429,9 +4452,8 @@ object Desugar extends LazyLogging {
       */
     private def closureImplProofD(ctx: FunctionContext)(proof: PClosureImplProof): Writer[in.Stmt] = {
       val (func, funcTypeInfo) = info.resolve(proof.impl.spec.func) match {
-        case Some(ap.Function(_, f)) => (f, f.context.getTypeInfo)
-        case Some(ap.Closure(_, c)) => (c, c.context.getTypeInfo)
-        case _ => violation("expected function member or literal")
+        case Some(t: ap.ClosureSpecTarget) => (t.symb, t.symb.context.getTypeInfo)
+        case _ => violation("expected closure spec or function literal")
       }
 
       // Generate a new local variable for an argument or result of the spec function.
@@ -4502,11 +4524,7 @@ object Desugar extends LazyLogging {
               singleAss(in.Assignee(v), exp)(src)
           }
 
-      val fSpec = func match {
-        case f: st.Function => f.decl.spec
-        case c: st.Closure => c.lit.spec
-        case _ => violation("function or closure expected")
-      }
+      val fSpec = func.spec
 
       // Desugar the precondition of spec, replacing the argument and results with their aliases
       val pres = fSpec.pres map specificationD(newCtx, funcTypeInfo)
@@ -5110,7 +5128,7 @@ object Desugar extends LazyLogging {
             } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
           case _ => None
         }
-        case PFullPerm() => Some(unit(in.FullPerm(src)))
+        case PFullPerm() | PImplicitFullPerm() => Some(unit(in.FullPerm(src)))
         case PNoPerm() => Some(unit(in.NoPerm(src)))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
@@ -5173,6 +5191,7 @@ object Desugar extends LazyLogging {
     private val REFERENCE_PREFIX = "R"
     private val FUNCTION_PREFIX = "F"
     private val METHODSPEC_PREFIX = "S"
+    private val CLOSURE_SPEC_PREFIX = "CS"
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val PROGRAM_INIT_CODE_PREFIX = "$INIT"
@@ -5262,6 +5281,7 @@ object Desugar extends LazyLogging {
     def typ     (n: String, context: ExternalTypeInfo): String = topLevelName(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
     def function(n: String, context: ExternalTypeInfo): String = topLevelName(FUNCTION_PREFIX)(n, context)
+    def closureSpec(n: String, context: ExternalTypeInfo): String = topLevelName(CLOSURE_SPEC_PREFIX)(n, context)
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
       topLevelName(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {

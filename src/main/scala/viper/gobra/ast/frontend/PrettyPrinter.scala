@@ -144,7 +144,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case PMPredicateDecl(id, recv, args, body) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case decl: PClosureSpecDecl => showClosureSpecDecl(decl)
     }
+  }
+
+  def showClosureSpecDecl(decl: PClosureSpecDecl): Doc = {
+    val ghostDoc = if (decl.isGhost) "ghost" <> line else emptyDoc
+    ghostDoc <> showSpec(decl.spec) <> "spec" <+> showId(decl.id) <> parens(showParameterList(decl.args)) <> showResult(decl.result)
   }
 
   def showPure: Doc = "pure" <> line
@@ -559,11 +565,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PExists(vars, triggers, body) =>
         "exists" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
       case PImplication(left, right) => showSubExpr(expr, left) <+> "==>" <+> showSubExpr(expr, right)
-      case PAccess(exp, PFullPerm()) => "acc" <> parens(showExpr(exp))
+      case PAccess(exp, PImplicitFullPerm()) => "acc" <> parens(showExpr(exp))
       case PAccess(exp, perm) => "acc" <> parens(showExpr(exp) <> "," <+> showExpr(perm))
       case PPredicateAccess(exp, perm) => exp match {
-        case n: PInvoke if perm == PFullPerm() => showExpr(n)
-        case n: PExpression if perm == PFullPerm() => "acc" <> parens(showExpr(n))
+        case n: PInvoke if perm == PImplicitFullPerm() => showExpr(n)
+        case n: PExpression if perm == PImplicitFullPerm() => "acc" <> parens(showExpr(n))
         case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
       case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
@@ -608,7 +614,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
 
       case expr: PPermission => expr match {
-        case PFullPerm() => "write"
+        case PFullPerm() | PImplicitFullPerm() => "write"
         case PNoPerm() => "none"
         case PWildcardPerm() => "_"
       }
@@ -819,6 +825,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
         "pred" <+> showId(id) <> parens(showParameterList(args))
       case PMPredicateDecl(id, recv, args, _) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
+      case decl: PClosureSpecDecl => showClosureSpecDecl(decl)
     }
   }
 

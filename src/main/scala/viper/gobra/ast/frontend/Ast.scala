@@ -157,7 +157,17 @@ sealed trait PDependentDef extends PNode {
 sealed trait PCodeRoot extends PNode
 
 sealed trait PCodeRootWithResult extends PCodeRoot {
+  def args: Vector[PParameter]
   def result: PResult
+}
+
+/**
+  * A code root that carries a specification: a function or method declaration, a closure declaration, a closure
+  * spec declaration, or the signature of an interface method. Notably, this excludes `PMethodImplementationProof`,
+  * which inherits the specification of the interface method that it proves and thus does not have one of its own.
+  */
+sealed trait PCodeRootWithSpec extends PCodeRootWithResult {
+  def spec: PFunctionSpec
 }
 
 case class PConstDecl(specs: Vector[PConstSpec]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration
@@ -183,7 +193,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PFunctionOrClosureDecl with PFunctionOrMethodDecl with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                        ) extends PFunctionOrClosureDecl with PFunctionOrMethodDecl with PCodeRootWithSpec with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -192,7 +202,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PFunctionOrMethodDecl with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                      ) extends PFunctionOrMethodDecl with PDependentDef with PScope with PCodeRootWithSpec with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember with PDeclaration {
 
@@ -468,7 +478,7 @@ case class PFunctionLit(id: Option[PIdnDef], decl: PClosureDecl) extends PLitera
 case class PClosureDecl(args: Vector[PParameter],
                   result: PResult,
                   spec: PFunctionSpec,
-                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithResult with PActualMisc
+                  body: Option[(PBodyParameterInfo, PBlock)]) extends PFunctionOrClosureDecl with PCodeRootWithSpec with PWithBody with PActualMisc
 
 case class PClosureSpecInstance(func: PNameOrDot, params: Vector[PKeyedElement]) extends PGhostMisc {
   require(params.forall(p => p.exp.isInstanceOf[PExpCompositeVal]))
@@ -785,7 +795,7 @@ case class PInterfaceName(typ: PTypeName) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
-case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PDependentDef with PScope with PCodeRootWithResult
+case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PDependentDef with PScope with PCodeRootWithSpec
 
 /**
   * Identifiers
@@ -959,6 +969,24 @@ sealed trait PGhostMember extends PMember with PGhostNode
 
 case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMember with PGhostifier[PGhostifiableMember]
 
+/**
+  * Declaration of a closure specification, i.e., a specification that closures can be proven to implement and with
+  * which closures can be called (`c(args) as id{params}`). A closure spec declaration is not a function and,
+  * thus, it cannot be called directly and has no body.
+  *
+  * @param isGhost whether the closures specified by this spec are ghost. Note that this flag does not refer to the
+  *                declaration itself (which is always ghost code).
+  */
+case class PClosureSpecDecl(
+                             id: PIdnDef,
+                             args: Vector[PParameter],
+                             result: PResult,
+                             spec: PFunctionSpec,
+                             isGhost: Boolean
+                           ) extends PGhostMember with PFunctionOrClosureDecl with PCodeRootWithSpec {
+  override def body: Option[(PBodyParameterInfo, PBlock)] = None
+}
+
 case class PFPredicateDecl(
                          id: PIdnDef,
                          args: Vector[PParameter],
@@ -1081,6 +1109,8 @@ sealed trait PBinaryGhostExp extends PGhostExpression {
 
 sealed trait PPermission extends PGhostExpression
 case class PFullPerm() extends PPermission
+/** Full permission amount that was not written by the user, e.g., the amount of `acc(e)`. */
+case class PImplicitFullPerm() extends PPermission
 case class PNoPerm() extends PPermission
 case class PWildcardPerm() extends PPermission
 

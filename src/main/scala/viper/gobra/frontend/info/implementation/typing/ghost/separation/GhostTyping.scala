@@ -89,9 +89,13 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case (Left(_), Some(call: ap.FunctionCall)) =>
           if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
           else calleeGhostTyping(call)
-        case (Left(_), Some(_: ap.ClosureCall)) =>
+        case (Left(_), Some(call: ap.ClosureCall)) =>
           if (tryEnclosingClosureImplementationProof(n).nonEmpty) notGhost
-          else ghostExprTyping(n.base.asInstanceOf[PExpression])
+          else resolve(call.spec.func) match {
+            // calls with a spec that specifies ghost closures are ghost
+            case Some(t: ap.ClosureSpecTarget) if t.symb.specifiesGhostClosures => isGhost
+            case _ => ghostExprTyping(n.base.asInstanceOf[PExpression])
+          }
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }

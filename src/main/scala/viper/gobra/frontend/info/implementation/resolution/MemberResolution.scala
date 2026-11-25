@@ -52,9 +52,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     * whether a dereference has already been taken (`pastDeref`). Kiama's `attr` memoizes on its single argument
     * only, so they are parameterized attributes (`paramAttr`), whose cache is keyed on the parameter and on the
     * identity of the type. Each attribute is created exactly once and the recursion goes through the very same
-    * attribute, such that all calls, including the recursive ones, share its cache. (Previously, a fresh attribute
-    * was created on every call and on every recursive step, so the caches never produced a hit.) The attribute is
-    * a lazy value because it refers to itself.
+    * attribute, such that all calls, including the recursive ones, share its cache. The attribute is a
+    * lazy value because it refers to itself.
     */
   private val fieldSuffix: Type => AdvancedMemberSet[StructMember] = {
     lazy val attribute: Boolean => Type => AdvancedMemberSet[StructMember] = paramAttr[Boolean, Type, AdvancedMemberSet[StructMember]] { pastDeref => {

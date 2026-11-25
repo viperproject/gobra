@@ -67,7 +67,7 @@ type reader interface {
 	get() (r int)
 }
 
-// old expressions are not permitted in postconditions of pure closure specs
+// old expressions are not permitted in postconditions of ghost pure functions
 ghost
 pure
 //:: ExpectedOutput(type_error)

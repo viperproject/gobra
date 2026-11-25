@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Calls between methods of the same object in contracts (cf. the resource algebras in VerifiedSCION). All methods of
+// an interface value have the same level, the level of the receiver. Calls between them in contracts are ordered by the
+// rank of the interface methods: a method is above the interface methods called in its contract.
+// Values of interfaces without methods (`Elem`) cannot be called and do not contribute to default levels.
+
+type Elem interface{}
+
+type RA interface {
+	ghost
+	decreases
+	pure IsElem(e Elem) (res bool)
+
+	ghost
+	requires IsElem(e)
+	decreases
+	pure IsValid(e Elem) bool
+
+	ghost
+	requires IsElem(e1) && IsElem(e2)
+	ensures  IsElem(res)
+	decreases
+	pure Compose(e1 Elem, e2 Elem) (res Elem)
+}
+
+type Nat struct{}
+
+ghost
+decreases
+pure func (n Nat) IsElem(e Elem) (res bool) { return typeOf(e) == type[int] }
+
+ghost
+requires n.IsElem(e)
+decreases
+pure func (n Nat) IsValid(e Elem) bool { return e.(int) >= 0 }
+
+ghost
+requires n.IsElem(e1) && n.IsElem(e2)
+ensures  n.IsElem(res)
+decreases
+pure func (n Nat) Compose(e1 Elem, e2 Elem) (res Elem) { return Elem(e1.(int) + e2.(int)) }
+
+Nat implements RA
+
+// The default level of `Lifted` is its own atom plus the level of `ra`; `e1` and `e2` do not count.
+ghost
+requires ra != nil && ra.IsElem(e1) && ra.IsElem(e2)
+decreases
+pure func Lifted(ra RA, e1 Elem, e2 Elem) bool {
+	return ra.IsValid(ra.Compose(e1, e2))
+}
+
+// An implementation without local measures of an interface method with local measures. `Shape.Size` and `Shape` are
+// one atom (`Size` converts its receiver to an interface), so the implementation proof compares the local measures:
+// a member without local measures cannot call members of its own level, so its measure is below `n`.
+type Sized interface {
+	requires n >= 0
+	decreases n
+	Size(n int) int
+}
+
+type Shape struct{}
+
+requires n >= 0
+decreases
+func (s Shape) Size(n int) int {
+	var x Sized = s
+	return n
+}
+
+Shape implements Sized

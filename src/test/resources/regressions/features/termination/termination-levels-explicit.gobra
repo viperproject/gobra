@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Explicit levels (cf. Jacobs et al., Figs. 11 and 12): a member whose arguments may call each other has to reveal
+// this in its termination measure. Apart from that, termination measures do not reveal what members call.
+
+type Set interface {
+	decreases
+	Contains(x int) bool
+
+	// by default, the level of `Intersects` is the level of its receiver plus the level of `other`
+	requires other != nil
+	decreases
+	Intersects(other Set) bool
+}
+
+// `anyContains` calls both arguments, which do not call each other: the default level (the atom of `anyContains`
+// plus the maximum of the levels of the arguments) suffices.
+requires a != nil && b != nil
+decreases
+func anyContains(a Set, b Set, x int) bool {
+	return a.Contains(x) || b.Contains(x)
+}
+
+// Passing the same object twice is fine, as the default level uses the maximum of the levels of the arguments.
+requires a != nil
+decreases
+func contains(a Set, x int) bool {
+	return anyContains(a, a, x)
+}
+
+// `intersectsBad` lets its arguments call each other, which its default level does not account for.
+requires a != nil && b != nil
+decreases
+func intersectsBad(a Set, b Set) bool {
+	//:: ExpectedOutput(function_termination_error)
+	return a.Intersects(b)
+}
+
+// Revealing that the arguments may call each other makes the call verify.
+requires a != nil && b != nil
+decreases levelOf(a) + levelOf(b)
+func intersects(a Set, b Set) bool {
+	return a.Intersects(b)
+}

@@ -93,7 +93,11 @@ trait Enclosing { this: TypeInfoImpl =>
     }
 
   lazy val isEnclosingGhost: PNode => Boolean =
-    down(false){ case _: PGhostifier[_] | _: PGhostNode => true }
+    down(false){
+      case _: PGhostifier[_] | _: PGhostNode => true
+      // the parameters and results of ghost interface methods are ghost
+      case m: PMethodSig if m.isGhost => true
+    }
 
   // Returns true iff n occurs in an init() function, or a function marked with
   // 'mayInit' or in the rhs of a global variable declaration.

@@ -9,7 +9,7 @@ package viper.gobra.translator.transformers.hyper
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.{Config, Hyper}
 import viper.gobra.reporting.Source
-import viper.gobra.translator.transformers.ViperTransformer
+import viper.gobra.translator.transformers.{ModularTerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 import viper.silver.ast._
 import viper.silver.ast.utility.Simplifier
@@ -624,6 +624,8 @@ class SIFLowGuardTransformerImpl(config: Config) extends SIFLowGuardTransformer 
   def onlyMajor(p: Program): String => Boolean = {
     def nameBased(n: String): Boolean = n match {
       case n if n.endsWith("termination_proof") => true
+      // termination checks of functions, which are not relational (see [[ModularTerminationTransformer]])
+      case n if n.contains(s"_${ModularTerminationTransformer.checkMethodMarker}") => true
       case _ => false
     }
 

@@ -32,7 +32,7 @@ pred (e *errorString) ErrorMem() {
 
 ghost
 requires  acc(e.ErrorMem(), _)
-decreases
+decreases bottomLevel()
 pure func (e *errorString) IsDuplicableMem() bool {
     return true
 }
@@ -41,7 +41,7 @@ ghost
 preserves e.ErrorMem()
 ensures   e.IsDuplicableMem() == old(e.IsDuplicableMem())
 ensures   e.IsDuplicableMem() ==> e.ErrorMem()
-decreases
+decreases bottomLevel()
 func (e *errorString) Duplicate() {
     unfold e.ErrorMem()
     fold acc(e.ErrorMem(), 2/1)

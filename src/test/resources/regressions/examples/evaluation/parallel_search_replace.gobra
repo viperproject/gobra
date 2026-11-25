@@ -117,6 +117,8 @@ func SearchReplace(s []int, x, y int) {
     pseqs = pseqs ++ seq[pred()] { wpr }
     fold messagePerm{&wg,_,x,y}(section)
     c <- section
+    // the length invariant for the new offset: the sections before the new one cover `offset` elements
+    assert nextOffset == (len(seqs) - 1) * workRange + len(seqs[len(seqs) - 1])
     offset = nextOffset
   }
   wg.SetWaitMode(1/2,1/2)
@@ -135,6 +137,9 @@ func SearchReplace(s []int, x, y int) {
       up := down + len(seqs[i])
       s1 := s[down:up]
       unfold replacedPerm{seqs[i],s1,x,y}()
+      // the elements of this section in terms of `s0`, which keeps the proof of the invariant from depending on how
+      // the prover combines the quantified invariants of both loops
+      assert forall k int :: {&s1[k]} 0 <= k && k < len(s1) ==> s1[k] == (s0[down + k] == x ? y : s0[down + k])
       assert forall j int :: {&s[j]} down <= j && j < up ==> &s[j] == &s1[j-down]
     }
   }

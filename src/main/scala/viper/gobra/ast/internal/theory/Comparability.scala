@@ -51,6 +51,7 @@ object Comparability {
     case TypeHead.NilHD => Kind.Comparable
     case TypeHead.UnitHD => Kind.Comparable
     case TypeHead.PermHD => Kind.Comparable
+    case TypeHead.LevelHD => Kind.Comparable
     case TypeHead.SortHD => Kind.Comparable
     case TypeHead.SeqHD => Kind.Recursive
     case TypeHead.SetHD => Kind.Recursive

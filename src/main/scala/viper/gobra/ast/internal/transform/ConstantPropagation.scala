@@ -34,6 +34,7 @@ object ConstantPropagation extends InternalTransform {
       directMemberProxies = p.table.directMemberProxies,
       directInterfaceImplementations = p.table.directInterfaceImplementations,
       implementationProofPredicateAliases = p.table.implementationProofPredicateAliases,
+      terminationOrder = p.table.terminationOrder,
     )
 
     in.Program(

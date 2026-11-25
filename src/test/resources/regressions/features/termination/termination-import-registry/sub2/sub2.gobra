@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package sub2
+
+// ##(-I ../)
+import "reglib"
+
+ensures reglib.ConstructorLevel(1) < ownLevel()
+decreases
+func Register()

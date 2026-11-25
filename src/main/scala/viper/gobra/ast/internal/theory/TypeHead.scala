@@ -36,6 +36,7 @@ object TypeHead {
   case object NilHD extends TypeHead
   case object UnitHD extends TypeHead
   case object PermHD extends TypeHead
+  case object LevelHD extends TypeHead
   case object SortHD extends TypeHead
   case object SeqHD extends TypeHead
   case object SetHD extends TypeHead
@@ -73,6 +74,7 @@ object TypeHead {
     case _: ChannelT => ChannelHD
     case VoidT => UnitHD
     case _: PermissionT => PermHD
+    case _: LevelT => LevelHD
     case SortT => SortHD
     case t: ArrayT => ArrayHD(t.length)
     case _: SliceT => SliceHD
@@ -104,6 +106,7 @@ object TypeHead {
     case t: ChannelT => Vector(t.elem)
     case VoidT => Vector.empty
     case _: PermissionT => Vector.empty
+    case _: LevelT => Vector.empty
     case SortT => Vector.empty
     case t: ArrayT => Vector(t.elems)
     case t: SliceT => Vector(t.elems)
@@ -183,6 +186,7 @@ object TypeHead {
     case NilHD => 0
     case UnitHD => 0
     case PermHD => 0
+    case LevelHD => 0
     case SortHD => 0
     case SeqHD => 1
     case SetHD => 1

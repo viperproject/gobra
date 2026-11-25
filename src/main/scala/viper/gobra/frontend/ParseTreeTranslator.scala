@@ -240,6 +240,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     typ.name match {
       case "perm" => PPermissionType().at(typ)
       case "integer" => PIntegerGhostType().at(typ)
+      case "level" => PLevelType().at(typ)
       case "int" => PIntType().at(typ)
       case "int8" => PInt8Type().at(typ)
       case "int16" => PInt16Type().at(typ)

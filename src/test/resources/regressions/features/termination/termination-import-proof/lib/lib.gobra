@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package lib
+
+type I interface {
+	requires y != nil && levelOf(y) <= ownLevel()
+	decreases emptyLevel()
+	M(y I)
+}
+
+type K interface {
+	decreases
+	Foo()
+}
+
+type T struct{}
+
+decreases
+func (t T) Foo() {}
+
+T implements K
+
+// Converting t to K puts T.M into the component of T. The call is fine: the measure of I.M ends after the level,
+// whereas the measure of T.M continues. For the same reason, T does not implement I with this measure.
+requires y != nil && levelOf(y) <= levelOf(t)
+decreases emptyLevel(), 1
+func (t T) M(y I) {
+	var k K = t
+	y.M(y)
+}

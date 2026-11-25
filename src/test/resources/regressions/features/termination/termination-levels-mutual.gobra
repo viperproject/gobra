@@ -1,0 +1,72 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+// Dynamically bound mutual recursion between objects that do not know each other (cf. Jacobs et al., "Modular
+// Termination Verification of Single-Threaded and Multithreaded Programs", Fig. 14). Each method passes its receiver
+// to the other object. Thus, every call in the recursion has the same level (the levels of both objects) and the
+// local measure `n` decreases. The default levels suffice: the specs only mention the local measure.
+
+type IsEven interface {
+	requires n >= 0 && o != nil
+	ensures  res == (n % 2 == 0)
+	decreases n
+	IsEven(o IsOdd, n int) (res bool)
+}
+
+type IsOdd interface {
+	requires n >= 0 && e != nil
+	ensures  res == (n % 2 == 1)
+	decreases n
+	IsOdd(e IsEven, n int) (res bool)
+}
+
+type MyEven struct{}
+
+requires n >= 0 && o != nil
+ensures  res == (n % 2 == 0)
+decreases n
+func (m MyEven) IsEven(o IsOdd, n int) (res bool) {
+	if n == 0 {
+		return true
+	}
+	return o.IsOdd(m, n-1)
+}
+
+MyEven implements IsEven
+
+type MyOdd struct{}
+
+requires n >= 0 && e != nil
+ensures  res == (n % 2 == 1)
+decreases n
+func (m MyOdd) IsOdd(e IsEven, n int) (res bool) {
+	if n == 0 {
+		return false
+	}
+	return e.IsEven(m, n-1)
+}
+
+MyOdd implements IsOdd
+
+// An implementation whose recursion does not decrease the local measure.
+type BadOdd struct{}
+
+requires n >= 0 && e != nil
+ensures  res == (n % 2 == 1)
+decreases n
+func (m BadOdd) IsOdd(e IsEven, n int) (res bool) {
+	if n == 0 {
+		return false
+	}
+	//:: ExpectedOutput(function_termination_error)
+	return !e.IsEven(m, n)
+}
+
+BadOdd implements IsOdd
+
+decreases
+func client() bool {
+	return MyEven{}.IsEven(MyOdd{}, 10)
+}

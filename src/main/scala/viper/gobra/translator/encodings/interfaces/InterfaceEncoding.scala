@@ -15,6 +15,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
+import viper.gobra.translator.encodings.typeless.TerminationEncoding
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
@@ -772,8 +773,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
       isOpaque = false
     )(p.info))(ctx)
 
+    val imported = ctx.table.getTerminationOrder.isImported(p)
     val pres = vItfFun.pres.map { pre =>
-      instantiateInterfaceSpecForProof(pre, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+      val instantiated = instantiateInterfaceSpecForProof(pre, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+      TerminationEncoding.toProofMeasure(instantiated, imported)
     }
 
     val posts = vItfFun.posts.map { post =>
@@ -817,10 +820,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
       body = Some(body)
     )(p.info))(ctx)
 
+    val imported = ctx.table.getTerminationOrder.isImported(p)
     val pres = vItfMeth.pres.map { exp =>
       val variablesOfExp = vItfMeth.formalArgs.toVector ++ vItfMeth.formalReturns.toVector
       val parameters = p.args ++ p.results
-      instantiateInterfaceSpecForProof(exp, variablesOfExp, p.receiver, parameters, p.superT)(p)(ctx)
+      val instantiated = instantiateInterfaceSpecForProof(exp, variablesOfExp, p.receiver, parameters, p.superT)(p)(ctx)
+      TerminationEncoding.toProofMeasure(instantiated, imported)
     }
     val posts = vItfMeth.posts.map { exp =>
       val variablesOfExp = vItfMeth.formalArgs.toVector ++ vItfMeth.formalReturns.toVector

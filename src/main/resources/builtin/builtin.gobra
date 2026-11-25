@@ -16,16 +16,20 @@ type error interface {
 	// termination measure.
 	pred ErrorMem()
 
+	// `IsDuplicableMem` and `Duplicate` are in the bottom stratum of termination levels:
+	// they recurse over nested errors (e.g., the cause of a wrapping error), whose dynamic
+	// types are unknown, and terminate because ErrorMem() decreases. Their implementations
+	// may only call members of the bottom stratum.
 	ghost
 	requires  acc(ErrorMem(), _)
-	decreases ErrorMem()
+	decreases bottomLevel(), ErrorMem()
 	pure IsDuplicableMem() bool
 
 	ghost
 	preserves ErrorMem()
 	ensures   IsDuplicableMem() == old(IsDuplicableMem())
 	ensures   IsDuplicableMem() ==> ErrorMem()
-	decreases ErrorMem()
+	decreases bottomLevel(), ErrorMem()
 	Duplicate()
 
 	preserves ErrorMem()

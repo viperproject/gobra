@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package util
+
+// This package verifies on its own: `Loop` calls `i.M()`, whose level (the level of `i`) is below the level of `Loop`
+// (its own atom plus the level of `i`). Callers of `Loop` have to be above the level of the object they pass.
+
+type I interface {
+	decreases
+	M()
+}
+
+requires i != nil
+decreases
+func Loop(i I) {
+	i.M()
+}

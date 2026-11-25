@@ -6,8 +6,8 @@
 
 package viper.gobra.frontend.info.base
 
-import viper.gobra.ast.frontend.{PBoolType, PByte, PFloat32, PFloat64, PInt16Type, PInt32Type, PInt64Type, PInt8Type, PIntType, PIntegerGhostType, PPermissionType, PRune, PStringType, PType, PUInt16Type, PUInt32Type, PUInt64Type, PUInt8Type, PUIntPtr, PUIntType}
-import viper.gobra.frontend.info.base.Type.{BooleanT, Float32T, Float64T, IntT, PermissionT, StringT, Type}
+import viper.gobra.ast.frontend.{PBoolType, PByte, PFloat32, PFloat64, PInt16Type, PInt32Type, PInt64Type, PInt8Type, PIntType, PIntegerGhostType, PLevelType, PPermissionType, PRune, PStringType, PType, PUInt16Type, PUInt32Type, PUInt64Type, PUInt8Type, PUIntPtr, PUIntType}
+import viper.gobra.frontend.info.base.Type.{BooleanT, Float32T, Float64T, IntT, LevelT, PermissionT, StringT, Type}
 import viper.gobra.util.TypeBounds
 
 
@@ -86,6 +86,13 @@ object BuiltInMemberTag {
     override def ghost: Boolean = true
     override def typ: Type = IntT(TypeBounds.UnboundedInteger)
     override def node: PType = PIntegerGhostType()
+  }
+  case object LevelType extends BuiltInTypeTag {
+    override def identifier: String = "level"
+    override def name: String = "LevelType"
+    override def ghost: Boolean = true
+    override def typ: Type = LevelT
+    override def node: PType = PLevelType()
   }
   // signed integer types
   case object Rune extends BuiltInTypeTag {
@@ -228,6 +235,48 @@ object BuiltInMemberTag {
     override def isPure: Boolean = true
   }
 
+  /**
+    * `levelOf(e)` returns the termination level of an interface value, a function value (closure), or a value of a
+    * named type, i.e., the level of the calls that can be performed through that value.
+    */
+  case object LevelOfFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "levelOf"
+    override def name: String = "LevelOfFunctionTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
+  /** `emptyLevel()` returns the empty termination level, which is below every other level. */
+  case object EmptyLevelFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "emptyLevel"
+    override def name: String = "EmptyLevelFunctionTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
+  /**
+    * `bottomLevel()` denotes the empty level as well. As the first component of a termination measure, it places the
+    * member in the bottom stratum: the member has the empty level (without an atom of its own), may only call members of
+    * the bottom stratum, and terminates by its remaining measures.
+    */
+  case object BottomLevelFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "bottomLevel"
+    override def name: String = "BottomLevelFunctionTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
+  /**
+    * `ownLevel()` denotes the termination level of the member in whose contract it occurs (in the member's pre-state),
+    * e.g., to state that a member returns objects below its own level: `ensures levelOf(res) < ownLevel()`.
+    */
+  case object OwnLevelFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "ownLevel"
+    override def name: String = "OwnLevelFunctionTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
   /** Built-in FPredicate Tags */
 
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
@@ -337,6 +386,7 @@ object BuiltInMemberTag {
     StringType,
     PermissionType,
     IntegerType,
+    LevelType,
     // signed integer types
     Rune,
     IntType,
@@ -362,6 +412,10 @@ object BuiltInMemberTag {
     // fpredicates
     PredTrueFPredTag,
     InvariantFunctionTag,
+    LevelOfFunctionTag,
+    EmptyLevelFunctionTag,
+    BottomLevelFunctionTag,
+    OwnLevelFunctionTag,
     // methods
     BufferSizeMethodTag,
     SendGivenPermMethodTag,

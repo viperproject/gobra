@@ -98,6 +98,11 @@ object TypePatterns {
         underlyingType(arg)(ctx).isInstanceOf[in.PermissionT]
     }
 
+    object Level {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx).isInstanceOf[in.LevelT]
+    }
+
     object Array {
       def unapply(arg: in.Type): Option[(BigInt, in.Type)] = underlyingType(arg)(ctx) match {
         case t : in.ArrayT => Some(t.length, t.elems)

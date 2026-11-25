@@ -10,7 +10,9 @@ type I interface {
 
 type S struct{}
 
-//:: ExpectedOutput(function_termination_error)
+// The measure of the implementation (1) exceeds the measure of the interface method (0), which the implementation
+// proof reports. The call `i.m()` below decreases the measure from 1 to 0.
+//:: ExpectedOutput(generated_implementation_proof:function_termination_error)
 decreases 1
 func (s *S) m() {
 	var i I = new(S)

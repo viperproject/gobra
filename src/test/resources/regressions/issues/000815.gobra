@@ -74,3 +74,21 @@ pure
 ensures r == old(x)
 decreases
 func pureSpec(x int) (r int)
+
+// old expressions are not permitted in postconditions of pure closure specs
+//:: ExpectedOutput(type_error)
+ensures r == old(x)
+decreases
+pure spec pureClosureSpec(x int) (r int)
+
+// old expressions are not permitted in postconditions of pure closures
+func pureClosure() {
+	c :=
+		//:: ExpectedOutput(type_error)
+		ensures r == old(x)
+		decreases
+		pure func f(x int) (r int) {
+			return x
+		}
+	_ = c
+}

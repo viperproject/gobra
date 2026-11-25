@@ -711,10 +711,12 @@ case class InputConfig(
       } else {
         // either `input`, `directory`, `recursive` or `configFile` must be provided but not more than one.
         // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
-        requireOne(input, directory, recursive, configFile)
-        nonEmptyIfDefined(input)
-        nonEmptyIfDefined(directory)
-        nonFalseIfDefined(recursive)
+        validateConditions(
+          requireOne(input, directory, recursive, configFile),
+          nonEmptyIfDefined(input),
+          nonEmptyIfDefined(directory),
+          nonFalseIfDefined(recursive),
+        )
       },
       // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
       // Thus, we restrict their use:

@@ -23,13 +23,13 @@ ghost
 decreases
 ensures a > b ==> a == res
 ensures a <= b ==> b == res
-pure func max (a, b int) (res int) {
+pure func max (a, b integer) (res integer) {
     return a > b ? a : b
 }
 
 ghost
 decreases len(t)
-pure func depth(t tree) (res int) {
+pure func depth(t tree) (res integer) {
     return match t {
         case Node{_, ?l, ?r}: 1 + max(depth(l), depth(r))
         case Leaf{}: 0
@@ -38,7 +38,7 @@ pure func depth(t tree) (res int) {
 
 ghost
 decreases len(t)
-pure func count(t tree) (res int) {
+pure func count(t tree) (res integer) {
     return match t {
         case Node{_, ?l, ?r}: 1 + count(l) + count(r)
         case Leaf{}: 0
@@ -124,8 +124,9 @@ func lemma1()
 
 ghost
 decreases
-ensures forall x, y int :: {length(rep(x,y))} x >= 0 ==> length(rep(x, y)) == x
-func lemma2()
+requires x >= 0
+ensures length(rep(x, y)) == x
+func lemma2(x, y int)
 
 ghost
 decreases len(xs)
@@ -140,7 +141,7 @@ func proof2 (xs list) {
             unfold allNatrual(xs);
             unfold allNatrual(xs.tail);
             lemma1();
-            lemma2();
+            lemma2(n, v);
             proof2(t);
             fold allNatrual(xs.tail);
             fold allNatrual(xs);

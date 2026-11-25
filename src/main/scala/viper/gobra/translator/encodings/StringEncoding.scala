@@ -25,7 +25,13 @@ import viper.silver.plugin.standard.termination
 
 import scala.annotation.unused
 
-class StringEncoding extends LeafTypeEncoding {
+/**
+  * @param intUpperBound under bounded integer semantics, the configured `int` kind's maximum;
+  *                      string lengths are then axiomatized to be at most this bound (Go
+  *                      guarantees `len` of a string fits in `int`). `None` under
+  *                      `--unboundedIntegers`.
+  */
+class StringEncoding(intUpperBound: Option[BigInt] = None) extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
 
@@ -85,7 +91,8 @@ class StringEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = e.vprMeta
         for {
           baseExp <- goE(base)
-          indexExp <- goE(index)
+          // string indices are Viper Ints; project bounded-int indices via `from`
+          indexExp <- goE(viper.gobra.ast.internal.utility.IntKindAlignment.asUnboundedInt(index, underlyingType(index.typ)(ctx)))
         } yield stringIndex(baseExp, indexExp)(ctx)(pos, info, errT)
     }
   }
@@ -270,18 +277,23 @@ class StringEncoding extends LeafTypeEncoding {
     }
 
     /**
-      * Every string has a non-negative length:
+      * Every string has a non-negative length that fits in `int` (the bound is omitted under
+      * `--unboundedIntegers`):
       *   axiom {
-      *     forall x string :: { strLen(str) } 0 <= strLen(x)
+      *     forall x string :: { strLen(str) } 0 <= strLen(x) && strLen(x) <= MaxInt
       *   }
       */
     val lenAxiom = vpr.AnonymousDomainAxiom {
       val qtfVar = vpr.LocalVarDecl("str", stringType)()
       val lenApp = vpr.DomainFuncApp(lenFunc, Seq(qtfVar.localVar), Map.empty)()
+      val nonNeg: vpr.Exp = vpr.LeCmp(vpr.IntLit(0)(), lenApp)()
+      val bounded = intUpperBound.foldLeft(nonNeg) { (acc, bound) =>
+        vpr.And(acc, vpr.LeCmp(lenApp, vpr.IntLit(bound)())())()
+      }
       vpr.Forall(
         variables = Seq(qtfVar),
         triggers = Seq(vpr.Trigger(Seq(lenApp))()),
-        exp = vpr.LeCmp(vpr.IntLit(0)(), lenApp)()
+        exp = bounded
       )()
     }(domainName = domainName)
 
@@ -393,7 +405,10 @@ class StringEncoding extends LeafTypeEncoding {
       val info = Source.Parser.Internal
       val param1T = in.StringT(Addressability.Exclusive)
       val param1 = in.Parameter.In("s", param1T)(info)
-      val param2T = in.IntT(Addressability.Exclusive, TypeBounds.DefaultInt)
+      // Index is mathematical (the encoding's bound variables for string positions are
+      // unbounded `integer`). Declaring the formal as bounded `int` would produce a Viper
+      // sort mismatch when the call site passes a vpr.Int.
+      val param2T = in.IntT(Addressability.Exclusive, TypeBounds.UnboundedInteger)
       val param2 = in.Parameter.In("i", param2T)(info)
       val resT = in.IntT(Addressability.Exclusive, TypeBounds.Byte)
       val res = in.Parameter.Out("res", resT)(info)

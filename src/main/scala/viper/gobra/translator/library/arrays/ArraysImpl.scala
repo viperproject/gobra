@@ -88,11 +88,22 @@ class ArraysImpl extends Arrays {
       )()
     }(domainName = domainName)
 
+    // Go guarantees len fits in `int`: axiom { forall a :: {len(a)} len(a) <= MaxInt }
+    val lenUpperBounded = intUpperBound.map { bound =>
+      vpr.AnonymousDomainAxiom {
+        vpr.Forall(
+          Seq(aDecl),
+          Seq(vpr.Trigger(Seq(lenFuncApp))()),
+          vpr.LeCmp(lenFuncApp, vpr.IntLit(bound)())()
+        )()
+      }(domainName = domainName)
+    }
+
     val domain = vpr.Domain(
       name = domainName,
       typVars = Seq(typeVar),
       functions = Seq(locFunc, lenFunc, firstFunc, secondFunc),
-      axioms = Seq(injectivity, lenNonNeg)
+      axioms = Seq(injectivity, lenNonNeg) ++ lenUpperBounded
     )()
 
     generateDomain = true

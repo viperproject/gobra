@@ -32,6 +32,23 @@ object Translator {
       ConsistencyError(err.readableMessage, pos)
     }).toVector
 
+  // The bounded-integer arithmetic helpers are Viper functions, but semantically they are
+  // arithmetic: automatic trigger inference must not pick terms containing them (just like
+  // terms containing `+`), otherwise quantifiers over spec arithmetic like
+  // `forall i, j :: a[i][j] == i + j` end up with helper-application triggers that no ground
+  // term ever matches (constant arithmetic is folded). Installing the predicate on silver's
+  // global default trigger generation is idempotent and harmless under --unboundedIntegers,
+  // where the helper names never occur.
+  // Both hooks are needed: `isPossibleTrigger` stops helper applications from being picked as
+  // candidate trigger terms themselves, `isForbiddenInTrigger` makes them get factored out of
+  // larger candidate terms (like `+` would be).
+  viper.silver.ast.utility.Triggers.DefaultTriggerGeneration.setCustomIsPossibleTrigger {
+    case app: vpr.FuncApp if Names.isBoundedIntArithHelper(app.funcname) => false
+  }
+  viper.silver.ast.utility.Triggers.DefaultTriggerGeneration.setCustomIsForbiddenInTrigger {
+    case app: vpr.FuncApp if Names.isBoundedIntArithHelper(app.funcname) => true
+  }
+
   def translate(program: Program, pkgInfo: PackageInfo)(config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
     val translationConfig = new DfltTranslatorConfig()(config)
     val programTranslator = new ProgramsImpl()

@@ -33,11 +33,21 @@ func is_relaxed_prefix (pat []int, s []int) (res bool, ghost pivot int) {
   invariant forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
   invariant !res ==> shift == 1 && 1 < i
   invariant shift == 0 ==> forall k int :: 0 <= k && k < i ==> pat[k] == s[k]
+  // Sequence-level twins of the pointwise prefix invariants: the postcondition
+  // states prefix equality at the sequence level, and lifting the pointwise
+  // element facts to a sequence equality after the fact requires an
+  // extensionality chain through the bounded-int bridge functions that the
+  // prover does not reliably complete. Maintaining the equality at the
+  // sequence level keeps every inductive step a ground congruence step.
+  invariant shift == 0 ==> (toseq(pat))[:i] == (toseq(s))[:i]
   invariant shift == 0 ==> pivot == -1
   invariant shift == 1 ==> 0 <= pivot && pivot < i
   invariant shift == 1 ==> forall k int :: 0 <= k && k < pivot ==> pat[k] == s[k]
+  invariant shift == 1 ==> (toseq(pat))[:pivot] == (toseq(s))[:pivot]
   invariant shift == 1 ==> pat[pivot] != s[pivot]
   invariant shift == 1 && res ==> forall k int :: pivot < k && k < i ==> pat[k] == s[k - 1]
+  // sequence-level twin of the shifted-suffix invariant (see the prefix twins above)
+  invariant shift == 1 && res ==> (toseq(pat))[pivot+1:i] == (toseq(s))[pivot:i-1]
   invariant shift == 1 && !res ==> forall k int :: pivot < k && k < i - 1 ==> pat[k] == s[k - 1]
   invariant shift == 1 && !res ==> pat[i - 1] != s[i - 2]
   for (i < len(s) && i < len(pat) && res) {

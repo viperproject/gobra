@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Converting between a bounded integer kind and a float crashed the encoder
+// with a Viper consistency error ("Function fromIntTo64 ... cannot be applied
+// to ... Bounded_int"): the int<->float conversion functions operate on Viper
+// Ints, but a bounded operand encodes to a domain value. Found on
+// VerifiedSCION's router (dataplane.go) and verification/utils/floats.
+
+package floatIntConversionBridge
+
+decreases
+func intToFloat(i int, b byte, i32 int32) (float64, float32) {
+	f := float64(i)
+	g := float32(b)
+	h := float64(i32)
+	return f + h, g
+}
+
+decreases
+func floatToInt(f float64, g float32) (int, byte, int32) {
+	return int(f), byte(g), int32(f)
+}
+
+type Weight int64
+
+decreases
+func definedTypeRoundTrip(w Weight) float64 {
+	return float64(int64(w))
+}

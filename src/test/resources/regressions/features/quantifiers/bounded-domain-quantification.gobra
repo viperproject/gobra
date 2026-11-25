@@ -1,0 +1,69 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package boundedDomainQuantification
+
+// A quantified variable of a bounded integer kind ranges over exactly the
+// values of that type: the type's range is implicit in the quantifier.
+
+func rangeIsImplicit() {
+	assert forall x uint8 :: x >= 0
+	assert forall x uint8 :: x <= 255
+	assert forall x int8 :: -128 <= x && x <= 127
+	assert forall x int32 :: -2147483648 <= x && x <= 2147483647
+}
+
+// Existential witness finding needs a trigger-carrying term (a pre-existing
+// Silicon/Z3 limitation, independent of bounded kinds); with one, in-range
+// witnesses of a bounded existential are found.
+func existsWitnessInRange() {
+	assert ghostId(255) == 255
+	assert exists x uint8 :: { ghostId(x) } ghostId(x) == 255
+}
+
+ghost
+decreases
+pure func ghostId(x uint8) uint8 {
+	return x
+}
+
+func failsOutsideRange() {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert forall x uint8 :: x < 255
+}
+
+func noWitnessOutsideRange() {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert exists x uint8 :: x > 255
+}
+
+// The implicit range must also hold for variables only used at their domain
+// type (e.g. passed to a function), not just in arithmetic positions.
+ghost
+decreases
+pure func isSmall(x uint8) bool {
+	return x <= 255
+}
+
+func domainUseInRange() {
+	assert forall x uint8 :: isSmall(x)
+}
+
+// Quantified permissions keep working with bounded index variables: the
+// implicit range guard must not break the injectivity of &s[i].
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+ensures forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+func qpOverSlice(s []int) {
+	if len(s) > 0 {
+		s[0] = 42
+	}
+}
+
+// An assign-such-that over a bounded variable can only pick in-range values.
+ghost
+decreases
+func suchThatInRange() {
+	assert ghostId(7) == 7
+	var x uint8 :| ghostId(x) == 7
+	assert 0 <= x && x <= 255
+}

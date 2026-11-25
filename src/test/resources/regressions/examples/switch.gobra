@@ -3,11 +3,15 @@
 
 package pkg
 
+import "math"
+
 func main() {
     res := absValSwitch(-1)
     assert res == 1
 }
 
+// -1 * i overflows at i == MinInt64, so exclude it
+requires i > math.MinInt64
 ensures ret >= 0
 ensures i < 0 ==> ret == -1 * i
 func absValSwitch(i int) (ret int) {
@@ -44,6 +48,8 @@ func switchTest(i int)(ret int) {
     return ret
 }
 
+// i++ overflows at i == MaxInt64, so exclude it
+requires i < math.MaxInt64
 ensures i % 2 == 1 ==> ret == true
 ensures i % 2 == 0 ==> ret == false
 func isOdd(i int)(ret bool) {

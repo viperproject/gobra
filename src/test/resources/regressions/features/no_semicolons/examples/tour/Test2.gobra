@@ -4,11 +4,16 @@
 package trivial
 
 requires 0 <= n
-ensures 2*e == (n+1)*n
+// bound n so no product overflows and i++ up to n+1 stays in range
+requires n <= 1000000
+// stated as e == (n+1)*n/2 rather than 2*e == (n+1)*n: multiplying the sum e by
+// 2 would exceed the range where the bounded multiplication is provably exact,
+// whereas (n+1)*n and i*(i-1) keep both operands small.
+ensures e == (n+1)*n/2
 func sum(n int) (e int) {
   assert e == 0
   invariant 0 <= i && i <= n + 1
-  invariant 2*e == i*(i-1)
+  invariant e == i*(i-1)/2
   for i := 1; i <= n; i++ {
     e = e + i
   }

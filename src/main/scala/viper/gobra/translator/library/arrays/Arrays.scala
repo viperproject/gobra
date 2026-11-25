@@ -10,6 +10,15 @@ import viper.gobra.translator.library.Generator
 import viper.silver.{ast => vpr}
 
 trait Arrays extends Generator {
+  /**
+    * Upper bound for array lengths, set to the configured `int` kind's maximum under bounded
+    * integer semantics (`None` under `--unboundedIntegers`). Go guarantees that the number of
+    * elements of any array, slice, or string fits in `int`, so `len(a) <= MaxInt` is sound and
+    * needed for bounded-integer quantifiers to entail internally generated footprints over the
+    * unbounded length. Must be set before the first domain is generated.
+    */
+  var intUpperBound: Option[BigInt] = None
+
   def len(a: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.Exp
 
   def loc(a: vpr.Exp, i: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.Exp

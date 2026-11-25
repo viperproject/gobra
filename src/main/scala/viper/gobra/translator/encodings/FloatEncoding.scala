@@ -13,6 +13,8 @@ import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.ast.internal.utility.IntKindAlignment
+import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
 
 class FloatEncoding extends LeafTypeEncoding {
@@ -49,6 +51,20 @@ class FloatEncoding extends LeafTypeEncoding {
     * [ (x: floatX) / (y: floatX) ] -> divFloatX([ x ], [ y ])
     * [ floatX(x: int) ] -> fromIntToX([ x ])
     */
+  /** Projects a bounded-integer operand to its mathematical image (a no-op otherwise). */
+  private def asMathInt(ctx: Context)(e: in.Expr): in.Expr =
+    IntKindAlignment.asUnboundedInt(e, underlyingType(e.typ)(ctx))
+
+  /** Lifts an Int-typed Viper result into the domain of `typ`, if `typ` is a bounded kind. */
+  private def asDomainInt(ctx: Context)(typ: in.Type, e: vpr.Exp): vpr.Exp =
+    ctx.BoundedInt.unapply(typ) match {
+      case Some(k) =>
+        vpr.DomainFuncApp(
+          Names.boundedIntTo(k), Seq(e), Map.empty
+        )(e.pos, e.info, vpr.DomainType(Names.boundedIntDomain(k), Map.empty)(Seq.empty), Names.boundedIntDomain(k), e.errT)
+      case None => e
+    }
+
   override def expression(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expression(x)
@@ -74,14 +90,17 @@ class FloatEncoding extends LeafTypeEncoding {
         for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(divFloat32, Seq(lE, rE)), div)
       case div @ in.Div(l :: ctx.Float64(), r :: ctx.Float64()) =>
         for { lE <- goE(l); rE <- goE(r) } yield withSrc(vpr.FuncApp(divFloat64, Seq(lE, rE)), div)
+      // The int<->float conversion functions operate on Viper Ints, so a bounded-kind operand
+      // must be projected to its integer image on the way in, and a bounded-kind result lifted
+      // back into its domain on the way out.
       case conv@in.Conversion(in.Float32T(_), expr :: ctx.Int()) =>
-        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo32, Seq(e)), conv)
+        for { e <- goE(asMathInt(ctx)(expr)) } yield withSrc(vpr.FuncApp(fromIntTo32, Seq(e)), conv)
       case conv@in.Conversion(in.Float64T(_), expr :: ctx.Int()) =>
-        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(fromIntTo64, Seq(e)), conv)
+        for { e <- goE(asMathInt(ctx)(expr)) } yield withSrc(vpr.FuncApp(fromIntTo64, Seq(e)), conv)
       case conv@in.Conversion(in.IntT(_, _), expr :: ctx.Float32()) =>
-        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(from32ToInt, Seq(e)), conv)
+        for { e <- goE(expr) } yield asDomainInt(ctx)(conv.typ, withSrc(vpr.FuncApp(from32ToInt, Seq(e)), conv))
       case conv@in.Conversion(in.IntT(_, _), expr :: ctx.Float64()) =>
-        for { e <- goE(expr) } yield withSrc(vpr.FuncApp(from64ToInt, Seq(e)), conv)
+        for { e <- goE(expr) } yield asDomainInt(ctx)(conv.typ, withSrc(vpr.FuncApp(from64ToInt, Seq(e)), conv))
     }
   }
 

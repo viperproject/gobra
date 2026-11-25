@@ -39,6 +39,7 @@ case class ContextImpl(
                         typeEncoding: TypeEncoding,
                         defaultEncoding: DefaultEncoding,
                         table: LookupTable,
+                        unboundedIntegers: Boolean = false,
                         initialFreshCounterValue: Int = 0
                       ) extends Context {
 
@@ -60,6 +61,7 @@ case class ContextImpl(
       conf.typeEncoding,
       conf.defaultEncoding,
       table,
+      conf.unboundedIntegers,
     )
   }
 

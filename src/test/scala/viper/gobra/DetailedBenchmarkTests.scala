@@ -10,13 +10,12 @@ import java.nio.file.Path
 import org.scalatest.DoNotDiscover
 import scalaz.Scalaz.futureInstance
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.PackageResolver.{AbstractPackage, RegularPackage}
 import viper.gobra.frontend.Parser.ParseResult
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Desugar, Parser}
-import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, NegativeVerifierResult, VerifierResult}
+import viper.gobra.reporting.{BackTranslator, NegativeVerifierResult, VerifierResult}
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation
 
@@ -127,17 +126,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       })
 
     private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {
-      assert(config.isDefined)
-      val c = config.get
-      assert(c.packageInfoInputMap.size == 1)
-      val pkgInfo = c.packageInfoInputMap.keys.head
-      if (c.checkOverflows) {
-        val result = OverflowChecksTransform.transform(program)
-        c.reporter report AppliedInternalTransformsMessage(c.packageInfoInputMap(pkgInfo).map(_.name), () => result)
-        Right(result)
-      } else {
-        Right(program)
-      }
+      Right(program)
     })
 
     private val encoding = NextStep("Viper encoding", internalTransforming, (program: Program) => {

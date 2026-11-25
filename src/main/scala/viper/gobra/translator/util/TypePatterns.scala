@@ -11,6 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.context.Context
+import viper.gobra.util.TypeBounds
 
 import scala.annotation.tailrec
 
@@ -79,6 +80,38 @@ object TypePatterns {
     object Int {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.IntT]
+    }
+
+    /**
+      * Matches bounded integer types (int8, uint8, int32, etc.) and extracts the kind.
+      *
+      * Under `--unboundedIntegers` this pattern matches nothing: every integer is then treated as
+      * an unbounded `Int`, so bounded-integer handling (BoundedIntEncoding, the bounded comparison
+      * guards in MemoryEncoding, ...) is disabled and all integers flow through IntEncoding — exactly
+      * as before the sound bounded-integer semantics were introduced.
+      */
+    object BoundedInt {
+      def unapply(arg: in.Type): Option[TypeBounds.BoundedIntegerKind] =
+        if (ctx.unboundedIntegers) None
+        else underlyingType(arg)(ctx) match {
+          case in.IntT(_, k: TypeBounds.BoundedIntegerKind) => Some(k)
+          case _ => None
+        }
+    }
+
+    /**
+      * Matches the ghost `integer` type and untyped integer constants (both encode as vpr.Int).
+      *
+      * Under `--unboundedIntegers` this additionally matches every bounded integer kind, so that
+      * IntEncoding encodes all integers as the mathematical (unbounded) `Int`.
+      */
+    object UnboundedInt {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx) match {
+          case in.IntT(_, TypeBounds.UnboundedInteger | TypeBounds.UntypedConstInteger) => true
+          case _: in.IntT if ctx.unboundedIntegers => true
+          case _ => false
+        }
     }
 
     object Void {

@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+import "math"
+
+// The concrete-type integer limits from the math package are usable as the
+// (untyped) constants they are: assignable to the corresponding sized type
+// and to any wider one.
+func concreteLimits() {
+	var a int8 = math.MaxInt8
+	var b int8 = math.MinInt8
+	var c int16 = math.MaxInt16
+	var d int16 = math.MinInt16
+	var e int32 = math.MaxInt32
+	var f int32 = math.MinInt32
+	var g int64 = math.MaxInt64
+	var h int64 = math.MinInt64
+	var i uint8 = math.MaxUint8
+	var j uint16 = math.MaxUint16
+	var k uint32 = math.MaxUint32
+	var l uint64 = math.MaxUint64
+
+	assert a == 127 && b == -128
+	assert c == 32767 && d == -32768
+	assert e == 2147483647 && f == -2147483648
+	assert g == 9223372036854775807 && h == -9223372036854775808
+	assert i == 255 && j == 65535
+	assert k == 4294967295 && l == 18446744073709551615
+}
+
+// The limits work as spec-level bounds that exclude overflow.
+requires 0 <= n && n < math.MaxInt32
+ensures ret == n + 1
+decreases
+func incNoOverflow(n int32) (ret int32) {
+	return n + 1
+}

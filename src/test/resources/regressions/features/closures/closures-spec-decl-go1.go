@@ -5,7 +5,7 @@ package closuresSpecDeclGo1
 
 // Closure spec declarations in annotated Go files.
 
-//@ requires x >= 0
+//@ requires x >= 0 && x < 1000000 // upper bound keeps x + 1 exact in implementations
 //@ ensures r > x
 //@ spec greater(x int) (r int)
 

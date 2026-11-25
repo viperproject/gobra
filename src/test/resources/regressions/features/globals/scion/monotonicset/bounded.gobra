@@ -4,7 +4,7 @@
 package monotonicset
 
 type BoundedMonotonicSet struct {
-	ghost valuesMap dict[uint16](gpointer[bool])
+	ghost valuesMap dict[integer](gpointer[bool])
 }
 
 pred (b BoundedMonotonicSet) Inv() {

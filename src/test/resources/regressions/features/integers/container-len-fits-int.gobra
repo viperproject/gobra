@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Go guarantees that len/cap of arrays, slices, and strings fit in `int`.
+// Under bounded integer semantics this must be axiomatized: a user's
+// quantified footprint over an `int`-typed index variable (implicitly
+// range-guarded) must entail internally generated footprints that quantify
+// over the mathematical integers. Found on VerifiedSCION's pkg/addr, where
+// 'string(text)' under a standard slice footprint spec failed its
+// precondition.
+
+package containerLenFitsInt
+
+// the exact UnmarshalText pattern from VerifiedSCION pkg/addr
+preserves forall i int :: { &text[i] } 0 <= i && i < len(text) ==> acc(&text[i])
+decreases
+func byteSliceToString(text []byte) string {
+	return string(text)
+}
+
+// int is 64-bit by default (32-bit under --int32), so len/cap are bounded by MaxInt64
+decreases
+func sliceLenBounded(s []int) {
+	assert len(s) <= 9223372036854775807
+	assert cap(s) <= 9223372036854775807
+}
+
+decreases
+func stringLenBounded(s string) {
+	assert len(s) <= 9223372036854775807
+}
+
+requires forall i int :: { &a[i] } 0 <= i && i < len(a) ==> acc(&a[i], perm(1, 2))
+decreases
+func arrayViaSlice(a []byte) byte {
+	if len(a) > 0 {
+		return a[0]
+	}
+	return 0
+}

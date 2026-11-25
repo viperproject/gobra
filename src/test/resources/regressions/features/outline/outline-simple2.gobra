@@ -46,14 +46,14 @@ func test4() {
 
     x := 2
 
-    requires x > 0
+    requires 0 < x && x < 100
     ensures  x > 3
     outline (
         x += 1
 
         trusted
-        requires x > 1
-        ensures  x > 2
+        requires 1 < x && x < 101
+        ensures  2 < x && x < 102
         outline (
             x += 6
         )

@@ -11,7 +11,7 @@ import viper.silver.plugin.standard.termination
 import viper.gobra.translator.util.ViperUtil.synthesized
 import viper.silver.{ast => vpr}
 
-class SlicesImpl(val arrays : Arrays) extends Slices {
+class SlicesImpl(val arrays : Arrays, intUpperBound : Option[BigInt] = None) extends Slices {
   private val domainName : String = "Slice"
   private val typeVar : vpr.TypeVar = vpr.TypeVar("T")
   private val domainType: vpr.DomainType = vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type](typeVar -> typeVar))(Seq(typeVar))
@@ -117,6 +117,33 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
         vpr.LeCmp(vpr.IntLit(0)(), exp)()
       )()
     )(domainName = domainName)
+  }
+
+  /**
+    * Go guarantees that slice lengths and capacities fit in `int` (`len`/`cap` return `int`).
+    * Under bounded integer semantics these bounds make user quantifiers over `int`-typed
+    * indices (implicitly range-guarded) entail the internally generated footprints that
+    * quantify over the mathematical integers.
+    * {{{
+    * axiom slice_len_leq_maxint {
+    *   forall s : Slice[T] :: { slen(s) } slen(s) <= MaxInt
+    * }
+    * axiom slice_cap_leq_maxint {
+    *   forall s : Slice[T] :: { scap(s) } scap(s) <= MaxInt
+    * }
+    * }}}
+    */
+  private lazy val slice_bounded_length_axioms : Seq[vpr.DomainAxiom] = intUpperBound.toSeq.flatMap { bound =>
+    val sDecl = vpr.LocalVarDecl("s", domainType)()
+    Seq(len(sDecl.localVar)(), cap(sDecl.localVar)()).map { app =>
+      vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          Seq(sDecl),
+          Seq(vpr.Trigger(Seq(app))()),
+          vpr.LeCmp(app, vpr.IntLit(bound)())()
+        )()
+      )(domainName = domainName)
+    }
   }
 
   /**
@@ -349,7 +376,8 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
     Seq(sarray_func, soffset_func, slen_func, scap_func, smake_func),
     slice_offset_nonneg_axiom +: slice_len_nonneg_axiom +:
       slice_len_leq_cap_axiom +: slice_cap_leq_alen_axiom +:
-      slice_constructor_over_deconstructor +: slice_deconstructors_over_constructor,
+      slice_constructor_over_deconstructor +:
+      (slice_bounded_length_axioms ++ slice_deconstructors_over_constructor),
     Seq(typeVar)
   )()
 

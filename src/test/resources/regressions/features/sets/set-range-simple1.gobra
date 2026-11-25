@@ -19,7 +19,9 @@ func example3() {
 }
 
 func example4() {
-  assert set[1..4] == set[int] { 1, 2, 3 }
+  // range sets with untyped bounds have mathematical `integer` elements,
+  // so they are compared against set[integer] literals
+  assert set[1..4] == set[integer] { 1, 2, 3 }
   assert len(set[1..4]) == 3
 }
 
@@ -28,7 +30,7 @@ func example5() {
 }
 
 func example6() {
-  assert set[-4 .. -1] == set[int] { -4, -3, -2 }
+  assert set[-4 .. -1] == set[integer] { -4, -3, -2 }
 }
 
 func example7() {

@@ -25,7 +25,9 @@ type Client struct {
 	name string
 }
 
-// @ preserves PkgInv()
+// @ requires  PkgInv()
+// @ requires  HasIdHeadroom()
+// @ ensures   PkgInv()
 // @ ensures   res.Inv()
 // @ ensures   res.Allocated()
 // @ decreases

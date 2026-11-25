@@ -52,15 +52,15 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
     * If `recvType` is not an interface type, then the following function is generated:
     *
     *     function closureGet$[meth](self: [recvType]): Closure
-    *       decreases _ // the conversion always terminates
+    *       requires decreases _ // the conversion always terminates
     *
     * Otherwise, for interface types, the following function is generated:
     *
     *     function closureGet$[meth](thisItf: [recvType]): Closure
     *       requires [thisItf != nil]
+    *       requires decreases _ // the conversion always terminates
     *         // foreach type T that implements the interface type
     *       ensures [typeOf(thisItf) == T] ==> result == closureGet$[meth]([unbox(thisItf)])
-    *       decreases _ // the conversion always terminates
     *
     */
   private def genConversion(recvType: in.Type, meth: in.MethodProxy)(ctx: Context): vpr.Function = {

@@ -120,7 +120,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   /**
     * Well-definedness checks that every pure member must satisfy, whether it is a pure function, a pure method,
     * a pure closure, a pure closure spec, or the signature of a pure interface method: exactly one result, pure
-    * postconditions, no `preserves` clauses, non-variadic arguments, and termination measures that guarantee
+    * postconditions without `old` expressions, no `preserves` clauses, non-variadic arguments, and termination measures that guarantee
     * termination. Checks specific to a particular kind of member (e.g., `mayInit`) are added by the callers.
     */
   private[typing] def wellDefPureSpec(member: PCodeRootWithSpec): Messages = {
@@ -193,7 +193,10 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap isPureExpr
+  // pure members do not change the state, so their postconditions have no pre-state that `old` could refer to
+  private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap { post =>
+    isPureExpr(post) ++ (post +: allChildren(post)).flatMap(illegalOldNode(_, "postconditions of pure members"))
+  }
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])

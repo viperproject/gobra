@@ -6,7 +6,7 @@ package issue446
 type I interface {
     pred mem()
 
-    requires acc(mem(), _)
+    requires mem()
     ensures  r >= 5
     decreases
     pure f() (r int)
@@ -21,7 +21,7 @@ func client(i I) {
 type J interface {
     pred m()
 
-    requires acc(m(), _)
+    requires m()
     ensures  r <= 5
     decreases
     pure g() (r int)
@@ -36,10 +36,10 @@ pred (s *S) m() {
 }
 
 //:: ExpectedOutput(generated_implementation_proof:postcondition_error)
-requires acc(s.m(), _)
+requires s.m()
 decreases
 pure func (s *S) g() int {
-    return unfolding acc(s.m(), _) in s.x
+    return unfolding s.m() in s.x
 }
 
 (*S) implements J

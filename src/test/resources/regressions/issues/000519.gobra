@@ -6,7 +6,7 @@ package main
 type I interface {
 	pred Mem()
 
-	requires acc(Mem(), _)
+	requires Mem()
 	decreases
 	pure Value() int
 
@@ -24,10 +24,10 @@ pred (s *S) Mem() {
 	acc(&s.value)
 }
 
-requires acc(s.Mem(), _)
+requires s.Mem()
 decreases
 pure func (s *S) Value() int {
-	return unfolding acc(s.Mem(), _) in s.value
+	return unfolding s.Mem() in s.value
 }
 
 ensures i != nil

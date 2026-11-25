@@ -1109,6 +1109,8 @@ sealed trait PBinaryGhostExp extends PGhostExpression {
 
 sealed trait PPermission extends PGhostExpression
 case class PFullPerm() extends PPermission
+/** Full permission amount that was not written by the user, e.g., the amount of `acc(e)`. */
+case class PImplicitFullPerm() extends PPermission
 case class PNoPerm() extends PPermission
 case class PWildcardPerm() extends PPermission
 

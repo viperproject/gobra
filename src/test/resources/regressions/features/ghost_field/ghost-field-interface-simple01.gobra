@@ -10,17 +10,17 @@ type SomeIntf interface {
     pred Mem()
 
     decreases
-    requires acc(Mem(), _)
+    requires Mem()
     pure Get() int
 
     ghost
     decreases
-    requires acc(Mem(), _)
+    requires Mem()
     pure Get2() int
 }
 
 decreases
-requires s != nil && acc(s.Mem(), _)
+requires s != nil && s.Mem()
 pure func callee(s SomeIntf) int {
     return s.Get()
 }
@@ -66,9 +66,9 @@ pred (s *Testcase2Struct) Mem() {
 }
 
 decreases
-requires acc(s.Mem(), _)
+requires s.Mem()
 pure func (s *Testcase2Struct) Get() int {
-    return unfolding acc(s.Mem(), _) in s.actualField
+    return unfolding s.Mem() in s.actualField
 }
 
 ghost
@@ -98,16 +98,16 @@ pred (s *Testcase3Struct) Mem() {
 }
 
 decreases
-requires acc(s.Mem(), _)
+requires s.Mem()
 pure func (s *Testcase3Struct) Get() int {
-    return unfolding acc(s.Mem(), _) in s.actualField
+    return unfolding s.Mem() in s.actualField
 }
 
 ghost
 decreases
-requires acc(s.Mem(), _)
+requires s.Mem()
 pure func (s *Testcase3Struct) Get2() int {
-    return unfolding acc(s.Mem(), _) in s.ghostField
+    return unfolding s.Mem() in s.ghostField
 }
 
 func testcase3() {

@@ -6,7 +6,7 @@ package issue000893
 // Test 1: the "comma-ok" form of a map lookup can be used in a let expression
 
 ghost
-requires acc(m, _)
+requires acc(m)
 ensures res == (0 elem m)
 decreases
 pure func test1(m map[int]int) (res bool) {
@@ -14,7 +14,7 @@ pure func test1(m map[int]int) (res bool) {
 }
 
 ghost
-requires acc(m, _)
+requires acc(m)
 requires 0 elem m
 ensures res == m[0]
 decreases
@@ -23,7 +23,7 @@ pure func test2(m map[int]int) (res int) {
 }
 
 ghost
-requires acc(m, _)
+requires acc(m)
 ensures res == (0 elem m && m[0] == 42)
 decreases
 pure func test3(m map[int]int) (res bool) {

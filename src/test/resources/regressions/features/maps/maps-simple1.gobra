@@ -21,7 +21,7 @@ func test2(m map[int]int) int {
 	return len(m)
 }
 
-requires acc(m, _)
+requires acc(m)
 decreases
 pure func test3(m map[int]int) int {
 	return len(m)

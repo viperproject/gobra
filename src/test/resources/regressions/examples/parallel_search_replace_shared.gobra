@@ -4,7 +4,8 @@
 // this file is an adaptation of parallel_search_replace.gobra and uses shared variables in `worker` even though
 // exclusive variables could be used. The purpose is to measure annotation and verification overhead if the encoding of
 // shared variables would be used through Gobra (independent of the actual modifier).
-// Note that verifying this file might not terminate when using Z3 4.8.10. Use Z3 4.8.7 instead.
+// Note that verifying this file might not terminate when using Z3 4.8.10. Use the Z3 version that CI uses
+// (see workflow-container/Dockerfile) instead.
 
 package pkg
 

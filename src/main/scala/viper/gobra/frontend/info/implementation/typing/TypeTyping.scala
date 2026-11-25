@@ -75,24 +75,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         }
 
-        // The semantics of wildcard termination measures in interface method specifications is not clear.
-        // Thus, they are rejected.
-        val sigsWithWildcardMeasuresErrors = t.methSpecs.flatMap { sig =>
-          sig.spec.terminationMeasures.flatMap {
-            case w: PWildcardMeasure =>
-              error(w, s"Wildcard termination measures are not allowed in the specifications of interface methods.")
-            case _ => noMessages
-          }
-        }
-        val sigsWithConditionalMeasuresErrors = t.methSpecs.flatMap { sig =>
-          if (sig.isGhost || sig.spec.isPure)
-            noConditionalMeasureErrors(sig.spec.terminationMeasures)
-          else noMessages
-        }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
-          sigsWithWildcardMeasuresErrors ++
-          sigsWithConditionalMeasuresErrors ++
+          t.methSpecs.flatMap(wellDefMethodSig) ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

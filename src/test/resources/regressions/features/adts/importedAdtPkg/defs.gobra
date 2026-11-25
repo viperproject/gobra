@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package defs
+
+ghost type Tree adt {
+  Leaf{ Value int }
+  Node{ Left, Right Tree }
+}

@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, singleArgConverter}
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
+import viper.gobra.util.AbortSignal
 import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.frontend.Source.getPackageInfo
 import viper.gobra.util.TaskManagerMode.{Lazy, Parallel, Sequential, TaskManagerMode}
@@ -81,6 +82,7 @@ object ConfigDefaults {
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
   val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
+  val DefaultAssertTimeout: Option[Int] = None
 }
 
 object CliEnumConverter {
@@ -191,6 +193,8 @@ case class Config(
                    includeDirs: Vector[Path] = ConfigDefaults.DefaultIncludeDirs.map(_.toPath).toVector,
                    projectRoot: Path = ConfigDefaults.DefaultProjectRoot.toPath,
                    reporter: GobraReporter = ConfigDefaults.DefaultReporter,
+                   // signal to cooperatively abort a verification, which is used by Gobra-IDE
+                   abortSignal: AbortSignal = new AbortSignal(),
                    // `None` indicates that no backend has been specified and instructs Gobra to use the default backend
                    backend: Option[ViperBackend] = None,
                    isolate: Option[Vector[SourcePosition]] = None,
@@ -232,7 +236,6 @@ case class Config(
                    // `None` indicates that no mode has been specified and instructs Gobra to use the default hyper mode
                    hyperMode: Option[Hyper.Mode] = None,
                    enableExperimentalHyperFeatures: Boolean = ConfigDefaults.DefaultEnableExperimentalHyperFeatures,
-                   noVerify: Boolean = ConfigDefaults.DefaultNoVerify,
                    noStreamErrors: Boolean = ConfigDefaults.DefaultNoStreamErrors,
                    parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                    // when enabled, all quantifiers without triggers are rejected
@@ -243,6 +246,7 @@ case class Config(
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                    respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                   assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
 ) {
 
   /** Merges values from an InputConfig into this Config.
@@ -287,7 +291,7 @@ case class Config(
         case (Some(l), Some(r)) => Violation.violation(s"Unable to merge differing hyper modes from in-file configuration options, got $l and $r")
       },
       enableExperimentalHyperFeatures = enableExperimentalHyperFeatures || input.enableExperimentalHyperFeatures.value.contains(true),
-      noVerify = noVerify || input.noVerify.value.contains(true),
+      shouldVerify = shouldVerify && !input.noVerify.value.contains(true),
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
       requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
       disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
@@ -296,6 +300,10 @@ case class Config(
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
       respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
+      assertTimeout = (assertTimeout, input.assertTimeout.value) match {
+        case (Some(l), Some(r)) => Some(math.min(l, r))
+        case (l, r) => l orElse r
+      },
     )
   }
 
@@ -342,7 +350,7 @@ case class Config(
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
       "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
-      "noVerify" -> noVerify,
+      "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
       "noStreamErrors" -> noStreamErrors,
       "parseAndTypeCheckMode" -> parseAndTypeCheckMode,
     )
@@ -422,12 +430,13 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
                       respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
+                      assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
                      ) {
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
-  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding
+  def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding && !noVerify
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {
     val positions = isolate.flatMap{ case (path, idxs) => idxs.map(idx => SourcePosition(path, idx, 0)) }
@@ -505,6 +514,7 @@ case class InputConfig(
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
+  assertTimeout: InputConfigOption[Int] = InputConfigOption("assertTimeout", None),
 ) {
   /** Derived field: extracts just the files from cutInputWithIdxs */
   val cutInput: InputConfigOption[List[File]] = cutInputWithIdxs.map(_.map(_._1))
@@ -566,13 +576,14 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
+    assertTimeout = assertTimeout orElse other.assertTimeout,
   )
 
   /** Merges this config with another, combining values according to Config.merge semantics.
     * This config takes precedence for most fields, but some fields have special merge behavior:
     * - List fields (include, input, cutInputWithIdxs, directory): concatenate and deduplicate
     * - backend, hyperMode: must match if both defined
-    * - packageTimeout: takes minimum
+    * - packageTimeout, assertTimeout: takes minimum
     * - logLevel: takes minimum (more verbose)
     * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
     * - moreJoins: uses MoreJoins.merge */
@@ -668,6 +679,11 @@ case class InputConfig(
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
+      assertTimeout = InputConfigOption(assertTimeout.name, (assertTimeout.value, other.assertTimeout.value) match {
+        case (Some(l), Some(r)) => Some(math.min(l, r)) // take minimum
+        case (l, None) => l
+        case (None, r) => r
+      }),
     )
   }
 
@@ -749,6 +765,15 @@ case class InputConfig(
         Left(Vector(ConfigError("--disableNL can only be used with Silicon or ViperServer with Silicon.")))
       } else {
         Right(())
+      },
+      if (assertTimeout.value.isDefined && !isSiliconBasedBackend) {
+        Left(Vector(ConfigError("The flag --assertTimeout can only be used with Silicon or ViperServer with Silicon.")))
+      } else {
+        Right(())
+      },
+      assertTimeout.value match {
+        case Some(t) if t <= 0 => Left(Vector(ConfigError("--assertTimeout must be a positive integer (milliseconds).")))
+        case _ => Right(())
       },
       if (printConfig.value.contains(true) && configFile.value.isEmpty) {
         Left(Vector(ConfigError("--printConfig requires --config.")))
@@ -965,6 +990,7 @@ case class InputConfig(
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
     respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
+    assertTimeout = assertTimeout.value,
   )
 }
 
@@ -1004,6 +1030,7 @@ object InputConfig {
       moreJoins = InputConfigOption("moreJoins", resolvedCfg.more_joins),
       mceMode = InputConfigOption("mceMode", resolvedCfg.mce_mode),
       requireTriggers = InputConfigOption("requireTriggers", resolvedCfg.require_triggers),
+      assertTimeout = InputConfigOption("assertTimeout", resolvedCfg.assert_timeout),
     )
   }
 
@@ -1080,7 +1107,6 @@ trait RawConfig {
     mceMode = baseConfig.mceMode,
     hyperMode = baseConfig.hyperMode,
     enableExperimentalHyperFeatures = baseConfig.enableExperimentalHyperFeatures,
-    noVerify = baseConfig.noVerify,
     noStreamErrors = baseConfig.noStreamErrors,
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
@@ -1090,6 +1116,7 @@ trait RawConfig {
     moreJoins = baseConfig.moreJoins,
     respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
+    assertTimeout = baseConfig.assertTimeout,
   )
 }
 
@@ -1726,6 +1753,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true,
   )
 
+  val assertTimeout: ScallopOption[Int] = opt[Int](
+    name = "assertTimeout",
+    descr = "Sets a timeout (in milliseconds) for assert operations performed by Silicon. Does not have any effect on non-Silicon-based backends.",
+    default = ConfigDefaults.DefaultAssertTimeout,
+    noshort = true,
+  )
+
   // Required by Scallop before accessing option values
   verify()
 
@@ -1783,6 +1817,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),
+    assertTimeout = toInputConfigOption(assertTimeout),
   )
 
   /** Converts a ScallopOption to an InputConfigOption using the option's name and value.

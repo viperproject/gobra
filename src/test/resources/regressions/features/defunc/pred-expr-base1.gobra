@@ -41,3 +41,10 @@ func test4() {
 	//:: ExpectedOutput(fold_error)
 	fold Mutex.isValue(m, 4, 0)
 }
+
+// In older versions of Gobra, writing PredTrue() instead of PredTrue!<!>()
+// would cause an exception.
+requires PredTrue()
+func test5() {
+	unfold PredTrue()
+}

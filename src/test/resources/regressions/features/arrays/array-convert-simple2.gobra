@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// shared arrays can be converted to sequences as well, but doing so
+// requires (read) access to all of their elements
+
+func test1() {
+  var a@ [4]int
+  a[2] = 42
+  ghost xs := seq(a)
+  assert xs == seq[int] { 0, 0, 42, 0 }
+}
+
+func test2(a [4]int) {
+  share a
+  assert len(seq(a)) == 4
+}
+
+requires acc(p)
+func test3(p *[4]int) {
+  assert len(seq(*p)) == 4
+}
+
+requires acc(p, _)
+requires p[0] == 42
+func test4(p *[4]int) {
+  assert seq(*p)[0] == 42
+}
+
+func test5() {
+  a@ := [3]int { 1, 2, 4 }
+  assert seq(a) == seq[int] { 1, 2, 4 }
+  assert seq(a) == seq(a[:])
+}

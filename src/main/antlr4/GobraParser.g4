@@ -185,9 +185,10 @@ sqType: (kind=(SEQ | SET | MSET | OPT) L_BRACKET type_ R_BRACKET)
 
 // Specifications
 
-specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opaque = false;]:
+specification returns[boolean trusted = false, boolean pure = false, boolean mayInit = false, boolean opensInv = false, boolean atomic = false, boolean opaque = false;]:
   // Non-greedily match PURE to avoid missing eos errors.
-  ((specStatement | OPAQUE {$opaque = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | TRUSTED {$trusted = true;}) eos)*? (PURE {$pure = true;})? backendAnnotation?
+  // The order of the alternatives matches the order of the attributes in the `returns` clause above.
+  ((specStatement | TRUSTED {$trusted = true;} | PURE {$pure = true;} | MAYINIT {$mayInit = true;} | OPENSINV {$opensInv = true;} | ATOMIC {$atomic = true;} | OPAQUE {$opaque = true;}) eos)*? (PURE {$pure = true;})? (ATOMIC {$atomic = true;})? backendAnnotation?
   ;
 
 backendAnnotationEntry: ~('('|')'|',')+;
@@ -257,7 +258,13 @@ new_: NEW L_PAREN type_ R_PAREN;
 
 // Added specifications and parameter info
 
-specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque]);
+specMember: specification (functionDecl[$specification.trusted, $specification.pure, $specification.opaque] | methodDecl[$specification.trusted, $specification.pure, $specification.opaque] | closureSpecDecl);
+
+// Declaration of a closure specification, e.g., `requires x > 0; ensures r > 0; spec pos(x int) (r int)`.
+// `spec` is a contextual keyword (and not a reserved token) such that Go programs using `spec` as an identifier
+// remain parseable. A closure spec declaration starts with two consecutive identifiers, which is never valid Go at
+// the level of top-level declarations.
+closureSpecDecl: {isSpecKeyword()}? IDENTIFIER IDENTIFIER signature;
 
 functionDecl[boolean trusted, boolean pure, boolean opaque]:  FUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
 
@@ -370,7 +377,10 @@ statement:
   | selectStmt
   | specForStmt
   | deferStmt
+  | criticalStmt
   | closureImplProofStmt;
+
+criticalStmt: CRITICAL expression L_PAREN statementList? R_PAREN;
 
 applyStmt: APPLY expression;
 

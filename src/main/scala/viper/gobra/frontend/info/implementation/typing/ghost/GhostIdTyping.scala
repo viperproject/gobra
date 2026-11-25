@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
 import viper.gobra.ast.frontend.{PExpression, PFieldDecl, PIdnNode, PMatchAdt}
-import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, DomainFunction, GhostRegular, MatchVariable, Predicate}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, ClosureSpec, DomainFunction, GhostRegular, MatchVariable, Predicate}
 import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
@@ -37,6 +37,9 @@ trait GhostIdTyping { this: TypeInfoImpl =>
       case _ => unsafeMessage(true)
     }
     case _: BuiltInFPredicate | _: BuiltInMPredicate => LocalMessages(noMessages)
+    case s: ClosureSpec => unsafeMessage(! {
+      s.args.forall(wellDefMisc.valid) && miscType.valid(s.result)
+    })
   }
 
   private[typing] def ghostEntityType(entity: GhostRegular, @unused id: PIdnNode): Type = entity match {
@@ -44,6 +47,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case x: BoundVariable => typeSymbType(x.decl.typ)
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
     case func: DomainFunction => FunctionT(func.args map func.context.typ, func.context.typ(func.result.outs.head))
+    case s: ClosureSpec => FunctionT(s.args map s.context.typ, s.context.typ(s.result))
 
     case c: AdtClause =>
       val fields = c.fields.map(f => f.id.name -> c.context.symbType(f.typ))

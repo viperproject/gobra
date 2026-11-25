@@ -65,6 +65,11 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
           case (l, r) => identicalTypes(l, r)
         } && identicalTypes(lr, rr)
 
+      // regarding variadic types, the Go spec states in the "Type identity" subsection that "two function
+      // types are identical if ... parameter and result types are identical, and either both functions are
+      // variadic or neither is."
+      case (VariadicT(l), VariadicT(r)) => identicalTypes(l, r)
+
       case (PredT(larg), PredT(rarg)) =>
         larg.size == rarg.size && larg.zip(rarg).forall {
           case (l, r) => identicalTypes(l, r)

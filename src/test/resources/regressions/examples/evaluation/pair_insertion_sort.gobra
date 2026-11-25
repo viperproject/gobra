@@ -1,6 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+//:: IgnoreFile(/gobra/issue/234/)
+// Z3 4.12.0 and newer grow without bound on this file instead of finishing in seconds,
+// so the prover is killed and verification never reports a result.
+
 // VerifyThis'17 -- Challenge 1 (sortedness property only)
 
 package pkg

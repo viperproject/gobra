@@ -1,0 +1,110 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package mapsinterfacekey
+
+// Tests maps whose key type is an interface type. Keys with a concrete type must be implicitly
+// converted to the key type of the map, see https://github.com/viperproject/gobra/issues/1081.
+
+type Node interface {
+	pure
+	decreases
+	Pos() int
+}
+
+type BlockStmt struct {
+	list int
+}
+
+decreases
+pure func (b *BlockStmt) Pos() int {
+	return 0
+}
+
+type Metadata struct {
+	block int
+}
+
+// lookups with a key of a concrete type
+
+requires acc(m)
+func lookup1(m map[Node]*Metadata, b *BlockStmt) (md *Metadata, ok bool) {
+	md, ok = m[b]
+	return md, ok
+}
+
+requires acc(m)
+func lookup2(m map[Node]*Metadata, b *BlockStmt) *Metadata {
+	return m[b]
+}
+
+ghost
+requires acc(m)
+decreases
+pure func lookup3(m map[Node]*Metadata, b *BlockStmt) bool {
+	return b elem m
+}
+
+// a key of a concrete type denotes the same key as the corresponding interface value
+
+requires acc(m)
+func lookup4(m map[Node]*Metadata, b *BlockStmt) {
+	var n Node = b
+	assert (b elem m) == (n elem m)
+	assert m[b] == m[n]
+}
+
+// updates with a key of a concrete type
+
+requires acc(m)
+ensures acc(m)
+ensures b elem m && m[b] == md
+func update1(m map[Node]*Metadata, b *BlockStmt, md *Metadata) {
+	m[b] = md
+}
+
+requires acc(m)
+ensures acc(m)
+func update2(m map[Node]*Metadata, b *BlockStmt, md *Metadata) {
+	var n Node = b
+	m[b] = md
+	assert m[n] == md
+}
+
+// map literals with keys of a concrete type
+
+func lit1() {
+	b := &BlockStmt{}
+	md := &Metadata{}
+	m := map[Node]*Metadata{b: md}
+	assert b elem m
+	assert m[b] == md
+}
+
+func lit2() {
+	b := &BlockStmt{}
+	md := &Metadata{}
+	var n Node = b
+	m := map[Node]*Metadata{n: md}
+	assert b elem m
+	assert m[b] == md
+}
+
+// the same holds for mathematical maps
+
+ghost
+requires b elem domain(m)
+decreases
+pure func mathLookup(m dict[Node]*Metadata, b *BlockStmt) *Metadata {
+	return m[b]
+}
+
+ghost
+decreases
+func mathLookup2(m dict[Node]*Metadata, b *BlockStmt) {
+	var n Node = b
+	assert (b elem domain(m)) == (n elem domain(m))
+	if b elem domain(m) {
+		assert m[b] == m[n]
+	}
+}

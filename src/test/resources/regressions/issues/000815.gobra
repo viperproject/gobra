@@ -7,9 +7,9 @@ type cell struct {
 	value int
 }
 
+// old expressions are not permitted in postconditions of pure functions
 pure
 requires acc(c)
-// old expressions not allowed in postconditions of pure functions
 //:: ExpectedOutput(type_error)
 ensures r == old(c.value)
 decreases
@@ -17,12 +17,40 @@ func read(c *cell) (r int) {
 	return c.value
 }
 
-// old expressions not allowed in preconditions
+// old expressions are permitted in postconditions of non-pure functions
+requires acc(c)
+ensures acc(c) && c.value == old(c.value) + 1
+func incr(c *cell) {
+	c.value += 1
+}
+
+// old expressions are not permitted in preconditions
 //:: ExpectedOutput(type_error)
 requires old(true)
 func oldInPre()
 
-// old expressions not allowed in termination measures
+// old expressions are not permitted in termination measures of pure members
+pure
 //:: ExpectedOutput(type_error)
 decreases old(1)
-func oldInDecreasesClause()
+func oldInDecreasesPure() int
+
+// old expressions are not permitted in termination measures of non-pure members
+//:: ExpectedOutput(type_error)
+decreases old(1)
+func oldInDecreases()
+
+// old expressions are not permitted in conditions of termination measures
+//:: ExpectedOutput(type_error)
+decreases if old(true)
+func oldInDecreasesCond()
+
+// old expressions are permitted in termination measures of loops
+requires acc(c) && c.value >= 0
+func loop(c *cell) {
+	invariant acc(c) && 0 <= c.value && c.value <= old(c.value)
+	decreases old(c.value) - (old(c.value) - c.value)
+	for c.value > 0 {
+		c.value -= 1
+	}
+}

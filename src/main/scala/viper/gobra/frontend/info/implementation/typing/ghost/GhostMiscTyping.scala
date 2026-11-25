@@ -7,7 +7,6 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
-import viper.gobra.ast.frontend.PLabelNode.lhsLabel
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
@@ -22,11 +21,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case c@PClosureSpecInstance(id, _) => resolve(id) match {
-      case Some(ap.Function(_, f)) => wellDefClosureSpecInstanceParams(c, f.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
+      case Some(ap.ClosureSpec(_, s)) => wellDefClosureSpecInstanceParams(c, s.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
       case Some(ap.Closure(_, l)) => if (c.params.isEmpty || capturedLocalVariables(l.lit.decl).isEmpty)
         wellDefClosureSpecInstanceParams(c, l.args zip exprOrTypeType(id).asInstanceOf[FunctionT].args)
         else error(c, s"function literal ${l.lit.id.get} captures variables, so it cannot be used to derive a parametrized spec instance")
-      case _ => error(id, s"identifier $id does not identify a user-defined function or function literal")
+      case Some(_: ap.Function) => error(id, s"function $id cannot be used as a closure spec; closure specs have to be declared with 'spec' instead of 'func'")
+      case _ => error(id, s"identifier $id does not identify a closure spec declaration or a named function literal")
     }
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
@@ -101,9 +101,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       if (spec.paramKeys.isEmpty) fType.copy(args = fType.args.drop(params.size))
       else {
         val f = resolve(func) match {
-          case Some(ap.Function(_, f)) => f
-          case Some(ap.Closure(_, c)) => c
-          case _ => Violation.violation(s"expected a function or closure, but got $func")
+          case Some(t: ap.ClosureSpecTarget) => t.symb
+          case _ => Violation.violation(s"expected a closure spec or closure, but got $func")
         }
         val paramSet = spec.paramKeys.toSet
         fType.copy(args = (f.args zip fType.args).filter{
@@ -152,7 +151,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _) =>
+    case n@ PFunctionSpec(clauses, terminationMeasures, _, isPure, _, isOpaque, _, opensInvs, _) =>
       // Collect the named output parameters of the spec's owner so that we only
       // reject references to those (and not to outputs of an enclosing function,
       // method, or closure - which is relevant for outline statements and nested
@@ -167,55 +166,22 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       clauses.map(_.exp).flatMap(assignableToSpec) ++
       n.pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
-      presFreeOfOld(n.pres) ++
-      postsFreeOfOldIfPure(n.posts, isPure) ++
+      // termination measures of members are encoded as preconditions, so they cannot refer to the pre-state
+      terminationMeasures.flatMap(m => allChildren(m).flatMap(illegalOldNode(_, "termination measures"))) ++
+      // pure functions do not change the state, so their postconditions have no pre-state to refer to
+      (if (isPure) n.posts.flatMap(e => allChildren(e).flatMap(illegalOldNode(_, "postconditions of pure members"))) else noMessages) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures)) ++
-      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure)
+      error(n, "Opaque can only be used in combination with pure.", isOpaque && !isPure) ++
+      error(n, "Annotation 'opensInvariants' can only be used in ghost members.", opensInvs && !isEnclosingGhost(enclosingCodeRoot(n))) ++
+      error(n, "Annotation 'opensInvariants' can only be used in non-pure members.", opensInvs && isPure)
 
     case n@ PLoopSpec(invariants, terminationMeasure) =>
       invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
         error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
-  }
-
-  private[typing] def hasOldExpressionExceptValidWand(n: PExpression): Boolean =
-    (n +: allChildren(n)).exists {
-      case _: POld => true
-      case o: PLabeledOld if o.label.name == lhsLabel => !isEnclosingMagicWand(o)
-      case _: PLabeledOld => true
-      case _ => false
-    }
-
-  private def presFreeOfOld(pres: Vector[PExpression]): Messages = {
-    pres.flatMap { pre =>
-      error(pre, "old(_) expressions cannot occur in preconditions of functions and methods.", hasOldExpressionExceptValidWand(pre))
-    }
-  }
-
-  private def postsFreeOfOldIfPure(posts: Vector[PExpression], isPure: Boolean): Messages = {
-    if (isPure)
-      posts.flatMap { post =>
-        error(post, "old(_) expressions cannot occur in postconditions of pure functions.", hasOldExpressionExceptValidWand(post))
-      }
-    else
-      noMessages
-  }
-
-  private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
-    case PTupleTerminationMeasure(tuple, cond) =>
-      tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
-        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p)) ++
-        (tuple ++ cond).flatMap { expr =>
-          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpressionExceptValidWand(expr))
-        }
-    case PWildcardMeasure(cond) =>
-      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p)) ++
-        cond.map { expr =>
-          error(expr, "old(_) expressions cannot occur in termination measures.", hasOldExpressionExceptValidWand(expr))
-        }.getOrElse(noMessages)
   }
 
   private def wellDefClosureSpecInstanceParams(c: PClosureSpecInstance, fArgs: Vector[(PParameter, Type)]): Messages = c match {
@@ -247,25 +213,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => error(c, "mixture of 'field:expression' and 'expression' elements in closure spec instance")
   }
 
-  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
-    case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
-    case PWildcardMeasure(cond) => cond.nonEmpty
-  }
-
-  private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
-    measures.flatMap { m =>
-      error(m,
-        "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
-        isConditional(m))
-    }
-
-  private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
-    val tupleMeasureTypes =
-      measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
-              .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
-    tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
-  }
-
   def assignableToSpec(e: PExpression): Messages = {
     val mayInit = isEnclosingMayInit(e)
     isExpr(e).out ++ assignableTo.errors(exprType(e), AssertionT, mayInit)(e) ++ isWeaklyPureExpr(e)
@@ -273,9 +220,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def illegalPreconditionNode(n: PNode, ownOutParams: Vector[PNamedParameter]): Messages = {
     n match {
-      case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
-      case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
-      case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
+      case n@ (_: POld | _: PLabeledOld | _: PBefore) => illegalOldNode(n, "preconditions")
       case id: PIdnUse => entity(id) match {
         case op: SymbolTable.OutParameter if ownOutParams.exists(_ eq op.decl) =>
           message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
@@ -283,6 +228,16 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       case _ => noMessages
     }
+  }
+
+  /**
+    * Reports `old`, labeled `old`, and `before` expressions, which are not permitted in `context`.
+    * The `lhs` label is exempt, as it refers to the state of the left-hand side of an enclosing magic wand.
+    */
+  private def illegalOldNode(n: PNode, context: String): Messages = n match {
+    case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
+    case _: POld | _: PLabeledOld | _: PBefore => message(n, s"old expressions are not permitted in $context")
+    case _ => noMessages
   }
 
   /** Returns the type matched by the wildcard `w`. */

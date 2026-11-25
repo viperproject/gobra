@@ -79,6 +79,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PSeq
       |  _: PExpressionStmt
       |  _: POutline
+      |  _: PCritical
       | _: PShortForRange
       | _: PAssForRange
     => noMessages
@@ -142,7 +143,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
           // call must be in a ghost context and callee must be actual and impure
           isEnclosingGhost(n) && !calleeGhostTyping(call).isGhost && isPureExpr(n).nonEmpty) ++
           ghostAssignableToCallExpr(call)
-      case (Left(_), Some(call: ap.ClosureCall)) => ghostAssignableToClosureCall(call)
+      case (Left(_), Some(call: ap.ClosureCall)) =>
+        val target = closureSpecTarget(call.spec)
+        error(n, s"ghost error: Found call to a closure with spec ${call.spec}, which specifies neither ghost nor pure closures, in ghost code or with a ghost closure",
+          // as for functions, only ghost or pure closures may be called in ghost code. Calls with a ghost callee are ghost.
+          (isEnclosingGhost(n) || isExprGhost(call.callee)) && !target.specifiesGhostClosures && !target.isPure) ++
+          ghostAssignableToClosureCall(call)
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")

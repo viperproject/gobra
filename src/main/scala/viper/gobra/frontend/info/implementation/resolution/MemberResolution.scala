@@ -201,7 +201,24 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   // Interfaces
 
-  lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
+  /** Returns the method set of interface `t`.
+    * The computation is delegated to the context owning the interface's declaration such that the
+    * names of embedded interfaces are resolved in the tree they belong to and such that all
+    * importers share the owning context's cached results.
+    **/
+  def interfaceMethodSet(t: InterfaceT): AdvancedMemberSet[TypeMember] =
+    t.context.localInterfaceMethodSet(t)
+
+  /** Returns the method set of interface `t`, whose declaration must belong to this context.
+    * The purpose of this method is that typecheckers of other packages access it to compute
+    * [[interfaceMethodSet]].
+    **/
+  override def localInterfaceMethodSet(t: InterfaceT): AdvancedMemberSet[TypeMember] = {
+    Violation.violation(t.context == this, s"interface ${t.decl} does not belong to this context")
+    interfaceMethodSetAttr(t)
+  }
+
+  private lazy val interfaceMethodSetAttr: InterfaceT => AdvancedMemberSet[TypeMember] =
     attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
       case InterfaceT(PInterfaceType(es, methSpecs, predSpecs), ctxt) =>
         val topLevel = AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
@@ -209,9 +226,11 @@ trait MemberResolution { this: TypeInfoImpl =>
         AdvancedMemberSet.union {
           topLevel +: es.map(e => interfaceMethodSet(
             entity(e.typ.id) match {
-              // TODO: might break for imported interfaces
-              case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt)
-              case _ => ???
+              case NamedType(PTypeDef(t: PInterfaceType, _), _, ownerCtxt) =>
+                ownerCtxt.symbType(t) match {
+                  case itf: InterfaceT => itf
+                  case other => Violation.violation(s"expected interface type, but got $other")
+                }
             }
           ).promoteItf(e.typ.name))
         }

@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.slices
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
-import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
+import viper.gobra.reporting.{ArrayMakePreconditionError, InsufficientPermissionError, LoadError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -36,6 +36,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     fullSliceFromSliceGenerator.finalize(addMemberFn)
     sliceFromArrayGenerator.finalize(addMemberFn)
     sliceFromSliceGenerator.finalize(addMemberFn)
+    sliceToSeqGenerator.finalize(addMemberFn)
     nilSliceGenerator.finalize(addMemberFn)
   }
 
@@ -76,6 +77,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * R[ (e: *[n]T)[e1:e2:e3] ] -> fullSliceFromArray([*e], [e1], [e2], [e3])
     * R[ (e: []T)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
     * R[ (e: []T)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
+    * R[ seq(e: []T) ] -> sliceToSeq([e])
     *
     */
   override def expression(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
@@ -125,6 +127,16 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case None => withSrc(sliceFromSlice(baseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromSlice(baseT, lowT, highT, maxT)(ctx), exp)
       }
+
+      case exp @ in.SequenceConversion(base :: ctx.Slice(t)) =>
+        val (pos, info, errT) = exp.vprMeta
+        for {
+          baseT <- goE(base)
+          res <- funcAppPrecondition(
+            sliceToSeq(baseT, in.SliceT(t, Exclusive))(ctx)(pos, info, errT),
+            { case (info, _) => LoadError(info) dueTo InsufficientPermissionError(info) }
+          )
+        } yield res
     }
   }
 
@@ -324,6 +336,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     val typ = base.typ.asInstanceOf[vpr.DomainType].typeArguments.head
     sliceFromArrayGenerator(Vector(base, i, j), typ)(pos, info, errT)(ctx)
   }
+
+  /** An application of the "ssliceToSeq" Viper function. */
+  private def sliceToSeq(base : vpr.Exp, typ : in.SliceT)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
+    sliceToSeqGenerator(Vector(base), typ)(pos, info, errT)(ctx)
 
   /** An application of the "ssliceFromSlice" Viper function. */
   private def sliceFromSlice(base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp = {
@@ -617,6 +633,74 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         Seq(pre1, pre2, pre3, pre4),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
+      )()
+    }
+  }
+
+  /**
+    * Definition of the "ssliceToSeq" Viper function that converts a slice into the
+    * (mathematical) sequence of the values that are stored in the first `slen(s)` cells
+    * of the slice. This function is used in the Gobra translation of the conversion
+    * "seq(s)", where the base "s" is a slice. Note that read access to the cells of the
+    * slice is required, as the result of the conversion depends on the heap.
+    *
+    * {{{
+    * function ssliceToSeq(s : Slice[T]) : Seq[T]
+    *   requires forall i : Int :: { sloc(s, i) } 0 <= i && i < slen(s) ==> Footprint[ s[i], wildcard ]
+    *   ensures |result| == slen(s)
+    *   ensures forall i : Int :: { result[i] } { sloc(s, i) } 0 <= i && i < slen(s) ==> [ result[i] === s[i] ]
+    *   decreases _
+    * }}}
+    */
+  private val sliceToSeqGenerator : FunctionGenerator[in.SliceT] = new FunctionGenerator[in.SliceT] {
+    def genFunction(sliceT : in.SliceT)(ctx : Context) : vpr.Function = {
+      val src = Source.Parser.Internal
+      val seqT = sliceT.sequence
+      val vSeqT = ctx.typ(seqT)
+      val vResult = vpr.Result(vSeqT)()
+
+      // the name of the argument does not matter because it is the only argument
+      val s = in.LocalVar("s", sliceT)(src)
+      val vSDecl = ctx.variable(s)
+      val vS = vSDecl.localVar
+      // the name does not matter because all of its occurrences are replaced by `vpr.Result`
+      val res = in.LocalVar("res", seqT)(src)
+      def withResult(e : vpr.Exp) : vpr.Exp =
+        e.transform { case v : vpr.LocalVar if v.name == res.id => vResult }
+
+      // preconditions
+      val pre1 = pure(getCellPerms(ctx)(s, in.WildcardPerm(src), SliceBound.Len))(ctx).res
+      val pre2 = synthesized(termination.DecreasesWildcard(None))("This function is assumed to terminate")
+
+      // postconditions
+      val post1 = vpr.EqCmp(vpr.SeqLength(vResult)(), ctx.slice.len(vS)())()
+
+      val idx = in.BoundVar("i", in.IntT(Exclusive))(src)
+      val vIdxDecl = ctx.variable(idx)
+      val vIdx = vIdxDecl.localVar
+      // `ctx.equal` is the encoding of ghost equality (`===`), not of Go equality (`==`), which is
+      // encoded by `ctx.goEqual`. Ghost equality is the right choice here because the elements of the
+      // resulting sequence are the values stored in the slice; using Go equality would, e.g., relate
+      // no sequence at all to a slice of floats that stores a NaN.
+      val elemEq = withResult(
+        pure(ctx.equal(in.IndexedExp(res, idx, seqT)(src), in.IndexedExp(s, idx, sliceT)(src))(s))(ctx).res
+      )
+      val post2 = vpr.Forall(
+        variables = Seq(vIdxDecl),
+        triggers = Seq(
+          vpr.Trigger(Seq(vpr.SeqIndex(vResult, vIdx)()))(),
+          vpr.Trigger(Seq(ctx.slice.loc(vS, vIdx)()))()
+        ),
+        exp = vpr.Implies(boundaryCondition(vIdx, ctx.slice.len(vS)())(s), elemEq)()
+      )()
+
+      vpr.Function(
+        s"${Names.sliceToSequence}_${Names.serializeType(sliceT.elems)}",
+        Seq(vSDecl),
+        vSeqT,
+        Seq(pre1, pre2),
+        Seq(post1, post2),
+        None
       )()
     }
   }

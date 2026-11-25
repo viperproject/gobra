@@ -1,0 +1,102 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue000893
+
+// Test 1: the "comma-ok" form of a map lookup can be used in a let expression
+
+ghost
+requires acc(m, _)
+ensures res == (0 elem m)
+pure func test1(m map[int]int) (res bool) {
+	return let v, ok := m[0] in ok
+}
+
+ghost
+requires acc(m, _)
+requires 0 elem m
+ensures res == m[0]
+pure func test2(m map[int]int) (res int) {
+	return let v, ok := m[0] in v
+}
+
+ghost
+requires acc(m, _)
+ensures res == (0 elem m && m[0] == 42)
+pure func test3(m map[int]int) (res bool) {
+	return let v, ok := m[0] in ok && v == 42
+}
+
+// looking up a key in a nil map never succeeds and returns the zero value
+func test4() {
+	var m map[int]int
+	assert m == nil
+	assert !(let v, ok := m[0] in ok)
+	assert (let v, ok := m[0] in v) == 0
+}
+
+// the "comma-ok" form of a map lookup can also be used in assertions
+
+requires acc(m)
+requires let v, ok := m[0] in ok && v == 42
+func test5(m map[int]int) {
+	assert 0 elem m
+	assert m[0] == 42
+}
+
+requires acc(m)
+requires let x, ok := m[0] in ok
+ensures res
+func test6(m map[int]int) (res bool) {
+	_, ok := m[0]
+	return ok
+}
+
+// the same holds for mathematical maps, for which the zero value of the value
+// type is bound if the key is not contained in the domain of the map
+
+ghost
+ensures res == (0 elem domain(d))
+pure func test7(d dict[int]int) (res bool) {
+	return let v, ok := d[0] in ok
+}
+
+ghost
+ensures 0 elem domain(d) ==> res == d[0]
+ensures !(0 elem domain(d)) ==> res == 0
+pure func test8(d dict[int]int) (res int) {
+	return let v, ok := d[0] in v
+}
+
+// Test 2: the result of a map lookup can be compared to nil
+
+requires acc(m)
+requires 0 elem m ==> m[0] != nil
+func test9(m map[int]*int) {
+	assert 0 elem m ==> m[0] != nil
+}
+
+requires acc(m)
+requires 0 elem m ==> nil == m[0]
+func test10(m map[int]*int) {
+	assert 0 elem m ==> m[0] == nil
+}
+
+requires acc(m)
+requires 0 elem m ==> m[0] != nil
+func test11(m map[int][]int) {
+	assert 0 elem m ==> m[0] != nil
+}
+
+ghost
+requires 0 elem domain(d)
+ensures res == (d[0] == nil)
+pure func test12(d dict[int]*int) (res bool) {
+	return d[0] == nil
+}
+
+func test13() {
+	d := dict[int]int{1: 5}
+	assert let v, ok := d[1] in ok && v == 5
+	assert let v, ok := d[0] in !ok && v == 0
+}

@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// converting a slice to a sequence requires (read) access to its elements
+func test1(s []int) {
+  //:: ExpectedOutput(load_error:permission_error)
+  assert len(seq(s)) == len(s)
+}

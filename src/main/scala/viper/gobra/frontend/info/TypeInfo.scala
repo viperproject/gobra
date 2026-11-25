@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{MethodImpl, MethodSpec, Regul
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 import viper.gobra.theory.Addressability
+import viper.gobra.util.GoString
 
 trait TypeInfo extends ExternalTypeInfo {
 
@@ -45,7 +46,7 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def evalBoolOrFail(exp: PExpression): Boolean
   def evalIntOrFail(exp: PExpression): BigInt
-  def evalStringOrFail(exp: PExpression): String
+  def evalStringOrFail(exp: PExpression): GoString
   def evalPermOrFail(exp: PExpression): (BigInt, BigInt)
 
   val globalVarDeclsSortedByDeps: PProgram => Vector[PVarDecl]

@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I ../)
+
+import "bar"
+
+// Importing a package with a 'mayInit' member must not produce errors: the 'mayInit'
+// annotation must survive the spec-only parsing of imported packages (and, in
+// particular, must not be turned into an 'atomic' annotation).
+ensures res == 4
+decreases
+func four() (res int) {
+	return bar.Double(2)
+}

@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// tests bound checks during type checking
+
+func invalidEndpoints() {
+	underlyingArray := new([0]int)
+	//:: ExpectedOutput(type_error)
+	_ = underlyingArray[-1:0]
+	//:: ExpectedOutput(type_error)
+	_ = underlyingArray[0:1]
+}
+
+func invalidOrdering() {
+	underlyingArray := new([1]int)
+	//:: ExpectedOutput(type_error)
+	_ = underlyingArray[1:0]
+	//:: ExpectedOutput(type_error)
+	_ = underlyingArray[0:1:0]
+}
+
+func invalidArrayOrdering() {
+	underlyingArray := [1]int{}
+	//:: ExpectedOutput(type_error)
+	_ = underlyingArray[1:0]
+	//:: ExpectedOutput(type_error)
+	_ = underlyingArray[0:1:0]
+}

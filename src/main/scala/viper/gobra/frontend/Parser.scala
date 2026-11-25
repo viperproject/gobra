@@ -20,6 +20,7 @@ import scalaz.EitherT
 import scalaz.Scalaz.futureInstance
 import viper.gobra.frontend.GobraParser.{ExprOnlyContext, ImportDeclContext, MemberContext, PreambleContext, SourceFileContext, StmtOnlyContext, TypeOnlyContext}
 import viper.gobra.frontend.PackageResolver.{AbstractImport, AbstractPackage, BuiltInImport, RegularImport, RegularPackage}
+import viper.gobra.reporting.IntermediateVerifierResult.IntermediateVerifierResult
 import viper.gobra.util.{GobraExecutionContext, Job, TaskManager, Violation}
 import viper.silver.ast.SourcePosition
 
@@ -179,14 +180,14 @@ object Parser extends LazyLogging {
     *
     */
 
-  def parse(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): EitherT[Vector[VerifierError], Future, Map[AbstractPackage, ParseResult]] = {
+  def parse(config: Config, pkgInfo: PackageInfo)(implicit executor: GobraExecutionContext): IntermediateVerifierResult[Map[AbstractPackage, ParseResult]] = {
     val parseManager = new ParseManager(config)
     parseManager.parse(pkgInfo)
-    val res: Future[Either[Vector[VerifierError], Map[AbstractPackage, ParseResult]]] = for {
+    val res: Future[Either[NegativeVerifierResult, Map[AbstractPackage, ParseResult]]] = for {
       results <- parseManager.getResults
       res = results.get(RegularPackage(pkgInfo.id)) match {
         case Some(Right(_)) => Right(results)
-        case Some(Left(errs)) => Left(errs)
+        case Some(Left(errs)) => Left(VerifierResult.Failure(errs))
         case _ => Violation.violation(s"No parse result for package '$pkgInfo' found")
       }
     } yield res
@@ -492,7 +493,7 @@ object Parser extends LazyLogging {
           case n@PTupleTerminationMeasure(_, cond) => PWildcardMeasure(cond).at(n)
           case t => t
         }
-        PFunctionSpec(spec.clauses, replacedMeasures, spec.backendAnnotations, spec.isPure, spec.isTrusted, spec.isOpaque, spec.mayBeUsedInInit)
+        spec.copy(terminationMeasures = replacedMeasures)
       }
 
       val replaceTerminationMeasuresForFunctionsAndMethods: Strategy =
@@ -624,7 +625,9 @@ object Parser extends LazyLogging {
                 else Some(at(PCompositeLit(typ, lit), n))
               case n => Some(n)
             })
-          val updatedDecls = rewrite(topdown(attempt(resolveAmbiguousLiterals)))(prog.declarations)
+          // `this.rewrite` refers to the inherited kiama rewriter, disambiguating it from the
+          // enclosing object's `rewrite` method.
+          val updatedDecls = this.rewrite(topdown(attempt(resolveAmbiguousLiterals)))(prog.declarations)
           at(PProgram(prog.packageClause, prog.pkgInvariants, prog.imports, prog.friends, updatedDecls), prog)
         }
         at(PPackage(pkg.packageClause, updatedProgs, pkg.positions, pkg.info), pkg)

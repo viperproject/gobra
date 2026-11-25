@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PClosureSpecDecl, PCodeRootWithResult, PCodeRootWithSpec, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PMethodSig, PParameter, PPreserves, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PClosureSpecDecl, PCodeRootWithResult, PCodeRootWithSpec, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionLit, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMember, PMethodDecl, PMethodImplementationProof, PMethodSig, PParameter, PPreserves, PReturn, PVariadicType, PWildcardMeasure, PWithBody}
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
 import viper.gobra.frontend.info.base.Type.{InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -141,8 +141,13 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     * and pure signatures as the ones imposed on ghost and pure implementations.
     */
   private[typing] def wellDefMethodSig(sig: PMethodSig): Messages = {
+    // the semantics of wildcard termination measures in interface method specifications is not clear, thus they are rejected:
+    val noWildcardMeasures = sig.spec.terminationMeasures.flatMap {
+      case w: PWildcardMeasure => error(w, "Wildcard termination measures are not allowed in the specifications of interface methods.")
+      case _ => noMessages
+    }
     error(sig, "Interface methods cannot be marked as atomic.", sig.spec.isAtomic) ++
-      noWildcardMeasureErrors(sig.spec.terminationMeasures) ++
+      noWildcardMeasures ++
       (if (sig.spec.isPure) wellDefPureSpec(sig)
        else if (sig.isGhost) guaranteedTerminationErrors(sig, sig.spec.terminationMeasures, "Ghost interface methods must terminate",
          measureMayBeOmitted = config.disableCheckTerminationPureFns)

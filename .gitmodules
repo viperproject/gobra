@@ -1,3 +1,7 @@
 [submodule "viperserver"]
 	path = viperserver
 	url = https://github.com/viperproject/viperserver
+[submodule "projects/VerifiedSCION"]
+	path = projects/VerifiedSCION
+	url = https://github.com/viperproject/VerifiedSCION.git
+	shallow = true

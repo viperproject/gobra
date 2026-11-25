@@ -76,6 +76,10 @@ COPY viperserver /build/gobra/viperserver
 
 RUN sbt assembly
 
+# Real-world projects verified by `ProjectTests` (e.g., VerifiedSCION). They are copied after
+# building Gobra so that changes to them do not invalidate the cached build layers.
+COPY projects /build/gobra/projects
+
 
 # a second build stage starts here that is based of a fresh image.
 # note that only stuff explicitly copied from "build" will be present.

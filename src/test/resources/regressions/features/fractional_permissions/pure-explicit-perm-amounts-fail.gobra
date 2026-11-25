@@ -58,7 +58,7 @@ requires mem(y)
 decreases acc(mem(y), perm(1, 2))
 pure func measure(y *cell) int { return 0 }
 
-requires p > 0
+requires p > noPerm
 //:: ExpectedOutput(type_error)
 requires acc(y.memM(), p)
 decreases

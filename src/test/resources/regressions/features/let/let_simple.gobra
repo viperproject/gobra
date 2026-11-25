@@ -4,6 +4,7 @@
 package pkg
 
 ghost
+decreases
 pure func f(x int) int {
 	return let y,z := x + 1,x+2 in let y := y + x in y + z
 }
@@ -11,6 +12,7 @@ pure func f(x int) int {
 ghost
 requires -1000000 < x && x < 1000000 // bound x so the additions in f provably do not overflow
 ensures res == 3 * x + 3
+decreases
 func g(x int) (res int) {
 	return f(x)
 }

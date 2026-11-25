@@ -66,12 +66,16 @@ func test3(ghost s seq[int]) (ghost res integer) {
 }
 
 // this function is fine as parameter and result are implicitly ghost
-ghost func test4(s seq[int]) integer {
+ghost
+decreases
+func test4(s seq[int]) integer {
     return len(s)
 }
 
 // this function is fine as parameter and result are implicitly ghost
-ghost pure func test5(s seq[int]) integer {
+ghost
+decreases
+pure func test5(s seq[int]) integer {
     return len(s)
 }
 

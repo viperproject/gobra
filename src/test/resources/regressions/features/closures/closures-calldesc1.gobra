@@ -16,16 +16,20 @@ type Calls interface {
     // old() the closure-proof encoding cannot currently handle.
     ghost
     requires inv()
+    decreases
     pure mark() int
 
     // This describes properties that must be true if a call happened
     ghost
     requires inv()
     ensures r == (x <= mark())
+    decreases
     pure called(x int) (r bool)
 
     // This describes the properties of the result
-    ghost pure res(x int, res int)bool
+    ghost
+    decreases
+    pure res(x int, res int)bool
 }
 
 // the argument is bounded so that accumulated values and sums of results stay exact

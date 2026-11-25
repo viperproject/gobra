@@ -81,10 +81,8 @@ object ConfigDefaults {
   val DefaultParseAndTypeCheckMode: TaskManagerMode = TaskManagerMode.Parallel
   val DefaultRequireTriggers: Boolean = false
   val DefaultDisableSetAxiomatization: Boolean = false
-  val DefaultDisableCheckTerminationPureFns: Boolean = false
   val DefaultUnsafeWildcardOptimization: Boolean = false
   val DefaultMoreJoins: MoreJoins.Mode = MoreJoins.Disabled
-  val DefaultRespectFunctionPrePermAmounts: Boolean = false
   val DefaultEnableExperimentalFriendClauses: Boolean = false
   val DefaultAssertTimeout: Option[Int] = None
 }
@@ -248,10 +246,8 @@ case class Config(
                    // when enabled, all quantifiers without triggers are rejected
                    requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                    disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                   disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                    unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                    moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                   respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                    enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                    assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
 ) {
@@ -303,10 +299,8 @@ case class Config(
       noStreamErrors = noStreamErrors || input.noStreamErrors.value.contains(true),
       requireTriggers = requireTriggers || input.requireTriggers.value.contains(true),
       disableSetAxiomatization = disableSetAxiomatization || input.disableSetAxiomatization.value.contains(true),
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns || input.disableCheckTerminationPureFns.value.contains(true),
       unsafeWildcardOptimization = unsafeWildcardOptimization || input.unsafeWildcardOptimization.value.contains(true),
       moreJoins = input.moreJoins.value.map(mj => MoreJoins.merge(moreJoins, mj)) getOrElse moreJoins,
-      respectFunctionPrePermAmounts = respectFunctionPrePermAmounts || input.respectFunctionPrePermAmounts.value.contains(true),
       enableExperimentalFriendClauses = enableExperimentalFriendClauses || input.enableExperimentalFriendClauses.value.contains(true),
       assertTimeout = (assertTimeout, input.assertTimeout.value) match {
         case (Some(l), Some(r)) => Some(math.min(l, r))
@@ -355,9 +349,7 @@ case class Config(
       "requireTriggers" -> requireTriggers,
       "moreJoins" -> moreJoins.value,
       "disableSetAxiomatization" -> disableSetAxiomatization,
-      "disableCheckTerminationPureFns" -> disableCheckTerminationPureFns,
       "unsafeWildcardOptimization" -> unsafeWildcardOptimization,
-      "respectFunctionPrePermAmounts" -> respectFunctionPrePermAmounts,
       "enableExperimentalFriendClauses" -> enableExperimentalFriendClauses,
       "assertTimeout" -> assertTimeout.map(_.toString).getOrElse("(none)"),
       "noStreamErrors" -> noStreamErrors,
@@ -435,10 +427,8 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
                       parseAndTypeCheckMode: TaskManagerMode = ConfigDefaults.DefaultParseAndTypeCheckMode,
                       requireTriggers: Boolean = ConfigDefaults.DefaultRequireTriggers,
                       disableSetAxiomatization: Boolean = ConfigDefaults.DefaultDisableSetAxiomatization,
-                      disableCheckTerminationPureFns: Boolean = ConfigDefaults.DefaultDisableCheckTerminationPureFns,
                       unsafeWildcardOptimization: Boolean = ConfigDefaults.DefaultUnsafeWildcardOptimization,
                       moreJoins: MoreJoins.Mode = ConfigDefaults.DefaultMoreJoins,
-                      respectFunctionPrePermAmounts: Boolean = ConfigDefaults.DefaultRespectFunctionPrePermAmounts,
                       enableExperimentalFriendClauses: Boolean = ConfigDefaults.DefaultEnableExperimentalFriendClauses,
                       assertTimeout: Option[Int] = ConfigDefaults.DefaultAssertTimeout,
                      ) {
@@ -515,13 +505,11 @@ case class InputConfig(
   unsafeWildcardOptimization: InputConfigOption[Boolean] = InputConfigOption("unsafeWildcardOptimization", None),
   moreJoins: InputConfigOption[MoreJoins.Mode] = InputConfigOption("moreJoins", None),
   mceMode: InputConfigOption[MCE.Mode] = InputConfigOption("mceMode", None),
-  respectFunctionPrePermAmounts: InputConfigOption[Boolean] = InputConfigOption("respectFunctionPrePermAmounts", None),
   hyperMode: InputConfigOption[Hyper.Mode] = InputConfigOption("hyperMode", None),
   enableExperimentalHyperFeatures: InputConfigOption[Boolean] = InputConfigOption(Config.enableExperimentalHyperFeaturesOptionName, None),
   requireTriggers: InputConfigOption[Boolean] = InputConfigOption("requireTriggers", None),
   noVerify: InputConfigOption[Boolean] = InputConfigOption("noVerify", None),
   noStreamErrors: InputConfigOption[Boolean] = InputConfigOption("noStreamErrors", None),
-  disableCheckTerminationPureFns: InputConfigOption[Boolean] = InputConfigOption("disableCheckTerminationPureFns", None),
   parseAndTypeCheckMode: InputConfigOption[TaskManagerMode] = InputConfigOption("parseAndTypeCheckMode", None),
   disableSetAxiomatization: InputConfigOption[Boolean] = InputConfigOption("disableSetAxiomatization", None),
   enableExperimentalFriendClauses: InputConfigOption[Boolean] = InputConfigOption("enableExperimentalFriendClauses", None),
@@ -578,13 +566,11 @@ case class InputConfig(
     unsafeWildcardOptimization = unsafeWildcardOptimization orElse other.unsafeWildcardOptimization,
     moreJoins = moreJoins orElse other.moreJoins,
     mceMode = mceMode orElse other.mceMode,
-    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts orElse other.respectFunctionPrePermAmounts,
     hyperMode = hyperMode orElse other.hyperMode,
     enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
     requireTriggers = requireTriggers orElse other.requireTriggers,
     noVerify = noVerify orElse other.noVerify,
     noStreamErrors = noStreamErrors orElse other.noStreamErrors,
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
     parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
     disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
     enableExperimentalFriendClauses = enableExperimentalFriendClauses orElse other.enableExperimentalFriendClauses,
@@ -597,7 +583,7 @@ case class InputConfig(
     * - backend, hyperMode: must match if both defined
     * - packageTimeout, assertTimeout: takes minimum
     * - logLevel: takes minimum (more verbose)
-    * - noVerify, noStreamErrors, respectFunctionPrePermAmounts, enableExperimentalFriendClauses: OR
+    * - noVerify, noStreamErrors, enableExperimentalFriendClauses: OR
     * - moreJoins: uses MoreJoins.merge */
   def merge(other: InputConfig): InputConfig = {
     // Helper to merge list options by concatenating and deduplicating
@@ -682,13 +668,11 @@ case class InputConfig(
         case (None, r) => r
       }),
       mceMode = mceMode orElse other.mceMode,
-      respectFunctionPrePermAmounts = mergeOr(respectFunctionPrePermAmounts, other.respectFunctionPrePermAmounts),
       hyperMode = mergeMustMatch(hyperMode, other.hyperMode, "hyper modes"),
       enableExperimentalHyperFeatures = enableExperimentalHyperFeatures orElse other.enableExperimentalHyperFeatures,
       requireTriggers = requireTriggers orElse other.requireTriggers,
       noVerify = mergeOr(noVerify, other.noVerify),
       noStreamErrors = mergeOr(noStreamErrors, other.noStreamErrors),
-      disableCheckTerminationPureFns = disableCheckTerminationPureFns orElse other.disableCheckTerminationPureFns,
       parseAndTypeCheckMode = parseAndTypeCheckMode orElse other.parseAndTypeCheckMode,
       disableSetAxiomatization = disableSetAxiomatization orElse other.disableSetAxiomatization,
       enableExperimentalFriendClauses = mergeOr(enableExperimentalFriendClauses, other.enableExperimentalFriendClauses),
@@ -724,10 +708,12 @@ case class InputConfig(
       } else {
         // either `input`, `directory`, `recursive` or `configFile` must be provided but not more than one.
         // this also checks that at least one file or directory is provided in the case of `input` and `directory`.
-        requireOne(input, directory, recursive, configFile)
-        nonEmptyIfDefined(input)
-        nonEmptyIfDefined(directory)
-        nonFalseIfDefined(recursive)
+        validateConditions(
+          requireOne(input, directory, recursive, configFile),
+          nonEmptyIfDefined(input),
+          nonEmptyIfDefined(directory),
+          nonFalseIfDefined(recursive),
+        )
       },
       // `inclPackages` and `exclPackages` only make sense when `recursive` is specified, `projectRoot` can only be used in `directory` or `recursive` mode.
       // Thus, we restrict their use:
@@ -1006,10 +992,8 @@ case class InputConfig(
     parseAndTypeCheckMode = parseAndTypeCheckMode.value.getOrElse(ConfigDefaults.DefaultParseAndTypeCheckMode),
     requireTriggers = requireTriggers.value.getOrElse(ConfigDefaults.DefaultRequireTriggers),
     disableSetAxiomatization = disableSetAxiomatization.value.getOrElse(ConfigDefaults.DefaultDisableSetAxiomatization),
-    disableCheckTerminationPureFns = disableCheckTerminationPureFns.value.getOrElse(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
     unsafeWildcardOptimization = unsafeWildcardOptimization.value.getOrElse(ConfigDefaults.DefaultUnsafeWildcardOptimization),
     moreJoins = moreJoins.value.getOrElse(ConfigDefaults.DefaultMoreJoins),
-    respectFunctionPrePermAmounts = respectFunctionPrePermAmounts.value.getOrElse(false),
     enableExperimentalFriendClauses = enableExperimentalFriendClauses.value.getOrElse(false),
     assertTimeout = assertTimeout.value,
   )
@@ -1133,10 +1117,8 @@ trait RawConfig {
     parseAndTypeCheckMode = baseConfig.parseAndTypeCheckMode,
     requireTriggers = baseConfig.requireTriggers,
     disableSetAxiomatization = baseConfig.disableSetAxiomatization,
-    disableCheckTerminationPureFns = baseConfig.disableCheckTerminationPureFns,
     unsafeWildcardOptimization = baseConfig.unsafeWildcardOptimization,
     moreJoins = baseConfig.moreJoins,
-    respectFunctionPrePermAmounts = baseConfig.respectFunctionPrePermAmounts,
     enableExperimentalFriendClauses = baseConfig.enableExperimentalFriendClauses,
     assertTimeout = baseConfig.assertTimeout,
   )
@@ -1704,16 +1686,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     ).map(MCEConverter.convert)
   }
 
-  val respectFunctionPrePermAmounts: ScallopOption[Boolean] = toggle(
-    name = "respectFunctionPrePermAmounts",
-    descrYes = s"Respects precise permission amounts in pure function preconditions instead of only checking read access, as done in older versions of Gobra." +
-      "This option should be used for verifying legacy projects written with the old interpretation of fractional permissions." +
-      "New projects are encouraged to not use this option.",
-    descrNo = s"Use the default interpretation for fractional permissions in pure function preconditions.",
-    default = Some(ConfigDefaults.DefaultRespectFunctionPrePermAmounts),
-    noshort = true,
-  )
-
   val hyperMode: ScallopOption[Hyper.Mode] = choice(
     name = "hyperMode",
     choices = Hyper.values.map(_.name),
@@ -1747,13 +1719,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "noStreamErrors",
     descr = s"Do not stream errors produced by ${GoVerifier.name} but instead print them all organized by package in the end.",
     default = Some(ConfigDefaults.DefaultNoStreamErrors),
-    noshort = true,
-  )
-
-  val disableCheckTerminationPureFns: ScallopOption[Boolean] = opt[Boolean](
-    name = "disablePureFunctsTerminationRequirement",
-    descr = "Do not enforce that all pure functions must have termination measures",
-    default = Some(ConfigDefaults.DefaultDisableCheckTerminationPureFns),
     noshort = true,
   )
 
@@ -1839,13 +1804,11 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     unsafeWildcardOptimization = toInputConfigOption(unsafeWildcardOptimization),
     moreJoins = toInputConfigOption(moreJoins),
     mceMode = toInputConfigOption(mceMode),
-    respectFunctionPrePermAmounts = toInputConfigOption(respectFunctionPrePermAmounts),
     hyperMode = toInputConfigOption(hyperMode),
     enableExperimentalHyperFeatures = toInputConfigOption(enableExperimentalHyperFeatures),
     requireTriggers = toInputConfigOption(requireTriggers),
     noVerify = toInputConfigOption(noVerify),
     noStreamErrors = toInputConfigOption(noStreamErrors),
-    disableCheckTerminationPureFns = toInputConfigOption(disableCheckTerminationPureFns),
     parseAndTypeCheckMode = toInputConfigOption(parseAndTypeCheckMode),
     disableSetAxiomatization = toInputConfigOption(disableSetAxiomatization),
     enableExperimentalFriendClauses = toInputConfigOption(enableExperimentalFriendClauses),

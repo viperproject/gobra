@@ -14,7 +14,8 @@ pred (r *Rect) mem() {
   acc(r, perm(1, 2))
 }
 
-requires acc(r, perm(1, 2))
+requires acc(r)
+decreases
 pure func (r *Rect) Size() bool {
   // The upper bounds let the verifier prove that computing the area does not
   // overflow (with Gobra's sound bounded-integer semantics, `width * height`
@@ -30,7 +31,7 @@ func (r *Rect) Area() (ret int) {
 
 (*Rect) implements pkg1.Shape {
   pure (r *Rect) Size() bool {
-    return unfolding acc(r.mem(), perm(1, 2)) in r.Size()
+    return unfolding r.mem() in r.Size()
   }
   (r *Rect) Area() (ret int) {
     unfold r.mem()
@@ -47,7 +48,8 @@ pred (c *Circle) mem() {
   acc(c, perm(1, 2))
 }
 
-requires acc(c, perm(1, 2))
+requires acc(c)
+decreases
 pure func (c *Circle) Size() bool {
   // Upper bound for overflow-free area computation; see Rect.Size.
   return c.radius > 0 && c.radius < 100
@@ -63,7 +65,7 @@ func (c *Circle) Area() (ret int) {
 
 (*Circle) implements pkg1.Shape {
   pure (c *Circle) Size() bool {
-    return unfolding acc(c.mem(), perm(1, 2)) in c.Size()
+    return unfolding c.mem() in c.Size()
   }
 
   (c *Circle) Area() (ret int) {

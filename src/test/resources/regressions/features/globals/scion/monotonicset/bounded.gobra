@@ -13,18 +13,18 @@ pred (b BoundedMonotonicSet) Inv() {
 }
 
 ghost
-requires acc(b.Inv(), _)
+requires b.Inv()
 requires 0 <= i && i < 256
 decreases
 pure func (b BoundedMonotonicSet) FContains(i uint16) bool {
 	// extra indirection avoids a type-checking bug of Gobra.
-	return unfolding acc(b.Inv(), _) in
+	return unfolding b.Inv() in
 		b.fcontainshelper(i)
 }
 
 ghost
 requires forall i uint16 :: 0 <= i && i < 256 ==>
-	(i elem domain(b.valuesMap) && acc(b.valuesMap[i], _))
+	(i elem domain(b.valuesMap) && acc(b.valuesMap[i]))
 requires 0 <= i && i < 256
 decreases
 pure func (b BoundedMonotonicSet) fcontainshelper(i uint16) bool {
@@ -84,7 +84,7 @@ ghost
 opaque
 requires 0 <= i && i <= 256
 requires forall i uint16 :: 0 <= i && i < 256 ==>
-	(i elem domain(b.valuesMap) && acc(b.valuesMap[i], _))
+	(i elem domain(b.valuesMap) && acc(b.valuesMap[i]))
 decreases
 pure func (b BoundedMonotonicSet) fnotcontainshelperUpTo(i uint16) bool {
     return forall j uint16 :: { b.fcontainshelper(j) } 0 <= j && j < i ==>
@@ -147,18 +147,18 @@ func Alloc() (res BoundedMonotonicSet) {
 
 ghost
 opaque // make this closed when that is supported
-requires acc(b.Inv(), _)
+requires b.Inv()
 decreases
 pure func (b BoundedMonotonicSet) ToSet() set[uint16] {
 	return b.toSetAux(0)
 }
 
 ghost
-requires acc(b.Inv(), _)
+requires b.Inv()
 requires 0 <= start && start < 256
 decreases 256 - start
 pure func (b BoundedMonotonicSet) toSetAux(start uint16) set[uint16] {
-	return unfolding acc(b.Inv(), _) in ((*b.valuesMap[start] ? set[uint16]{start} : set[uint16]{}) union (start < 255 ? b.toSetAux(start+1) : set[uint16]{}))
+	return unfolding b.Inv() in ((*b.valuesMap[start] ? set[uint16]{start} : set[uint16]{}) union (start < 255 ? b.toSetAux(start+1) : set[uint16]{}))
 }
 
 ghost

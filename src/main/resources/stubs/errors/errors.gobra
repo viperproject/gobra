@@ -31,7 +31,7 @@ pred (e *errorString) ErrorMem() {
 }
 
 ghost
-requires  acc(e.ErrorMem(), _)
+requires  e.ErrorMem()
 decreases
 pure func (e *errorString) IsDuplicableMem() bool {
     return true

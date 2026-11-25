@@ -184,7 +184,7 @@ pure func ackPure(m integer, n integer) (result integer) {
 
 ghost
 requires len(s) <= math.MaxInt64
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 decreases len(s)
 pure func SumPure(ghost s ghost []int) int {
 	return len(s) == 0? 0 : 1 + SumPure(s[:len(s)-1])

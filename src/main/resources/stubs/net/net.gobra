@@ -170,9 +170,9 @@ pred (op *OpError) Mem() {
 	acc(op)
 }
 
-requires acc(e.Mem(), _)
+requires e.Mem()
 decreases
-pure func (e *OpError) Unwrap() error { return unfolding acc(e.Mem(), _) in e.Err }
+pure func (e *OpError) Unwrap() error { return unfolding e.Mem() in e.Err }
 
 requires acc(e.Mem())
 ensures acc(e.Mem())

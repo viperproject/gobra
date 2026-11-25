@@ -11,6 +11,7 @@ type foo interface {
 	g()
 	//:: ExpectedOutput(type_error)
 	pure
+	decreases
 	h() int
 }
 
@@ -18,5 +19,6 @@ type bar interface {
 	g()
 
 	pure
+	decreases
 	h() int
 }

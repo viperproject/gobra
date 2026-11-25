@@ -88,3 +88,11 @@ func pureClosure() {
 		}
 	_ = c
 }
+
+// old expressions are not permitted in postconditions of pure functions, even at the top level
+//:: ExpectedOutput(type_error)
+ensures old(r == x)
+decreases
+pure func topLevelOldInPost(x int) (r int) {
+	return x
+}

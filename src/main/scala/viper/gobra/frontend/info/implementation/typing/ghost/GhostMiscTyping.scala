@@ -164,7 +164,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => Vector.empty
       }
       clauses.map(_.exp).flatMap(assignableToSpec) ++
-      n.pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
+      n.pres.flatMap(e => (e +: allChildren(e)).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       // termination measures of members are encoded as preconditions, so they cannot refer to the pre-state
       terminationMeasures.flatMap(m => allChildren(m).flatMap(illegalOldNode(_, "termination measures"))) ++

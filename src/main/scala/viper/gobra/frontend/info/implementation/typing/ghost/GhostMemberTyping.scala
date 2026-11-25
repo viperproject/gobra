@@ -200,7 +200,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   // pure members do not change the state, so their postconditions have no pre-state that `old` could refer to
   private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap { post =>
-    isPureExpr(post) ++ allChildren(post).flatMap(illegalOldNode(_, "postconditions of pure members"))
+    isPureExpr(post) ++ (post +: allChildren(post)).flatMap(illegalOldNode(_, "postconditions of pure members"))
   }
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {

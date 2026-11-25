@@ -5,3 +5,4 @@
 	path = projects/VerifiedSCION
 	url = https://github.com/viperproject/VerifiedSCION.git
 	shallow = true
+	ignore = dirty

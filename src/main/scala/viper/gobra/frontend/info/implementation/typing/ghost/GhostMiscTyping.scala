@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -145,7 +145,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: SymbolTable.GhostStructMember => ???
     case dest: SymbolTable.AdtDestructor => dest.context.symbType(dest.decl.typ)
     case _: SymbolTable.AdtDiscriminator => BooleanT
-    case const: SymbolTable.AdtClause => DeclaredT(const.typeDecl, const.context)
+    case const: SymbolTable.AdtClause => const.context.declaredSymbType(const.typeDecl)
     case BuiltInMPredicate(tag, _, _) => typ(tag)
     case f: SymbolTable.DomainFunction => FunctionT(f.args map f.context.typ, f.context.typ(f.result))
   }
@@ -164,8 +164,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => Vector.empty
       }
       clauses.map(_.exp).flatMap(assignableToSpec) ++
-      n.pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
+      n.pres.flatMap(e => (e +: allChildren(e)).flatMap(illegalPreconditionNode(_, ownOutParams))) ++
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      // termination measures of members are encoded as preconditions, so they cannot refer to the pre-state
+      terminationMeasures.flatMap(m => allChildren(m).flatMap(illegalOldNode(_, "termination measures"))) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
@@ -216,9 +218,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def illegalPreconditionNode(n: PNode, ownOutParams: Vector[PNamedParameter]): Messages = {
     n match {
-      case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
-      case n@ (_: POld | _: PLabeledOld) => message(n, s"old not permitted in precondition")
-      case n@ (_: PBefore) => message(n, s"old not permitted in precondition")
+      case n@ (_: POld | _: PLabeledOld | _: PBefore) => illegalOldNode(n, "preconditions")
       case id: PIdnUse => entity(id) match {
         case op: SymbolTable.OutParameter if ownOutParams.exists(_ eq op.decl) =>
           message(id, s"output parameter '${id.name}' cannot be referenced in a precondition")
@@ -226,6 +226,16 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       case _ => noMessages
     }
+  }
+
+  /**
+    * Reports `old`, labeled `old`, and `before` expressions, which are not permitted in `context`.
+    * The `lhs` label is exempt, as it refers to the state of the left-hand side of an enclosing magic wand.
+    */
+  private[typing] def illegalOldNode(n: PNode, context: String): Messages = n match {
+    case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
+    case _: POld | _: PLabeledOld | _: PBefore => message(n, s"old expressions are not permitted in $context")
+    case _ => noMessages
   }
 
   /** Returns the type matched by the wildcard `w`. */

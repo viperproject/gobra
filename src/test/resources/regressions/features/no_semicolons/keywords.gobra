@@ -14,4 +14,5 @@ type PacketBuilder interface {
 pure
 trusted
 ensures true
+decreases
 func foo() int

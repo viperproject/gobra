@@ -15,10 +15,10 @@ pred PkgInv() {
 }
 
 ghost
-requires acc(PkgInv(), _)
+requires PkgInv()
 decreases
 pure func (c *Client) Allocated() bool {
-	return unfolding acc(PkgInv(), _) in
+	return unfolding PkgInv() in
 		c elem allocs
 }
 
@@ -28,10 +28,10 @@ pred (c *Client) Inv() {
 }
 
 ghost
-requires acc(c.Inv(), _)
+requires c.Inv()
 decreases
 pure func (c *Client) Id() int {
-	return unfolding acc(c.Inv(), _) in
+	return unfolding c.Inv() in
 		c.id
 }
 

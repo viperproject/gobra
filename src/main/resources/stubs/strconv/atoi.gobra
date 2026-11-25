@@ -31,7 +31,7 @@ func (e *NumError) Error(ghost p perm) string /*{
 }*/
 
 
-requires acc(e, _)
+requires acc(e)
 decreases
 pure func (e *NumError) Unwrap() error { return e.Err }
 

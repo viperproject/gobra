@@ -19,7 +19,7 @@ pred (wg *WaitGroup) UnitDebt(p pred())
 pred (wg *WaitGroup) Token(t pred())
 
 ghost
-requires acc(g.WaitGroupP(), _)
+requires g.WaitGroupP()
 decreases _
 pure func (g *WaitGroup) WaitMode() bool
 

@@ -47,6 +47,7 @@ func test2(m map[int]int) {
 // tests the "comma-ok" form of a lookup, which yields the zero value of the
 // value type for keys that are not contained in the mathematical map
 ghost
+decreases
 func test3() {
 	m := dict[int]int{ 1: 5 }
 

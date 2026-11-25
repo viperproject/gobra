@@ -16,14 +16,20 @@ func test1(ghost s seq[int]) (ghost res integer) {
     return len(s)
 }
 
-ghost func test2(s seq[int]) integer {
+ghost
+decreases
+func test2(s seq[int]) integer {
     return len(s)
 }
 
-ghost func test3(ghost s seq[int]) integer {
+ghost
+decreases
+func test3(ghost s seq[int]) integer {
     return len(s)
 }
 
-ghost pure func test4(s seq[int]) integer {
+ghost
+decreases
+pure func test4(s seq[int]) integer {
     return len(s)
 }

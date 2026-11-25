@@ -7,7 +7,7 @@ import "sync"
 
 // Proof Utility: dump a slice into a sequence
 ghost
-requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
+requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j])
 ensures len(res) == len(s)
 ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
 decreases len(s)

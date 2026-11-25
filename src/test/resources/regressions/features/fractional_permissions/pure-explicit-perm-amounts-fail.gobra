@@ -1,0 +1,90 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pureexplicitpermamounts
+
+// Pure members ignore permission amounts. Thus, explicit permission amounts
+// (including wildcards) in accessibility predicates are rejected in their
+// contracts and bodies.
+
+type cell struct { f int }
+
+pred mem(x *cell) { acc(x) }
+
+pred (x *cell) memM() { acc(x) }
+
+// accepted: no explicit permission amount
+requires acc(x) && mem(y) && y.memM() && acc(mem(y)) && acc(y.memM())
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+decreases
+pure func ok(x *int, y *cell, s []int) int {
+	return *x + unfolding mem(y) in y.f
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(x, 1/2)
+decreases
+pure func fracPre(x *int) int { return *x }
+
+//:: ExpectedOutput(type_error)
+requires acc(x, _)
+decreases
+pure func wildcardPre(x *int) int { return *x }
+
+//:: ExpectedOutput(type_error)
+requires acc(x, writePerm)
+decreases
+pure func writePermPre(x *int) int { return *x }
+
+//:: ExpectedOutput(type_error)
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+decreases
+pure func quantifiedPre(s []int) int { return len(s) }
+
+//:: ExpectedOutput(type_error)
+requires acc(mem(y), 1/2)
+decreases
+pure func predPre(y *cell) int { return 0 }
+
+requires mem(y)
+decreases
+pure func unfoldingBody(y *cell) int {
+	//:: ExpectedOutput(type_error)
+	return unfolding acc(mem(y), _) in y.f
+}
+
+requires mem(y)
+//:: ExpectedOutput(type_error)
+decreases acc(mem(y), 1/2)
+pure func measure(y *cell) int { return 0 }
+
+requires p > 0
+//:: ExpectedOutput(type_error)
+requires acc(y.memM(), p)
+decreases
+pure func (y *cell) method(ghost p perm) int { return 0 }
+
+type itf interface {
+	pred inv()
+
+	//:: ExpectedOutput(type_error)
+	requires acc(inv(), 1/2)
+	decreases
+	pure Get() int
+}
+
+func closure() {
+	cl :=
+		//:: ExpectedOutput(type_error)
+		requires acc(x, 1/2)
+		decreases
+		pure func(x *int) int { return *x }
+	_ = cl
+}
+
+// non-pure members may still use explicit permission amounts
+requires acc(x, 1/2) && acc(mem(y), _)
+ensures  acc(x, 1/2) && acc(mem(y), _)
+func nonPure(x *int, y *cell) int {
+	return *x
+}

@@ -10,7 +10,7 @@ package pkg
 type node interface {
     pred mem()
 
-    requires 1 <= u && acc(mem(), 1/u) && acc(v.mem2(), 1/u)
+    requires 1 <= u && mem() && v.mem2()
     requires v != nil
     decreases mem(), 1
     pure accept(v visitor, ghost u int) int
@@ -22,7 +22,7 @@ type variable struct {
   id int
 }
 
-requires 1 <= u && acc(self.mem(), 1/u) && acc(v.mem2(), 1/u)
+requires 1 <= u && self.mem() && v.mem2()
 requires v != nil
 decreases self.mem(), 1
 pure func (self *variable) accept(v visitor, ghost u int) int {
@@ -39,7 +39,7 @@ type constant struct {
   value int
 }
 
-requires 1 <= u && acc(self.mem(), 1/u) && acc(v.mem2(), 1/u)
+requires 1 <= u && self.mem() && v.mem2()
 requires v != nil
 decreases self.mem(), 1
 pure func (self *constant) accept(v visitor, ghost u int) int {
@@ -56,7 +56,7 @@ type addition struct {
   left, right node
 }
 
-requires 1 <= u && acc(self.mem(), 1/u) && acc(v.mem2(), 1/u)
+requires 1 <= u && self.mem() && v.mem2()
 requires v != nil
 decreases self.mem(), 1
 pure func (self *addition) accept(v visitor, ghost u int) int {
@@ -71,15 +71,15 @@ pred (self *addition) mem() { acc(self) && self.left.mem() && self.right.mem() &
 type visitor interface {
   pred mem2()
 
-  requires 1 <= u && acc(mem2(), 1/u) && acc(v.mem(), 1/u)
+  requires 1 <= u && mem2() && v.mem()
   decreases
   pure visitVariable(v *variable, ghost u int) int
 
-  requires 1 <= u && acc(mem2(), 1/u) && acc(c.mem(), 1/u)
+  requires 1 <= u && mem2() && c.mem()
   decreases
   pure visitConstant(c *constant, ghost u int) int
 
-  requires 1 <= u && acc(mem2(), 1/u)
+  requires 1 <= u && mem2()
   decreases a.mem(), 0
   pure visitAddition(a *addition, ghost u int) int
 }
@@ -100,10 +100,10 @@ pure func (self *childrenCounter) visitConstant(c *constant, ghost u int) int {
   return 1
 }
 
-requires 1 <= u && acc(self.mem2(), 1/u) && acc(a.mem(), 1/u)
+requires 1 <= u && self.mem2() && a.mem()
 decreases a.mem(), 0
 pure func (self *childrenCounter) visitAddition(a *addition, ghost u int) int {
-  return unfolding acc(a.mem(), 1/u) in (a.left.accept(self, u) + a.right.accept(self, u))
+  return unfolding a.mem() in (a.left.accept(self, u) + a.right.accept(self, u))
 }
 
 (*childrenCounter) implements visitor {
@@ -137,23 +137,23 @@ type evaluator struct {
 
 pred (self *evaluator) mem2() { acc(self) }
 
-requires 1 <= u && acc(self.mem2(), 1/u) && acc(v.mem(), 1/u)
+requires 1 <= u && self.mem2() && v.mem()
 decreases
 pure func (self *evaluator) visitVariable(v *variable, ghost u int) int {
-  return unfolding acc(self.mem2(), 1/u) in (self.store)[unfolding acc(v.mem(), 1/u) in v.id]
+  return unfolding self.mem2() in (self.store)[unfolding v.mem() in v.id]
 }
 
-requires 1 <= u && acc(c.mem(), 1/u)
+requires 1 <= u && c.mem()
 decreases
 pure func (self *evaluator) visitConstant(c *constant, ghost u int) int {
-  return unfolding acc(c.mem(), 1/u) in c.value
+  return unfolding c.mem() in c.value
 }
 
 
-requires 1 <= u && acc(self.mem2(), 1/u) && acc(a.mem(), 1/u)
+requires 1 <= u && self.mem2() && a.mem()
 decreases a.mem(), 0
 pure func (self *evaluator) visitAddition(a *addition, ghost u int) int {
-  return unfolding acc(a.mem(), 1/(u+1)) in (a.left.accept(self, u+1) + a.right.accept(self, u+1))
+  return unfolding a.mem() in (a.left.accept(self, u+1) + a.right.accept(self, u+1))
 }
 
 

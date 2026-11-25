@@ -19,7 +19,7 @@ ensures inv.inv(prev_calls ++ seq[int]{x}) && y == inv.res(prev_calls ++ seq[int
 spec fspec(ghost inv Inv, ghost prev_calls seq[int], x int)(y int)
 
 ghost
-requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i], _)
+requires forall i int :: i >= 0 && i < len(v) ==> acc(&v[i])
 ensures len(s) == len(v)
 ensures forall i int :: i >= 0 && i < len(v) ==> s[i] == v[i]
 decreases len(v)

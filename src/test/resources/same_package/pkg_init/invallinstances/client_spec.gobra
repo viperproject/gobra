@@ -15,10 +15,10 @@ pred PkgInv() {
 }
 
 ghost
-requires acc(PkgInv(), _)
+requires PkgInv()
 decreases
 pure func (c *Client) Allocated() bool {
-	return unfolding acc(PkgInv(), _) in
+	return unfolding PkgInv() in
 		c elem allocs
 }
 

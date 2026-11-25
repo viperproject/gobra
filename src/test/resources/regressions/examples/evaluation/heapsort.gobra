@@ -23,14 +23,14 @@ pure func descendant (p int, q int) bool {
 }
 
 ghost
-requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
 requires 0 <= start && start <= end && end < len(s)
 pure func heap(s []int, start int, end int) bool {
   return forall i int :: start <= parent(i) && i <= end ==> s[i] <= s[parent(i)]
 }
 
 ghost
-requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
 requires 0 <= start && start <= end && end < len(s)
 pure func almostHeap(s []int, start, end, wrong int) bool {
   return forall j int :: start <= j && j <= end && start <= parent(j) && wrong != parent(j) ==>
@@ -39,14 +39,14 @@ pure func almostHeap(s []int, start, end, wrong int) bool {
 
 ghost
 requires 0 <= pos && pos <= end
-requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
 requires end < len(s)
 pure func validParent(s []int, end, pos int) bool {
   return (leftChild(pos) <= end ==> s[leftChild(pos)] <= s[pos]) && (rightChild(pos) <= end ==>  s[rightChild(pos)] <= s[pos])
 }
 
 ghost
-requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j], _)
+requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j])
 requires 0 <= p && p <= q && q <= end && end < len(xs)
 requires heap(xs, p, end)
 requires descendant(p, q)
@@ -63,7 +63,7 @@ pure func lemma_descendant_zero (n int) (res bool) {
 }
 
 ghost
-requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j], _)
+requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j])
 requires 0 <= i && i <= end && end < len(xs)
 requires heap(xs, 0, end)
 ensures res && xs[i] <= xs[0]
@@ -73,7 +73,7 @@ pure func lemma_heap_top (xs []int, i int, end int) (res bool) {
 
 ghost
 requires 0 <= end && end < len(s)
-requires forall j int :: (0 <= j && j < len(s)) ==> acc(&s[j], _)
+requires forall j int :: (0 <= j && j < len(s)) ==> acc(&s[j])
 requires heap(s, 0, end)
 ensures res 
 pure func lemma_heap_top_all (s []int, end int) (res bool) {

@@ -36,13 +36,19 @@ pure func head(ptr *node) int {
 
 requires p > 0
 requires acc(list(ptr), p)
-decreases acc(list(ptr), p)
-pure func (ptr *node) contains(value int, ghost p perm) bool {
-	return unfolding acc(list(ptr), p) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value, p))
+ensures  acc(list(ptr), p)
+func (ptr *node) sum(ghost p perm) (res int) {
+	unfold acc(list(ptr), p)
+	res = ptr.value
+	if ptr.next != nil {
+		res += ptr.next.sum(p)
+	}
+	fold acc(list(ptr), p)
+	return res
 }
 
-requires acc(list(ptr), _)
-decreases acc(list(ptr), _)
-pure func (ptr *node) contains2(value int) bool {
-	return unfolding acc(list(ptr), _) in ptr.value == value || (ptr.next != nil && ptr.next.contains2(value))
+requires list(ptr)
+decreases list(ptr)
+pure func (ptr *node) contains(value int) bool {
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value))
 }

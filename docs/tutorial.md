@@ -286,6 +286,8 @@ func client2() {
 
 Gobra offers fractional permissions, meaning that it can distinguish between different amounts of permissions. A permission amount is rational number between 0 and 1. Modifying the value of a heap location requires full permission, denoted as `acc(x, write)`. Reading from a heap location requires any non-zero permission amount. Read permissions are usually denoted as factions, e.g., `acc(x, 1/2)`. We can also write `acc(x, _)` for an arbitrary non-zero permission amount.
 
+Pure code (pure functions and methods, pure interface methods, and pure closures) never modifies the heap and implicitly returns all permissions specified in its precondition. Therefore, permission amounts are irrelevant for pure code: every accessibility predicate in the specification or body of pure code, e.g., `acc(x)`, only requires *some* non-zero permission amount. To avoid confusion, Gobra reports a type error if an explicit permission amount (e.g., `acc(x, 1/2)`, `acc(x, _)`, or `acc(x, write)`) is used in pure code.
+
 
 
 ### Quantified Permissions
@@ -380,25 +382,30 @@ pure func head(ptr *node) int {
 }
 ```
 
-In the previous examples of this section, the precondition requires write permissions to the list. If a function does not modify the list, write permissions are stronger than required. To specify that we want less than write permissions, we use accessibility predicates, similar to heap locations. In the following example, the argument `p` of type `perm` specifies the permission amount we use for the predicate. The precondition `p > 0` asserts that this permissions amount is positive and, thus, grants read access to the elements of the list.
-We can use the same list predicate and permission amount as a termination measure since the permissions to the elements of the (sub-)list are strictly decreasing for each recursive call.
+In the previous examples of this section, the precondition of the non-pure functions requires write permissions to the list. If a function does not modify the list, write permissions are stronger than required. To specify that we want less than write permissions, we use accessibility predicates, similar to heap locations. In the following example, the argument `p` of type `perm` specifies the permission amount we use for the predicate. The precondition `p > 0` asserts that this permissions amount is positive and, thus, grants read access to the elements of the list.
 
 ```go (test/resources/regressions/tutorial-examples/predicate.gobra)
 requires p > 0
 requires acc(list(ptr), p)
-decreases acc(list(ptr), p)
-pure func (ptr *node) contains(value int, ghost p perm) bool {
-	return unfolding acc(list(ptr), p) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value, p))
+ensures  acc(list(ptr), p)
+func (ptr *node) sum(ghost p perm) (res int) {
+	unfold acc(list(ptr), p)
+	res = ptr.value
+	if ptr.next != nil {
+		res += ptr.next.sum(p)
+	}
+	fold acc(list(ptr), p)
+	return res
 }
 ```
 
-Often, in particular for pure functions, we do not care about the exact permission amount since all permissions in the precondition are returned implicitly in the postcondition. In these cases, we can use a wildcard permission amount `_`specifying an arbitrary positive permission amount.
+As explained in the section on [fractional permissions](#accessibility-predicate), pure functions do not care about the exact permission amount since all permissions in the precondition are returned implicitly. Thus, `list(ptr)` in the precondition of a pure function only requires some positive permission amount to the predicate instance, and explicit permission amounts are rejected. The same holds for `unfolding` expressions in the body of a pure function. We use the predicate instance as a termination measure since the permissions to the elements of the (sub-)list are strictly decreasing for each recursive call.
 
 ```go (test/resources/regressions/tutorial-examples/predicate.gobra)
-requires acc(list(ptr), _)
-decreases acc(list(ptr), _)
-pure func (ptr *node) contains2(value int) bool {
-	return unfolding acc(list(ptr), _) in ptr.value == value || (ptr.next != nil && ptr.next.contains2(value))
+requires list(ptr)
+decreases list(ptr)
+pure func (ptr *node) contains(value int) bool {
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value))
 }
 ```
 
@@ -433,7 +440,7 @@ Apart from the ghost in and out-parameters, Gobra offers additional ghost constr
 
 ```go (test/resources/regressions/tutorial-examples/ghost-code.gobra)
 ghost
-requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
+requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j])
 ensures  len(res) == len(s)
 ensures  forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
 decreases len(s)
@@ -487,7 +494,7 @@ type stream interface {
 	pred mem()
 
 	decreases
-	requires acc(mem(), 1/2)
+	requires mem()
 	pure hasNext() bool
 
 	requires mem() && hasNext()
@@ -506,7 +513,7 @@ The following snippet illustrates an implementation of the `stream` interface. T
 // implementation
 type counter struct{ f, max int }
 
-requires acc(x, 1/2)
+requires acc(x)
 decreases
 pure func (x *counter) hasNext() bool {
 	return x.f < x.max
@@ -532,7 +539,7 @@ pred (x *counter) mem() { acc(x) }
 
 (*counter) implements stream {
 	pure (x *counter) hasNext() bool {
-		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+		return unfolding x.mem() in x.hasNext()
 	}
 
 	(x *counter) next() (res interface{}) {

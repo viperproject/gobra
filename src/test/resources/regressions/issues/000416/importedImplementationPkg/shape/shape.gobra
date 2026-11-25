@@ -6,7 +6,7 @@ package shape
 type Shape interface {
    pred mem()
 
-   requires acc(mem(), 1/2)
+   requires mem()
    decreases
    pure Size() bool
 

@@ -57,7 +57,7 @@ func loop(c *cell) {
 type reader interface {
 	pred mem()
 
-	requires acc(mem(), _)
+	requires mem()
 	//:: ExpectedOutput(type_error)
 	ensures r == old(r)
 	decreases

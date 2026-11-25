@@ -19,6 +19,7 @@ func (x Rectangle) NewWithWidth(res int) (r Rectangle) {
 }
 
 
+decreases
 pure func (x Rectangle) NewWithWidth2(res int) (r Rectangle) {
     return Rectangle{res, x.Height}
 }

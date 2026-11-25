@@ -5,6 +5,7 @@ package closuresSimple3Pure
 
 requires p.inv() && a >= 0
 ensures r >= 0
+decreases
 pure spec pos(ghost p interface{pred inv();}, a int) (r int)
 
 type proof1 struct { x *int }
@@ -14,6 +15,7 @@ func main() {
 	x@ := 10
 	c := requires acc(&x, _)
 		 ensures m == x + n
+		 decreases
 		 pure func f(n int) (m int) {
 		    return x + n
          }
@@ -37,6 +39,7 @@ func main() {
 }
 
 requires p.inv() && c implements pos{p}
+decreases
 pure func hof(c func(int) int, ghost p interface{pred inv()}) (r int) {
 	return c(42) as pos{p: p}
 }

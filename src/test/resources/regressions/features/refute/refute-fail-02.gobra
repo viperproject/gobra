@@ -27,8 +27,8 @@ func i(x *int) {
 }
 
 ensures res == x + 1
-pure
-func inc(x int) (res int) {
+decreases
+pure func inc(x int) (res int) {
 	return x + 1
 }
 

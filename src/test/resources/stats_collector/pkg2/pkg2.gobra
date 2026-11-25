@@ -15,6 +15,7 @@ pred (r *Rect) mem() {
 }
 
 requires acc(r, 1/2)
+decreases
 pure func (r *Rect) Size() bool {
   return r.width > 0 && r.height > 0
 }
@@ -45,6 +46,7 @@ pred (c *Circle) mem() {
 }
 
 requires acc(c, 1/2)
+decreases
 pure func (c *Circle) Size() bool {
   return c.radius > 0
 }

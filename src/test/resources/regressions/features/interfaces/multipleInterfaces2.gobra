@@ -8,6 +8,7 @@ type stream interface {
     pred mem()
 
     requires acc(mem(), 1/2)
+    decreases
     pure hasNext() bool
 
     requires mem() && hasNext()
@@ -20,9 +21,11 @@ type safeStream interface {
     pred mem()
 
     requires acc(mem())
+    decreases
     pure safe() bool
 
     requires acc(mem()) && safe()
+    decreases
     pure hasNext() bool
 }
 
@@ -33,11 +36,13 @@ type safeStream interface {
 type counter struct{ f, max int }
 
 requires acc(x, 1/2)
+decreases
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
 
 requires acc(x, 1/2)
+decreases
 pure func (x *counter) safe() bool {
   return true
 }

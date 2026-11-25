@@ -10,7 +10,9 @@ type Once interface {
     pred invBefore()
     pred invAfter(n int)
 
-    ghost pure res(n int)int
+    ghost
+    decreases
+    pure res(n int)int
 }
 
 requires o != nil && o.invBefore()
@@ -28,7 +30,9 @@ func hof(ghost o Once, f func(int)int)(res int) {
 type OnceID struct { accum *int }
 pred (self OnceID) invBefore() { acc(self.accum) && *self.accum == 0 }
 pred (self OnceID) invAfter(n int) { acc(self.accum) && *self.accum == n }
-ghost pure func (self OnceID) res(n int)int {
+ghost
+decreases
+pure func (self OnceID) res(n int)int {
     return n
 }
 

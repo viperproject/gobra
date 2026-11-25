@@ -388,6 +388,7 @@ In the previous examples of this section, the precondition of the non-pure funct
 requires p > 0
 requires acc(list(ptr), p)
 ensures  acc(list(ptr), p)
+decreases list(ptr)
 func (ptr *node) sum(ghost p perm) (res int) {
 	unfold acc(list(ptr), p)
 	res = ptr.value

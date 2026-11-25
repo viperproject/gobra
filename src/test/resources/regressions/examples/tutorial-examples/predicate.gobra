@@ -37,6 +37,7 @@ pure func head(ptr *node) int {
 requires p > 0
 requires acc(list(ptr), p)
 ensures  acc(list(ptr), p)
+decreases list(ptr)
 func (ptr *node) sum(ghost p perm) (res int) {
 	unfold acc(list(ptr), p)
 	res = ptr.value

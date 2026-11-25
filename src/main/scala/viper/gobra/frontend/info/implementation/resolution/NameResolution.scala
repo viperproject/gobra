@@ -11,7 +11,7 @@ import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInTypeTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.{AdtT, InterfaceT, StructT}
+import viper.gobra.frontend.info.base.Type.{AdtT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignMode}
 import viper.gobra.util.Violation
@@ -430,7 +430,7 @@ trait NameResolution {
           (res, scope) match {
             case (None, int : PInterfaceType) =>
               try {
-                memberSet(InterfaceT(int, this)).lookup(n.name) // lookup in the embeddedFields
+                memberSet(interfaceSymbType(int)).lookup(n.name) // lookup in the embeddedFields
               }
               catch { // happens if we are in a cycle because of unknown interface members
                 case _ : IllegalStateException => None

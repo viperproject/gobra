@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, DeclaredT, FunctionT, PredT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -145,7 +145,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: SymbolTable.GhostStructMember => ???
     case dest: SymbolTable.AdtDestructor => dest.context.symbType(dest.decl.typ)
     case _: SymbolTable.AdtDiscriminator => BooleanT
-    case const: SymbolTable.AdtClause => DeclaredT(const.typeDecl, const.context)
+    case const: SymbolTable.AdtClause => const.context.declaredSymbType(const.typeDecl)
     case BuiltInMPredicate(tag, _, _) => typ(tag)
     case f: SymbolTable.DomainFunction => FunctionT(f.args map f.context.typ, f.context.typ(f.result))
   }

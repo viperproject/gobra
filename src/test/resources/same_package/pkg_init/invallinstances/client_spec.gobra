@@ -28,10 +28,10 @@ pred (c *Client) Inv() {
 }
 
 ghost
-requires acc(c.Inv(), _)
+requires c.Inv()
 decreases
 pure func (c *Client) Id() int {
-	return unfolding acc(c.Inv(), _) in
+	return unfolding c.Inv() in
 		c.id
 }
 

@@ -76,9 +76,9 @@ func closures() {
 	_ = cl
 
 	cl2 := decreases
-		pure func h() (x int) {
-			return 0
-		}
+		   pure func h() (x int) {
+			   return 0
+		   }
 	_ = cl2
 }
 

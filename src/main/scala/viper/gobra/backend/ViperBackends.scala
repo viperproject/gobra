@@ -39,6 +39,11 @@ trait ViperBackend extends CliEnumConverter.EnumCase {
       // encoding of gotos in the SIFExtendedTransformer:
       GobraSIFExtendedTransformer.Config.enableGotoLowEventEncoding = true
       GobraSIFExtendedTransformer.Config.enableExperimentalFeatures = config.enableExperimentalHyperFeatures
+      // By default, the SIF plugin assumes at the start of every method that execution 0 is active, which removes the
+      // case where only execution 1 is active as the mirror image of the case where only execution 0 is. This is
+      // sound only for specifications that treat both executions alike (such as `low`). `active(i)` and `rel(e, i)`
+      // single out one execution, so methods must be verified for every activation (jcp19/hyperfuncs#13).
+      GobraSIFExtendedTransformer.Config.optimizeRestrictActVars = false
       // registers a callback to report the encoded Viper program such that we can print it if the user set `--printSIFVpr`:
       GobraSIFExtendedTransformer.Config.transformedProgramCallback = Some(encodedVpr =>
         config.reporter.report(SIFEncodedViperMessage(

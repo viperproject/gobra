@@ -54,3 +54,23 @@ func loop(c *cell) {
 		c.value -= 1
 	}
 }
+
+// old expressions are not permitted in postconditions of pure interface methods
+type reader interface {
+	pred mem()
+
+	pure
+	requires acc(mem(), _)
+	//:: ExpectedOutput(type_error)
+	ensures r == old(r)
+	decreases
+	get() (r int)
+}
+
+// old expressions are not permitted in postconditions of pure closure specs
+ghost
+pure
+//:: ExpectedOutput(type_error)
+ensures r == old(x)
+decreases
+func pureSpec(x int) (r int)

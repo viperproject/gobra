@@ -168,8 +168,6 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       // termination measures of members are encoded as preconditions, so they cannot refer to the pre-state
       terminationMeasures.flatMap(m => allChildren(m).flatMap(illegalOldNode(_, "termination measures"))) ++
-      // pure functions do not change the state, so their postconditions have no pre-state to refer to
-      (if (isPure) n.posts.flatMap(e => allChildren(e).flatMap(illegalOldNode(_, "postconditions of pure members"))) else noMessages) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
       error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
@@ -234,7 +232,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     * Reports `old`, labeled `old`, and `before` expressions, which are not permitted in `context`.
     * The `lhs` label is exempt, as it refers to the state of the left-hand side of an enclosing magic wand.
     */
-  private def illegalOldNode(n: PNode, context: String): Messages = n match {
+  private[typing] def illegalOldNode(n: PNode, context: String): Messages = n match {
     case PLabeledOld(PLabelUse(PLabelNode.lhsLabel), _) => noMessages
     case _: POld | _: PLabeledOld | _: PBefore => message(n, s"old expressions are not permitted in $context")
     case _ => noMessages

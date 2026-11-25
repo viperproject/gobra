@@ -64,7 +64,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     * termination. Pure members, whether ghost or not, are checked uniformly in `wellDefPureSpec`, which is why they
     * are excluded here.
     */
-  private[typing] def wellFoundedIfGhost(member: PMember): Messages = {
+  private[typing] def wellDefIfGhost(member: PMember): Messages = {
     val spec = member match {
       case m: PMethodDecl => m.spec
       case f: PFunctionDecl => f.spec

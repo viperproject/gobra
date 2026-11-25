@@ -8,12 +8,11 @@ type cell struct {
 }
 
 // old expressions are not permitted in postconditions of pure functions
-pure
 requires acc(c)
 //:: ExpectedOutput(type_error)
 ensures r == old(c.value)
 decreases
-func read(c *cell) (r int) {
+pure func read(c *cell) (r int) {
 	return c.value
 }
 
@@ -30,10 +29,9 @@ requires old(true)
 func oldInPre()
 
 // old expressions are not permitted in termination measures of pure members
-pure
 //:: ExpectedOutput(type_error)
 decreases old(1)
-func oldInDecreasesPure() int
+pure func oldInDecreasesPure() int
 
 // old expressions are not permitted in termination measures of non-pure members
 //:: ExpectedOutput(type_error)
@@ -59,21 +57,19 @@ func loop(c *cell) {
 type reader interface {
 	pred mem()
 
-	pure
 	requires acc(mem(), _)
 	//:: ExpectedOutput(type_error)
 	ensures r == old(r)
 	decreases
-	get() (r int)
+	pure get() (r int)
 }
 
 // old expressions are not permitted in postconditions of ghost pure functions
 ghost
-pure
 //:: ExpectedOutput(type_error)
 ensures r == old(x)
 decreases
-func pureSpec(x int) (r int)
+pure func pureSpec(x int) (r int)
 
 // old expressions are not permitted in postconditions of pure closure specs
 //:: ExpectedOutput(type_error)

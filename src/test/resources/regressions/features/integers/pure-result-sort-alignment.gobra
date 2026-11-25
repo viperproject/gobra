@@ -16,10 +16,10 @@ type T struct {
 pred (t *T) Mem() { acc(t) }
 
 ghost
-requires acc(t.Mem(), _)
+requires t.Mem()
 decreases
 pure func (t *T) LenSpec() (l int) {
-	return unfolding acc(t.Mem(), _) in
+	return unfolding t.Mem() in
 		(t.x == 0 ? MetadataLen : MetadataLen + 1)
 }
 

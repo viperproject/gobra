@@ -52,15 +52,15 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
     * If `recvType` is not an interface type, then the following function is generated:
     *
     *     function closureGet$[meth](self: [recvType]): Closure
-    *       decreases // the conversion is abstract and thus always terminates
+    *       decreases _ // the conversion always terminates
     *
     * Otherwise, for interface types, the following function is generated:
     *
     *     function closureGet$[meth](thisItf: [recvType]): Closure
     *       requires [thisItf != nil]
-    *       decreases // the conversion is abstract and thus always terminates
     *         // foreach type T that implements the interface type
     *       ensures [typeOf(thisItf) == T] ==> result == closureGet$[meth]([unbox(thisItf)])
+    *       decreases _ // the conversion always terminates
     *
     */
   private def genConversion(recvType: in.Type, meth: in.MethodProxy)(ctx: Context): vpr.Function = {
@@ -71,7 +71,7 @@ class MethodObjectEncoder(domain: ClosureDomainEncoder) {
       val receiver = in.Parameter.In("self", recvType)(meth.info)
       // the measure is needed because the conversion is applied in pure functions and specifications whose
       // termination is checked:
-      val terminates = termination.DecreasesTuple(Nil)(pos, info, errT)
+      val terminates = termination.DecreasesWildcard()(pos, info, errT)
       val vprReceiver =  ctx.variable(receiver)
       val vprReceiverVar = vprReceiver.localVar
 

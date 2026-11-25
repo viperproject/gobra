@@ -207,9 +207,7 @@ protected class ClosureSpecsEncoder {
     * function closureGet$[fName](captvar1_0: Type0, captvar2_0: Type0, captvar1_1: Type1, ...): Closure
     *   ensures [result implements fName]
     *   for X-th captured variable of T-th type: ensures captVarXClosure_T(result) == captvarX_T(result)
-    *   decreases // the getter is abstract and thus always terminates
-    * The measure is needed because the getter is called in the precondition of the closure call function of
-    * every spec that fName implements, whose termination is checked when fName has a termination measure.
+    *   decreases _ // getting the closure always terminates
     * */
   private def closureGetter(func: in.FunctionMemberOrLitProxy)(ctx: Context): MemberWriter[vpr.Member] = {
     val proxy = closureGetterFunctionProxy(func)
@@ -218,7 +216,7 @@ protected class ClosureSpecsEncoder {
     val satisfiesSpec = in.ExprAssertion(in.ClosureImplements(result, in.ClosureSpec(func, Map.empty)(info))(info))(info)
     val (args, captAssertions) = capturedArgsAndAssertions(ctx)(result, captured(ctx)(func), info)
     val notNil = in.ExprAssertion(in.UneqCmp(result, in.NilLit(genericFuncType)(info))(info))(info)
-    val terminates = in.NonItfTupleTerminationMeasure(Vector.empty, None)(info)
+    val terminates = in.NonItfMethodWildcardMeasure(None)(info)
     val getter = in.PureFunction(proxy, args, Vector(result), Vector.empty, Vector(satisfiesSpec) ++ captAssertions :+ notNil, Vector(terminates), Vector.empty, None, false)(memberOrLit(ctx)(func).info)
     ctx.defaultEncoding.pureFunction(getter)(ctx)
   }

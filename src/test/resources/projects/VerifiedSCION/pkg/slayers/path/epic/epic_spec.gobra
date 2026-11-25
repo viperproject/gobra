@@ -1,0 +1,124 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package epic
+
+import (
+	"github.com/scionproto/scion/pkg/slayers/path"
+	"github.com/scionproto/scion/pkg/slayers/path/scion"
+	"github.com/scionproto/scion/verification/dependencies/encoding/binary"
+	"github.com/scionproto/scion/verification/io"
+	. "github.com/scionproto/scion/verification/utils/definitions"
+	sl "github.com/scionproto/scion/verification/utils/slices"
+)
+
+pred (p *Path) NonInitMem() {
+	acc(p)
+}
+
+pred (p *Path) Mem(ubuf []byte) {
+	acc(&p.PktID) &&
+	acc(&p.PHVF) && sl.Bytes(p.PHVF, 0, len(p.PHVF)) &&
+	acc(&p.LHVF) && sl.Bytes(p.LHVF, 0, len(p.LHVF)) &&
+	acc(&p.ScionPath) &&
+	p.ScionPath != nil &&
+	MetadataLen <= len(ubuf) &&
+	p.ScionPath.Mem(ubuf[MetadataLen:])
+}
+
+ghost
+requires p.Mem(ub)
+decreases
+pure func (p *Path) LenSpec(ghost ub []byte) (l int) {
+	return unfolding p.Mem(ub) in
+		(p.ScionPath == nil ?
+			MetadataLen :
+			MetadataLen + p.ScionPath.LenSpec(ub[MetadataLen:]))
+}
+
+ghost
+requires p.Mem(buf)
+ensures  p.NonInitMem()
+decreases
+func (p *Path) DowngradePerm(buf []byte) {
+	unfold p.Mem(buf)
+	fold  p.NonInitMem()
+}
+
+ghost
+requires r.Mem(ub)
+decreases
+pure func (r *Path) GetBase(ub []byte) scion.Base {
+	return unfolding r.Mem(ub) in
+		r.ScionPath.GetBase(ub[MetadataLen:])
+}
+
+ghost
+requires p.Mem(buf)
+decreases
+pure func (p *Path) GetPHVFLen(buf []byte) (l int) {
+	return unfolding p.Mem(buf) in
+		len(p.PHVF)
+}
+
+ghost
+requires p.Mem(buf)
+decreases
+pure func (p *Path) GetLHVFLen(buf []byte) (l int) {
+	return unfolding p.Mem(buf) in
+		len(p.LHVF)
+}
+
+ghost
+requires p.Mem(buf)
+decreases
+pure func (p *Path) HasScionPath(buf []byte) (r bool) {
+	return unfolding p.Mem(buf) in
+		p.ScionPath != nil
+}
+
+ghost
+requires p.Mem(buf)
+decreases
+pure func (p *Path) GetUnderlyingScionPathBuf(buf []byte) []byte {
+	return unfolding p.Mem(buf) in
+		buf[MetadataLen:]
+}
+
+ghost
+requires p.Mem(b)
+requires sl.Bytes(b, 0, len(b))
+decreases
+pure func (p *Path) IsValidResultOfDecoding(b []byte) (res bool) {
+	return unfolding p.Mem(b) in
+		unfolding p.ScionPath.Mem(b[MetadataLen:]) in
+		MetadataLen + scion.MetaLen <= len(b) &&
+		unfolding sl.Bytes(b, 0, len(b)) in
+		let _ := Asserting(forall k int :: {&b[MetadataLen:][k]} 0 <= k && k < len(b)-MetadataLen ==>
+			&b[MetadataLen:][k] == &b[MetadataLen + k]) in
+		let _ := Asserting(forall k int :: {&b[MetadataLen:][:scion.MetaLen][k]} 0 <= k && k < scion.MetaLen ==>
+			&b[MetadataLen:][:scion.MetaLen][k] == &b[MetadataLen:][k]) in
+		let metaHdr := scion.DecodedFrom(binary.BigEndian.Uint32(b[MetadataLen:][:scion.MetaLen])) in
+		let seg1 := int(metaHdr.SegLen[0]) in
+		let seg2 := int(metaHdr.SegLen[1]) in
+		let seg3 := int(metaHdr.SegLen[2]) in
+		let segs := io.CombineSegLens(seg1, seg2, seg3) in
+		p.ScionPath.Base.GetBase() ==
+			scion.Base{metaHdr, segs.NumInfoFields(), segs.TotalHops()} &&
+		p.ScionPath.Base.GetBase().WeaklyValid()
+}
+
+(*Path) implements path.Path

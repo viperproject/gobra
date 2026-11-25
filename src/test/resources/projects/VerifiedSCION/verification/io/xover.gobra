@@ -1,0 +1,108 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** Switching between segments (xover) ****/
+
+package io
+
+// Switching between segments (xover)
+// Xover events are similar to the enter event in that a packet is received form an external
+// channel and forwarded (internally or externally), but in contrast to the enter event, additional
+// processing steps are required to switch from the current segment, which has reached its end, to the
+// next segment.
+
+// Guard:
+// Check if we are at the end of one segment and that there is a non empty Future segment.
+// There are three different segments in this definition: currseg, the 'old segment' with
+// exactly one hop field remaining in the Future path, traversedseg, which is currseg after we
+// push its remaining hop field into the Past path, and nextseg, which is the new segment that we
+// are xovering over to
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Dp2_xover_guard(m Pkt,
+	currseg Seg,
+	nextseg Seg,
+	traversedseg Seg,
+	newpkt Pkt,
+	hf1 HF,
+	hf2 HF,
+	nextfut seq[HF],
+	asid AS,
+	recvif Ifs) bool {
+		return m.CurrSeg == currseg &&
+			m.LeftSeg == some(nextseg) &&
+			nextseg.History == seq[AHI]{} &&
+			newpkt == Pkt{nextseg, m.MidSeg, m.RightSeg, some(traversedseg)} &&
+			currseg.Future == seq[HF]{hf1} &&
+			nextseg.Future == seq[HF]{hf2} ++ nextfut &&
+			dp.Dp2_enter_interface(currseg.ConsDir, asid, hf1, recvif) &&
+			dp.Xover2_link_type_dir(dp.Asid(), currseg.ConsDir, hf1, nextseg.ConsDir, hf2) &&
+			Update_uinfo(!currseg.ConsDir, currseg, traversedseg, hf1) &&
+			Inc_seg2(currseg, traversedseg, hf1, seq[HF]{}) &&
+			dp.Hf_valid(currseg.ConsDir, currseg.AInfo.V, traversedseg.UInfo, hf1) &&
+			dp.Hf_valid(nextseg.ConsDir, nextseg.AInfo.V, nextseg.UInfo, hf2) &&
+			hf1.Extr_asid() == asid &&
+			hf2.Extr_asid() == asid &&
+			Same_other2(currseg, traversedseg)
+}
+
+ghost
+requires dp.Valid()
+requires a == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Egif2_type(hf HF, a AS, link Link) bool {
+	return dp.If_type(a, hf.EgIF2, link)
+}
+
+ghost
+requires dp.Valid()
+requires a == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Inif2_type(hf HF, a AS, link Link) bool {
+	return dp.If_type(a, hf.InIF2, link)
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Xover2_link_type(asid AS, hf1 HF, hf2 HF) bool {
+	return (dp.Inif2_type(hf1, asid, IO_ProvCust{}) && dp.Egif2_type(hf2, asid, IO_ProvCust{})) ||
+		(dp.Inif2_type(hf1, asid, IO_ProvCust{}) && dp.Egif2_type(hf2, asid, IO_Core{})) ||
+		(dp.Inif2_type(hf1, asid, IO_Core{}) && dp.Egif2_type(hf2, asid, IO_ProvCust{}))
+}
+
+ghost
+decreases
+pure func Swap_if_dir2(hf HF, d bool) HF {
+	return HF {
+		InIF2: d ? hf.InIF2 : hf.EgIF2,
+		EgIF2: d ? hf.EgIF2 : hf.InIF2,
+		HVF: hf.HVF,
+	}
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Xover2_link_type_dir(asid AS, d1 bool, hf1 HF, d2 bool, hf2 HF) bool {
+	return dp.Xover2_link_type(asid, Swap_if_dir2(hf1, d1), Swap_if_dir2(hf2, d2))
+}
+
+

@@ -1,0 +1,158 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/net/ip.go
+
+// +gobra
+
+package net
+
+import . "github.com/scionproto/scion/verification/utils/definitions"
+import sl "github.com/scionproto/scion/verification/utils/slices"
+
+// IP address lengths (bytes).
+const (
+	IPv4len = 4
+	IPv6len = 16
+)
+
+type IP []byte
+
+pred (ip IP) Mem() {
+	(len(ip) == IPv4len || len(ip) == IPv6len) &&
+	forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i])
+}
+
+// IPv4 returns the IP address (in 16-byte form) of the
+// IPv4 address a.b.c.d.
+ensures len(res) == 4 && forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+func IPv4(a, b, c, d byte) (res IP)
+
+// IsUnspecified reports whether ip is an unspecified address, either
+// the IPv4 address "0.0.0.0" or the IPv6 address "::".
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsUnspecified() bool
+
+// IsLoopback reports whether ip is a loopback address.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsLoopback() bool
+
+// IsMulticast reports whether ip is a multicast address.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsMulticast() bool
+
+// IsInterfaceLocalMulticast reports whether ip is an interface-local multicast address.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsInterfaceLocalMulticast() bool
+
+// IsLinkLocalMulticast reports whether ip is a link-local multicast address.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsLinkLocalMulticast() bool
+
+// IsLinkLocalUnicast reports whether ip is a link-local unicast address.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsLinkLocalUnicast() bool
+
+// IsGlobalUnicast reports whether ip is a global unicast
+// address.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+func (ip IP) IsGlobalUnicast() bool
+
+// To4 converts the IPv4 address ip to a 4-byte representation.
+preserves wildcard ==> forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], _)
+preserves !wildcard ==> forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R20)
+ensures   res != nil ==> len(res) == IPv4len
+ensures   len(ip) == IPv4len ==> ip === res
+ensures   (len(ip) == IPv6len && IsZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255) ==> res != nil
+ensures   (len(ip) == IPv6len && !(IsZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255)) ==> res == nil
+ensures   (len(ip) == IPv6len && res != nil) ==>
+	// even though it is technically unecessary,
+	// this assertion allows us to change this contract
+	// without breaking the clients atm.
+	let _ := sl.AssertSliceOverlap(ip, 12, 16) in
+	res === ip[12:16]
+ensures   len(ip) != IPv4len && len(ip) != IPv6len ==> res == nil
+decreases
+func (ip IP) To4(ghost wildcard bool) (res IP) {
+	if len(ip) == IPv4len {
+		return ip
+	}
+	if len(ip) == IPv6len &&
+		isZeros(ip[0:10]) &&
+		ip[10] == 255 &&
+		ip[11] == 255 {
+		return ip[12:16]
+	}
+	return nil
+}
+
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+decreases
+pure func isZeros(s []byte) bool
+
+// IsZeros is the exported counterpart of the non-exported function isZeros.
+// Contracts of exported members and importing packages may only mention
+// exported names; the body is hidden from importers.
+ghost
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
+decreases
+// TODO(gobra#1092): closed
+pure func IsZeros(s []byte) bool {
+	return isZeros(s)
+}
+
+// To16 converts the IP address ip to a 16-byte representation.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+ensures len(ip) == IPv4len ==>
+	(len(res) == IPv4len &&
+	forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i]))
+ensures len(ip) == IPv6len ==>
+	(len(res) == IPv6len &&
+	forall i int :: { &res[i] } 0 <= i && i < len(res) ==> &ip[i] == &res[i])
+func (ip IP) To16() (res IP) {
+	if len(ip) == IPv4len {
+		return IPv4(ip[0], ip[1], ip[2], ip[3])
+	}
+	if len(ip) == IPv6len {
+		return ip
+	}
+	return nil
+}
+
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==> acc(&ip[i], R15)
+decreases _
+func (ip IP) String() string
+
+// MarshalText implements the encoding.TextMarshaler interface.
+preserves forall i int :: { &ip[i] } 0 <= i && i < len(ip) ==>
+	acc(&ip[i], R15)
+ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==>
+	acc(&res[i])
+ensures (len(ip) == IPv4len || len(ip) == IPv6len || len(ip) == 0) ==> err == nil
+func (ip IP) MarshalText() (res []byte, err error)
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
+// The IP address is expected in a form accepted by ParseIP.
+preserves acc(ip)
+preserves forall i int :: { &text[i] } 0 <= i && i < len(text) ==>
+	acc(&text[i], R15)
+ensures forall i int :: { &((*ip)[i]) } 0 <= i && i < len(*ip) ==>
+	acc(&((*ip)[i]))
+func (ip *IP) UnmarshalText(text []byte) error
+
+// Equal reports whether ip and x are the same IP address.
+// An IPv4 address and that same address in IPv6 form are
+// considered to be equal.
+// (VerifiedSCION) we consider this function to be morally pure
+requires sl.Bytes(ip, 0, len(ip))
+requires sl.Bytes(x, 0, len(x))
+decreases _
+pure func (ip IP) Equal(x IP) bool
+
+// ParseIP parses s as an IP address, returning the result.
+ensures forall i int :: {&res[i]} 0 <= i && i < len(res) ==> acc(&res[i])
+ensures res != nil ==> len(res) == IPv4len || len(res) == IPv6len
+decreases _
+func ParseIP(s string) (res IP)

@@ -1,0 +1,55 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** VALUES ****/
+
+package io
+
+// TODO: use a more sustainable name for the operands of each constructor.
+//       ideally, we would use always op_i for every field, but Gobra currently complains if
+//       there are two constructors with a parameter that shares the name.
+
+ghost type Val adt {
+	// Unit
+	ValUnit{}
+
+	// Pkt (case pkt2 in Isabelle)
+	ValPkt {
+		ValPkt_1 option[Ifs]
+		ValPkt_2 Pkt
+	}
+
+	// Unsupported
+	ValUnsupported {
+		ValUnsupported_1 option[Ifs]
+		ValUnsupported_2 Unit
+	}
+
+	// Internal_val1
+	ValInternal1 {
+		ValInternal1_1 Pkt
+		ValInternal1_2 Ifs
+		ValInternal1_3 Pkt
+		ValInternal1_4 option[Ifs]
+	}
+
+	// Internal_val2
+	ValInternal2 {
+		ValInternal2_1 Pkt
+		ValInternal2_2 Pkt
+		ValInternal2_3 Ifs
+	}
+}

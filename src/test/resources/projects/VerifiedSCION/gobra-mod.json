@@ -1,0 +1,16 @@
+{
+  "default_job_cfg": {
+    "module": "github.com/scionproto/scion",
+    "assert_timeout": 45000,
+    "includes": ["", "verification/dependencies"],
+    "only_files_with_header": true,
+    "assume_injectivity_inhale": true,
+    "check_consistency": true,
+    "parallelize_branches": false,
+    "require_triggers": false,
+    "overflow": false,
+    "mce_mode": "od",
+    "chop": 1,
+    "other": ["--norespectFunctionPrePermAmounts", "--experimentalFriendClauses"]
+  }
+}

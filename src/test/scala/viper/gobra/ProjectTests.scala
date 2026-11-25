@@ -29,7 +29,7 @@ import scala.concurrent.duration.Duration
   * root and optional `gobra.json` files next to packages). Each package is verified exactly as `gobra --config <pkg>`
   * would do; the only settings overridden are the Z3 executable and the reporter.
   *
-  * If the project directory does not exist (e.g., because the git submodule has not been checked out), all tests are
+  * If the project directory does not exist (e.g., because it was removed), all tests are
   * canceled instead of failing.
   */
 abstract class ProjectTests extends AnyFunSuite with BeforeAndAfterAll with TimingUtils {
@@ -65,7 +65,7 @@ abstract class ProjectTests extends AnyFunSuite with BeforeAndAfterAll with Timi
   packages.foreach { pkg =>
     test(s"$projectName/$pkg") {
       val pkgDir = projectRoot.resolve(pkg)
-      assume(Files.isDirectory(projectRoot), s"Project directory $projectRoot does not exist (is the submodule checked out?)")
+      assume(Files.isDirectory(projectRoot), s"Project directory $projectRoot does not exist")
       assert(Files.isDirectory(pkgDir), s"Package directory $pkgDir does not exist")
 
       throwError.value = true
@@ -93,14 +93,17 @@ abstract class ProjectTests extends AnyFunSuite with BeforeAndAfterAll with Timi
 
 /**
   * Verifies a subset of the packages of VerifiedSCION (https://github.com/viperproject/VerifiedSCION), which is
-  * included as a git submodule in `projects/VerifiedSCION`. The set of packages can be overridden by setting the
+  * vendored (as a subset) in `src/test/resources/projects/VerifiedSCION`. The set of packages can be overridden by setting the
   * system property `GOBRATESTS_SCION_PACKAGES` to a comma-separated list of package directories.
   */
 class ScionTests extends ProjectTests {
   override def projectName: String = "VerifiedSCION"
 
   override def projectRoot: Path =
-    Paths.get(System.getProperty("GOBRATESTS_SCION_DIR", "projects/VerifiedSCION")).toAbsolutePath.normalize()
+    Option(System.getProperty("GOBRATESTS_SCION_DIR")).map(Paths.get(_))
+      .orElse(Option(getClass.getClassLoader.getResource("projects/VerifiedSCION")).map(viper.silver.utility.Paths.pathFromResource))
+      .getOrElse(Paths.get("src/test/resources/projects/VerifiedSCION"))
+      .toAbsolutePath.normalize()
 
   override def packages: Seq[String] = packagesFromProperty("GOBRATESTS_SCION_PACKAGES").getOrElse(Seq(
     "pkg/slayers/path",

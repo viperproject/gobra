@@ -1,0 +1,78 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package addr
+
+import (
+	"fmt"
+	"encoding"
+	"flag"
+)
+
+pred (ia *IA) Mem() { acc(ia) }
+
+(*IA) implements encoding.TextUnmarshaler {
+	(ia *IA) UnmarshalText(text []byte) (err error) {
+		unfold ia.Mem()
+		err = ia.UnmarshalText(text)
+		fold ia.Mem()
+	}
+}
+
+// Implementation proof would confuse the two predicates named Mem for IA and *IA
+// Issue: https://github.com/viperproject/gobra/issues/449
+pred MemForStringer(ia IA) { true }
+
+IA implements fmt.Stringer {
+	pred Mem := MemForStringer
+	
+	(ia IA) String() string {
+		return ia.String()
+	}
+}
+
+pred (_as *AS) Mem() { acc(_as) }
+
+(*AS) implements encoding.TextUnmarshaler {
+	(_as *AS) UnmarshalText(text []byte) (err error) {
+		unfold _as.Mem()
+		err = _as.UnmarshalText(text)
+		fold _as.Mem()
+	}
+}
+
+(*IA) implements flag.Value {
+	(ia *IA) String() (str string) {
+		unfold ia.Mem()
+		str = ia.String()
+		fold ia.Mem()
+	}
+	
+	(ia *IA) Set(s string) (err error) {
+		unfold ia.Mem()
+		err = ia.Set(s)
+		fold ia.Mem()
+	}
+}
+
+// InRange is the ghost counterpart of the (non-exported) method AS.inRange. It is
+// part of the contracts of exported members of this package, which may not
+// mention non-exported members.
+ghost
+decreases
+pure func (_as AS) InRange() bool {
+	return _as <= MaxAS
+}

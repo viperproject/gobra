@@ -1,0 +1,45 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** BIO operations of the system ****/
+
+package io
+
+ghost type Bio3sIN adt {
+	Bio3s_enter{}
+	Bio3s_xover{}
+	Bio3s_exit{}
+}
+
+ghost type Bio3sIO adt {
+	Bio3s_send{}
+	Bio3s_recv{}
+}
+
+// defined in Isabelle as (bios3sIN, bios3sIO) events
+ghost type Bio3s adt {
+	Bio3s_IN {
+		IN Bio3sIN
+	}
+
+	Bio3s_IO {
+		IO Bio3sIO
+	}
+
+	Bio3s_Skip{}
+
+	Bio3s_Stop{}
+}

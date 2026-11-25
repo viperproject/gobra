@@ -1,0 +1,222 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** Definitions regarding a particular router's event system ****/
+
+package io
+
+// TODO: make individual_router an interface type with the following methods
+
+ghost
+decreases
+pure func If2term(ifs option[Ifs]) MsgTerm {
+	return match ifs {
+		case none[Ifs]:
+			MsgTerm_Empty{}
+		default:
+			MsgTerm_AS{AS{uint(get(ifs).V)}}
+	}
+}
+
+ghost
+decreases
+pure func (dp DataPlaneSpec) Hf_valid(d bool, ts uint, uinfo set[MsgTerm], hf HF) bool {
+	return Hf_valid_impl(dp.Asid(), ts, uinfo, hf)
+}
+
+ghost
+decreases
+pure func Hf_valid_impl(asid AS, ts uint, uinfo set[MsgTerm], hf HF) bool {
+	return let inif := hf.InIF2 in
+		let egif := hf.EgIF2 in
+		let hvf := hf.HVF in
+		let next := NextMsgtermSpec(asid, inif, egif, ts, uinfo) in
+		hvf == next
+}
+
+ghost
+opaque
+ensures result.Extract_asid() == asid
+decreases
+pure func NextMsgtermSpec(asid AS, inif option[Ifs], egif option[Ifs], ts uint, uinfo set[MsgTerm]) (result MsgTerm) {
+	return let l := PlaintextToMac(inif, egif, ts, uinfo) in
+		let res := Mac(MacKey(AsidToKey(asid)), l) in
+		let _ := reveal res.Extract_asid() in
+		res
+}
+
+ghost
+decreases
+pure func PlaintextToMac(inif option[Ifs], egif option[Ifs], ts uint, uinfo set[MsgTerm]) MsgTerm {
+	return MsgTerm_L {
+		seq[MsgTerm]{
+			MsgTerm_Num{ts},
+			If2term(inif),
+			If2term(egif),
+			MsgTerm_FS{uinfo},
+		},
+	}
+}
+
+ghost
+decreases
+pure func MacKey(key Key) MsgTerm {
+	return MsgTerm_Key{key}
+}
+
+ghost
+decreases
+pure func Mac(fst MsgTerm, snd MsgTerm) MsgTerm {
+	return MsgTerm_Hash {
+		MsgTerm_Hash_: MsgTerm_MPair {
+			MsgTerm_MPair_1: fst,
+			MsgTerm_MPair_2: snd,
+		},
+	}
+}
+
+// helper function, not defined in IO spec
+ghost
+decreases
+pure func AsidToKey(asid AS) Key {
+	return Key_macK{asid}
+}
+
+ghost
+decreases
+pure func Upd_uinfo(segid set[MsgTerm], hf HF) set[MsgTerm] {
+	return let setHVF := set[MsgTerm]{hf.HVF} in
+		(segid union setHVF) setminus (segid intersection setHVF)
+}
+
+// This function is provided as locale in the Isabelle formalization.
+ghost
+requires dp.Valid()
+decreases
+pure func (dp DataPlaneSpec) Is_target(asid AS, nextif Ifs, a2 AS, i2 Ifs) bool {
+	return AsIfsPair{asid, nextif} elem domain(dp.GetLinks()) &&
+		dp.Lookup(AsIfsPair{asid, nextif}) == AsIfsPair{a2, i2}
+}
+
+ghost
+decreases
+pure func Dp3s_add_ibuf(s Dp3sStateLocal, i option[Ifs], pkt Pkt) Dp3sStateLocal {
+	return Dp3sStateLocal {
+		Ibuf: Insert(s.Ibuf, i, pkt),
+		Obuf: s.Obuf,
+	}
+}
+
+ghost
+decreases
+pure func Dp3s_add_obuf(s Dp3sStateLocal, i option[Ifs], pkt Pkt) Dp3sStateLocal {
+	return Dp3sStateLocal {
+		Ibuf: s.Ibuf,
+		Obuf: Insert(s.Obuf, i, pkt),
+	}
+}
+
+// helper func
+ghost
+decreases
+pure func Insert(buf dict[option[Ifs]](set[Pkt]), k option[Ifs], v Pkt) dict[option[Ifs]](set[Pkt]) {
+	return let newSet := (k elem domain(buf) ? (let pre := buf[k] in pre union set[Pkt]{v}) : set[Pkt]{v}) in
+		buf[k = newSet]
+}
+
+ghost
+requires len(m.CurrSeg.Future) > 0
+requires dp.Valid()
+decreases
+pure func (dp DataPlaneSpec) Dp3s_forward_ext(m Pkt, newpkt Pkt, nextif Ifs) bool {
+	return let _ := reveal dp.Valid() in
+		let currseg := m.CurrSeg in
+		let hf1, fut := currseg.Future[0], currseg.Future[1:] in
+		let traversedseg := newpkt.CurrSeg in
+		dp.Dp2_forward_ext_guard(dp.Asid(), m, nextif, currseg, traversedseg, newpkt, fut, hf1) &&
+		(nextif elem domain(dp.GetNeighborIAs())) &&
+		let a2 := dp.GetNeighborIA(nextif) in
+		let i2 := dp.Lookup(AsIfsPair{dp.Asid(), nextif}).Ifs in
+		dp.Is_target(dp.Asid(), nextif, a2, i2)
+}
+
+ghost
+requires len(m.CurrSeg.Future) > 0
+requires dp.Valid()
+decreases
+pure func (dp DataPlaneSpec) Dp3s_forward_ext_xover(m Pkt, newpkt Pkt, nextif Ifs) bool {
+	return let _ := reveal dp.Valid() in
+		let currseg := m.CurrSeg in
+		let hf1, fut := currseg.Future[0], currseg.Future[1:] in
+		let traversedseg := newpkt.CurrSeg in
+		dp.Dp2_forward_ext_guard(dp.Asid(), m, nextif, currseg, traversedseg, newpkt, fut, hf1) &&
+		(nextif elem domain(dp.GetNeighborIAs())) &&
+		let a2 := dp.GetNeighborIA(nextif) in
+		let i2 := dp.Lookup(AsIfsPair{dp.Asid(), nextif}).Ifs in
+		dp.Is_target(dp.Asid(), nextif, a2, i2)
+}
+
+ghost
+requires len(m.CurrSeg.Future) > 0
+requires dp.Valid()
+decreases
+pure func (dp DataPlaneSpec) Dp3s_forward(m Pkt, newpkt Pkt, nextif option[Ifs]) bool {
+	return match nextif {
+		case none[Ifs]:
+			newpkt == m
+		default:
+			dp.Dp3s_forward_ext(m, newpkt, get(nextif))
+	}
+}
+
+ghost
+requires len(m.CurrSeg.Future) > 0
+requires dp.Valid()
+decreases
+pure func (dp DataPlaneSpec) Dp3s_forward_xover(m Pkt, newpkt Pkt, nextif option[Ifs]) bool {
+	return match nextif {
+		case none[Ifs]:
+			newpkt == m
+		default:
+			dp.Dp3s_forward_ext_xover(m, newpkt, get(nextif))
+	}
+}
+
+ghost
+requires len(intermediatepkt.CurrSeg.Future) > 0
+requires dp.Valid()
+decreases
+pure func (dp DataPlaneSpec) Dp3s_xover_guard(
+	s Dp3sStateLocal,
+	m Pkt,
+	currseg Seg,
+	nextseg Seg,
+	traversedseg Seg,
+	intermediatepkt Pkt,
+	hf1 HF,
+	hf2 HF,
+	nextfut seq[HF],
+	recvif Ifs,
+	newpkt Pkt,
+	nextif option[Ifs],
+	) bool {
+		// the first conjunct was added to Gobra, even though it was not in the original isabelle spec.
+		// this is because of the way math. maps are implemented, we can only obtain a key that is in the map before.
+		return some(recvif) elem domain(s.Ibuf) &&
+			(let lookupRes := s.Ibuf[some(recvif)] in (m elem lookupRes)) &&
+			dp.Dp2_xover_guard(m, currseg, nextseg, traversedseg, intermediatepkt, hf1, hf2, nextfut, dp.Asid(), recvif) &&
+			dp.Dp3s_forward_xover(intermediatepkt, newpkt, nextif)
+}

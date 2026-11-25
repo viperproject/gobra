@@ -1,0 +1,179 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/strings/strings.go
+
+// +gobra
+
+package strings
+
+// Count counts the number of non-overlapping instances of substr in s.
+// If substr is an empty string, Count returns 1 + the number of Unicode code points in s.
+func Count(s, substr string) int
+
+// Contains reports whether substr is within s.
+func Contains(s, substr string) bool {
+	return Index(s, substr) >= 0
+}
+
+// ContainsAny reports whether any Unicode code points in chars are within s.
+func ContainsAny(s, chars string) bool {
+	return IndexAny(s, chars) >= 0
+}
+
+// ContainsRune reports whether the Unicode code point r is within s.
+func ContainsRune(s string, r rune) bool {
+	return IndexRune(s, r) >= 0
+}
+
+// LastIndex returns the index of the last instance of substr in s, or -1 if substr is not present in s.
+func LastIndex(s, substr string) int
+
+// IndexByte returns the index of the first instance of c in s, or -1 if c is not present in s.
+func IndexByte(s string, c byte) int
+
+// IndexRune returns the index of the first instance of the Unicode code point
+// r, or -1 if rune is not present in s.
+// If r is utf8.RuneError, it returns the first instance of any
+// invalid UTF-8 byte sequence.
+func IndexRune(s string, r rune) int
+
+// IndexAny returns the index of the first instance of any Unicode code point
+// from chars in s, or -1 if no Unicode code point from chars is present in s.
+func IndexAny(s, chars string) int
+
+// LastIndexAny returns the index of the last instance of any Unicode code
+// point from chars in s, or -1 if no Unicode code point from chars is
+// present in s.
+func LastIndexAny(s, chars string) int
+
+// LastIndexByte returns the index of the last instance of c in s, or -1 if c is not present in s.
+func LastIndexByte(s string, c byte) int
+
+// SplitN slices s into substrings separated by sep and returns a slice of
+// the substrings between those separators.
+ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
+func SplitN(s, sep string, n int) (res []string)
+
+// SplitAfterN slices s into substrings after each instance of sep and
+// returns a slice of those substrings.
+ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
+func SplitAfterN(s, sep string, n int) (res []string)
+
+// Split slices s into all substrings separated by sep and returns a slice of
+// the substrings between those separators.
+ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
+func Split(s, sep string) (res []string) //{ return genSplit(s, sep, 0, -1) }
+
+// SplitAfter slices s into all substrings after each instance of sep and
+// returns a slice of those substrings.
+ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
+func SplitAfter(s, sep string) (res []string)
+
+// var asciiSpace = [256]uint8{'\t': 1, '\n': 1, '\v': 1, '\f': 1, '\r': 1, ' ': 1}
+
+// Fields splits the string s around each instance of one or more consecutive white space
+// characters, as defined by unicode.IsSpace, returning a slice of substrings of s or an
+// empty slice if s contains only white space.
+ensures forall i int :: { &res[i] } 0 <= i && i < len(res) ==> acc(&res[i])
+func Fields(s string) (res []string)
+
+// Join concatenates the elements of its first argument to create a single string. The separator
+// string sep is placed between elements in the resulting string.
+requires forall i int :: { &elems[i] } 0 <= i && i < len(elems) ==> acc(&elems[i])
+ensures len(elems) == 0 ==> res == ""
+ensures len(elems) == 1 ==> res == elems[0]
+// (VerifiedSCION) Leads to precondition of call might not hold (permission to elems[i] might not suffice)
+// ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
+decreases _
+pure func Join(elems []string, sep string) (res string)
+
+// HasPrefix tests whether the string s begins with prefix.
+decreases
+pure func HasPrefix(s, prefix string) (ret bool) {
+	return len(s) >= len(prefix) && (s[0:len(prefix)] == prefix)
+}
+
+// HasSuffix tests whether the string s ends with suffix.
+decreases
+pure func HasSuffix(s, suffix string) (ret bool) {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}
+
+// ToUpper returns s with all Unicode letters mapped to their upper case.
+decreases _
+func ToUpper(s string) string
+
+// ToLower returns s with all Unicode letters mapped to their lower case.
+decreases _
+func ToLower(s string) string
+
+// ToTitle returns a copy of the string s with all Unicode letters mapped to
+// their Unicode title case.
+decreases _
+func ToTitle(s string) string // { return Map(unicode.ToTitle, s) }
+
+// ToValidUTF8 returns a copy of the string s with each run of invalid UTF-8 byte sequences
+// replaced by the replacement string, which may be empty.
+func ToValidUTF8(s, replacement string) string
+
+// Title returns a copy of the string s with all Unicode letters that begin words
+// mapped to their Unicode title case.
+func Title(s string) string
+
+// Trim returns a slice of the string s with all leading and
+// trailing Unicode code points contained in cutset removed.
+decreases _
+func Trim(s, cutset string) string
+
+// TrimLeft returns a slice of the string s with all leading
+// Unicode code points contained in cutset removed.
+//
+// To remove a prefix, use TrimPrefix instead.
+decreases _
+func TrimLeft(s, cutset string) string
+
+// TrimRight returns a slice of the string s, with all trailing
+// Unicode code points contained in cutset removed.
+//
+// To remove a suffix, use TrimSuffix instead.
+decreases _
+func TrimRight(s, cutset string) string
+
+// TrimSpace returns a slice of the string s, with all leading
+// and trailing white space removed, as defined by Unicode.
+func TrimSpace(s string) string
+
+// TrimPrefix returns s without the provided leading prefix string.
+// If s doesn't start with prefix, s is returned unchanged.
+func TrimPrefix(s, prefix string) string
+
+// TrimSuffix returns s without the provided trailing suffix string.
+// If s doesn't end with suffix, s is returned unchanged.
+decreases _
+func TrimSuffix(s, suffix string) string
+
+// Replace returns a copy of the string s with the first n
+// non-overlapping instances of old replaced by new.
+func Replace(s, oldS, newS string, n int) string
+
+// ReplaceAll returns a copy of the string s with all
+// non-overlapping instances of old replaced by new.
+func ReplaceAll(s, oldS, newS string) string {
+	return Replace(s, oldS, newS, -1)
+}
+
+// EqualFold reports whether s and t, interpreted as UTF-8 strings,
+// are equal under Unicode case-folding, which is a more general
+// form of case-insensitivity.
+func EqualFold(s, t string) bool
+
+// Index returns the index of the first instance of substr in s, or -1 if substr is not present in s.
+decreases _
+func Index(s, substr string) int

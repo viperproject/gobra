@@ -1,0 +1,97 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package addr
+
+import (
+	"net"
+
+	"github.com/scionproto/scion/verification/utils/errors"
+	"github.com/scionproto/scion/verification/utils/slices"
+)
+
+pred (h HostNone) Mem() { len(h) == HostLenNone }
+
+HostNone implements HostAddr
+
+pred (h HostIPv4) Mem() {
+	len(h) == HostLenIPv4 &&
+	slices.Bytes(h, 0, len(h))
+}
+
+HostIPv4 implements HostAddr
+
+pred (h HostIPv6) Mem() {
+	len(h) == HostLenIPv6 &&
+	slices.Bytes(h, 0, len(h))
+}
+
+HostIPv6 implements HostAddr
+
+pred (h HostSVC) Mem() { true }
+
+HostSVC implements HostAddr
+
+pred (h *HostSVC) Mem() { acc(h) }
+
+(*HostSVC) implements HostAddr
+
+ghost
+decreases
+pure func IsValidHostAddrType(htype HostAddrType) bool {
+	return htype == HostTypeNone ||
+		htype == HostTypeIPv4 ||
+		htype == HostTypeIPv6 ||
+		htype == HostTypeSVC
+}
+
+ghost
+requires IsValidHostAddrType(htype)
+ensures htype == HostTypeNone ==> res == HostLenNone
+ensures htype == HostTypeIPv4 ==> res == HostLenIPv4
+ensures htype == HostTypeIPv6 ==> res == HostLenIPv6
+ensures htype == HostTypeSVC ==> res == HostLenSVC
+decreases
+pure func SizeOfHostAddrType(htype HostAddrType) (res int) {
+	return htype == HostTypeNone ?
+		HostLenNone : htype == HostTypeIPv4 ?
+		HostLenIPv4 : htype == HostTypeIPv6 ?
+		HostLenIPv6 : HostLenSVC
+}
+
+ghost
+ensures ErrBadHostAddrType.ErrorMem()
+decreases
+func EstablishErrBadHostAddrTypeMem() {
+	openDupPkgInv
+	errors.DupErrorsCanBePromoted(ErrBadHostAddrType)
+}
+
+ghost
+ensures ErrMalformedHostAddrType.ErrorMem()
+decreases
+func EstablishErrMalformedHostAddrTypeMem() {
+	openDupPkgInv
+	errors.DupErrorsCanBePromoted(ErrMalformedHostAddrType)
+}
+
+ghost
+ensures ErrUnsupportedSVCAddress.ErrorMem()
+decreases
+func EstablishErrUnsupportedSVCAddressMem() {
+	openDupPkgInv
+	errors.DupErrorsCanBePromoted(ErrUnsupportedSVCAddress)
+}

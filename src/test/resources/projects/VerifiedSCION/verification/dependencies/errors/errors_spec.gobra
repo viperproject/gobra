@@ -1,0 +1,90 @@
+// Copyright 2018 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/errors/wrap.go
+
+// +gobra
+
+package errors
+
+// Unwrap returns the result of calling the Unwrap method on err, if err's
+// type contains an Unwrap method returning error.
+// Otherwise, Unwrap returns nil.
+requires  err.ErrorMem()
+ensures   res.ErrorMem()
+ensures   res.ErrorMem() --* err.ErrorMem()
+decreases err.ErrorMem()
+func Unwrap(err error) (res error)
+
+// Is reports whether any error in err's chain matches target.
+//
+// The chain consists of err itself followed by the sequence of errors obtained by
+// repeatedly calling Unwrap.
+//
+// An error is considered to match a target if it is equal to that target or if
+// it implements a method Is(error) bool such that Is(target) returns true.
+preserves err    != nil ==> err.ErrorMem()
+preserves target != nil ==> target.ErrorMem()
+ensures   res && target != nil ==> err != nil
+decreases err.ErrorMem()
+func Is(err, target error) (res bool)
+
+// As finds the first error in err's chain that matches target, and if one is found, sets
+// target to that error value and returns true. Otherwise, it returns false.
+//
+// The chain consists of err itself followed by the sequence of errors obtained by
+// repeatedly calling Unwrap.
+//
+// An error matches target if the error's concrete value is assignable to the value
+// pointed to by target, or if the error has a method As(interface{}) bool such that
+// As(target) returns true. In the latter case, the As method is responsible for
+// setting target.
+//
+// As panics if target is not a non-nil pointer to either a type that implements
+// error, or to any interface type.
+requires  err    != nil ==> err.ErrorMem()
+requires  target != nil
+preserves target.Mem()
+ensures   res ==> (
+	let nestedErr := target.Get() in
+	err != nil               &&
+	nestedErr != nil         &&
+	nestedErr.ErrorMem()     &&
+	target.CanSet(nestedErr) &&
+	(nestedErr.ErrorMem() --* err.ErrorMem()))
+ensures   !res ==> err.ErrorMem()
+decreases err.ErrorMem()
+func As(err error, target ErrorCell) (res bool)
+
+// Cell where one can store an error. This is used in the function
+// 'As', for the type of 'target', instead of the type 'interface{}'
+// used in the standard library. This way, we can capture the
+// requirement that target must be able to store the error and make
+// sure that no calls to this function can result in a panic.
+type ErrorCell interface {
+	pred Mem()
+
+	// This is not meant to be called. Instead,
+	// it shows that Mem() is strong enough to
+	// allow for the assignment of an error.
+	requires  Mem() && CanSet(e)
+	ensures   Mem() && Get() === e
+	decreases
+	Set(e error)
+
+	ghost
+	pure
+	requires acc(Mem(), _)
+	decreases
+	Get() error
+
+	// Determines if 'e' could be stored in the
+	// current cell.
+	ghost
+	pure
+	requires acc(Mem(), _)
+	decreases
+	CanSet(e error) bool
+}

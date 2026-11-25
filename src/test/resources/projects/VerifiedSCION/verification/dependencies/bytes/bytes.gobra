@@ -1,0 +1,26 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/bytes/bytes.go
+
+// Package bytes implements functions for the manipulation of byte slices.
+// It is analogous to the facilities of the strings package.
+
+// +gobra
+
+package bytes
+
+import sl "github.com/scionproto/scion/verification/utils/slices"
+
+// Equal reports whether a and b
+// are the same length and contain the same bytes.
+// A nil argument is equivalent to an empty slice.
+trusted
+requires sl.Bytes(a, 0, len(a))
+requires sl.Bytes(b, 0, len(b))
+decreases
+pure func Equal(a, b []byte) bool {
+	return string(a) == string(b)
+}

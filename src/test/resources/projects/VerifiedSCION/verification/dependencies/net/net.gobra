@@ -1,0 +1,154 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/net/net.go
+
+// +gobra
+
+package net
+
+import (
+	"time"
+
+	. "github.com/scionproto/scion/verification/utils/definitions"
+	sl "github.com/scionproto/scion/verification/utils/slices"
+)
+
+// Addr represents a network end point address.
+type Addr interface {
+	pred Mem()
+
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
+	Network() string
+
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
+	String() string
+}
+
+// Conn is a generic stream-oriented network connection.
+// Multiple goroutines may invoke methods on a Conn simultaneously.
+type Conn interface {
+	pred Mem()
+
+	// Read reads data from the connection.
+	requires  acc(Mem(), _)
+	preserves sl.Bytes(b, 0, len(b))
+	ensures   err == nil ==> 0 <= n && n <= len(b)
+	ensures   err != nil ==> err.ErrorMem()
+	Read(b []byte) (n int, err error)
+
+	// Write writes data to the connection.
+	preserves acc(Mem(), _)
+	preserves acc(sl.Bytes(b, 0, len(b)), R15)
+	ensures   err == nil ==> 0 <= n && n <= len(b)
+	ensures   err != nil ==> err.ErrorMem()
+	Write(b []byte) (n int, err error)
+
+	// Close closes the connection.
+	// Any blocked Read or Write operations will be unblocked and return errors.
+	requires Mem()
+	Close() error
+
+	// LocalAddr returns the local network address.
+	preserves acc(Mem(), R15)
+	ensures   acc(a.Mem(), _)
+	decreases
+	LocalAddr() (a Addr)
+
+	// RemoteAddr returns the remote network address.
+	preserves acc(Mem(), R15)
+	ensures   acc(a.Mem(), _)
+	decreases
+	RemoteAddr() (a Addr)
+
+	// SetDeadline sets the read and write deadlines associated
+	// with the connection.
+	preserves Mem()
+	ensures   err != nil ==> err.ErrorMem()
+	decreases
+	SetDeadline(t time.Time) (err error)
+
+	// SetReadDeadline sets the deadline for future Read calls
+	// and any currently-blocked Read call.
+	preserves Mem()
+	ensures   err != nil ==> err.ErrorMem()
+	decreases
+	SetReadDeadline(t time.Time) (err error)
+
+	// SetWriteDeadline sets the deadline for future Write calls
+	// and any currently-blocked Write call.
+	preserves Mem()
+	ensures   err != nil ==> err.ErrorMem()
+	decreases
+	SetWriteDeadline(t time.Time) (err error)
+}
+
+// PacketConn is a generic packet-oriented network connection.
+// Multiple goroutines may invoke methods on a PacketConn simultaneously.
+type PacketConn interface {
+	pred Mem()
+
+	preserves acc(Mem(), _)
+	preserves sl.Bytes(p, 0, len(p))
+	ensures   err == nil ==> 0 <= n && n <= len(p)
+	ensures   err == nil ==> acc(addr.Mem(), _)
+	ensures   err != nil ==> err.ErrorMem()
+	ReadFrom(p []byte) (n int, addr Addr, err error)
+
+	requires  acc(addr.Mem(), _)
+	preserves acc(Mem(), _)
+	preserves acc(sl.Bytes(p, 0, len(p)), R15)
+	ensures   err == nil ==> 0 <= n && n <= len(p)
+	ensures   err != nil ==> err.ErrorMem()
+	WriteTo(p []byte, addr Addr) (n int, err error)
+
+	requires Mem()
+	Close() error
+
+	preserves acc(Mem(), R15)
+	ensures   acc(a.Mem(), _)
+	decreases
+	LocalAddr() (a Addr)
+
+	preserves Mem()
+	ensures   err != nil ==> err.ErrorMem()
+	decreases
+	SetDeadline(t time.Time) (err error)
+
+	preserves Mem()
+	ensures   err != nil ==> err.ErrorMem()
+	decreases
+	SetReadDeadline(t time.Time) (err error)
+
+	preserves Mem()
+	ensures   err != nil ==> err.ErrorMem()
+	decreases
+	SetWriteDeadline(t time.Time) (err error)
+}
+
+// A Listener is a generic network listener for stream-oriented protocols.
+// Multiple goroutines may invoke methods on a Listener simultaneously.
+type Listener interface {
+	pred Mem()
+
+	// Accept waits for and returns the next connection to the listener.
+	requires Mem()
+	ensures Mem()
+	Accept() (Conn, error)
+
+	// Close closes the listener.
+	// Any blocked Accept operations will be unblocked and return errors.
+	requires Mem()
+	ensures Mem()
+	Close() error
+
+	// Addr returns the listener's network address.
+	preserves acc(Mem(), R15)
+	ensures   acc(a.Mem(), _)
+	decreases
+	Addr() (a Addr)
+}

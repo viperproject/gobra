@@ -1,0 +1,197 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** Symbols that are not explicitly defined in any section of the IO spec document ****/
+
+package io
+
+
+// TODO(gobra#1092): comparable
+ghost type Unit ghost struct{}
+
+// interface IDs
+// TODO(gobra#1092): comparable
+ghost type Ifs ghost struct {
+	V uint16
+}
+
+// type of AS identifiers. Matches the type 'as' in Isabelle.
+// TODO(gobra#1092): comparable
+ghost type AS ghost struct {
+	V uint
+}
+
+// msgTerms consist of terms from our term algebra.
+ghost type MsgTerm adt {
+	MsgTerm_Empty{}
+
+	MsgTerm_AS {
+		MsgTerm_AS_ AS
+	}
+
+	MsgTerm_Num {
+		MsgTerm_Num_ uint // formallized as nat in Isabelle
+	}
+
+	MsgTerm_Key {
+		MsgTerm_Key_ Key
+	}
+
+	MsgTerm_L {
+		MsgTerm_L_ seq[MsgTerm]
+	}
+
+	MsgTerm_FS {
+		MsgTerm_FS_ set[MsgTerm]
+	}
+
+	MsgTerm_MPair {
+		MsgTerm_MPair_1 MsgTerm
+		MsgTerm_MPair_2 MsgTerm
+	}
+
+	MsgTerm_Hash {
+		MsgTerm_Hash_ MsgTerm
+	}
+
+	MsgTerm_Crypt {
+		MsgTerm_Crypt_1 Key
+		MsgTerm_Crypt_2 MsgTerm
+	}
+}
+
+ghost type Key adt {
+	Key_macK {
+		Key_macK_ AS
+	}
+
+	Key_pubK {
+		Key_pubK_ AS
+	}
+
+	Key_priK {
+		Key_priK_ AS
+	}
+}
+
+// "authenticated hop information"
+// TODO(gobra#1092): comparable
+ghost type AHI ghost struct {
+	InIF option[Ifs]
+	EgIF option[Ifs]
+	ASID AS
+}
+
+ghost
+decreases
+pure func (hf HF) Extr_asid() AS {
+	return hf.HVF.Extract_asid()
+}
+
+// function 'toab' in Isabelle, originally of type HF_scheme -> aahi_scheme
+ghost
+decreases
+pure func (h HF) Toab() AHI {
+	return AHI{h.InIF2, h.EgIF2, h.HVF.Extract_asid()}
+}
+
+/* Link Types */
+ghost type Link adt {
+	IO_CustProv{}
+	IO_ProvCust{}
+	IO_Core{}
+	IO_NoLink{}
+}
+
+// This function is provided as locale in the Isabelle formalization.
+// This function is only ever called with p1 == dp.Asid(). As a future optimization
+// this parameter and precondition can be dropped.
+ghost
+requires dp.Valid()
+requires p1 == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Link_type(p1 AS, p2 Ifs) Link{
+	return p2 elem domain(dp.GetLinkTypes()) ? dp.GetLinkType(p2) : IO_NoLink{}
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Egif_prov2(hf1 HF, asid AS) bool{
+	return dp.Egif2_type(hf1, asid, Link(IO_CustProv{}))
+}
+
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Egif_core2(hf1 HF, asid AS) bool{
+	return dp.Egif2_type(hf1, asid, Link(IO_Core{}))
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Egif_cust2(hf1 HF, asid AS) bool{
+	return dp.Egif2_type(hf1, asid, Link(IO_ProvCust{}))
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Inif_cust2(hf1 HF, asid AS) bool{
+	return dp.Inif2_type(hf1, asid, Link(IO_ProvCust{}))
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Inif_core2(hf1 HF, asid AS) bool{
+	return dp.Inif2_type(hf1, asid, Link(IO_Core{}))
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Inif_prov2(hf1 HF, asid AS) bool{
+	return dp.Inif2_type(hf1, asid, Link(IO_CustProv{}))
+}
+
+ghost
+requires dp.Valid()
+requires ifs != none[Ifs] ==> asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) If_type(asid AS, ifs option[Ifs], link Link) bool{
+	return match ifs {
+		case none[Ifs]:
+			false
+		default:
+			dp.Link_type(asid, get(ifs)) == link
+	}
+}
+
+ghost
+opaque
+decreases
+pure func (m MsgTerm) Extract_asid() AS {
+	return m.MsgTerm_Hash_.MsgTerm_MPair_1.MsgTerm_Key_.Key_macK_
+}

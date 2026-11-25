@@ -1,0 +1,42 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// This file provides a specification to the package `serrors`.
+// The specification cannot currently be added to the file 'errors.go'
+// where the original definition of 'New' is because that file tries to
+// import a third-party package for which we do not yet provide
+// specification ("go.uber.org/zap/zapcore").
+
+// Note that the original implementation of this package is not proven to satisfy
+// the spec, it is only trusted to do so.
+
+// +gobra
+
+package errors
+
+// The following is an assumption that should not be
+// problematic. It is useful to be able to declare
+// the ErrorMem() as a dup. invariant of a package
+// (the idea being that acc(ErrorMem(), _) is dup
+// and then we can promote it). We can drop it as
+// soon as Gobra allows passing proofs of duplicability
+// for dup invariants.
+ghost
+trusted
+requires e != nil
+requires acc(e.ErrorMem(), _)
+requires e.IsDuplicableMem()
+ensures  e.ErrorMem()
+decreases _
+func DupErrorsCanBePromoted(e error)

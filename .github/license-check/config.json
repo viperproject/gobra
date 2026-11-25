@@ -17,7 +17,8 @@
       "project/target/**",
       "target/**",
       "src/test/resources/**/*.go",
-      "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala"
+      "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala",
+      "src/test/resources/projects/**"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH.txt"
   },
@@ -31,7 +32,8 @@
       "carbon/**",
       "silicon/**",
       "silver/**",
-      "viperserver/**"
+      "viperserver/**",
+      "src/test/resources/projects/**"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH-hashtags.txt"
   },
@@ -46,7 +48,8 @@
       "viperserver/**",
       "project/project/**",
       "project/target/**",
-      "target/**"
+      "target/**",
+      "src/test/resources/projects/**"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH-xml.txt"
   },
@@ -61,7 +64,8 @@
       "project/target/**",
       "target/**",
       "src/main/**",
-      "src/test/resources/regressions/issues/windows-line-ending/**"
+      "src/test/resources/regressions/issues/windows-line-ending/**",
+      "src/test/resources/projects/**"
     ],
     "license": "./.github/license-check/headers/CC0.txt"
   },
@@ -75,7 +79,10 @@
     "include": [
       "src/test/resources/regressions/issues/windows-line-ending/*.gobra"
     ],
-    "license": "./.github/license-check/headers/CC0-Windows.txt"
+    "license": "./.github/license-check/headers/CC0-Windows.txt",
+    "exclude": [
+      "src/test/resources/projects/**"
+    ]
   },
   {
     "include": [
@@ -100,7 +107,8 @@
       "artifact/evaluation/**",
       "src/main/java/**/*.java",
       "CLAUDE.md",
-      "AGENTS.md"
+      "AGENTS.md",
+      "src/test/resources/projects/**"
     ]
   },
   {

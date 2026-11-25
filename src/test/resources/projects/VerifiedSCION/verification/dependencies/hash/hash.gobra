@@ -1,0 +1,73 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package hash provides interfaces for hash functions.
+
+// +gobra
+
+package hash
+
+import "io"
+
+// Hash is the common interface implemented by all hash functions.
+//
+// Hash implementations in the standard library (e.g. hash/crc32 and
+// crypto/sha256) implement the encoding.BinaryMarshaler and
+// encoding.BinaryUnmarshaler interfaces. Marshaling a hash implementation
+// allows its internal state to be saved and used for additional processing
+// later, without having to re-write the data previously written to the hash.
+// The hash state may contain portions of the input in its original form,
+// which users are expected to handle for any possible security implications.
+//
+// Compatibility: Any future changes to hash or crypto packages will endeavor
+// to maintain compatibility with state encoded using previous versions.
+// That is, any released versions of the packages should be able to
+// decode data written with any previously released version,
+// subject to issues such as security fixes.
+// See the Go compatibility document for background: https://golang.org/doc/go1compat
+type Hash interface {
+	pred Mem()
+
+	// Write (via the embedded io.Writer interface) adds more data to the running hash.
+	// It never returns an error.
+
+	// io.Writer // (gobra) Fix: this was changed to be able to re-specify method Write with a stronger spec
+
+	preserves Mem() 
+	preserves acc(p, 1/1000)
+	ensures   0 <= n && n <= len(p)
+	// the last conjunct comes from the spec of io.Writer
+	ensures   err == nil && n == len(p)
+	ensures   Size() == old(Size()) + len(p)
+	decreases
+	Write(p []byte) (n int, err error)
+
+	// Sum appends the current hash to b and returns the resulting slice.
+	// It does not change the underlying hash state.
+	preserves acc(Mem(), 1/1000)
+	requires acc(b)
+	ensures  acc(res) && len(res) == len(b) + Size()
+	decreases
+	Sum(b []byte) (res []byte)
+
+	// Reset resets the Hash to its initial state.
+	preserves Mem()
+	decreases
+	Reset()
+
+	// Size returns the number of bytes Sum will return.
+	requires acc(Mem(), _)
+	ensures  res >= 0
+	decreases
+	pure Size() (res int)
+
+	// BlockSize returns the hash's underlying block size.
+	// The Write method must be able to accept any amount
+	// of data, but it may operate more efficiently if all writes
+	// are a multiple of the block size.
+	requires acc(Mem(), _)
+	ensures  res >= 0
+	decreases
+	BlockSize() (res int)
+}

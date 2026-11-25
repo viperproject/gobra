@@ -1,0 +1,88 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+// +gobra
+
+package scion
+
+import (
+	. "verification/utils/definitions"
+	sl "verification/utils/slices"
+	"verification/io"
+)
+
+// IsXoverLemma shows that the abstract xover guard of the packet encoded in
+// `ubuf` agrees with the concrete check performed by (*Raw).IsXover, i.e., that
+// (io.Pkt).IsXover is a faithful abstraction of (Base).IsXoverSpec.
+ghost
+preserves acc(s.Mem(ubuf), R55)
+preserves acc(sl.Bytes(ubuf, 0, len(ubuf)), R56)
+preserves ValidPktMetaHdr(ubuf)
+preserves s.GetBase(ubuf).EqAbsHeader(ubuf)
+ensures   s.AbsPkt(ubuf).IsXover() == s.GetBase(ubuf).IsXoverSpec()
+decreases
+func (s *Raw) IsXoverLemma(ubuf []byte) {
+	if s.GetBase(ubuf).IsXoverSpec() {
+		s.XoverLemma(ubuf)
+	} else {
+		// The packet is not at a segment switch. Either its current hop field is
+		// not the last one of the segment being traversed, in which case the
+		// future of the current segment contains more than one hop field, or
+		// there is no segment left to switch to, in which case LeftSeg is none.
+		reveal ValidPktMetaHdr(ubuf)
+		metaHdr := RawBytesToMetaHdr(ubuf)
+		currInfIdx := int(metaHdr.CurrINF)
+		currHfIdx := int(metaHdr.CurrHF)
+		seg1Len := int(metaHdr.SegLen[0])
+		seg2Len := int(metaHdr.SegLen[1])
+		seg3Len := int(metaHdr.SegLen[2])
+		segs := io.CombineSegLens(seg1Len, seg2Len, seg3Len)
+		segLen := segs.LengthOfCurrSeg(currHfIdx)
+		prevSegLen := segs.LengthOfPrevSeg(currHfIdx)
+		numINF := segs.NumInfoFields()
+		offset := HopFieldOffset(numINF, prevSegLen, MetaLen)
+		pkt := reveal s.AbsPkt(ubuf)
+		assert pkt.CurrSeg == reveal CurrSeg(ubuf, offset, currInfIdx, currHfIdx - prevSegLen, segLen, MetaLen)
+		assert pkt.LeftSeg == reveal LeftSeg(ubuf, currInfIdx + 1, segs, MetaLen)
+		assert len(pkt.CurrSeg.Future) == segLen - (currHfIdx - prevSegLen)
+		assert s.GetBase(ubuf) == RawBytesToBase(ubuf)
+		assert !pkt.IsXover()
+	}
+}
+
+// LastHopNotXoverLemma shows that a packet whose current hop field is the last
+// one of its path is never at a segment switch. This is what allows the router
+// to deliver packets destined to the local AS without switching segments.
+ghost
+preserves acc(s.Mem(ubuf), R55)
+preserves s.IsLastHopSpec(ubuf)
+preserves acc(sl.Bytes(ubuf, 0, len(ubuf)), R56)
+preserves ValidPktMetaHdr(ubuf)
+preserves s.GetBase(ubuf).EqAbsHeader(ubuf)
+ensures   !s.AbsPkt(ubuf).IsXover()
+decreases
+func (s *Raw) LastHopNotXoverLemma(ubuf []byte) {
+	reveal ValidPktMetaHdr(ubuf)
+	metaHdr := RawBytesToMetaHdr(ubuf)
+	currInfIdx := int(metaHdr.CurrINF)
+	currHfIdx := int(metaHdr.CurrHF)
+	seg1Len := int(metaHdr.SegLen[0])
+	seg2Len := int(metaHdr.SegLen[1])
+	seg3Len := int(metaHdr.SegLen[2])
+	segs := io.CombineSegLens(seg1Len, seg2Len, seg3Len)
+	segLen := segs.LengthOfCurrSeg(currHfIdx)
+	prevSegLen := segs.LengthOfPrevSeg(currHfIdx)
+	numINF := segs.NumInfoFields()
+	offset := HopFieldOffset(numINF, prevSegLen, MetaLen)
+	pkt := reveal s.AbsPkt(ubuf)
+	assert pkt.CurrSeg == reveal CurrSeg(ubuf, offset, currInfIdx, currHfIdx - prevSegLen, segLen, MetaLen)
+	// A segment that could be switched to only exists when the current segment
+	// is not the last one, which contradicts `currHfIdx == segs.TotalHops() - 1`.
+	assert pkt.LeftSeg == reveal LeftSeg(ubuf, currInfIdx + 1, segs, MetaLen)
+	assert s.GetBase(ubuf) == RawBytesToBase(ubuf)
+	assert currHfIdx == segs.TotalHops() - 1
+	assert pkt.LeftSeg == none[io.Seg]
+}

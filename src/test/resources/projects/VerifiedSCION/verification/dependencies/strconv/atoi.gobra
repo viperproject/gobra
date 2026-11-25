@@ -1,0 +1,53 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/strconv/atoi.go
+
+// +gobra
+
+package strconv
+
+// a to the power of b
+ghost
+requires exp >= 0
+decreases exp
+pure func Exp(base int, exp int) (res int) {
+	return exp == 0 ? 1 : (base * Exp(base, exp - 1))
+}
+
+// TODO: move to a math library when there is one
+ghost
+requires exp >= 10
+ensures  Exp(2, exp) == 1024 * Exp(2, exp - 10)
+decreases
+func Exp2to10(exp int) {
+	assert Exp(2, exp) == 2 * Exp(2, exp - 1)
+	assert Exp(2, exp) == 4 * Exp(2, exp - 2)
+	assert Exp(2, exp) == 8 * Exp(2, exp - 3)
+	assert Exp(2, exp) == 16 * Exp(2, exp - 4)
+	assert Exp(2, exp) == 32 * Exp(2, exp - 5)
+	assert Exp(2, exp) == 64 * Exp(2, exp - 6)
+	assert Exp(2, exp) == 128 * Exp(2, exp - 7)
+	assert Exp(2, exp) == 256 * Exp(2, exp - 8)
+	assert Exp(2, exp) == 512 * Exp(2, exp - 9)
+}
+
+// ParseUint is like ParseInt but for unsigned numbers.
+requires base == 0 || (2 <= base && base <= 36)
+requires bitSize > 0 && bitSize <= 64
+ensures retErr == nil ==> (ret >= 0 && ret < uint64(Exp(2, bitSize)))
+ensures retErr != nil ==> retErr.ErrorMem()
+decreases _
+func ParseUint(s string, base int, bitSize int) (ret uint64, retErr error)
+
+// ParseInt interprets a string s in the given base (0, 2 to 36) and
+// bit size (0 to 64) and returns the corresponding value i.
+requires base == 0 || (2 <= base && base <= 36)
+decreases _
+func ParseInt(s string, base int, bitSize int) (i int64, err error)
+
+// Atoi is equivalent to ParseInt(s, 10, 0), converted to type int.
+decreases _
+func Atoi(s string) (int, error)

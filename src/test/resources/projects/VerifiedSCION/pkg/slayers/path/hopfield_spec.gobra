@@ -1,0 +1,117 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package path
+
+import (
+	"verification/io"
+	sl "verification/utils/slices"
+	"verification/dependencies/encoding/binary"
+	. "verification/utils/definitions"
+)
+
+pred (h *HopField) Mem() {
+	acc(h) && h.ConsIngress >= 0 && h.ConsEgress >= 0
+}
+
+
+ghost
+decreases
+pure func IfsToIO_ifs(ifs uint16) option[io.Ifs] {
+	return ifs == 0 ? none[io.Ifs] : some(io.Ifs{ifs})
+}
+
+ghost
+decreases
+pure func IO_ifsToIfs(ifs option[io.Ifs]) uint16 {
+	return ifs == none[io.Ifs] ? 0 : uint16(get(ifs).V)
+}
+
+ghost
+requires 0 <= start && start <= middle
+requires middle + HopLen <= end && end <= len(raw)
+requires sl.Bytes(raw, start, end)
+decreases
+pure func BytesToIO_HF(raw [] byte, start int, middle int, end int) (io.HF) {
+	return let _ := sl.AssertSliceOverlap(raw, middle+2, middle+4)     in
+		let _ := sl.AssertSliceOverlap(raw, middle+4, middle+6)        in
+		let _ := sl.AssertSliceOverlap(raw, middle+6, middle+6+MacLen) in
+		unfolding sl.Bytes(raw, start, end)                            in
+		let inif2 := binary.BigEndian.Uint16(raw[middle+2:middle+4])   in
+		let egif2 := binary.BigEndian.Uint16(raw[middle+4:middle+6])   in
+		let op_inif2 := IfsToIO_ifs(inif2)                             in
+		let op_egif2 := IfsToIO_ifs(egif2)                             in
+		io.HF {
+			InIF2: op_inif2,
+			EgIF2: op_egif2,
+			HVF: AbsMac(FromSliceToMacArray(raw[middle+6:middle+6+MacLen])),
+		}
+}
+
+// WidenBytesHopField shows the equality between the HF computed
+// from raw bytes in slice 'raw' starting at position `offset` with
+// the HF obtained from the slice 'raw[start:end]`.
+ghost
+requires  0 <= start && start <= offset
+requires  offset + HopLen <= end
+requires  end <= len(raw)
+preserves acc(sl.Bytes(raw, 0, len(raw)), R55)
+preserves acc(sl.Bytes(raw[start:end], 0, len(raw[start:end])), R55)
+ensures   BytesToIO_HF(raw, 0, offset, len(raw)) ==
+	BytesToIO_HF(raw[start:end], 0, offset-start, end-start)
+decreases
+func WidenBytesHopField(raw []byte, offset int, start int, end int) {
+	unfold acc(sl.Bytes(raw, 0, len(raw)), R56)
+	unfold acc(sl.Bytes(raw[start:end], 0, len(raw[start:end])), R56)
+	hfBytes1 := BytesToIO_HF(raw, 0, offset, len(raw))
+	hfBytes2 := BytesToIO_HF(raw[start:end], 0, offset-start, end-start)
+
+	sl.AssertSliceOverlap(raw, start, end)
+	sl.AssertSliceOverlap(raw[start:end], offset-start+2, offset-start+4)
+	assert hfBytes1.InIF2 == hfBytes2.InIF2
+	sl.AssertSliceOverlap(raw[start:end], offset-start+4, offset-start+6)
+	assert hfBytes1.EgIF2 == hfBytes2.EgIF2
+	sl.AssertSliceOverlap(raw[start:end], offset-start+6, offset-start+6+MacLen)
+
+	fold acc(sl.Bytes(raw, 0, len(raw)), R56)
+	fold acc(sl.Bytes(raw[start:end], 0, len(raw[start:end])), R56)
+}
+
+// WidenBytesHopField shows the equality between the HF computed
+// from raw bytes in slice 'raw' starting at position `offset` with
+// the HF obtained from the slice 'raw[offset:offset+HopLen]`.
+// It is a special case of `WidenBytesHopField`.
+ghost
+requires  0 <= offset
+requires  offset+HopLen <= len(raw)
+preserves acc(sl.Bytes(raw, 0, len(raw)), R55)
+preserves acc(sl.Bytes(raw[offset:offset+HopLen], 0, HopLen), R55)
+ensures   BytesToIO_HF(raw, 0, offset, len(raw)) ==
+	BytesToIO_HF(raw[offset:offset+HopLen], 0, 0, HopLen)
+decreases
+func BytesToAbsHopFieldOffsetEq(raw [] byte, offset int) {
+	WidenBytesHopField(raw, offset, offset, offset+HopLen)
+}
+
+ghost
+decreases
+pure func (h HopField) Abs() (io.HF) {
+	return io.HF {
+		InIF2: IfsToIO_ifs(h.ConsIngress),
+		EgIF2: IfsToIO_ifs(h.ConsEgress),
+		HVF: AbsMac(h.Mac),
+	}
+}

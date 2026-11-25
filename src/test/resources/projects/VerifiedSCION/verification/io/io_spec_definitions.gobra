@@ -1,0 +1,185 @@
+// Copyright 2024 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package io
+
+/*** This file contains helpful definitions that do not have a counterpart in the Isabelle formalization. ***/
+
+// Establishes the traversed segment for packets which are not incremented (internal).
+ghost
+requires len(currseg.Future) > 0
+decreases
+pure func EstablishGuardTraversedseg(currseg Seg, direction bool) Seg {
+	return let uinfo := direction ?
+		Upd_uinfo(currseg.UInfo, currseg.Future[0]) :
+		currseg.UInfo in
+		Seg {
+			AInfo: currseg.AInfo,
+			UInfo: uinfo,
+			ConsDir: currseg.ConsDir,
+			Peer: currseg.Peer,
+			Past: currseg.Past,
+			Future: currseg.Future,
+			History: currseg.History,
+		}
+}
+
+// Establishes the traversed segment for packets that are incremented (external).
+ghost
+requires len(currseg.Future) > 0
+decreases
+pure func EstablishGuardTraversedsegInc(currseg Seg, direction bool) Seg {
+	return let uinfo := direction ?
+		Upd_uinfo(currseg.UInfo, currseg.Future[0]) :
+		currseg.UInfo in
+		Seg {
+			AInfo: currseg.AInfo,
+			UInfo: uinfo,
+			ConsDir: currseg.ConsDir,
+			Peer: currseg.Peer,
+			Past: seq[HF]{currseg.Future[0]} ++ currseg.Past,
+			Future: currseg.Future[1:],
+			History: seq[AHI]{currseg.Future[0].Toab()} ++ currseg.History,
+		}
+}
+
+ghost
+requires len(seg.Future) > 0
+decreases
+pure func (seg Seg) UpdateCurrHf(hf HF) Seg {
+	return Seg {
+		seg.AInfo,
+		seg.UInfo,
+		seg.ConsDir,
+		seg.Peer,
+		seg.Past,
+		seq[HF]{hf} ++ seg.Future[1:],
+		seg.History,
+	}
+}
+
+ghost
+requires pkt.PathNotFullyTraversed()
+decreases
+pure func (pkt Pkt) UpdateHopField(hf HF) Pkt {
+	return let newCurrSeg := pkt.CurrSeg.UpdateCurrHf(hf) in
+		Pkt{newCurrSeg, pkt.LeftSeg, pkt.MidSeg, pkt.RightSeg}
+}
+
+ghost
+decreases
+pure func (seg Seg) UpdateCurrSeg(info AbsInfoField) Seg {
+	return Seg {
+		info.AInfo,
+		info.UInfo,
+		info.ConsDir,
+		info.Peer,
+		seg.Past,
+		seg.Future,
+		seg.History,
+	}
+}
+
+ghost
+decreases
+pure func (pkt Pkt) UpdateInfoField(info AbsInfoField) Pkt {
+	return let newCurrSeg := pkt.CurrSeg.UpdateCurrSeg(info) in
+		Pkt{newCurrSeg, pkt.LeftSeg, pkt.MidSeg, pkt.RightSeg}
+}
+
+// This type simplifies the infoField, making it easier
+// to use than the Seg from the IO-spec.
+// TODO(gobra#1092): comparable
+ghost type AbsInfoField ghost struct {
+	AInfo Ainfo
+	UInfo set[MsgTerm]
+	ConsDir bool
+	Peer bool
+}
+
+// The segment lengths of a packet are frequently used together.
+// This type combines them into a single structure to simplify
+// their specification.
+// TODO(gobra#1092): comparable
+ghost type SegLens ghost struct {
+	Seg1Len int
+	Seg2Len int
+	Seg3Len int
+}
+
+ghost
+decreases
+pure func (s SegLens) Valid() bool {
+	return s.Seg1Len > 0 &&
+		s.Seg2Len >= 0 &&
+		s.Seg3Len >= 0
+}
+
+ghost
+decreases
+pure func CombineSegLens(seg1Len int, seg2Len int, seg3Len int) SegLens {
+	return SegLens {
+			seg1Len,
+			seg2Len,
+			seg3Len,
+		}
+}
+
+ghost
+decreases
+pure func (s SegLens) NumInfoFields() int {
+	return s.Seg3Len > 0 ? 3 : (s.Seg2Len > 0 ? 2 : (s.Seg1Len > 0 ? 1 : 0))
+}
+
+ghost
+decreases
+pure func (s SegLens) TotalHops() int {
+	return s.Seg1Len + s.Seg2Len + s.Seg3Len
+}
+
+ghost
+decreases
+pure func (s SegLens) LengthOfCurrSeg(currHF int) int {
+	return s.Seg1Len > currHF ? s.Seg1Len : ((s.Seg1Len + s.Seg2Len) > currHF ? s.Seg2Len : s.Seg3Len)
+}
+
+ghost
+requires 0 <= currHF
+ensures  res <= currHF
+decreases
+pure func (s SegLens) LengthOfPrevSeg(currHF int) (res int) {
+	return s.Seg1Len > currHF ? 0 : ((s.Seg1Len + s.Seg2Len) > currHF ? s.Seg1Len : s.Seg1Len + s.Seg2Len)
+}
+
+ghost
+decreases
+pure func (pkt Pkt) PathNotFullyTraversed() bool {
+	return len(pkt.CurrSeg.Future) > 0
+}
+
+// IsXover is the abstract guard of the segment switch: it holds iff `pkt` has
+// reached the end of the segment that it is currently traversing and there is a
+// well-formed segment left to switch to. These are exactly the conditions under
+// which the transition described by AbsDoXover may be applied. It is the
+// abstract counterpart of (scion.Base).IsXoverSpec.
+ghost
+decreases
+pure func (pkt Pkt) IsXover() bool {
+	return len(pkt.CurrSeg.Future) == 1  &&
+		pkt.LeftSeg != none[Seg]         &&
+		len(get(pkt.LeftSeg).Future) > 0 &&
+		len(get(pkt.LeftSeg).History) == 0
+}

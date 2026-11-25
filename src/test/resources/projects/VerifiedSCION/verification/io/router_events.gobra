@@ -1,0 +1,100 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** Definitions used to define our router events ****/
+
+package io
+
+/* Abbreviations */
+ghost
+requires dp.Valid()
+requires a == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Valid_link_types2(hf1 HF, a AS) bool {
+	return  (dp.Egif_prov2(hf1, a) && dp.Inif_cust2(hf1, a)) ||
+			(dp.Egif_core2(hf1, a) && dp.Inif_core2(hf1, a)) ||
+			(dp.Egif_cust2(hf1, a) && dp.Inif_prov2(hf1, a))
+}
+
+ghost
+requires dp.Valid()
+requires a == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Valid_link_types_in2(hf1 HF, a AS) bool {
+	return  (dp.Inif_prov2(hf1, a) && dp.Egif_cust2(hf1, a)) ||
+			(dp.Inif_core2(hf1, a) && dp.Egif_core2(hf1, a)) ||
+			(dp.Inif_cust2(hf1, a) && dp.Egif_prov2(hf1, a))
+}
+/* End of Abbreviations */
+
+ghost
+decreases
+pure func (dp DataPlaneSpec) Dp2_enter_interface(d bool, asid AS, hf1 HF, recvif Ifs) bool {
+	return (d && hf1.InIF2 === some(recvif)) || (!d && hf1.EgIF2 === some(recvif))
+}
+
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Dp2_check_interface_top(d bool, asid AS, hf1 HF) bool {
+	return (d && dp.Valid_link_types_in2(hf1, asid)) || (!d && dp.Valid_link_types2(hf1, asid))
+}
+
+ghost
+decreases
+pure func Dp2_exit_interface(d bool, asid AS, hf1 HF, outif Ifs) bool {
+	return (d && hf1.EgIF2 == some(outif)) || (!d && hf1.InIF2 == some(outif))
+}
+
+// Takes a packet and forwards it externally, incrementing the segment before doing so.
+ghost
+requires dp.Valid()
+requires dp.Asid() == asid
+decreases
+pure func (dp DataPlaneSpec) Dp2_forward_ext_guard(asid AS, m Pkt, nextif Ifs, currseg, traversedseg Seg, newpkt Pkt, fut seq[HF], hf1 HF) bool {
+	return m.CurrSeg == currseg &&
+		newpkt == Pkt{traversedseg, m.LeftSeg, m.MidSeg, m.RightSeg} &&
+		// The outgoing interface is correct:
+		Dp2_exit_interface(currseg.ConsDir, asid, hf1, nextif) &&
+		// Next validate the current hop field with the *original* UInfo field):
+		dp.Hf_valid(currseg.ConsDir, currseg.AInfo.V, currseg.UInfo, hf1) &&
+		hf1.Extr_asid() == asid &&
+		// Segment update: push current hop field into the Past path and History:
+		Inc_seg2(currseg, traversedseg, hf1, fut) &&
+		// If the current segment is an *down*-segment, then we need to update the
+		// uinfo field *after* validating the hop field
+		Update_uinfo(currseg.ConsDir, currseg, traversedseg, hf1) &&
+		// Other fields: no update
+		Same_other2(currseg, traversedseg)
+}
+
+// A packet is received from an ext state (i.e., an inter-AS channel) and is forwarded (either internally or externally)
+ghost
+requires dp.Valid()
+requires asid == dp.Asid()
+decreases
+pure func (dp DataPlaneSpec) Dp2_enter_guard(m Pkt, currseg Seg, traversedseg Seg, asid AS, hf1 HF, recvif Ifs, fut seq[HF]) bool {
+	return m.CurrSeg == currseg &&
+		currseg.Future == seq[HF]{hf1} ++ fut &&
+		dp.Dp2_enter_interface(currseg.ConsDir, asid, hf1, recvif) &&
+		(dp.Dp2_check_interface_top(currseg.ConsDir, asid, hf1) || fut == seq[HF]{}) &&
+		Update_uinfo(!currseg.ConsDir, currseg, traversedseg, hf1) &&
+		Same_segment2(currseg, traversedseg) &&
+		Same_other2(currseg, traversedseg) &&
+		dp.Hf_valid(currseg.ConsDir, currseg.AInfo.V, traversedseg.UInfo, hf1) &&
+		hf1.Extr_asid() == asid
+}

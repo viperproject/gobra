@@ -1,0 +1,318 @@
+// Copyright 2024 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+// This pkg should be the only monoset package. we do not need the other one.
+
+package monoset
+
+// BoundedMonotonicSet represents sets of uint8 to which we may add new elements, but
+// never remove old ones.
+type BoundedMonotonicSet struct {
+	ghost valuesMap dict[int64](gpointer[bool])
+	ghost Start int64
+	ghost End int64
+}
+
+// The body of this predicate exposes the private representation of the set, so
+// importing packages may observe the predicate but not unfold it.
+// TODO(gobra#1092): closed
+pred (b BoundedMonotonicSet) Inv() {
+	(b.Start <= b.End) &&
+	(forall i int64 :: b.Start <= i && i <= b.End ==>
+		(i elem domain(b.valuesMap) && acc(b.valuesMap[i], 1/2))) &&
+	// injectivity requirement
+	(forall j1, j2 int64 :: b.Start <= j1 && j1 <= b.End && b.Start <= j2 && j2 <= b.End && j1 != j2 ==>
+		b.valuesMap[j1] != b.valuesMap[j2])
+}
+
+ghost
+requires b.Inv()
+requires b.Start <= i && i <= b.End
+decreases
+// TODO(gobra#1092): closed
+pure func (b BoundedMonotonicSet) FContains(i int64) bool {
+	// extra indirection avoids a type-checking bug of Gobra.
+	return unfolding acc(b.Inv(), _) in
+		b.fcontainshelper(i)
+}
+
+ghost
+requires i elem domain(b.valuesMap) && acc(b.valuesMap[i])
+requires b.Start <= i && i <= b.End
+decreases
+pure func (b BoundedMonotonicSet) fcontainshelper(i int64) bool {
+	return *b.valuesMap[i]
+}
+
+
+
+
+// TODO(gobra#1092): closed
+pred (b BoundedMonotonicSet) Contains(i int64) {
+	b.Start <= i && i <= b.End &&
+	i elem domain(b.valuesMap) &&
+	acc(b.valuesMap[i], _)     &&
+	*b.valuesMap[i]
+}
+
+ghost
+requires b.Contains(i)
+ensures  b.Contains(i) && b.Contains(i)
+decreases
+func (b BoundedMonotonicSet) ContainsIsDup(i int64) {
+	unfold b.Contains(i)
+	fold   b.Contains(i)
+	fold   b.Contains(i)
+}
+
+ghost
+requires acc(b.Contains(i), _)
+ensures  b.Contains(i)
+decreases
+func (b BoundedMonotonicSet) PromoteContains(i int64) {
+	unfold acc(b.Contains(i), _)
+	fold   b.Contains(i)
+}
+
+
+// TODO(gobra#1092): closed
+pred (b BoundedMonotonicSet) DoesNotContain(i int64) {
+	b.Start <= i && i <= b.End &&
+	i elem domain(b.valuesMap) &&
+	acc(b.valuesMap[i], 1/2) &&
+	!(*b.valuesMap[i])
+}
+
+ghost
+preserves acc(b.Inv(), 1/4)
+preserves acc(b.DoesNotContain(i), 1/4)
+ensures   b.Start <= i && i <= b.End
+ensures   !b.FContains(i)
+decreases
+func (b BoundedMonotonicSet) DoesNotContainImpliesNotFContains(i int64) {
+	assert unfolding acc(b.Inv(), _) in
+		unfolding acc(b.DoesNotContain(i), _) in
+		!b.fcontainshelper(i)
+}
+
+ghost
+preserves acc(b.Inv(), 1/4)
+preserves b.Contains(i)
+ensures   b.Start <= i && i <= b.End
+ensures   b.FContains(i)
+decreases
+func (b BoundedMonotonicSet) ContainsImpliesFContains(i int64) {
+	assert unfolding acc(b.Inv(), _) in
+		unfolding acc(b.Contains(i), _) in
+		b.fcontainshelper(i)
+}
+
+ghost
+requires start <= end
+ensures  res.Inv()
+ensures  res.Start == start && res.End == end
+ensures  forall i int64 :: start <= i && i <= end ==>
+	res.DoesNotContain(i)
+// The following is technically redundant, but very useful.
+ensures  forall i int64 :: start <= i && i <= end ==>
+	!res.FContains(i)
+decreases
+func Alloc(start, end int64) (res BoundedMonotonicSet) {
+	b := BoundedMonotonicSet{
+		Start: start,
+		End: end,
+	}
+	var i int64
+	invariant start <= i && i <= end
+	invariant b.Start == start && b.End == end
+	invariant forall j int64 :: start <= j && j < i ==>
+		j elem domain(b.valuesMap)
+	// injectivity requirement
+	invariant forall j1, j2 int64 :: start <= j1 && j1 < j2 && j2 < i ==>
+		b.valuesMap[j1] != b.valuesMap[j2]
+	invariant forall j int64 :: start <= j && j < i ==>
+		acc(b.valuesMap[j])
+	invariant forall j int64 :: start <= j && j < i ==>
+		!(*b.valuesMap[j])
+	decreases end - i
+	for i = start; i < end; i += 1 {
+		b.valuesMap[i] = new(bool)
+	}
+	// this repetition of the body of the loop here saves us from having
+	// the potential overflowing operation b.End+1 in the loop above.
+	b.valuesMap[i] = new(bool)
+
+	invariant start <= i && i <= end
+	invariant b.Start == start && b.End == end
+	invariant forall j int64 :: start <= j && j <= end ==>
+		j elem domain(b.valuesMap)
+	// injectivity requirement
+	invariant forall j1, j2 int64 :: start <= j1 && j1 < j2 && j2 <= end ==>
+		b.valuesMap[j1] != b.valuesMap[j2]
+	invariant forall j int64 :: {b.valuesMap[j]} {*b.valuesMap[j]} i <= j && j <= end ==>
+		acc(b.valuesMap[j]) && !(*b.valuesMap[j])
+	invariant forall j int64 :: start <= j && j < i ==>
+		acc(b.valuesMap[j], 1/2)
+	invariant forall j int64 :: start <= j && j < i ==>
+		b.DoesNotContain(j)
+	invariant forall j int64 :: start <= j && j < i ==>
+		!b.fcontainshelper(j)
+	decreases end - i
+	for i = start; i < end; i += 1 {
+		fold b.DoesNotContain(i)
+	}
+	// this repetition of the body of the loop here saves us from having
+	// the potential overflowing operation b.End+1 in the loop above.
+	fold b.DoesNotContain(i)
+	fold b.Inv()
+	return b
+}
+
+ghost
+opaque
+// TODO(gobra#1092): closed
+requires b.Inv()
+decreases
+pure func (b BoundedMonotonicSet) ToSet() set[int64] {
+	return unfolding b.Inv() in
+		b.toSetAux(b.Start)
+}
+
+ghost
+requires b.Inv()
+requires b.Start <= start && start <= b.End
+decreases b.End - start
+pure func (b BoundedMonotonicSet) toSetAux(start int64) set[int64] {
+	return unfolding b.Inv() in
+		let part1 := (*b.valuesMap[start] ? set[int64]{start} : set[int64]{}) in
+		let part2 := (start < b.End ? b.toSetAux(start+1) : set[int64]{}) in
+		part1 union part2
+}
+
+ghost
+requires 0 < p
+requires acc(b.Inv(), p)
+requires b.Contains(v)
+ensures  acc(b.Inv(), p)
+ensures  v elem b.ToSet()
+decreases
+func (b BoundedMonotonicSet) ContainsImpliesAbstractContains(v int64, p perm) {
+	found := false
+	i := b.Start
+	part1 := set[int64]{}
+	part2 := reveal b.ToSet()
+
+	assert unfolding b.Contains(v) in b.Start <= v && v <= b.End
+
+	invariant acc(b.Inv(), p/2)
+	invariant b.Contains(v)
+	invariant b.Start <= i && i <= b.End
+	invariant v < i ==> found
+	invariant found ==> v elem b.ToSet()
+	invariant part1 union part2 == b.ToSet()
+	invariant i <= b.End ==>
+		part2 == unfolding acc(b.Inv(), _) in ((*b.valuesMap[i] ? set[int64]{i} : set[int64]{}) union (i < b.End ? b.toSetAux(i+1) : set[int64]{}))
+	decreases b.End - i
+	for i = b.Start; i < b.End; i += 1 {
+		newpart1 := part1 union unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[int64]{i} : set[int64]{})
+		newpart2 := i < b.End ? b.toSetAux(i+1) : set[int64]{}
+		if i == v {
+			unfold b.Contains(v)
+			found = true
+			assert *b.valuesMap[i]
+			assert newpart1 union newpart2 == b.ToSet()
+			assert v elem (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[int64]{i} : set[int64]{}))
+			assert v elem newpart1
+			fold b.Contains(v)
+		}
+		part1 = newpart1
+		part2 = newpart2
+	}
+	// this repetition of the body of the loop here saves us from having
+	// the potential overflowing operation b.End+1 in the loop above.
+	if i == v {
+			unfold b.Contains(v)
+			found = true
+			assert *b.valuesMap[i]
+			assert v elem (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[int64]{i} : set[int64]{}))
+			fold b.Contains(v)
+	}
+}
+
+ghost
+requires  0 < p
+preserves acc(b.Inv(), p)
+preserves b.DoesNotContain(v)
+ensures   !(v elem b.ToSet())
+decreases
+func (b BoundedMonotonicSet) DoesNotContainsImpliesAbstractDoesNotContain(v int64, p perm) {
+	found := false
+	i := int64(0)
+	part1 := set[int64]{}
+	part2 := reveal b.ToSet()
+
+	assert unfolding b.DoesNotContain(v) in b.Start <= v && v <= b.End
+
+	invariant acc(b.Inv(), p/2)
+	invariant b.DoesNotContain(v)
+	invariant b.Start <= i && i <= b.End
+	invariant !found
+	invariant found == v elem part1
+	invariant part1 union part2 == b.ToSet()
+	invariant i <= b.End ==>
+		part2 == unfolding acc(b.Inv(), _) in ((*b.valuesMap[i] ? set[int64]{i} : set[int64]{}) union (i < b.End ? b.toSetAux(i+1) : set[int64]{}))
+	invariant i == b.End ==>
+		part2 == unfolding acc(b.Inv(), _) in (*b.valuesMap[b.End] ? set[int64]{b.End} : set[int64]{})
+	decreases b.End - i
+	for i = b.Start; i < b.End; i += 1 {
+		newpart1 := part1 union unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[int64]{i} : set[int64]{})
+		newpart2 := i < b.End ? b.toSetAux(i+1) : set[int64]{}
+		if i == v {
+			unfold b.DoesNotContain(v)
+			assert !(*b.valuesMap[i])
+			assert newpart1 union newpart2 == b.ToSet()
+			assert !(v elem (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[int64]{i} : set[int64]{})))
+			assert !(v elem newpart1)
+			fold b.DoesNotContain(v)
+		}
+		part1 = newpart1
+		part2 = newpart2
+	}
+	// this repetition of the body of the loop here saves us from having
+	// the potential overflowing operation b.End+1 in the loop above.
+	if i == v {
+		unfold b.DoesNotContain(v)
+		assert !(*b.valuesMap[i])
+		assert !(v elem (unfolding acc(b.Inv(), _) in (*b.valuesMap[i] ? set[int64]{i} : set[int64]{})))
+		fold b.DoesNotContain(v)
+	}
+}
+
+ghost
+requires  b.DoesNotContain(v)
+preserves b.Inv()
+ensures   b.Contains(v)
+ensures   forall i int64 :: b.Start <= i && i <= b.End && i != v ==>
+	b.FContains(i) == old(b.FContains(i))
+decreases
+func (b BoundedMonotonicSet) Add(v int64) {
+	unfold b.Inv()
+	unfold b.DoesNotContain(v)
+	ghost var ptr gpointer[bool] = b.valuesMap[v]
+	*ptr = true
+	fold b.Inv()
+	fold b.Contains(v)
+}

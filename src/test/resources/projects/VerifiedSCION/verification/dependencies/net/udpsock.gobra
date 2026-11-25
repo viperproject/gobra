@@ -1,0 +1,142 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/net/udpsock.go
+
+// +gobra
+
+package net
+
+import "time"
+
+import . "github.com/scionproto/scion/verification/utils/definitions"
+import sl "github.com/scionproto/scion/verification/utils/slices"
+
+// UDPAddr represents the address of a UDP end point.
+type UDPAddr struct {
+	IP   IP
+	Port int
+	Zone string // IPv6 scoped addressing zone
+}
+
+pred (a *UDPAddr) Mem() {
+	// The second conjunct should be eventually replaced by a.IP.Mem().
+	// However, doing this at the moment requires changes in the VerifiedSCION codebase.
+	acc(a, R5) && sl.Bytes(a.IP, 0, len(a.IP))
+}
+
+(*UDPAddr) implements Addr {
+	(e *UDPAddr) Network() string {
+		return e.Network()
+	}
+
+	(e *UDPAddr) String() string {
+		return e.String()
+	}
+}
+
+// Network returns the address's network name, "udp".
+ensures res == "udp"
+decreases
+func (a *UDPAddr) Network() (res string) { return "udp" }
+
+preserves a != nil ==> acc(a.Mem(), R20)
+decreases
+func (a *UDPAddr) String() string
+
+// UDPConn is the implementation of the Conn and PacketConn interfaces
+// for UDP network connections.
+type UDPConn struct {
+    privateField PrivateField
+}
+
+pred (u *UDPConn) Mem() {
+	acc(u)
+}
+
+// ReadFromUDP acts like ReadFrom but returns a UDPAddr.
+preserves acc(c.Mem(), _)
+preserves sl.Bytes(b, 0, len(b))
+ensures   err == nil ==> 0 <= n && n <= len(b)
+ensures   err == nil ==> acc(addr.Mem(), _)
+ensures   err != nil ==> err.ErrorMem()
+func (c *UDPConn) ReadFromUDP(b []byte) (n int, addr *UDPAddr, err error)
+
+// ReadFrom implements the PacketConn ReadFrom method.
+preserves acc(c.Mem(), _)
+preserves sl.Bytes(b, 0, len(b))
+ensures   err == nil ==> 0 <= n && n <= len(b)
+ensures   err == nil ==> acc(addr.Mem(), _)
+ensures   err != nil ==> err.ErrorMem()
+func (c *UDPConn) ReadFrom(b []byte) (n int, addr Addr, err error)
+
+// WriteToUDP acts like WriteTo but takes a UDPAddr.
+requires acc(c.Mem(), _) && acc(addr.Mem(), 1/1000)
+requires forall i int :: {&b[i]} 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.Mem() && acc(addr.Mem(), 1/1000)
+ensures forall i int :: {&b[i]} 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr) (int, error)
+
+// WriteTo implements the PacketConn WriteTo method.
+requires  acc(addr.Mem(), _)
+preserves acc(c.Mem(), _)
+preserves acc(sl.Bytes(b, 0, len(b)), R15)
+ensures   err == nil ==> 0 <= n && n <= len(b)
+ensures   err != nil ==> err.ErrorMem()
+func (c *UDPConn) WriteTo(b []byte, addr Addr) (n int, err error)
+
+preserves acc(c.Mem(), R15)
+ensures   acc(a.Mem(), _)
+decreases
+func (c *UDPConn) LocalAddr() (a Addr)
+
+preserves c.Mem()
+ensures   err != nil ==> err.ErrorMem()
+decreases
+func (c *UDPConn) SetReadDeadline(time.Time) (err error)
+
+preserves c.Mem()
+ensures   err != nil ==> err.ErrorMem()
+decreases
+func (c *UDPConn) SetWriteDeadline(time.Time) (err error)
+
+preserves c.Mem()
+ensures   err != nil ==> err.ErrorMem()
+decreases
+func (c *UDPConn) SetDeadline(time.Time) (err error)
+
+requires c.Mem()
+ensures  err != nil ==> err.ErrorMem()
+decreases
+func (c *UDPConn) Close() (err error)
+
+requires acc(laddr.Mem(), _)
+ensures  err == nil ==> conn.Mem()
+ensures  err != nil ==> err.ErrorMem()
+decreases _
+func ListenUDP(network string, laddr *UDPAddr) (conn *UDPConn, err error)
+
+requires acc(laddr.Mem(), _)
+requires acc(raddr.Mem(), _)
+ensures  err == nil ==> conn.Mem()
+ensures  err != nil ==> err.ErrorMem()
+decreases _
+func DialUDP(network string, laddr, raddr *UDPAddr) (conn *UDPConn, err error)
+
+preserves c.Mem()
+ensures   err != nil ==> err.ErrorMem()
+decreases _
+func (c *UDPConn) SetWriteBuffer(bytes int) (err error)
+
+preserves c.Mem()
+ensures   err != nil ==> err.ErrorMem()
+decreases _
+func (c *UDPConn) SetReadBuffer(bytes int) (err error)
+
+preserves acc(c.Mem(), _)
+preserves acc(sl.Bytes(b, 0, len(b)), R15)
+ensures   err == nil ==> 0 <= n && n <= len(b)
+ensures   err != nil ==> err.ErrorMem()
+func (c *UDPConn) Write(b []byte) (n int, err error)

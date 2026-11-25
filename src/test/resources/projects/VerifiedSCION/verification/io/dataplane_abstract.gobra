@@ -1,0 +1,96 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package io
+
+// links: representation of the network topology as a graph.
+//     `links[(a1,x)] == (a2,y)` means that the interface x of AS a1 is connected
+//     to the interface y of AS a2.
+// TODO(gobra#1092): comparable
+ghost type DataPlaneSpec ghost struct {
+	LinkTypes   dict[Ifs]Link
+	NeighborIAs dict[Ifs]AS
+	LocalIA     AS
+	Links       dict[AsIfsPair]AsIfsPair
+}
+
+
+// TODO(gobra#1092): comparable
+ghost type AsIfsPair ghost struct {
+	Asid AS
+	Ifs  Ifs
+}
+
+ghost
+opaque
+decreases
+pure func (dp DataPlaneSpec) Valid() bool {
+	return (forall ifs Ifs :: {ifs elem domain(dp.NeighborIAs)} ifs elem domain(dp.NeighborIAs)  ==>
+			(AsIfsPair{dp.LocalIA, ifs} elem domain(dp.Links) &&
+			dp.Lookup(AsIfsPair{dp.LocalIA, ifs}).Asid == dp.NeighborIAs[ifs])) &&
+		(forall ifs Ifs :: {ifs elem domain(dp.NeighborIAs)} AsIfsPair{dp.LocalIA, ifs} elem domain(dp.Links) ==>
+			ifs elem domain(dp.NeighborIAs)) &&
+		(forall pairs AsIfsPair :: {dp.Lookup(pairs)} pairs elem domain(dp.Links) ==>
+			let next_pair := dp.Lookup(pairs) in
+			(next_pair elem domain(dp.Links)) &&
+			dp.Lookup(next_pair) == pairs) &&
+			domain(dp.LinkTypes) == domain(dp.NeighborIAs)
+}
+
+ghost
+decreases
+pure func (dp DataPlaneSpec) GetLinkTypes() dict[Ifs]Link {
+	return dp.LinkTypes
+}
+
+ghost
+decreases
+requires ifs elem domain(dp.LinkTypes)
+pure func (dp DataPlaneSpec) GetLinkType(ifs Ifs) Link {
+	return dp.LinkTypes[ifs]
+}
+
+ghost
+decreases
+pure func (dp DataPlaneSpec) GetNeighborIAs() dict[Ifs]AS {
+	return dp.NeighborIAs
+}
+
+ghost
+requires ifs elem domain(dp.NeighborIAs)
+decreases
+pure func (dp DataPlaneSpec) GetNeighborIA(ifs Ifs) AS {
+	return dp.NeighborIAs[ifs]
+}
+
+ghost
+decreases
+pure func (dp DataPlaneSpec) Asid() AS {
+	return dp.LocalIA
+}
+
+ghost
+decreases
+pure func (dp DataPlaneSpec) GetLinks() dict[AsIfsPair]AsIfsPair {
+	return dp.Links
+}
+
+ghost
+requires pair elem domain(dp.Links)
+decreases
+pure func(dp DataPlaneSpec) Lookup(pair AsIfsPair) AsIfsPair {
+	return dp.Links[pair]
+}

@@ -1,0 +1,75 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+// This package contains some lemmas that are useful to deal with bitwise
+// operations in a scalable way. Look at the file './proofs.dfy' before
+// exteding this file.
+
+package bitwise
+
+ghost
+ensures 0 <= b && b < 256
+decreases
+func ByteValue(b byte)
+
+ghost
+ensures 0 <= b & 0x3 && b & 0x3 <= 3
+ensures b == 0 ==> res == 0
+ensures b == 3 ==> res == 3
+ensures b == 4 ==> res == 0
+ensures res == b & 0x3
+decreases
+pure func BitAnd3(b int) (res int)
+
+ghost
+ensures 0 <= b & 0x7 && b & 0x7 <= 7
+ensures res == b & 0x7
+decreases
+pure func BitAnd7(b int) (res int)
+
+ghost
+ensures res == b >> 30
+ensures 0 <= res && res <= 3
+decreases
+pure func Shift30LessThan4(b uint32) (res uint32)
+
+ghost
+ensures res == b & 0x3F
+ensures 0 <= res && res < 64
+decreases
+pure func And3fAtMost64(b uint8) (res uint8)
+
+ghost
+ensures 0 | 1 == 1
+ensures 0 | 2 == 2
+ensures 1 | 2 == 3
+ensures 0 & 1 == 0
+ensures 0 & 2 == 0
+ensures 1 & 1 == 1
+ensures 1 & 2 == 0
+ensures 2 & 1 == 0
+ensures 2 & 2 == 2
+ensures 3 & 1 == 1
+ensures 3 & 2 == 2
+decreases
+pure func InfoFieldFirstByteSerializationLemmas() bool
+
+ghost
+ensures csum > 0xffff ==>
+	let newCsum := (csum >> 16) + (csum & 0xffff) in
+	newCsum < csum
+decreases
+pure func FoldChecksumLemma(csum uint32) struct{}

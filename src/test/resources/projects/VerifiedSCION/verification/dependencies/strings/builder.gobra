@@ -1,0 +1,42 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/strings/strings.go
+
+// +gobra
+
+package strings
+
+// A Builder is used to efficiently build a string using Write methods.
+// It minimizes memory copying. The zero value is ready to use.
+// Do not copy a non-zero Builder.
+type Builder struct {
+	addr *Builder // of receiver, to detect copies by value
+	buf  []byte
+}
+
+pred (b *Builder) Mem()
+
+// String returns the accumulated string.
+preserves b.Mem()
+decreases _
+func (b *Builder) String() string
+
+requires  0 <= n
+preserves b.Mem()
+decreases _
+func (b *Builder) Grow(n int)
+
+preserves b.Mem()
+ensures   err == nil
+decreases _
+func (b *Builder) WriteString(s string) (n int, err error)
+
+ghost
+requires acc(b)
+requires *b === Builder{}
+ensures  b.Mem()
+decreases _
+func (b *Builder) ZeroBuilderIsReadyToUse()

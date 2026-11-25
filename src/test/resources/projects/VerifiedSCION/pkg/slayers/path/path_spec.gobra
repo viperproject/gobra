@@ -1,0 +1,125 @@
+// Copyright 2022 Eth Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package path
+
+import (
+	"github.com/scionproto/scion/verification/utils/monoset"
+	"github.com/scionproto/scion/verification/utils/slices"
+)
+
+/** rawPath spec **/
+pred (r *rawPath) Mem(underlyingBuf []byte) {
+	acc(r) &&
+	r.raw === underlyingBuf
+}
+
+pred (r *rawPath) NonInitMem() {
+	acc(r)
+}
+
+ghost
+requires p.Mem(buf)
+ensures  p.NonInitMem()
+decreases
+func (p *rawPath) DowngradePerm(ghost buf []byte) {
+	unfold p.Mem(buf)
+	fold p.NonInitMem()
+}
+
+ghost
+decreases
+pure func (p *rawPath) IsValidResultOfDecoding(b []byte) bool {
+	return true
+}
+
+ghost
+requires p.Mem(ub)
+ensures  0 <= l
+decreases
+pure func (p *rawPath) LenSpec(ghost ub []byte) (l int) {
+	return unfolding p.Mem(ub) in
+		len(p.raw)
+}
+
+(*rawPath) implements Path
+
+/** End of rawPath spec **/
+
+/** Global state of the package **/
+ghost const MaxPathType = maxPathType
+
+ghost
+decreases
+// The body mentions the package's private state, so it is hidden from importers,
+// which only rely on the abstract set returned here.
+// TODO(gobra#1092): closed
+pure func RegisteredTypes() monoset.BoundedMonotonicSet {
+	return registeredKeys
+}
+
+// PkgMem describes the private global state of this package. Importing packages
+// may hold (fractions of) this predicate, but they cannot unfold it.
+// TODO(gobra#1092): closed
+pred PkgMem() {
+	acc(&registeredPaths)             &&
+	acc(&strictDecoding)              &&
+	registeredKeys.Inv()              &&
+	registeredKeys.Start == 0         &&
+	registeredKeys.End == maxPathType &&
+	(forall t Type :: { &registeredPaths[t].inUse } 0 <= t && t < maxPathType ==>
+		registeredPaths[t].inUse == registeredKeys.FContains(int64(t))) &&
+	(forall t Type :: { &registeredPaths[t].inUse } (0 <= t && t < maxPathType && registeredPaths[t].inUse) ==>
+		registeredPaths[t].Metadata.New implements NewPathSpec)
+}
+
+ghost
+requires 0 <= t && t < MaxPathType
+requires PkgMem()
+decreases
+// TODO(gobra#1092): closed
+pure func Registered(t Type) (res bool) {
+	return unfolding PkgMem() in
+		registeredPaths[t].inUse
+}
+
+ghost
+requires 0 <= t && t < MaxPathType
+requires PkgMem()
+decreases
+// TODO(gobra#1092): closed
+pure func GetType(t Type) (res Metadata) {
+	return unfolding PkgMem() in
+		registeredPaths[t].Metadata
+}
+
+ghost
+requires PkgMem()
+decreases
+// TODO(gobra#1092): closed
+pure func IsStrictDecoding() (b bool) {
+	return unfolding PkgMem() in strictDecoding
+}
+
+// The following is a closure spec, not an assumed impl.
+// without passing `writePerm` explicitely below, we run into
+// exceptions when verifying method RegisterPath in package 'empty'
+ensures acc(p.NonInitMem(), writePerm)
+ensures p != nil
+decreases
+func NewPathSpec() (p Path)
+
+/** End of global state of the package **/

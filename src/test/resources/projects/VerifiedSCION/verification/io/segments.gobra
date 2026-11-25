@@ -1,0 +1,39 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** SEGMENTS ****/
+
+package io
+
+
+// TODO(gobra#1092): comparable
+ghost type Ainfo ghost struct {
+	V uint
+}
+
+// Here, we already instantiated the type params, contrary to what
+// is done in Isabelle, where they are left generic.
+//Ccorresponds to the isabelle types seg2 and seg3.
+// TODO(gobra#1092): comparable
+ghost type Seg ghost struct {
+	AInfo Ainfo // nat in Isabelle
+	UInfo set[MsgTerm]
+	ConsDir bool
+	Peer bool
+	Past seq[HF]     // formalized originally as a seq of HF_scheme
+	Future seq[HF]   // formalized originally as a seq of HF_scheme
+	History seq[AHI] // formalized originally as a seq of ahi_scheme
+}

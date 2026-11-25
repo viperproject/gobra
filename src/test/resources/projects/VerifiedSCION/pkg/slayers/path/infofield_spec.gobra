@@ -1,0 +1,142 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package path
+
+import (
+	"verification/io"
+	sl "verification/utils/slices"
+	"verification/dependencies/encoding/binary"
+	. "verification/utils/definitions"
+)
+
+ghost
+decreases
+pure func InfoFieldOffset(currINF, headerOffset int) int {
+	return headerOffset + InfoLen * currINF
+}
+
+ghost
+requires 0 <= currINF && 0 <= headerOffset
+requires InfoFieldOffset(currINF, headerOffset) < len(raw)
+requires sl.Bytes(raw, 0, len(raw))
+decreases
+pure func ConsDir(raw []byte, currINF int, headerOffset int) bool {
+	return unfolding sl.Bytes(raw, 0, len(raw)) in
+		raw[InfoFieldOffset(currINF, headerOffset)] & 0x1 == 0x1
+}
+
+ghost
+requires 0 <= currINF && 0 <= headerOffset
+requires InfoFieldOffset(currINF, headerOffset) < len(raw)
+requires sl.Bytes(raw, 0, len(raw))
+decreases
+pure func Peer(raw []byte, currINF int, headerOffset int) bool {
+	return unfolding sl.Bytes(raw, 0, len(raw)) in
+		raw[InfoFieldOffset(currINF, headerOffset)] & 0x2 == 0x2
+}
+
+ghost
+requires 0 <= currINF && 0 <= headerOffset
+requires InfoFieldOffset(currINF, headerOffset) + InfoLen < len(raw)
+requires sl.Bytes(raw, 0, len(raw))
+decreases
+pure func Timestamp(raw []byte, currINF int, headerOffset int) io.Ainfo {
+	return let idx := InfoFieldOffset(currINF, headerOffset)+4 in
+		unfolding sl.Bytes(raw, 0, len(raw)) in
+		let _ := sl.AssertSliceOverlap(raw, idx, idx+4) in
+		io.Ainfo{uint(binary.BigEndian.Uint32(raw[idx:idx+4]))}
+}
+
+ghost
+requires 0 <= currINF && 0 <= headerOffset
+requires InfoFieldOffset(currINF, headerOffset) + InfoLen < len(raw)
+requires sl.Bytes(raw, 0, len(raw))
+decreases
+pure func AbsUinfo(raw []byte, currINF int, headerOffset int) set[io.MsgTerm] {
+	return let idx := InfoFieldOffset(currINF, headerOffset)+2 in
+		unfolding sl.Bytes(raw, 0, len(raw)) in
+		let _ := sl.AssertSliceOverlap(raw, idx, idx+2) in
+		AbsUInfoFromUint16(binary.BigEndian.Uint16(raw[idx:idx+2]))
+}
+
+ghost
+opaque
+requires 0 <= middle
+requires middle+InfoLen <= len(raw)
+requires sl.Bytes(raw, 0, len(raw))
+decreases
+pure func BytesToAbsInfoField(raw [] byte, middle int) (io.AbsInfoField) {
+	return unfolding sl.Bytes(raw, 0, len(raw)) in
+		BytesToAbsInfoFieldHelper(raw, middle)
+}
+
+ghost
+requires 0 <= middle
+requires middle+InfoLen <= len(raw)
+requires forall i int :: { &raw[i] } middle <= i && i < len(raw) ==>
+	acc(&raw[i])
+decreases
+pure func BytesToAbsInfoFieldHelper(raw [] byte, middle int) (io.AbsInfoField) {
+	return let _ := sl.AssertSliceOverlap(raw, middle+2, middle+4) in
+		let _ := sl.AssertSliceOverlap(raw, middle+4, middle+8) in
+		io.AbsInfoField {
+			AInfo: io.Ainfo{uint(binary.BigEndian.Uint32(raw[middle+4:middle+8]))},
+			UInfo: AbsUInfoFromUint16(binary.BigEndian.Uint16(raw[middle+2:middle+4])),
+			ConsDir: raw[middle] & 0x1 == 0x1,
+			Peer: raw[middle] & 0x2  == 0x2,
+		}
+}
+
+ghost
+requires  0 <= middle
+requires  middle+InfoLen <= len(raw)
+preserves acc(sl.Bytes(raw, 0, len(raw)), R55)
+preserves acc(sl.Bytes(raw[middle:middle+InfoLen], 0, InfoLen), R55)
+ensures   BytesToAbsInfoField(raw, middle) ==
+	BytesToAbsInfoField(raw[middle:middle+InfoLen], 0)
+decreases
+func BytesToAbsInfoFieldOffsetEq(raw [] byte, middle int) {
+	start := middle
+	end := middle+InfoLen
+	unfold acc(sl.Bytes(raw, 0, len(raw)), R56)
+	unfold acc(sl.Bytes(raw[start:end], 0, InfoLen), R56)
+	absInfo1 := reveal BytesToAbsInfoField(raw, start)
+	absInfo2 := reveal BytesToAbsInfoField(raw[start:end], 0)
+
+	assert absInfo1.ConsDir == absInfo2.ConsDir
+	assert absInfo1.Peer == absInfo2.Peer
+	sl.AssertSliceOverlap(raw, start, end)
+	sl.AssertSliceOverlap(raw[start:end], 4, 8)
+	assert absInfo1.AInfo == absInfo2.AInfo
+	sl.AssertSliceOverlap(raw[start:end], 2, 4)
+	assert absInfo1.UInfo == absInfo2.UInfo
+	assert absInfo1 == absInfo2
+
+	fold acc(sl.Bytes(raw, 0, len(raw)), R56)
+	fold acc(sl.Bytes(raw[start:end], 0, InfoLen), R56)
+}
+
+ghost
+decreases
+pure func (inf InfoField) ToAbsInfoField() (io.AbsInfoField) {
+	return io.AbsInfoField {
+		AInfo: io.Ainfo{uint(inf.Timestamp)},
+		UInfo: AbsUInfoFromUint16(inf.SegID),
+		ConsDir: inf.ConsDir,
+		Peer: inf.Peer,
+	}
+}

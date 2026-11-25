@@ -1,0 +1,65 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+/**** Functions/definitions to work with segments ****/
+
+package io
+
+// the following methods are already concretized for seg3 and pkt3,
+// instead of being fully generic (i.e., taking params of type seg2/pkt2).
+
+ghost
+decreases
+pure func Inc_seg2(currseg, traversedseg Seg, hf1 HF, fut seq[HF]) bool {
+	return currseg.Future === seq[HF]{hf1} ++ fut &&
+		traversedseg.Future === fut &&
+		traversedseg.Past === seq[HF]{hf1} ++ currseg.Past &&
+		traversedseg.History === seq[AHI]{hf1.Toab()} ++ currseg.History
+}
+
+ghost
+decreases
+pure func Same_segment2(currseg, traversedseg Seg) bool {
+	return traversedseg.Future === currseg.Future &&
+		traversedseg.Past    === currseg.Past &&
+		traversedseg.History === currseg.History
+}
+
+ghost
+decreases
+pure func Update_uinfo2(currseg, traversedseg Seg, hf1 HF) bool {
+	return traversedseg.UInfo === Upd_uinfo(currseg.UInfo, hf1)
+}
+
+ghost
+decreases
+pure func Same_uinfo2(currseg, traversedseg Seg) bool {
+	return currseg.UInfo === traversedseg.UInfo
+}
+
+ghost
+decreases
+pure func  Update_uinfo(condition bool, currseg, traversedseg Seg, hf1 HF) bool {
+	return condition? Update_uinfo2(currseg, traversedseg, hf1) : Same_uinfo2(currseg, traversedseg)
+}
+
+ghost
+decreases
+pure func Same_other2(currseg, traversedseg Seg) bool {
+	return traversedseg.AInfo === currseg.AInfo &&
+		traversedseg.ConsDir === currseg.ConsDir &&
+		traversedseg.Peer === currseg.Peer
+}

@@ -1,0 +1,76 @@
+// Copyright 2020 Anapaya Systems
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package path
+
+import (
+	"verification/io"
+	. "verification/utils/definitions"
+)
+
+// At the moment, we assume that all cryptographic operations performed at the code level
+// imply the desired properties at the IO spec level because we cannot currently prove in
+// Gobra the correctness of these operations. Given that we do not prove any properties
+// about this function, we currently do not provide a definition for it.
+
+ghost
+decreases
+pure func AbsUInfoFromUint16(SegID uint16) set[io.MsgTerm]
+
+ghost
+decreases
+pure func AbsMac(mac [MacLen]byte) (io.MsgTerm)
+
+// The following function converts a slice with at least `MacLen` elements into
+// an (exclusive) array containing the mac. Note that there are no permissions
+// involved for accessing exclusive arrays.
+ghost
+requires MacLen <= len(mac)
+requires forall i int :: { &mac[i] } 0 <= i && i < MacLen ==> acc(&mac[i])
+ensures  len(res) == MacLen
+ensures  forall i int :: { res[i] } 0 <= i && i < MacLen ==> mac[i] == res[i]
+decreases
+pure func FromSliceToMacArray(mac []byte) (res [MacLen]byte) {
+	return [MacLen]byte{ mac[0], mac[1], mac[2], mac[3], mac[4], mac[5] }
+}
+
+ghost
+requires len(mac1) == MacLen
+requires forall i int :: { &mac1[i] } 0 <= i && i < MacLen ==> acc(&mac1[i], R50)
+requires forall i int :: { &mac1[i] } 0 <= i && i < MacLen ==> mac1[i] == mac2[i]
+ensures  forall i int :: { &mac1[i] } 0 <= i && i < MacLen ==> acc(&mac1[i], R50)
+ensures  AbsMac(FromSliceToMacArray(mac1)) == AbsMac(mac2)
+decreases
+func EqualBytesImplyEqualMac(mac1 []byte, mac2 [MacLen]byte) {
+	mac1Arr := FromSliceToMacArray(mac1)
+	assert mac1Arr == mac2
+	assert mac1Arr[0] == mac2[0] &&
+		mac1Arr[1] == mac2[1]    &&
+		mac1Arr[2] == mac2[2]    &&
+		mac1Arr[3] == mac2[3]    &&
+		mac1Arr[4] == mac2[4]    &&
+		mac1Arr[5] == mac2[5]
+	assert len(mac1Arr) == len(mac2)
+	AbsMacArrayCongruence(mac1Arr, mac2)
+}
+
+// The following obviously holds. However, for the time being, it cannot be proven due to an
+// incompleteness in the array encoding (https://github.com/viperproject/gobra/issues/770).
+ghost
+requires mac1 == mac2
+ensures  AbsMac(mac1) == AbsMac(mac2)
+decreases
+func AbsMacArrayCongruence(mac1 [MacLen]byte, mac2 [MacLen]byte)

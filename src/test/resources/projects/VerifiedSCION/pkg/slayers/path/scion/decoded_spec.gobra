@@ -1,0 +1,203 @@
+// Copyright 2022 ETH Zurich
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// +gobra
+
+package scion
+
+import (
+	"github.com/scionproto/scion/pkg/slayers/path"
+	. "github.com/scionproto/scion/verification/utils/definitions"
+	"github.com/scionproto/scion/verification/utils/slices"
+)
+
+ghost
+decreases
+pure func (p *Decoded) IsValidResultOfDecoding(b []byte) bool {
+	return true
+}
+
+(*Decoded) implements path.Path
+
+/**** Predicates ****/
+
+pred (d *Decoded) NonInitMem() {
+	acc(&d.InfoFields) && acc(&d.HopFields) && d.Base.NonInitMem()
+}
+
+pred (d *Decoded) Mem(ubuf []byte) {
+	d.Base.Mem() &&
+	acc(&d.InfoFields) &&
+	d.Base.GetNumINF() <= MaxINFs &&
+	len(d.InfoFields) == d.Base.GetNumINF() &&
+	(forall i int :: { &d.InfoFields[i] } 0 <= i && i < len(d.InfoFields) ==> acc(&d.InfoFields[i])) &&
+	acc(&d.HopFields) &&
+	len(d.HopFields) == d.Base.GetNumHops() &&
+	(forall i int :: { &d.HopFields[i] } 0 <= i && i < len(d.HopFields) ==> d.HopFields[i].Mem())
+}
+
+/**** End of Predicates ****/
+
+/**** Stubs ****/
+
+/**
+  * This method is not part of the original SCION codebase.
+  * Instead, `Len` was defined in `*Decoded` via embedded structs.
+  * Unfortunately, Gobra does not fully support them yet, so we
+  * introduced this method which acts as a wrapper.
+  */
+preserves acc(d.Mem(ubuf), R50)
+ensures   l == d.LenSpec(ubuf)
+decreases
+func (d *Decoded) Len(ghost ubuf []byte) (l int) {
+	return unfolding acc(d.Mem(ubuf), _) in d.Base.Len()
+}
+
+ghost
+requires d.Mem(ub)
+decreases
+pure func (d *Decoded) LenSpec(ghost ub []byte) int {
+	return unfolding d.Mem(ub) in
+		d.Base.Len()
+}
+
+/**
+  * This method is not part of the original SCION codebase.
+  * Instead, `Len` was defined in `*Decoded` via embedded structs.
+  * Unfortunately, Gobra does not fully support them yet, so we
+  * introduced this method which acts as a wrapper.
+  */
+requires d.Mem(ubuf)
+decreases
+pure func (d *Decoded) Type(ghost ubuf []byte) path.Type {
+	return unfolding d.Mem(ubuf) in
+		d.Base.Type()
+}
+
+/**
+  * This method is not part of the original SCION codebase.
+  * Instead, `IsXover` was defined in `*Decoded` via embedded structs.
+  * Unfortunately, Gobra does not fully support them yet, so we
+  * introduced this method which acts as a wrapper.
+  */
+preserves acc(d.Mem(ubuf), R19)
+decreases
+func (d *Decoded) IsXover(ghost ubuf []byte) bool {
+	unfold acc(d.Mem(ubuf), R19)
+	defer fold acc(d.Mem(ubuf), R19)
+	return d.Base.IsXover()
+}
+
+/**
+  * This method is not part of the original SCION codebase.
+  * This method creates an override of `IncPath` for `Decoded` which
+  * just provides a more suitable contract. All it does is to call `IncPath`
+  * on d.Base. Without this, one would need to unfold d.Mem() to call `IncPath`,
+  * which can be extremely cumbersome.
+  */
+requires d.Mem(ubuf)
+ensures  e == nil ==> (
+	d.Mem(ubuf) &&
+	d.LenSpec(ubuf) == old(d.LenSpec(ubuf)) &&
+	(old(d.GetBase(ubuf).Valid()) ==> d.GetBase(ubuf).Valid()))
+ensures  e != nil ==> d.NonInitMem() && e.ErrorMem()
+decreases
+func (d *Decoded) IncPath(ghost ubuf []byte) (e error) {
+	unfold d.Mem(ubuf)
+	e = d.Base.IncPath()
+	if e == nil {
+		fold d.Mem(ubuf)
+	} else {
+		fold d.NonInitMem()
+	}
+	return e
+}
+
+ghost
+requires d.Mem(ub)
+decreases
+pure func (d *Decoded) GetNumINF(ub []byte) int {
+	return unfolding d.Mem(ub) in
+		d.Base.GetNumINF()
+}
+
+ghost
+requires d.Mem(ub)
+decreases
+pure func (d *Decoded) GetNumHops(ub []byte) int {
+	return unfolding d.Mem(ub) in
+		d.Base.GetNumHops()
+}
+
+ghost
+requires s.Mem(ub)
+decreases
+pure func (s *Decoded) GetMetaHdr(ub []byte) MetaHdr {
+	return unfolding s.Mem(ub) in
+		s.Base.GetMetaHdr()
+}
+
+/**** End of Stubs ****/
+
+/**** Auxiliary Functions ****/
+
+requires d.Mem(ubuf)
+decreases
+pure func (d *Decoded) getLenInfoFields(ubuf []byte) int {
+	return unfolding d.Mem(ubuf) in
+		len(d.InfoFields)
+}
+
+requires d.Mem(ubuf)
+decreases
+pure func (d *Decoded) getLenHopFields(ubuf []byte) int {
+	return unfolding d.Mem(ubuf) in
+		len(d.HopFields)
+}
+
+ghost
+requires d.Mem(ubuf)
+decreases
+pure func (d *Decoded) GetBase(ubuf []byte) Base {
+	return unfolding d.Mem(ubuf) in
+		(unfolding d.Base.Mem() in d.Base)
+}
+
+/**** End of Auxiliary Functions ****/
+
+/**** Lemmas ****/
+
+ghost
+requires d.Mem(ubuf)
+ensures  d.NonInitMem()
+decreases
+func (d *Decoded) DowngradePerm(ubuf []byte) {
+	unfold d.Mem(ubuf)
+	unfold d.Base.Mem()
+	fold d.Base.NonInitMem()
+	fold d.NonInitMem()
+}
+
+ghost
+requires d.Mem(ubuf1)
+requires len(ubuf1) <= len(ubuf2)
+requires ubuf1 === ubuf2[:len(ubuf1)]
+ensures  d.Mem(ubuf2)
+decreases
+func (d *Decoded) Widen(ubuf1, ubuf2 []byte) {
+	unfold d.Mem(ubuf1)
+	fold d.Mem(ubuf2)
+}
+
+/**** End of Lemmas ****/

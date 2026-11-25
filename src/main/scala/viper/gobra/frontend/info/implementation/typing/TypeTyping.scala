@@ -219,7 +219,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   override def interfaceSymbType(t: PInterfaceType): InterfaceT = interfaceSymbTypeAttr(t)
 
-  /** Canonical [[InterfaceT]] per interface declaration. Not gated on well-definedness (in contrast
+  /** Canonical [[InterfaceT]] per interface declaration. Not guarded by well-definedness (in contrast
     * to [[typeSymbType]]), so that well-definedness checks can obtain the canonical instance without
     * creating attribute cycles. Memoization also guarantees that the embedded interfaces are
     * registered exactly once.
@@ -233,7 +233,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def structSymbType(t: PStructType, isGhost: Boolean): StructT = structSymbTypeAttr(isGhost)(t)
 
-  /** Canonical [[StructT]] per struct declaration and ghostness. Not gated on well-definedness. */
+  /** Canonical [[StructT]] per struct declaration and ghostness. Not guarded by well-definedness. */
   private lazy val structSymbTypeAttr: Boolean => PStructType => StructT = paramAttr { isGhost => (t: PStructType) => {
     def infoFromFieldDecl(f: PFieldDecl, isFieldGhost: Boolean): StructFieldT = StructFieldT(typeSymbType(f.typ), isFieldGhost)
 

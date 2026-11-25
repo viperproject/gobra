@@ -71,7 +71,7 @@ trait ExternalTypeInfo {
   def declaredSymbType(decl: PTypeDecl): DeclaredT
 
   /** Returns the canonical symbolic type for an interface declaration owned by this context.
-    * In contrast to [[symbType]], the result is not gated on well-definedness of the declaration
+    * In contrast to [[symbType]], the result is not guarded by the well-definedness of the declaration
     * and can therefore be used from within well-definedness checks without creating attribute cycles.
     **/
   def interfaceSymbType(decl: PInterfaceType): InterfaceT

@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type S struct{}
+
+// Only interface types can be embedded in an interface.
+type embedding interface {
+	//:: ExpectedOutput(type_error)
+	S
+}
+
+type T struct{}
+
+// dependent error: nothing implements an erroneous interface
+//:: ExpectedOutput(type_error)
+T implements embedding

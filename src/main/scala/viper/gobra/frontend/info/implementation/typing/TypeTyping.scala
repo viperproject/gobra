@@ -65,6 +65,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case t: PInterfaceType =>
       val isRecursiveInterface = error(t, "invalid recursive interface", cyclicInterfaceDef(t))
+      // errors of an erroneous embedded interface are reported at its declaration
+      val embeddedNonInterfaces = t.embedded.flatMap(e =>
+        error(e.typ, s"expected an interface type as embedded type, but got ${e.typ}", !embedsInterfaceType(e)))
       if (isRecursiveInterface.isEmpty) {
         val methodSet = addressableMethodSet(interfaceSymbType(t))
         val methodsContainMayInit = methodSet.exists {
@@ -75,7 +78,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         }
 
-        methodSet.errors(t) ++
+        embeddedNonInterfaces ++
+          methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           t.methSpecs.flatMap(wellDefMethodSig) ++
           containsRedeclarations(t) // temporary check

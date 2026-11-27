@@ -267,6 +267,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case Some(ap.FunctionCall(callee, _)) => callee.symb match {
       case f: Function => f.isHyper
       case m: Method => m.isHyper
+      // `active(i)` refers to the tuple of executions, like a call to a hyperfunc
+      case f: BuiltInFunction => f.tag == viper.gobra.frontend.info.base.BuiltInMemberTag.ActiveFunctionTag
       case _ => false
     }
     case _ => false

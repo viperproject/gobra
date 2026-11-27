@@ -1,0 +1,208 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode extended --enableExperimentalHyperFeatures --experimentalHyperfuncs)
+
+package extended01
+
+// Hyperfuncs in the extended encoding, which supports branches on secrets. An execution may be inactive at a
+// program point: `active(i)` says whether execution i is active, `rel(e, i)` is defined only if it is, and `low`
+// relates the active executions.
+
+decreases
+hyperfunc AllActive() bool {
+	return forall i exec :: active(i)
+}
+
+// written with `low` only: total
+decreases
+hyperfunc NonInterf(input, output any) bool {
+	return low(input) ==> low(output)
+}
+
+// written with `rel`: defined only where both executions are active, which its precondition states
+requires AllActive()
+decreases
+hyperfunc Dist(x int) int {
+	return rel(x, 0) >= rel(x, 1) ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0)
+}
+
+// a branch on a secret
+ensures NonInterf(x, res)
+func Abs(x int) (res int) {
+	res = x
+	if x < 0 {
+		res = -x
+	}
+	return res
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures NonInterf(pub, res)
+func Leak(pub, sec int) (res int) {
+	res = 0
+	if sec > 0 {
+		res = 1
+	}
+	return res
+}
+
+// counting query with a secret branch (theory notes, Listing 2)
+requires AllActive() && Dist(a) <= 1 && 0 <= a && a <= 1
+ensures  Dist(r) <= 1
+func CountOne(a int) (r int) {
+	if a > 0 {
+		r = r + 1
+	}
+	return r
+}
+
+requires AllActive() && Dist(a) <= 1
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  Dist(r) <= 1
+func Scale(a int) (r int) {
+	if a > 0 {
+		r = 2 * a
+	}
+	return r
+}
+
+// unguarded: the callee is verified for every activation, and Dist is undefined where execution 1 is inactive
+//:: ExpectedOutput(precondition_error:assertion_error)
+requires Dist(a) <= 1
+func Unguarded(a int) {}
+
+// guarded: callable from branches on secrets, vacuous where an execution is inactive
+requires AllActive() ==> Dist(a) <= 1
+func Guarded(a int) {}
+
+requires AllActive() && Dist(a) <= 1
+func InBranch(a int) {
+	if a > 0 {
+		assert AllActive() ==> Dist(a) <= 1
+		//:: ExpectedOutput(precondition_error:assertion_error)
+		assert Dist(a) <= 1
+	}
+}
+
+// a relational postcondition of a call made by one execution only is not available
+ensures NonInterf(0, r)
+func MkLow() (r int)
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures NonInterf(0, res)
+func CallInSecretBranch(sec int) (res int) {
+	if sec > 0 {
+		res = MkLow()
+	}
+	return res
+}
+
+requires low(pub)
+ensures  NonInterf(0, res)
+func CallInPublicBranch(pub int) (res int) {
+	if pub > 0 {
+		res = MkLow()
+	}
+	return res
+}
+
+// execution parameters; the precondition names the executions that are read
+requires active(i) && active(j)
+decreases
+hyperfunc Agree(x any, i, j exec) bool {
+	return rel(x, i) === rel(x, j)
+}
+
+requires AllActive() && Agree(x, 0, 1)
+ensures  Agree(res, 0, 1)
+func Inc(x int) (res int) {
+	return x + 1
+}
+
+// recursive and heap-independent, with a rigid parameter
+requires AllActive()
+requires low(n) && 0 <= n && n <= len(s)
+decreases n
+hyperfunc Hamming(s seq[int], n int) int {
+	return n == 0 ? 0 : Hamming(s, n - 1) + (rel(s[n - 1], 0) == rel(s[n - 1], 1) ? 0 : 1)
+}
+
+ghost
+requires AllActive() && low(len(s)) && len(s) == 2 && Hamming(s, 2) == 0
+ensures  low(s[0]) && low(s[1])
+decreases
+func Unfold(s seq[int]) {
+	assert Hamming(s, 2) == Hamming(s, 1) + (rel(s[1], 0) == rel(s[1], 1) ? 0 : 1)
+	assert Hamming(s, 1) == Hamming(s, 0) + (rel(s[0], 0) == rel(s[0], 1) ? 0 : 1)
+}
+
+// recursive and reading the heap
+type node struct {
+	val int
+	next *node
+}
+
+pred list(l *node) { acc(l) && (l.next != nil ==> list(l.next)) }
+
+requires acc(list(l), _)
+decreases list(l)
+hyperfunc LowList(l *node) bool {
+	return unfolding acc(list(l), _) in low(l.val) && (l.next != nil ==> LowList(l.next))
+}
+
+requires list(l) && LowList(l)
+ensures  list(l) && low(v)
+func Head(l *node) (v int) {
+	unfold list(l)
+	v = l.val
+	fold list(l)
+	return v
+}
+
+requires list(l)
+ensures  list(l)
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures  LowList(l)
+func NotLowList(l *node) {}
+
+// abstract hyperfunc
+decreases
+hyperfunc R(x int) bool
+
+requires R(x)
+ensures  R(res)
+func Id(x int) (res int) {
+	return x
+}
+
+// Activity preconditions are explicit, not inferred: a hyperfunc that reads an execution without requiring that it
+// is active is not well-defined.
+//:: ExpectedOutput(pure_function_not_well_defined:assertion_error)
+decreases
+hyperfunc DistNoPre(x int) int {
+	return rel(x, 0) - rel(x, 1)
+}
+
+// also when it reads through another hyperfunc
+decreases
+hyperfunc Close(x int) bool {
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	return Dist(x) <= 1
+}
+
+// guarded reads need no precondition
+decreases
+hyperfunc PositiveIn1(x int) bool {
+	return active(1) ==> rel(x, 1) > 0
+}
+
+// a precise precondition: Agree(x, 1, 1) reads only execution 1
+func OnlyOne(x int, s bool) {
+	if s {
+		assert active(1) ==> Agree(x, 1, 1)
+		assert PositiveIn1(x) || !PositiveIn1(x)
+		//:: ExpectedOutput(precondition_error:assertion_error)
+		assert Agree(x, 0, 1)
+	}
+}

@@ -1,0 +1,69 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--hyperMode extended --enableExperimentalHyperFeatures --experimentalHyperfuncs)
+
+package extended02
+
+// Methods are verified for every activation, including the one where only execution 1 is active: the encoding does
+// not assume that execution 0 is active at method entry (jcp19/hyperfuncs#13).
+
+decreases
+hyperfunc AllActive() bool {
+	return forall i exec :: active(i)
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures active(0)
+func F() {
+}
+
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures active(1)
+func F1() {
+}
+
+func AtEntry() {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert active(0)
+}
+
+// A caller in a branch on a secret: execution 0 may be inactive there.
+func G(h bool) {
+	if h {
+		//:: ExpectedOutput(assert_error:assertion_error)
+		assert active(0)
+	}
+}
+
+// Guarded by an explicit requirement, the assertions hold.
+requires AllActive()
+ensures  active(0) && active(1)
+func BothActive() {
+	assert active(0) && active(1)
+}
+
+// A one-sided use of rel: only defined where execution 1 is active.
+//:: ExpectedOutput(contract_not_well_formed:assertion_error)
+requires rel(x, 1) > 0
+func OneSided(x int) {
+}
+
+requires active(1) ==> rel(x, 1) > 0
+func OneSidedGuarded(x int) {
+}
+
+// Symmetric specifications are unaffected.
+requires low(x)
+ensures  low(res)
+func Inc(x int) (res int) {
+	return x + 1
+}
+
+requires low(x)
+func CallInc(x int, h bool) {
+	if h {
+		y := Inc(x)
+		assert low(y)
+	}
+}

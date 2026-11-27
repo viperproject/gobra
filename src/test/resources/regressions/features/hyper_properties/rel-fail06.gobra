@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relfail06
+
+// ##(--hyperMode extended --enableExperimentalHyperFeatures)
+
+// rel(e, i) is defined only if execution i is active. The callee is verified for every activation, so an unguarded
+// `rel` in a contract is not well-defined.
+//:: ExpectedOutput(contract_not_well_formed:assertion_error)
+requires rel(b, 0)
+requires rel(b, 1)
+func foo(b bool) {
+    return
+}
+
+requires active(1) ==> rel(b, 1)
+func bar(b bool) {
+    return
+}

@@ -79,6 +79,26 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
             case ts@Vector(t1, t2, PermissionT) if validArgTypes(t1, t2) => FunctionT(ts, INT_TYPE)
           })
       }
+      case ActiveFunctionTag => AbstractType(
+        {
+          case (n, t) =>
+            val k = config.hyperExecutionsOrDefault
+            val outOfRange = n match {
+              case inv: viper.gobra.ast.frontend.PInvoke => inv.args.exists {
+                case l: viper.gobra.ast.frontend.PIntLit => l.lit < 0 || k <= l.lit
+                case _ => false
+              }
+              case _ => false
+            }
+            error(n, s"Function ${ActiveFunctionTag.identifier} expects one execution, i.e., an integer literal or an expression of type 'exec'.",
+              t.length != 1 || !(t(0) == ExecT || t(0) == IntT(UnboundedInteger))) ++
+            error(n, s"executions are numbered from 0 to ${k - 1} (see option --hyperExecutions)", outOfRange) ++
+            error(n, s"Function ${ActiveFunctionTag.identifier} requires hyperMode '${viper.gobra.frontend.Hyper.Enabled.name}' or '${viper.gobra.frontend.Hyper.EnabledExtended.name}'.",
+              config.hyperModeOrDefault != viper.gobra.frontend.Hyper.Enabled && config.hyperModeOrDefault != viper.gobra.frontend.Hyper.EnabledExtended)
+        },
+        {
+          case args => FunctionT(args, BooleanT)
+        })
       case InvariantFunctionTag => AbstractType(
         {
           case (n, t) =>
@@ -189,6 +209,9 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case InvariantFunctionTag =>
       GhostType.ghostTuple(Vector(true))
 
+    case ActiveFunctionTag =>
+      GhostType.ghostTuple(Vector(true))
+
     case t: GhostBuiltInMember => t match {
       case _ =>
         if (typ(t).typing.isDefinedAt(args)) {
@@ -212,6 +235,9 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
     // `Invariant` is a ghost function returning a single (ghost) boolean
     case InvariantFunctionTag => ghostArgs(1)
+
+    // `active` is a ghost function returning a single (ghost) boolean
+    case ActiveFunctionTag => ghostArgs(1)
 
     case t: GhostBuiltInMember => t match {
       case _ =>

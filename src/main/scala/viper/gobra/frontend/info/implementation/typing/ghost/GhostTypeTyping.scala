@@ -60,8 +60,8 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       case _ => false
     }
     error(n, "the type 'exec' is only allowed for parameters of hyperfuncs", !allowed) ++
-      error(n, s"the type 'exec' requires hyperMode '${viper.gobra.frontend.Hyper.Enabled.name}'",
-        config.hyperModeOrDefault != viper.gobra.frontend.Hyper.Enabled)
+      error(n, s"the type 'exec' requires hyperMode '${viper.gobra.frontend.Hyper.Enabled.name}' or '${viper.gobra.frontend.Hyper.EnabledExtended.name}'",
+        config.hyperModeOrDefault != viper.gobra.frontend.Hyper.Enabled && config.hyperModeOrDefault != viper.gobra.frontend.Hyper.EnabledExtended)
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {

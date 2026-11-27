@@ -71,6 +71,7 @@ COPY genparser.sh /build/gobra/
 COPY project /build/gobra/project
 COPY conf /build/gobra/conf
 COPY src /build/gobra/src
+COPY hyperfuncs /build/gobra/hyperfuncs
 # Copies viperserver and, transitively, all of its dependencies (carbon, silicon and silver)
 COPY viperserver /build/gobra/viperserver
 

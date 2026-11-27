@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Type errors: executions are 0 or 1 or have type Exec, and Exec values are not integers.
+
+hyperfunction Agree(x: Int, i: Exec, j: Exec): Bool
+  requires active(i) && active(j)
+{ rel(x, i) == rel(x, j) }
+
+method m(x: Int, k: Int)
+  //:: ExpectedOutput(typechecker.error)
+  requires rel(x, 2) == 0
+  //:: ExpectedOutput(typechecker.error)
+  requires rel(x, k) == 0
+  //:: ExpectedOutput(typechecker.error)
+  requires Agree(x, 0, 2)
+  //:: ExpectedOutput(typechecker.error)
+  requires Agree(x, k, 0)
+  //:: ExpectedOutput(typechecker.error)
+  requires forall i: Exec :: rel(x, i) == i
+  //:: ExpectedOutput(typechecker.error)
+  requires active(true)

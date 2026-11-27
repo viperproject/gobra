@@ -137,6 +137,19 @@ It must exist exactly once.
 - **Prototype:** in Gobra, as a separate source tree with package `viper.hyperfuncs` and no Gobra dependencies. The hyperfuncs repository deletes its copy and runs its Viper tests with Gobra's jar, which contains Silicon and the plugin.
 - **Eventually:** in silver, next to the SIF plugin. The subclass overrides internal methods of `SIFExtendedTransformer`, so it should live next to that class, and those methods should become documented extension points. This needs agreement from the Viper maintainers.
 
+## Components
+
+| component | kind | step | purpose |
+|---|---|---|---|
+| `hyperfuncs/` | sbt subproject of Gobra, depending only on Viper | 1 | the plugin's single source; the build enforces that it does not depend on Gobra |
+| `HyperfuncsAnnotations` | object | 1 | the input convention for front ends: the annotation keys (hyperfunction, execution parameters, `active`) and `normalize`, which turns calls of the `active` function into the plugin's node. Gobra's `VprInfo` uses its constants |
+| `HyperfuncsConfig` | object | 1 | configuration for front ends in the same process: static checks on or off, `rel` allowed, the SIF plugin's experimental features and goto encoding, the callback for the product program, and the info of generated `active(i)` assertions (`activeConditionInfo`) |
+| `ProductConstruction` | trait | 2 | the primitives: `executions`, `inExecution(e, i)`, `unfoldingIn(u, i, body)`; the only interface between the shared layer and a construction |
+| `HyperfuncEncoding` | class, parameterised by a `ProductConstruction` | 2 | the shared layer: hyperfunction definitions, calls, `rel`, `active`, `low`, lifting, termination proofs. The activation is a `Seq[Exp]` with one condition per execution |
+| `Multiplicity` | object | 2 | the classification of unary and rigid expressions (`isRigid`, today in `HyperfuncsChecks`), shared by the checks and the encoding |
+| `ExtendedProduct` | today's `HyperfuncsTransformer`: a subclass of silver's `SIFExtendedTransformer`, `with ProductConstruction` | 2 | the activation-based construction |
+| `LockstepProduct` | today's `SIFLowGuardTransformer`, moved, `with ProductConstruction` | 3 | the lockstep construction, without its own hyperfunction translation |
+
 ## Steps
 
 Each step ends with the acceptance tests passing:
@@ -144,7 +157,7 @@ Each step ends with the acceptance tests passing:
 - the hyperfuncs evaluation (`scripts/verify.sh`, 74 files);
 - the plugin's tests (81).
 
-1. **`extended` uses the plugin.**
+1. **`extended` uses the plugin** (done).
    - Bring the plugin into Gobra and adapt it as described above.
    - Delete `GobraSIFExtendedTransformer`, `GobraSIFPlugin` and `HyperfuncMarkerTransformer`.
    - Two differences between Gobra's copy and the plugin must be covered by the tests or resolved:

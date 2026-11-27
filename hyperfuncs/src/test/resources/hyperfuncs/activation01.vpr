@@ -1,0 +1,44 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Regression test for jcp19/hyperfuncs#13: methods are verified for every activation. Viper's SIF plugin assumes by
+// default that execution 0 is active at method entry (optimizeRestrictActVars). That is sound only for specifications
+// that treat both executions alike; with `active(i)`, a method could prove `active(0)`, and callers in a branch on a
+// secret could then rely on it where only execution 1 is active.
+
+hyperfunction AllActive(): Bool
+  decreases
+{ forall i: Exec :: active(i) }
+
+// Nothing is known about the activation at entry.
+method NoActivationKnown()
+{
+  //:: ExpectedOutput(assert.failed:assertion.false)
+  assert active(0)
+}
+
+// Used to verify.
+method ClaimsActive0()
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures active(0)
+{
+}
+
+// Without the call, the assertion is rejected: only execution 1 may take the branch.
+method InBranch(h: Bool)
+{
+  if (h) {
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert active(0)
+  }
+}
+
+// Both executions active at entry, as required.
+method BothActive(h: Bool)
+  requires AllActive()
+{
+  assert active(0) && active(1)
+  if (h) {
+    assert active(0) || active(1)
+  }
+}

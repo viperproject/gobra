@@ -17,7 +17,8 @@
       "project/target/**",
       "target/**",
       "src/test/resources/**/*.go",
-      "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala"
+      "src/test/scala/viper/gobra/parsing/GoParserUnitTests.scala",
+      "hyperfuncs/src/test/resources/**/*.vpr"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH.txt"
   },
@@ -122,5 +123,11 @@
       "src/main/**/Gobra*.g4"
     ],
     "license": "./.github/license-check/headers/BSD-3-SIDM.txt"
+  },
+  {
+    "include": [
+      "hyperfuncs/src/test/resources/**/*.vpr"
+    ],
+    "license": "./.github/license-check/headers/CC0.txt"
   }
 ]

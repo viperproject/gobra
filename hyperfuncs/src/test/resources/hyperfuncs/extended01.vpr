@@ -1,0 +1,188 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Port of Gobra's hyperfuncs/extended01.gobra (PR #1127): hyperfunctions with secret control flow. An execution may be
+// inactive at a program point: `active(i)` says whether execution i is active, `rel(e, i)` is defined only if it is,
+// and `low` relates the active executions.
+
+hyperfunction AllActive(): Bool
+  decreases
+{ forall i: Exec :: active(i) }
+
+// written with `low` only: total
+hyperfunction NonInterf(input: Int, output: Int): Bool
+  decreases
+{ low(input) ==> low(output) }
+
+// written with `rel`: defined only where both executions are active
+hyperfunction Dist(x: Int): Int
+  requires AllActive()
+  decreases
+{ rel(x, 0) >= rel(x, 1) ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0) }
+
+// a branch on a secret
+method Abs(x: Int) returns (res: Int)
+  ensures NonInterf(x, res)
+{
+  res := x
+  if (x < 0) {
+    res := -x
+  }
+}
+
+method Leak(pub: Int, sec: Int) returns (res: Int)
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures NonInterf(pub, res)
+{
+  res := 0
+  if (sec > 0) {
+    res := 1
+  }
+}
+
+// counting query with a secret branch (theory notes, Listing 2)
+method CountOne(a: Int) returns (r: Int)
+  requires AllActive() && Dist(a) <= 1 && 0 <= a && a <= 1
+  ensures  Dist(r) <= 1
+{
+  r := 0
+  if (a > 0) {
+    r := r + 1
+  }
+}
+
+method Scale(a: Int) returns (r: Int)
+  requires AllActive() && Dist(a) <= 1
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures  Dist(r) <= 1
+{
+  r := 0
+  if (a > 0) {
+    r := 2 * a
+  }
+}
+
+// unguarded: the callee is verified for every activation, and Dist is undefined where execution 1 is inactive
+method Unguarded(a: Int)
+  //:: ExpectedOutput(application.precondition:assertion.false)
+  requires Dist(a) <= 1
+
+// guarded: callable from branches on secrets, vacuous where an execution is inactive
+method Guarded(a: Int)
+  requires AllActive() ==> Dist(a) <= 1
+
+method InBranch(a: Int)
+  requires AllActive() && Dist(a) <= 1
+{
+  if (a > 0) {
+    assert AllActive() ==> Dist(a) <= 1
+    //:: ExpectedOutput(application.precondition:assertion.false)
+    assert Dist(a) <= 1
+  }
+}
+
+method CallGuardedInBranch(a: Int)
+  requires AllActive() && Dist(a) <= 1
+{
+  if (a > 0) {
+    Guarded(a)
+  }
+}
+
+// a relational postcondition of a call made by one execution only is not available
+method MkLow() returns (r: Int)
+  ensures NonInterf(0, r)
+
+method CallInSecretBranch(sec: Int) returns (res: Int)
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures NonInterf(0, res)
+{
+  res := 0
+  if (sec > 0) {
+    res := MkLow()
+  }
+}
+
+method CallInPublicBranch(pub: Int) returns (res: Int)
+  requires low(pub)
+  ensures  NonInterf(0, res)
+{
+  res := 0
+  if (pub > 0) {
+    res := MkLow()
+  }
+}
+
+// execution parameters
+hyperfunction Agree(x: Int, i: Exec, j: Exec): Bool
+  requires active(i) && active(j)
+  decreases
+{ rel(x, i) == rel(x, j) }
+
+method Inc(x: Int) returns (res: Int)
+  requires AllActive() && Agree(x, 0, 1)
+  ensures  Agree(res, 0, 1)
+{
+  res := x + 1
+}
+
+method Repeated(x: Int)
+  requires AllActive()
+{
+  assert Agree(x, 1, 1)
+  //:: ExpectedOutput(assert.failed:assertion.false)
+  assert Agree(x, 0, 1)
+}
+
+// recursive and heap-independent; the bound n is public, and rel(n, 0) is its value
+hyperfunction Hamming(s: Seq[Int], n: Int): Int
+  requires AllActive()
+  requires low(n) && 0 <= n && n <= |s|
+  decreases n
+{ rel(n, 0) == 0 ? 0 : Hamming(s, n - 1) + (rel(s[n - 1], 0) == rel(s[n - 1], 1) ? 0 : 1) }
+
+method Unfold(s: Seq[Int])
+  requires AllActive() && low(|s|) && |s| == 2 && Hamming(s, 2) == 0
+  ensures  low(s[0]) && low(s[1])
+{
+  assert Hamming(s, 2) == Hamming(s, 1) + (rel(s[1], 0) == rel(s[1], 1) ? 0 : 1)
+  assert Hamming(s, 1) == Hamming(s, 0) + (rel(s[0], 0) == rel(s[0], 1) ? 0 : 1)
+}
+
+// recursive and reading the heap
+field val: Int
+field next: Ref
+
+predicate list(l: Ref) { acc(l.val) && acc(l.next) && (l.next != null ==> list(l.next)) }
+
+hyperfunction LowList(l: Ref): Bool
+  requires acc(list(l), wildcard)
+  decreases list(l)
+{ unfolding acc(list(l), wildcard) in low(l.val) && (l.next != null ==> LowList(l.next)) }
+
+method Head(l: Ref) returns (v: Int)
+  requires list(l) && LowList(l)
+  ensures  list(l) && low(v)
+{
+  unfold list(l)
+  v := l.val
+  fold list(l)
+}
+
+method NotLowList(l: Ref)
+  requires list(l)
+  ensures  list(l)
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures  LowList(l)
+{}
+
+// abstract hyperfunction
+hyperfunction R(x: Int): Bool
+  decreases
+
+method Id(x: Int) returns (res: Int)
+  requires R(x)
+  ensures  R(res)
+{
+  res := x
+}

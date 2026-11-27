@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Types with finitely many values, such as the singleton domain below, can implement interfaces. The axiom that
+// relates the values of such a type with the polymorphic values of the interface encoding must not state that
+// every reference is the box of a value of the type, since that would bound the number of references and allow
+// deriving false (the dispatch function of `m` mentions the unboxing of `i1` and `i2` at type `unit`).
+
+package pkg
+
+// `unit` has exactly one value:
+ghost type unit domain {
+    func theUnit() unit
+    func toInt(u unit) int
+
+    axiom {
+        forall u unit :: { toInt(u) } u == theUnit()
+    }
+}
+
+type I interface {
+    ghost
+    decreases
+    pure m() int
+}
+
+ghost
+decreases
+pure func (u unit) m() int {
+    return toInt(u)
+}
+
+unit implements I
+
+type P struct { x int }
+
+ghost
+decreases
+pure func (p *P) m() int {
+    return 1
+}
+
+(*P) implements I
+
+func test() {
+    p1 := &P{1}
+    p2 := &P{2}
+    assert p1 != p2
+    ghost var i1 I = p1
+    ghost var i2 I = p2
+    assert i1.m() == 1 && i2.m() == 1
+    ghost var u I = theUnit()
+    assert u.(unit) == theUnit() && u.m() == toInt(theUnit())
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

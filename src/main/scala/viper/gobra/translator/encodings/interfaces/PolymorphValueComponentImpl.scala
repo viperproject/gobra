@@ -10,7 +10,6 @@ import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.context.Context
-import viper.gobra.translator.util.TypePatterns.Sh
 
 /** Polymorphic value that can fit all countable types. */
 class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends PolymorphValueComponent {
@@ -80,23 +79,17 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
 
 
   /**
-    * Generates the following axiom:
-    *
-    *   // If T is a finite type:
+    * Generates the following axiom for the type T:
     *
     *   axiom {
     *     forall y: Itf :: {(unbox(polyValOf(y)): [T])} typeOf(y) == [T] ==> box((unbox(polyValOf(y)): [T])) == polyValOf(y)
     *   }
     *
-    *   // Otherwise:
-    *
-    *   axiom { forall y: Ref :: {(unbox(y): [T])} box((unbox(y): [T])) == y }
-    *
-    *
     *   Info:
-    *   The first axiom is conservative, but also complete.
-    *   Every type could be handled by it. However, the second axiom is more lightweight.
-    *
+    *   The axiom only talks about the polymorphic values of interface values with dynamic type T, which are boxed
+    *   values of T by construction. It is thus sound and complete for every type. The unguarded variant
+    *   `forall y: Ref :: box((unbox(y): [T])) == y` would state that box is a bijection between T and Ref, which is
+    *   unsound for types with finitely many values, since it bounds the number of references.
     */
   private def genAxiom(t: in.Type)(ctx: Context): Unit = {
     if (!genAxiomSet.contains(t)) {
@@ -113,38 +106,22 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
         func = unboxFunc, args = Vector(arg), typVarMap = typeVarMap
       )()
 
+      val yDecl = vpr.LocalVarDecl("y", handle.typ(imageType)(ctx))()
+      val y = yDecl.localVar
+      val z = handle.polyValOf(y)()(ctx) // polyValOf(y)
 
-      val axiom = if (finiteCardinality(t)(ctx.lookup)) {
-        val yDecl = vpr.LocalVarDecl("y", handle.typ(imageType)(ctx))()
-        val y = yDecl.localVar
-        val z = handle.polyValOf(y)()(ctx) // polyValOf(y)
-
-        vpr.AnonymousDomainAxiom(
-          vpr.Forall(
-            variables = Seq(yDecl),
-            triggers = Seq(vpr.Trigger(Seq(unboxApp(z)))()),
-            exp = vpr.Implies(
-              // typeOf(y) == [T]
-              vpr.EqCmp(handle.dynTypeOf(y)()(ctx), handle.typeToExpr(t)()(ctx))(),
-              // box((unbox(polyValOf(y)): [T])) == polyValOf(y)
-              vpr.EqCmp(boxApp(unboxApp(z)), z)()
-            )()
+      val axiom = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          variables = Seq(yDecl),
+          triggers = Seq(vpr.Trigger(Seq(unboxApp(z)))()),
+          exp = vpr.Implies(
+            // typeOf(y) == [T]
+            vpr.EqCmp(handle.dynTypeOf(y)()(ctx), handle.typeToExpr(t)()(ctx))(),
+            // box((unbox(polyValOf(y)): [T])) == polyValOf(y)
+            vpr.EqCmp(boxApp(unboxApp(z)), z)()
           )()
-        )(domainName = extraDomainName)
-
-      }  else {
-
-        val yDecl = vpr.LocalVarDecl("y", imageType)()
-        val y = yDecl.localVar
-
-        vpr.AnonymousDomainAxiom(
-          vpr.Forall(
-            variables = Seq(yDecl),
-            triggers = Seq(vpr.Trigger(Seq(unboxApp(y)))()),
-            exp = vpr.EqCmp(boxApp(unboxApp(y)), y)() // box((unbox(y): [T])) == y
-          )()
-        )(domainName = extraDomainName)
-      }
+        )()
+      )(domainName = extraDomainName)
 
       genAxioms ::= axiom
     }
@@ -214,24 +191,6 @@ class PolymorphValueComponentImpl(handle: PolymorphValueInterfaceHandle) extends
   private var isUsed: Boolean = false
 
   override def finalize(addMemberFn: vpr.Member => Unit): Unit = if (isUsed) { genDomain.foreach(addMemberFn) }
-
-  /** Returns whether 'typ' has finite cardinality. */
-  private def finiteCardinality(typ: in.Type)(ctx: in.DefinedT => in.Type): Boolean = {
-    def go(t: in.Type): Boolean = finiteCardinality(t)(ctx)
-
-    val res = typ match {
-      case Sh() => false
-      case t: in.DefinedT => go(ctx(t))
-      case _: in.BoolT | in.VoidT => true
-      case t: in.ArrayT => t.length == 0 || go(t.elems)
-      case t: in.StructT => t.fields.forall(f => go(f.typ))
-      case t: in.TupleT => t.ts.forall(go)
-      case t: in.OptionT => go(t.t)
-      case _ => false
-    }
-
-    res
-  }
 }
 
 trait PolymorphValueInterfaceHandle {

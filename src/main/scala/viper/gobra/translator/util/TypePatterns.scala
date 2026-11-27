@@ -244,6 +244,13 @@ object TypePatterns {
       def unapply(arg: in.Type): Boolean =
         isZeroSize(underlyingType(arg)(ctx))(ctx.table)
     }
+
+    object NoZeroSize {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case ctx.ZeroSize() => None
+        case t => Some(t)
+      }
+    }
   }
 
 

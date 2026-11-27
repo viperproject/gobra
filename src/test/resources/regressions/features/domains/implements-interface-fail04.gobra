@@ -21,6 +21,7 @@ ghost type intPair domain {
 }
 
 type Equality interface {
+    decreases
     pure hash() int
 
     isEqual(other Equality) bool

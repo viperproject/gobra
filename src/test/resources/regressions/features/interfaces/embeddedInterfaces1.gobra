@@ -27,6 +27,7 @@ type foo interface {
 
 type bar interface {
 	ensures res == 5
+	decreases
 	pure g() (res int)
 }
 
@@ -35,6 +36,7 @@ type test int
 func (x test) f()
 
 ensures res == 5
+decreases
 pure func (x test) g() (res int)
 
 test implements foo
@@ -45,6 +47,7 @@ ensures 0 <= res
 func (x test1) h() (res int)
 
 ensures res == 5
+decreases
 pure func (x test1) g() (res int)
 
 func (x test1) f()
@@ -56,6 +59,7 @@ type test2 int
 func (x test2) f()
 
 ensures res == 5
+decreases
 pure func (x test2) g() (res int)
 
 ensures 1 <= res

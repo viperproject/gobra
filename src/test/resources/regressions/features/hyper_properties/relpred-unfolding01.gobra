@@ -12,9 +12,9 @@ type Cell struct { v int }
 pred (c *Cell) LowMem() { acc(&c.v) && low(c.v) }
 
 ghost
-requires acc(c.LowMem(), _)
+requires c.LowMem()
 decreases
-pure func (c *Cell) Get() int { return unfolding acc(c.LowMem(), _) in c.v }
+pure func (c *Cell) Get() int { return unfolding c.LowMem() in c.v }
 
 requires c.LowMem()
 ensures  c.LowMem()

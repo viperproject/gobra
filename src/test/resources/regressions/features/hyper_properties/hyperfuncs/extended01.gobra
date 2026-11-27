@@ -145,10 +145,10 @@ type node struct {
 
 pred list(l *node) { acc(l) && (l.next != nil ==> list(l.next)) }
 
-requires acc(list(l), _)
+requires list(l)
 decreases list(l)
 hyperfunc LowList(l *node) bool {
-	return unfolding acc(list(l), _) in low(l.val) && (l.next != nil ==> LowList(l.next))
+	return unfolding list(l) in low(l.val) && (l.next != nil ==> LowList(l.next))
 }
 
 requires list(l) && LowList(l)

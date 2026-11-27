@@ -15,9 +15,10 @@ pred (l *ListEntry) List() {
 }
 
 ghost
-requires acc(l.List(), _)
+requires l.List()
+decreases l.List()
 pure func (l *ListEntry) Elems() (res seq[int]) {
-    return unfolding acc(l.List(), _) in (
+    return unfolding l.List() in (
         l.next == nil ? seq[int]{ l.value } :
             seq[int]{ l.value } ++ l.next.Elems())
 }

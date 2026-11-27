@@ -8,6 +8,7 @@ type Rectangle struct {
 }
 
 ghost
+decreases
 requires acc(&r.Width)
 pure func (r *Rectangle) GetWidth() (res int) {
     return r.Width

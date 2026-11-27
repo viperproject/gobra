@@ -27,6 +27,7 @@ object Source {
   sealed trait Annotation
   case object OverflowCheckAnnotation extends Annotation
   case object ReceiverNotNilCheckAnnotation extends Annotation
+  case object IndexInBoundsCheckAnnotation extends Annotation
   case object ImportPreNotEstablished extends Annotation
   case object MainPreNotEstablished extends Annotation
   case object LoopInvariantNotEstablishedAnnotation extends Annotation

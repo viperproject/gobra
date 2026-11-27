@@ -2611,11 +2611,19 @@ object Desugar extends LazyLogging {
       for {
         dbase <- exprD(ctx, info)(base)
         dindex <- exprD(ctx, info)(index)
-        baseUnderlyingType = underlyingType(dbase.typ)
+        // indexing a pointer to an array implicitly dereferences the pointer, i.e., `p[i]` is
+        // shorthand for `(*p)[i]`. The dereference is made explicit such that all further
+        // processing can uniformly treat the base as an array:
+        derefBase = underlyingType(dbase.typ) match {
+          case t@ in.PointerT(elem, _) if underlyingType(elem).isInstanceOf[in.ArrayT] =>
+            in.Deref(dbase, t)(src)
+          case _ => dbase
+        }
+        baseUnderlyingType = underlyingType(derefBase.typ)
         // the index of a map may require an implicit conversion, e.g., when the key type of the map is an
         // interface type and `index` has a concrete type
         dkey = indexType(baseUnderlyingType).fold(dindex)(implicitConversion(dindex.typ, _, dindex))
-      } yield in.IndexedExp(dbase, dkey, baseUnderlyingType)(src)
+      } yield in.IndexedExp(derefBase, dkey, baseUnderlyingType)(src)
     }
 
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext, info : TypeInfo) : Writer[in.IndexedExp] =
@@ -2891,11 +2899,18 @@ object Desugar extends LazyLogging {
                 in.SequenceTake(drop, sub)(src)
             }
             case baseT @ (_: in.ArrayT | _: in.SliceT | in.PointerT(_: in.ArrayT, _)) =>
+              // slicing a pointer to an array implicitly dereferences the pointer, i.e., `p[i:j]`
+              // is shorthand for `(*p)[i:j]`. The dereference is made explicit such that all
+              // further processing can uniformly treat the base as an array:
+              val (derefBase, derefBaseT) = baseT match {
+                case t@ in.PointerT(elem, _) => (in.Deref(dbase, t)(src), underlyingType(elem))
+                case t => (dbase, t)
+              }
               (dlow, dhigh) match {
-                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
-                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
-                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
-                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
+                case (None, None) => in.Slice(derefBase, in.IntLit(0)(src), in.Length(derefBase)(src), dcap, derefBaseT)(src)
+                case (Some(lo), None) => in.Slice(derefBase, lo, in.Length(derefBase)(src), dcap, derefBaseT)(src)
+                case (None, Some(hi)) => in.Slice(derefBase, in.IntLit(0)(src), hi, dcap, derefBaseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(derefBase, lo, hi, dcap, derefBaseT)(src)
               }
             case baseT: in.StringT =>
               Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")

@@ -68,6 +68,9 @@ func test10(x *[0]int) {
 func test11() {
 	var x *[10]int
 
-	//:: ExpectedOutput(load_error:receiver_is_nil_error)
+	// no nil-dereference error: `assert` is a ghost statement and is never
+	// executed, so it cannot panic. The length of *x is unconstrained for a
+	// nil x, so the assertion itself is not provable.
+	//:: ExpectedOutput(assert_error:assertion_error)
 	assert len(*x) == 10
 }

@@ -16,7 +16,7 @@ import viper.silver.plugin.standard.termination.DecreasesTuple
 import scala.collection.mutable
 
 /**
-  * Rewrites the type-checked program into the form that [[HyperfuncsTransformer]] translates. It runs before Viper's
+  * Rewrites the type-checked program into the form that [[ExtendedProduct]] translates. It runs before Viper's
   * termination plugin:
   *
   *  0. Let-expressions whose bodies are relational are inlined (see [[inlineRelationalLets]]).

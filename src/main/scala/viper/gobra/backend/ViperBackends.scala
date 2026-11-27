@@ -30,18 +30,23 @@ trait ViperBackend extends CliEnumConverter.EnumCase {
     if (config.assumeInjectivityOnInhale) {
       options ++= Vector("--assumeInjectivityOnInhale")
     }
-    if (config.hyperModeOrDefault == Hyper.EnabledExtended) {
-      // for `Hyper.Enabled`, we do not use the plugin but a Gobra-internal transformation (SIFLowGuardTransformer).
-      // The hyperfuncs plugin builds the product with Viper's SIF plugin (SIFExtendedTransformer), extended with
-      // hyperfuncs; it also verifies every activation, see jcp19/hyperfuncs#13.
+    if (config.hyperModeOrDefault != Hyper.Disabled) {
+      // The hyperfuncs plugin builds the product program: for `Hyper.EnabledExtended` with Viper's SIF plugin
+      // (SIFExtendedTransformer), which verifies every activation (jcp19/hyperfuncs#13); for `Hyper.Enabled` and
+      // `Hyper.NoMajor` with the lockstep construction (low-guard checks, k executions).
       options ++= Vector("--plugin", "viper.hyperfuncs.HyperfuncsPlugin")
+      HyperfuncsConfig.construction = config.hyperModeOrDefault match {
+        case Hyper.EnabledExtended => HyperfuncsConfig.Extended
+        case mode => HyperfuncsConfig.Lockstep(config.hyperExecutionsOrDefault, noMinor = mode == Hyper.NoMajor)
+      }
       // Gobra's type checker enforces the static rules of hyperfuncs
       HyperfuncsConfig.checkStaticRules = false
       // since Gobra adds gotos to handle return statements, which might jump out of a loop, we cannot use the default
       // encoding of gotos in the SIFExtendedTransformer:
       HyperfuncsConfig.enableGotoLowEventEncoding = true
       HyperfuncsConfig.enableExperimentalFeatures = config.enableExperimentalHyperFeatures
-      HyperfuncsConfig.enableRel = config.enableExperimentalHyperFeatures
+      // `rel` is experimental only in hyper mode extended
+      HyperfuncsConfig.enableRel = config.hyperModeOrDefault != Hyper.EnabledExtended || config.enableExperimentalHyperFeatures
       // errors of the activity checks of `rel(e, i)` read "active(i)" at the position of the `rel`
       HyperfuncsConfig.activeConditionInfo = (at, i) =>
         at.info.getUniqueInfo[viper.gobra.reporting.Source.Verifier.Info]

@@ -26,7 +26,7 @@ object VprInfo {
   def isActiveExecution(info: vpr.Info): Boolean =
     info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains(activeExecutionAnnotationKey))
 
-  /** Key of the annotation marking Viper functions that encode hyper functions, see [[SIFLowGuardTransformer]]. */
+  /** Key of the annotation marking Viper functions that encode hyper functions, see [[viper.hyperfuncs.HyperfuncsAnnotations]]. */
   val hyperFuncAnnotationKey: String = viper.hyperfuncs.HyperfuncsAnnotations.hyperfunctionKey
 
   def maybeAttachHyperFunc(info: vpr.Info, isHyper: Boolean): vpr.Info = {

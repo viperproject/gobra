@@ -144,11 +144,12 @@ It must exist exactly once.
 | `hyperfuncs/` | sbt subproject of Gobra, depending only on Viper | 1 | the plugin's single source; the build enforces that it does not depend on Gobra |
 | `HyperfuncsAnnotations` | object | 1 | the input convention for front ends: the annotation keys (hyperfunction, execution parameters, `active`) and `normalize`, which turns calls of the `active` function into the plugin's node. Gobra's `VprInfo` uses its constants |
 | `HyperfuncsConfig` | object | 1 | configuration for front ends in the same process: static checks on or off, `rel` allowed, the SIF plugin's experimental features and goto encoding, the callback for the product program, and the info of generated `active(i)` assertions (`activeConditionInfo`) |
-| `ProductConstruction` | trait | 2 | the primitives: `executions`, `inExecution(e, i)`, `unfoldingIn(u, i, body)`; the only interface between the shared layer and a construction |
-| `HyperfuncEncoding` | class, parameterised by a `ProductConstruction` | 2 | the shared layer: hyperfunction definitions, calls, `rel`, `active`, `low`, lifting, termination proofs. The activation is a `Seq[Exp]` with one condition per execution |
+| `ProductConstruction` | trait | 2 | the primitives: `executions`; `inExecution(e, i, act)`; `isRelational(e)` (relational predicates are the construction's); `lowComparison(l, i, j, act)`; `withParameterCopies(params)(body)` (a hyperfunction's parameters, one copy per execution); `freshName`; `reportError`. The only interface between the shared layer and a construction. Unfolding in each execution is derived from `inExecution` |
+| `HyperfuncEncoding` | class, parameterised by a `ProductConstruction` | 2 | the shared layer, for k executions: hyperfunction definitions, calls, `rel`, `active`, `low`, lifting, termination proofs. The activation is a `Seq[Exp]` with one condition per execution |
 | `Multiplicity` | object | 2 | the classification of unary and rigid expressions (`isRigid`, today in `HyperfuncsChecks`), shared by the checks and the encoding |
 | `ExtendedProduct` | today's `HyperfuncsTransformer`: a subclass of silver's `SIFExtendedTransformer`, `with ProductConstruction` | 2 | the activation-based construction |
-| `LockstepProduct` | today's `SIFLowGuardTransformer`, moved, `with ProductConstruction` | 3 | the lockstep construction, without its own hyperfunction translation |
+| `LockstepTransformer` (`lockstep/LockstepProduct.scala`) | Gobra's former `SIFLowGuardTransformer`, moved, `extends ProductConstruction` | 3 | the lockstep construction: low-guard checks, k-ary method contracts, case splits, pairwise reuse, unary copies, MAJOR members. Its hyperfunction definitions, calls, `rel` and termination proofs go through `HyperfuncEncoding`; it calls the encoding in its current context (executions, rigid variables) |
+| `HyperDisabledTransformer`, `MajorAnnotationTransformer` (Gobra) | Viper transformers | 3 | what stays in Gobra: removing relational constructs without a hyper mode, and the annotation `major` on members tagged `#[MAJOR]` in their source |
 
 ## Steps
 
@@ -163,10 +164,13 @@ Each step ends with the acceptance tests passing:
    - Two differences between Gobra's copy and the plugin must be covered by the tests or resolved:
      - the plugin inlines `let` with relational bodies;
      - the plugin chooses literal arguments for inactive executions where possible.
-2. **The product interface.** Rewrite the plugin's hyperfunc layer against the primitives above. The extended construction is its first instance.
-3. **Lockstep in the plugin.**
-   - Move `SIFLowGuardTransformer` into the plugin as the second instance, and delete its hyperfunc translation.
-   - Replace the `#[MAJOR]` source tag by an annotation, and add the two MAJOR rules.
+2. **The product interface** (done). Rewrite the plugin's hyperfunc layer against the primitives above. The extended construction is its first instance. For k = 2, the generated Viper is the same as before.
+3. **Lockstep in the plugin** (done, except the MAJOR rules).
+   - The interface needed two more primitives with defaults: `activationIsTrivial` (lockstep: hyperfunctions take no
+     activation flags, and the encoding drops trivially true conditions, so the generated Viper stays as before) and
+     `withRigidVariables` (the lockstep construction renames every local per execution unless it is rigid).
+   - Move `SIFLowGuardTransformer` into the plugin as the second instance, and delete its hyperfunc translation (done).
+   - Replace the `#[MAJOR]` source tag by an annotation (done); add the two MAJOR rules (open, see #1136).
    - Check that the termination behaviour of the lockstep encoding survives running after the termination plugin. This covers the lexicographic measures over k copies and methods with `decreases`.
 4. **Upstream to silver** (with the Viper maintainers).
 

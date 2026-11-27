@@ -14,6 +14,14 @@ import viper.silver.ast.{Info, Infoed, NoInfo, Node, Positioned, Program}
   * global: they apply to all programs verified until they are changed.
   */
 object HyperfuncsConfig {
+  /** The product construction: activation-based (Viper's SIF plugin, k = 2), or lockstep with k executions. */
+  sealed trait Construction
+  case object Extended extends Construction
+  /** @param noMinor whether the checks of execution 0 are dropped (Gobra's `--hyperMode noMajor`) */
+  case class Lockstep(executions: Int, noMinor: Boolean = false) extends Construction
+
+  var construction: Construction = Extended
+
   /**
     * Whether the plugin checks the static rules of hyperfunctions ([[HyperfuncsChecks]]). Front ends that enforce
     * these rules on their own language (such as Gobra's type checker) turn it off, since their generated Viper code

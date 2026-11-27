@@ -7,7 +7,7 @@
 package viper.hyperfuncs
 
 import fastparse._
-import viper.silver.ast.Program
+import viper.silver.ast.{Infoed, Member, Program}
 import viper.silver.ast.utility.rewriter.StrategyBuilder
 import viper.silver.parser._
 import viper.silver.plugin.sif.{PLowEventExp, PLowEventKeyword, PLowExp, PLowKeyword, PRelKeyword}
@@ -110,8 +110,24 @@ class HyperfuncsPlugin(@unused reporter: viper.silver.reporter.Reporter,
   }
 
   /** Builds the product program; runs after Viper's default plugins, in particular the termination plugin. */
-  override def beforeVerify(input: Program): Program = {
-    val transformer = new HyperfuncsTransformer
+  override def beforeVerify(input: Program): Program = HyperfuncsConfig.construction match {
+    case HyperfuncsConfig.Extended => extended(input)
+    case HyperfuncsConfig.Lockstep(k, noMinor) => lockstepProduct(input, k, noMinor)
+  }
+
+  private def lockstepProduct(input: Program, executions: Int, noMinor: Boolean): Program = {
+    val p = HyperfuncsPreprocessing.unmark(input)
+    val major = p.members.collect { case m: Infoed with Member if HyperfuncsAnnotations.isMajor(m.info) => m.name }.toSet
+    val onlyMajor = (n: String) => n.endsWith("termination_proof") || major(n)
+    val transformer = new viper.hyperfuncs.lockstep.LockstepTransformer {}
+    val res = transformer.program(p, onlyMajor, noMinor, executions, execParams)
+    transformer.errors.foreach(reportError)
+    HyperfuncsConfig.transformedProgramCallback.foreach(_(res))
+    res
+  }
+
+  private def extended(input: Program): Program = {
+    val transformer = new ExtendedProduct
     transformer.Config.reportError = this.reportError
     // By default, the SIF plugin assumes at the start of every method that execution 0 is active, which removes the
     // case where only execution 1 is active as the mirror image of the case where only execution 0 is. This is sound

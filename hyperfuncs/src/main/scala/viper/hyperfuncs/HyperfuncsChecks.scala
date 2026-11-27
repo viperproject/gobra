@@ -33,6 +33,8 @@ class HyperfuncsChecks(p: Program, hyper: Set[String], report: AbstractError => 
 
   private def error(msg: String, pos: Position): Unit = report(ConsistencyError(msg, pos))
 
+  private val multiplicity = new Multiplicity(p, hyper)
+
   def isRelationalNode(n: Node): Boolean = n match {
     case _: SIFLowExp | _: SIFLowEventExp | _: SIFRelExp | _: HFRelExp | _: HFActiveExp => true
     case f: FuncApp => hyper(f.funcname)
@@ -173,7 +175,7 @@ class HyperfuncsChecks(p: Program, hyper: Set[String], report: AbstractError => 
     f.formalArgs.filterNot(a => isExecType(a.typ)).foreach(a => checkNoExecType(a.typ, s"the parameter ${a.name}", a.pos))
     (f.pres ++ f.posts ++ f.body.toSeq).foreach(e => checkLowEvent(e, s"in the hyperfunction ${f.name}"))
     f.body.foreach { b =>
-      if (b.typ != Bool && !isRigid(b, executionParameters(f)))
+      if (b.typ != Bool && !multiplicity.isRigid(b, executionParameters(f)))
         error(s"The body of the hyperfunction ${f.name} has type ${b.typ} and must have one value for all executions; " +
           "use rel(e, i) for the value of a unary expression e in execution i.", b.pos)
     }
@@ -182,21 +184,4 @@ class HyperfuncsChecks(p: Program, hyper: Set[String], report: AbstractError => 
   /** The execution parameters: the only parameters with one value for all executions. */
   def executionParameters(f: Function): Set[String] =
     f.formalArgs.filter(a => isExecType(a.typ)).map(_.name).toSet
-
-  private def isHeapDependentFunction(name: String): Boolean =
-    p.findFunctionOptionally(name).exists(f => f.pres.exists(_.isHeapDependent(p)))
-
-  /** The multiplicity rules: is `e` rigid, i.e., does it have one value for the tuple of executions? */
-  def isRigid(e: Exp, rigid: Set[String]): Boolean = e match {
-    case _: Literal | _: Result => true
-    case _: SIFRelExp | _: HFRelExp | _: SIFLowExp | _: HFActiveExp | _: HFExecLit => true
-    case f: FuncApp if hyper(f.funcname) => true
-    case v: LocalVar => rigid(v.name)
-    case f: FuncApp => !isHeapDependentFunction(f.funcname) && f.args.forall(isRigid(_, rigid))
-    case _: FieldAccess | _: LocationAccess | _: AccessPredicate | _: Old | _: LabelledOld | _: CurrentPerm => false
-    case q: QuantifiedExp => isRigid(q.exp, rigid ++ q.variables.map(_.name))
-    case Let(v, e1, body) => isRigid(body, if (isRigid(e1, rigid)) rigid + v.name else rigid - v.name)
-    case u: Unfolding => isRigid(u.body, rigid)
-    case e => e.subExps.forall(isRigid(_, rigid))
-  }
 }

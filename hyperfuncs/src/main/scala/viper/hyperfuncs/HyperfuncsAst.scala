@@ -64,7 +64,7 @@ case class HFExecLit(n: BigInt)(val pos: Position = NoPosition, val info: Info =
 }
 
 /**
-  * A placeholder used inside [[HyperfuncsTransformer]]: an already translated expression that the SIF plugin's
+  * A placeholder used inside [[ExtendedProduct]]: an already translated expression that the SIF plugin's
   * translation functions must not traverse. It is a leaf; the translated expression is stored outside the AST.
   */
 case class HFHole(id: Int, holeTyp: Type)(val pos: Position = NoPosition, val info: Info = NoInfo, val errT: ErrorTrafo = NoTrafos)

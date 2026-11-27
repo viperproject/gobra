@@ -13,7 +13,7 @@ import viper.gobra.frontend.{Config, Hyper, PackageInfo}
 import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, TransformerFailureMessage, VerifierError}
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
-import viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl
+import viper.gobra.translator.transformers.hyper.{HyperDisabledTransformer, MajorAnnotationTransformer}
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
@@ -37,11 +37,13 @@ object Translator {
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
 
-    // for hyper mode `EnabledExtended`, the product is constructed inside Viper by the hyperfuncs plugin
-    // (see `ViperBackend.buildOptions`)
-    val sifTransformer =
-      if (config.hyperModeOrDefault == Hyper.EnabledExtended) Seq.empty
-      else Seq(new SIFLowGuardTransformerImpl(config))
+    // with a hyper mode, the product program is built inside Viper by the hyperfuncs plugin
+    // (see `ViperBackend.buildOptions`); without, the relational constructs are removed
+    val sifTransformer = config.hyperModeOrDefault match {
+      case Hyper.Disabled => Seq(new HyperDisabledTransformer)
+      case Hyper.Enabled | Hyper.NoMajor => Seq(new MajorAnnotationTransformer)
+      case Hyper.EnabledExtended => Seq.empty
+    }
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationDomainTransformer,

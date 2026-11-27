@@ -30,7 +30,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   val decorators = new Decorators(info.tree)
   lazy val isInGoifiedScope: PNode => Boolean =
     decorators.down(false){
-      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding | _: PAsserting  => true
+      case _: PFPredicateDecl | _: PMPredicateDecl | _: PClosureSpecDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding | _: PAsserting  => true
       case m: PMember => classifier.isMemberGhost(m)
       case s: PStatement => classifier.isStmtGhost(s)
     }
@@ -148,6 +148,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     case pred: PFPredicateDecl => blockSpecComment(super.showMember(pred))
 
     case pred: PMPredicateDecl => blockSpecComment(super.showMember(pred))
+
+    case decl: PClosureSpecDecl => blockSpecComment(super.showMember(decl))
 
     case m => super.showMember(m)
   }

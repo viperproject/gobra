@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
-import viper.gobra.ast.frontend.{PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
+import viper.gobra.ast.frontend.{PNode, PTerminationMeasure, PTupleTerminationMeasure, PWildcardMeasure}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 /**
@@ -23,28 +23,23 @@ trait TerminationTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Returns true if `measures` guarantee that a member terminates on every call.
+    * Returns errors unless `measures` guarantee that `n` (a member or a loop) terminates on every call.
     * This is the case if the specification contains a non-conditional termination measure:
     * conditional measures only guarantee termination when one of their conditions holds.
     * A non-conditional wildcard measure also guarantees termination (albeit without proof).
     * Note that, unlike Viper, Gobra currently does not support marking a member as possibly
-    * non-terminating by means of a termination measure. To be defensive against the
-    * introduction of such measures, the case analysis below conservatively defaults to
-    * false for kinds of termination measures that it does not know.
+    * non-terminating by means of a termination measure.
+    *
+    * `mustTerminateMsg` states why `n` has to terminate, and is used as the prefix of all
+    * reported errors.
     */
-  private[typing] def measuresGuaranteeTermination(measures: Vector[PTerminationMeasure]): Boolean =
-    measures.exists {
-      case m: PTupleTerminationMeasure => !isConditional(m)
-      case m: PWildcardMeasure => !isConditional(m)
-      case _ => false
-    }
-
-  private[typing] def noConditionalMeasureErrors(measures: Vector[PTerminationMeasure]): Messages =
-    measures.flatMap { m =>
-      error(m,
-        "Conditional termination measures are not allowed on ghost or pure functions, methods, and interface methods.",
-        isConditional(m))
-    }
+  private[typing] def guaranteedTerminationErrors(n: PNode, measures: Vector[PTerminationMeasure], mustTerminateMsg: String): Messages =
+    error(n, s"$mustTerminateMsg, but no termination measure was found.", measures.isEmpty) ++
+      measures.flatMap { m =>
+        error(m,
+          s"$mustTerminateMsg, but Gobra does currently not support conditional termination measures to establish termination.",
+          isConditional(m))
+      }
 
   private[typing] def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
     val tupleMeasureTypes = measures

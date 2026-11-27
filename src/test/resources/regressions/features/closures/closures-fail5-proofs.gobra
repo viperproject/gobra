@@ -3,9 +3,9 @@
 
 package closuresFail5Proofs
 
-ghost
+decreases
 requires x >= 0
-pure func pspec(x int) (y int)
+pure spec pspec(x int) (y int)
 
 func test1() {
     cl :=
@@ -24,6 +24,7 @@ func test1() {
 
 func test2() {
     cl :=
+        decreases
         requires x >= 0
         ensures y == x
         pure func id(x int)(y int) {
@@ -37,6 +38,7 @@ func test2() {
 
 func test3() {
     cl :=
+        decreases
         requires x >= 0
         ensures y == x
         pure func id(x int)(y int) {
@@ -51,6 +53,7 @@ func test3() {
 
 func test4() {
     cl :=
+        decreases
         requires x >= 10
         ensures y == x
         pure func id(x int)(y int) {
@@ -58,6 +61,7 @@ func test4() {
         }
 
     cl1 :=
+        decreases
         requires x >= 0
         ensures y == x
         pure func id1(x int)(y int) {
@@ -71,29 +75,27 @@ func test4() {
     }
 }
 
-ghost
 decreases
 requires x >= 0
-pure func tpspec(x int) (y int)
+spec tpspec(x int) (y int)
 
 func test5() {
     cl :=
         requires x >= 0
         ensures y == x
-        pure func id(x int)(y int) {
+        func id(x int)(y int) {
             return x
         }
 
-    // id does not have termination measures
+    // id does not have termination measures (a pure closure could not even be declared without one)
     //:: ExpectedOutput(type_error)
     proof cl implements tpspec {
-        return cl(x) as id
+        y = cl(x) as id
     } 
 }
 
-ghost
 requires x >= 0
-func spec(x int) (y int)
+spec spec(x int) (y int)
 
 func test6() {
     cl :=
@@ -160,10 +162,9 @@ func test9() {
     } 
 }
 
-ghost
 decreases
 requires x >= 0
-func tspec(x int) (y int)
+spec tspec(x int) (y int)
 
 
 func test10() {

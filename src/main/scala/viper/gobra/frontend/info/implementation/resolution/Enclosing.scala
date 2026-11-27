@@ -75,6 +75,13 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val tryEnclosingFunctionOrMethod: PNode => Option[PFunctionOrMethodDecl] =
     down[Option[PFunctionOrMethodDecl]](None) { case f: PFunctionOrMethodDecl => Some(f) }
 
+  /** Whether the closest enclosing member (including closures and interface method signatures) is pure. */
+  lazy val isEnclosingPureMember: PNode => Boolean =
+    down(false) {
+      case m: PCodeRootWithSpec => m.spec.isPure
+      case m: PMethodImplementationProof => m.isPure
+    }
+
   lazy val isEnclosingCritical: PNode => Boolean =
     down(false){ case _: PCritical => true }
 

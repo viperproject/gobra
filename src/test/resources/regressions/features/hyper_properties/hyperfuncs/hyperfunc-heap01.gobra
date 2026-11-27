@@ -50,7 +50,7 @@ func (p *Person) UpdateIDBad(id int) {
 }
 
 // The contents of a slice are low. The quantified variable `i` denotes the same index in both executions.
-requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], _)
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i])
 decreases
 hyperfunc LowContents(s []int) bool {
 	return low(len(s)) &&

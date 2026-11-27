@@ -34,10 +34,10 @@ func alloc(val byte) (res *Byte) {
 }
 
 // @ pure
-// @ requires acc(b.Mem(), _)
+// @ requires b.Mem()
 // @ decreases
 func (b *Byte) ByteValue() byte {
-	return /*@ unfolding acc(b.Mem(), _) in @*/ b.value
+	return /*@ unfolding b.Mem() in @*/ b.value
 }
 
 // @ ensures acc(res.Mem(), _)

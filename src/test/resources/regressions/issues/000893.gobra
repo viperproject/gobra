@@ -6,23 +6,26 @@ package issue000893
 // Test 1: the "comma-ok" form of a map lookup can be used in a let expression
 
 ghost
-requires acc(m, _)
+requires acc(m)
 ensures res == (0 elem m)
+decreases
 pure func test1(m map[int]int) (res bool) {
 	return let v, ok := m[0] in ok
 }
 
 ghost
-requires acc(m, _)
+requires acc(m)
 requires 0 elem m
 ensures res == m[0]
+decreases
 pure func test2(m map[int]int) (res int) {
 	return let v, ok := m[0] in v
 }
 
 ghost
-requires acc(m, _)
+requires acc(m)
 ensures res == (0 elem m && m[0] == 42)
+decreases
 pure func test3(m map[int]int) (res bool) {
 	return let v, ok := m[0] in ok && v == 42
 }
@@ -57,6 +60,7 @@ func test6(m map[int]int) (res bool) {
 
 ghost
 ensures res == (0 elem domain(d))
+decreases
 pure func test7(d dict[int]int) (res bool) {
 	return let v, ok := d[0] in ok
 }
@@ -64,6 +68,7 @@ pure func test7(d dict[int]int) (res bool) {
 ghost
 ensures 0 elem domain(d) ==> res == d[0]
 ensures !(0 elem domain(d)) ==> res == 0
+decreases
 pure func test8(d dict[int]int) (res int) {
 	return let v, ok := d[0] in v
 }
@@ -91,6 +96,7 @@ func test11(m map[int][]int) {
 ghost
 requires 0 elem domain(d)
 ensures res == (d[0] == nil)
+decreases
 pure func test12(d dict[int]*int) (res bool) {
 	return d[0] == nil
 }

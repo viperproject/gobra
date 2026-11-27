@@ -1,0 +1,98 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue815
+
+type cell struct {
+	value int
+}
+
+// old expressions are not permitted in postconditions of pure functions
+requires acc(c)
+//:: ExpectedOutput(type_error)
+ensures r == old(c.value)
+decreases
+pure func read(c *cell) (r int) {
+	return c.value
+}
+
+// old expressions are permitted in postconditions of non-pure functions
+requires acc(c)
+ensures acc(c) && c.value == old(c.value) + 1
+func incr(c *cell) {
+	c.value += 1
+}
+
+// old expressions are not permitted in preconditions
+//:: ExpectedOutput(type_error)
+requires old(true)
+func oldInPre()
+
+// old expressions are not permitted in termination measures of pure members
+//:: ExpectedOutput(type_error)
+decreases old(1)
+pure func oldInDecreasesPure() int
+
+// old expressions are not permitted in termination measures of non-pure members
+//:: ExpectedOutput(type_error)
+decreases old(1)
+func oldInDecreases()
+
+// old expressions are not permitted in conditions of termination measures
+//:: ExpectedOutput(type_error)
+decreases if old(true)
+func oldInDecreasesCond()
+
+// old expressions are permitted in termination measures of loops
+requires acc(c) && c.value >= 0
+func loop(c *cell) {
+	invariant acc(c) && 0 <= c.value && c.value <= old(c.value)
+	decreases old(c.value) - (old(c.value) - c.value)
+	for c.value > 0 {
+		c.value -= 1
+	}
+}
+
+// old expressions are not permitted in postconditions of pure interface methods
+type reader interface {
+	pred mem()
+
+	requires mem()
+	//:: ExpectedOutput(type_error)
+	ensures r == old(r)
+	decreases
+	pure getValue() (r int)
+}
+
+// old expressions are not permitted in postconditions of ghost pure functions
+ghost
+//:: ExpectedOutput(type_error)
+ensures r == old(x)
+decreases
+pure func pureSpec(x int) (r int)
+
+// old expressions are not permitted in postconditions of pure closure specs
+//:: ExpectedOutput(type_error)
+ensures r == old(x)
+decreases
+pure spec pureClosureSpec(x int) (r int)
+
+// old expressions are not permitted in postconditions of pure closures
+func pureClosure() {
+	c :=
+		//:: ExpectedOutput(type_error)
+		ensures r == old(x)
+		decreases
+		pure func f(x int) (r int) {
+			return x
+		}
+	_ = c
+}
+
+// old expressions are not permitted in postconditions of pure functions, even at the top level
+//:: ExpectedOutput(type_error)
+ensures old(r == x)
+decreases
+pure func topLevelOldInPost(x int) (r int) {
+	return x
+}

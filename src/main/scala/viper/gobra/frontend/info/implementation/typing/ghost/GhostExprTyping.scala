@@ -104,7 +104,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => error(n, s"expected expression with pointer or predicate type, but got $argT")
           }
       }
-      permWellDef ++ expWellDef
+      permWellDef ++ expWellDef ++ noExplicitPermAmountInPureMember(n, n.perm)
 
     case n: PPredicateAccess =>
       val predWellDef = resolve(n.pred) match {
@@ -112,7 +112,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.PredExprInstance) => noMessages
         case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
       }
-      predWellDef ++ error(n, "Cannot reveal a predicate access.", n.pred.reveal)
+      predWellDef ++ error(n, "Cannot reveal a predicate access.", n.pred.reveal) ++
+        noExplicitPermAmountInPureMember(n, n.perm)
 
     case PTypeOf(e) =>
       val isExp = isExpr(e).out
@@ -256,7 +257,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case expr: PPermission => expr match {
-      case PFullPerm() => noMessages
+      case PFullPerm() | PImplicitFullPerm() => noMessages
       case PWildcardPerm() => noMessages
       case PNoPerm() => noMessages
     }
@@ -347,6 +348,18 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case c: PExpression => isSingleValued(c)
       case _ => true
     }
+  }
+
+  /**
+    * Pure members (functions, methods, interface method signatures, closures, and method implementation proofs)
+    * ignore permission amounts, i.e., every accessibility predicate occurring in their contract or body is
+    * interpreted as requiring some positive permission amount. To prevent users from unknowingly specifying
+    * amounts that are ignored, we reject all explicit amounts, including the wildcard `_`.
+    */
+  private def noExplicitPermAmountInPureMember(n: PExpression, perm: PExpression): Messages = perm match {
+    case PImplicitFullPerm() => noMessages
+    case _ => error(n, "Permission amounts in accessibility predicates (acc) inside pure functions are ignored by Gobra. " +
+      "Thus, they are disallowed.", isEnclosingPureMember(n))
   }
 
   /**
@@ -553,8 +566,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case ap.BuiltInFunction(_, symb) => symb.isPure
         })
         case (Left(callee), Some(_: ap.ClosureCall)) => resolve(n.spec.get.func) match {
-          case Some(ap.Function(_, f)) => f.isPure && go(callee) && n.args.forall(a => go(a))
-          case Some(ap.Closure(_, c)) => c.isPure && go(callee) && n.args.forall(a => go(a))
+          case Some(t: ap.ClosureSpecTarget) => t.symb.isPure && go(callee) && n.args.forall(a => go(a))
           case _ => false
         }
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
@@ -677,7 +689,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PUnpackSlice(s) => go(s)
 
-      case PFullPerm() | PNoPerm() | PWildcardPerm() => true
+      case PFullPerm() | PImplicitFullPerm() | PNoPerm() | PWildcardPerm() => true
     }
 
     res

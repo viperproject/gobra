@@ -9,17 +9,17 @@ type SomeIntf interface {
     pred Mem()
 
     decreases
-    requires acc(Mem(), _)
+    requires Mem()
     pure Get() int
 
     ghost
     decreases
-    requires acc(Mem(), _)
+    requires Mem()
     pure Get2() int
 }
 
 decreases
-requires s != nil && acc(s.Mem(), _)
+requires s != nil && s.Mem()
 pure func callee(s SomeIntf) int {
     return s.Get()
 }

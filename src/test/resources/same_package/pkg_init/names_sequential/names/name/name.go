@@ -31,14 +31,14 @@ func New(start int, length int) (res *Name) {
 }
 
 // @ pure
-// @ requires acc(&n._start, _)
+// @ requires acc(&n._start)
 // @ decreases
 func (n *Name) start() int {
 	return n._start
 }
 
 // @ pure
-// @ requires acc(&n._length, _)
+// @ requires acc(&n._length)
 // @ decreases
 func (n *Name) length() int {
 	return n._length

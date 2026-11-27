@@ -19,6 +19,7 @@ func Area(r Rectangle) (res int) {
 }
 
 
+decreases
 pure func Area2(r Rectangle) (res int) {
     return r.Width * r.Height
 }

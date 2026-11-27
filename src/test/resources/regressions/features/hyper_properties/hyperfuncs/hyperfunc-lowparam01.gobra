@@ -1,16 +1,17 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package hyperfuncrigid01
+package hyperfunclowparam01
 
 // ##(--hyperMode on --experimentalHyperfuncs)
 
-// Rigid parameters: a hyperfunc parameter `c` with the top-level precondition `low(c)` has the same value in all
-// executions, so the body and the postcondition may use it as a single value. Call sites must establish `low(c)`.
+// A precondition `low(c)` on a hyperfunc parameter is an ordinary precondition: call sites must establish it, and the
+// body can rely on it. The parameter still has a value per execution, so a non-boolean body refers to it with
+// `rel(c, i)`; with `low(c)`, every execution gives the same value.
 requires low(c)
 decreases
 hyperfunc ScaledDiff(x int, c int) int {
-	return c * (rel(x, 0) - rel(x, 1))
+	return rel(c, 0) * (rel(x, 0) - rel(x, 1))
 }
 
 requires low(c)
@@ -25,12 +26,12 @@ func BadCall(x int, c int) {
 	assert ScaledDiff(x, c) == ScaledDiff(x, c)
 }
 
-// A recursive hyperfunc with a rigid bound: the number of positions below n at which s differs in the executions
+// A recursive hyperfunc with a public bound: the number of positions below n at which s differs in the executions
 // (the Hamming distance used for neighbouring datasets in differential privacy).
 requires low(n) && 0 <= n && n <= len(s)
 decreases n
 hyperfunc Hamming(s seq[int], n int) int {
-	return n == 0 ? 0 : Hamming(s, n - 1) + (rel(s[n - 1], 0) == rel(s[n - 1], 1) ? 0 : 1)
+	return rel(n, 0) == 0 ? 0 : Hamming(s, n - 1) + (rel(s[n - 1], 0) == rel(s[n - 1], 1) ? 0 : 1)
 }
 
 ghost

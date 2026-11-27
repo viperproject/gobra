@@ -40,15 +40,33 @@ object VprInfo {
   def isHyperFunc(info: vpr.Info): Boolean =
     info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains(hyperFuncAnnotationKey))
 
-  /** Removes the annotation marking hyper functions, which is only used internally by Gobra. */
+  /**
+    * Key of the annotation listing the positions (among the Viper function's parameters) of the execution parameters
+    * of a hyperfunc, i.e., its parameters of type `exec`. An execution parameter has a single value for all executions,
+    * so the product constructions pass it once instead of once per execution.
+    */
+  val hyperFuncExecParamsAnnotationKey: String = "hyperFuncExecParams"
+
+  /** The positions of the execution parameters of the hyperfunc with info `info`. */
+  def hyperFuncExecParams(info: vpr.Info): Set[Int] =
+    info.getAllInfos[vpr.AnnotationInfo].flatMap(_.values.getOrElse(hyperFuncExecParamsAnnotationKey, Seq.empty)).map(_.toInt).toSet
+
+  /** Attaches the annotation listing the execution parameters, if any, from the annotations of a hyperfunc member. */
+  def attachHyperFuncExecParams(info: vpr.Info, annotations: Vector[BackendAnnotation]): vpr.Info =
+    annotations.find(_.key == hyperFuncExecParamsAnnotationKey) match {
+      case Some(a) => attachBackendAnnotation(info, a.key, a.values: _*)
+      case None => info
+    }
+
+  /** Removes the annotations marking hyper functions and their execution parameters, which are only used internally by Gobra. */
   def removeHyperFunc(info: vpr.Info): vpr.Info = info match {
     case vpr.ConsInfo(head, tail) => (removeHyperFunc(head), removeHyperFunc(tail)) match {
       case (vpr.NoInfo, t) => t
       case (h, vpr.NoInfo) => h
       case (h, t) => vpr.ConsInfo(h, t)
     }
-    case a: vpr.AnnotationInfo if a.values.contains(hyperFuncAnnotationKey) =>
-      val remaining = a.values - hyperFuncAnnotationKey
+    case a: vpr.AnnotationInfo if a.values.contains(hyperFuncAnnotationKey) || a.values.contains(hyperFuncExecParamsAnnotationKey) =>
+      val remaining = a.values - hyperFuncAnnotationKey - hyperFuncExecParamsAnnotationKey
       if (remaining.isEmpty) vpr.NoInfo else vpr.AnnotationInfo(remaining)
     case i => i
   }

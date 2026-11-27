@@ -330,36 +330,23 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   /**
     * Returns whether `e` denotes a single value for all executions, i.e., whether it does not depend on the
     * value of a program variable in a particular execution, except through `rel`, `low`, or hyper function calls.
-    * Boolean expressions are always accepted, as they are lifted to hold in all executions.
+    * Boolean expressions are always accepted, as they are lifted to hold in all executions. Execution parameters
+    * (of type `exec`) denote a single execution; all other parameters have a value per execution.
     */
-  private[typing] def isSingleValued(e: PExpression, rigidParameters: Set[String] = Set.empty): Boolean = e match {
+  private[typing] def isSingleValued(e: PExpression): Boolean = e match {
     case _: PRel | _: PLow | _: PLowContext => true
     case n: PInvoke if isHyperCall(n) => true
     case _ if underlyingType(exprType(e)) == BooleanT => true
     case n: PNamedOperand => entity(n.id) match {
       case _: BoundVariable | _: Constant => true
-      case _: InParameter => rigidParameters.contains(n.id.name) || exprType(n) == ExecT
+      case _: InParameter => exprType(n) == ExecT
       case _ => false
     }
     case _: PBasicLiteral => true
     case n => tree.child(n).forall {
-      case c: PExpression => isSingleValued(c, rigidParameters)
+      case c: PExpression => isSingleValued(c)
       case _ => true
     }
-  }
-
-  /**
-    * The rigid parameters of a hyperfunc: parameters `n` with a top-level precondition `low(n)`. Such a parameter
-    * has the same value in all executions, so it denotes a single value in the body.
-    */
-  private[typing] def rigidParameters(spec: PFunctionSpec): Set[String] = {
-    def conjuncts(e: PExpression): Vector[PExpression] = e match {
-      case PAnd(l, r) => conjuncts(l) ++ conjuncts(r)
-      case e => Vector(e)
-    }
-    spec.clauses.collect { case PRequires(exp) => exp }.flatMap(conjuncts).collect {
-      case PLow(n: PNamedOperand) if entity(n.id).isInstanceOf[InParameter] => n.id.name
-    }.toSet
   }
 
   /**

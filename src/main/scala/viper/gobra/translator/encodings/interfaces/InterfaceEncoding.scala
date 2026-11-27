@@ -740,7 +740,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
-      )(pos, VprInfo.maybeAttachHyperFunc(info, p.isHyper), errT)
+      )(pos, VprInfo.attachHyperFuncExecParams(VprInfo.maybeAttachHyperFunc(info, p.isHyper), p.backendAnnotations), errT)
     } yield func
   }
 
@@ -783,7 +783,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, VprInfo.maybeAttachHyperFunc(info, itfSymb.isHyper), errT))
+    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos,
+      VprInfo.attachHyperFuncExecParams(VprInfo.maybeAttachHyperFunc(info, itfSymb.isHyper), itfSymb.backendAnnotations), errT))
   }
 
   /**

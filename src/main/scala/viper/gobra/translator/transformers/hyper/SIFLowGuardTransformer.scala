@@ -36,6 +36,9 @@ trait SIFLowGuardTransformer {
     require(executions >= 2, s"Expected at least two executions, but got $executions")
 
     val hyperFuncs = hyperFunctions(p)
+    hyperFuncExecParams = p.functions.collect {
+      case f if hyperFuncs(f.name) => f.name -> VprInfo.hyperFuncExecParams(f.info)
+    }.toMap
     val relPreds = relationalPredicates(p, hyperFuncs)
     val noDups = noDuplicates(p)
     val ctx = newContext(relPreds, noDups, onlyMajor, noMinor, hyperFuncs, Set.empty, executions)
@@ -416,44 +419,30 @@ trait SIFLowGuardTransformer {
   }
 
   /**
-    * A hyper function abstracts over all executions. It is encoded as a single function that takes the arguments
-    * of all executions and whose contract and body are relational. Its result is a single value for all executions.
+    * The positions of the execution parameters (Gobra's parameters of type `exec`) of each hyper function, see
+    * [[VprInfo.hyperFuncExecParams]]. An execution parameter has a single value for all executions, so it is passed
+    * once instead of once per execution. Set by [[program]].
     */
-  def hyperFunction(f: Function, ctx: Context): Function = {
-    val rigid = rigidParameters(f)
-    f.copy(
-      formalArgs = ctx.runs.flatMap(r => f.formalArgs.map(runLocalVarDecl(_, r))),
-      pres = f.pres.map(assertion(_, ctx)),
-      posts = f.posts.map(e => assertion(readRigidParameters(e, rigid), ctx)),
-      body = f.body.map(e => relationalExp(readRigidParameters(e, rigid), ctx)),
-    )(f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
-  }
+  var hyperFuncExecParams: Map[String, Set[Int]] = Map.empty
+
+  private def execPositions(hyperFunc: String): Set[Int] = hyperFuncExecParams.getOrElse(hyperFunc, Set.empty)
 
   /**
-    * The rigid parameters of a hyper function: parameters `n` with a top-level precondition `low(n)`. They have the
-    * same value in all executions, so the body and the postcondition may use them as single values.
+    * A hyper function abstracts over all executions. It is encoded as a single function that takes its execution
+    * parameters once and its other arguments once per execution, and whose contract and body are relational. Its
+    * result is a single value for all executions.
     */
-  def rigidParameters(f: Function): Set[String] = {
-    def conjuncts(e: Exp): Seq[Exp] = e match {
-      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
-      case e => Seq(e)
-    }
-    val params = f.formalArgs.map(_.name).toSet
-    f.pres.flatMap(conjuncts).collect { case SIFLowExp(v: LocalVar, _, _) if params(v.name) => v.name }.toSet
-  }
-
-  /** Reads the rigid parameters outside `rel` and `low` from execution 0, which is sound under `low(n)`. */
-  def readRigidParameters(e: Exp, rigid: Set[String]): Exp = {
-    def go(e: Exp): Exp = e match {
-      case _: SIFRelExp | _: SIFLowExp => e
-      case v: LocalVar if rigid(v.name) => SIFRelExp(v, IntLit(0)(v.pos, v.info, v.errT))(v.pos, v.info, v.errT)
-      case e => e.withChildren(e.children.map {
-        case c: Exp => go(c)
-        case cs: Seq[_] => cs.map { case c: Exp => go(c); case c => c }
-        case c => c
-      })
-    }
-    if (rigid.isEmpty) e else go(e)
+  def hyperFunction(f: Function, ctx: Context): Function = {
+    val execs = execPositions(f.name)
+    val (execArgs, valueArgs) = f.formalArgs.zipWithIndex.partition { case (_, i) => execs(i) }
+    // execution parameters denote the same value in all executions
+    val bodyCtx = ctx.withRigidVariables(execArgs.map(_._1.name))
+    f.copy(
+      formalArgs = execArgs.map(_._1) ++ bodyCtx.runs.flatMap(r => valueArgs.map { case (a, _) => runLocalVarDecl(a, r) }),
+      pres = f.pres.map(assertion(_, bodyCtx)),
+      posts = f.posts.map(assertion(_, bodyCtx)),
+      body = f.body.map(relationalExp(_, bodyCtx)),
+    )(f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
   }
 
   def runFunction(f: Function, ctx: RunContext): Function = {
@@ -771,8 +760,12 @@ trait SIFLowGuardTransformer {
     * denote the same value in all executions.
     */
   def hyperFuncApp(f: FuncApp, ctx: Context): FuncApp = {
-    def args(run: RunContext): Seq[Exp] = f.args.map(runWithRelational(_, ctx, run))
-    f.copy(args = ctx.runs.flatMap(args))(f.pos, f.info, f.typ, f.errT)
+    val execs = execPositions(f.funcname)
+    val indexed = f.args.zipWithIndex
+    // the arguments for execution parameters are literals or execution parameters, i.e., the same in all executions
+    val execArgs = indexed.collect { case (a, i) if execs(i) => runWithRelational(a, ctx, ctx.runs.head) }
+    def args(run: RunContext): Seq[Exp] = indexed.collect { case (a, i) if !execs(i) => runWithRelational(a, ctx, run) }
+    f.copy(args = execArgs ++ ctx.runs.flatMap(args))(f.pos, f.info, f.typ, f.errT)
   }
 
   /**
@@ -787,21 +780,10 @@ trait SIFLowGuardTransformer {
   def relatesOnlyFirst(fn: Function, m: Int, functions: Map[String, Function], hyperFuncs: String => Boolean): Boolean =
     !isHeapDependent(fn) && fn.body.nonEmpty && (fn.body.toSeq ++ fn.pres ++ fn.posts).forall(relatesOnlyFirst(_, m, functions, hyperFuncs, Set(fn.name)))
 
-  /**
-    * The execution parameters of a hyper function: parameters `i` of type `exec` in Gobra, which have the preconditions
-    * `low(i)` and `0 <= i && i < k`.
-    */
+  /** The execution parameters of a hyper function: its parameters of type `exec` in Gobra. */
   def executionParameters(fn: Function): Set[String] = {
-    def conjuncts(e: Exp): Seq[Exp] = e match {
-      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
-      case e => Seq(e)
-    }
-    val cs = fn.pres.flatMap(conjuncts)
-    fn.formalArgs.map(_.name).filter { n =>
-      cs.exists { case SIFLowExp(LocalVar(`n`, _), _, _) => true; case _ => false } &&
-        cs.exists { case LeCmp(IntLit(z), LocalVar(`n`, _)) => z == 0; case _ => false } &&
-        cs.exists { case LtCmp(LocalVar(`n`, _), _: IntLit) => true; case _ => false }
-    }.toSet
+    val positions = VprInfo.hyperFuncExecParams(fn.info)
+    fn.formalArgs.zipWithIndex.collect { case (a, i) if positions(i) => a.name }.toSet
   }
 
   /**

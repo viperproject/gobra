@@ -120,12 +120,12 @@ func Inc(x int) (res int) {
 	return x + 1
 }
 
-// recursive and heap-independent, with a rigid parameter
+// recursive and heap-independent, with a public bound
 requires AllActive()
 requires low(n) && 0 <= n && n <= len(s)
 decreases n
 hyperfunc Hamming(s seq[int], n int) int {
-	return n == 0 ? 0 : Hamming(s, n - 1) + (rel(s[n - 1], 0) == rel(s[n - 1], 1) ? 0 : 1)
+	return rel(n, 0) == 0 ? 0 : Hamming(s, n - 1) + (rel(s[n - 1], 0) == rel(s[n - 1], 1) ? 0 : 1)
 }
 
 ghost

@@ -217,6 +217,9 @@ trait SIFExtendedTransformer {
     val productFields = p.fields ++ newFields.values
 
     hyperFuncNames = p.functions.filter(f => VprInfo.isHyperFunc(f.info)).map(_.name).toSet
+    hyperFuncExecParams = p.functions.collect {
+      case f if hyperFuncNames(f.name) => f.name -> VprInfo.hyperFuncExecParams(f.info)
+    }.toMap
     activeFuncNames = p.functions.filter(f => VprInfo.isActiveExecution(f.info)).map(_.name).toSet
     lowMarkerNames = p.functions.filter(f => HyperfuncMarkerTransformer.isLowMarker(f.info)).map(_.name).toSet
     relMarkerNames = p.functions.filter(f => HyperfuncMarkerTransformer.isRelMarker(f.info)).map(_.name).toSet
@@ -755,11 +758,21 @@ trait SIFExtendedTransformer {
     EqCmp(act, TrueLit()())(at.pos, info, NoTrafos)
   }
 
+  /**
+    * The positions of the execution parameters (Gobra's parameters of type `exec`) of each hyperfunc, see
+    * [[VprInfo.hyperFuncExecParams]]. They are passed once, not once per execution. Set by [[transform]].
+    */
+  var hyperFuncExecParams: Map[String, Set[Int]] = Map.empty
+
   def translateHyperFuncApp(f: FuncApp, p1: Exp, p2: Exp): Exp = {
     requireActivation(f, p1, p2)
-    val args0 = f.args.map(a => CondExp(p1, translateNormal(a, p1, p2), defaultValue(a.typ))(a.pos, a.info, a.errT))
-    val args1 = f.args.map(a => CondExp(p2, translatePrime(a, p1, p2), defaultValue(a.typ))(a.pos, a.info, a.errT))
-    FuncApp(f.funcname, Seq(p1, p2) ++ args0 ++ args1)(f.pos, f.info, f.typ, f.errT)
+    val execs = hyperFuncExecParams.getOrElse(f.funcname, Set.empty)
+    val indexed = f.args.zipWithIndex
+    // the arguments for execution parameters are literals or execution parameters, i.e., the same in both executions
+    val execArgs = indexed.collect { case (a, i) if execs(i) => translateNormal(a, p1, p2) }
+    val args0 = indexed.collect { case (a, i) if !execs(i) => CondExp(p1, translateNormal(a, p1, p2), defaultValue(a.typ))(a.pos, a.info, a.errT) }
+    val args1 = indexed.collect { case (a, i) if !execs(i) => CondExp(p2, translatePrime(a, p1, p2), defaultValue(a.typ))(a.pos, a.info, a.errT) }
+    FuncApp(f.funcname, Seq(p1, p2) ++ execArgs ++ args0 ++ args1)(f.pos, f.info, f.typ, f.errT)
   }
 
   private def requireActivation(n: Exp, p1: Exp, p2: Exp): Unit =
@@ -767,9 +780,9 @@ trait SIFExtendedTransformer {
       reportError(Internal(n, FeatureUnsupported(n, "Relational expressions are not supported in this position.")))
 
   /**
-    * Translates a hyperfunc H(x̄) into H(a₀, a₁, x̄, x̄'): its contract and body are translated with the activation
-    * flags a₀ and a₁, as assertions over the active executions (permissions of an execution are required only if
-    * it is active). A rigid parameter `n` (top-level precondition `low(n)`) is read from an active execution.
+    * Translates a hyperfunc H(ē, x̄) into H(a₀, a₁, ē, x̄, x̄'), where ē are its execution parameters (passed once): its
+    * contract and body are translated with the activation flags a₀ and a₁, as assertions over the active executions
+    * (permissions of an execution are required only if it is active).
     */
   def translateHyperFunction(marked: Function): Function = {
     val f = marked.copy(pres = marked.pres.map(unmark), posts = marked.posts.map(unmark), body = marked.body.map(unmark))(
@@ -777,59 +790,35 @@ trait SIFExtendedTransformer {
     val primedBefore = primedNames.clone()
     val (a0d, a0) = getNewBool("act0")
     val (a1d, a1) = getNewBool("act1")
-    val primedArgs = f.formalArgs.map { a =>
+    // execution parameters have a single value for both executions: they are passed once and not primed
+    val execs = hyperFuncExecParams.getOrElse(marked.name, Set.empty)
+    val (execArgs, valueArgs) = f.formalArgs.zipWithIndex.partition { case (_, i) => execs(i) }
+    val primedArgs = valueArgs.map { case (a, _) =>
       val newName = NameTransformer.getUnusedName(a.name)
       primedNames.update(a.name, newName)
       a.copy(name = newName)(a.pos, a.info, a.errT)
     }
 
-    // rigid parameters are read from an active execution
-    def conjuncts(e: Exp): Seq[Exp] = e match {
-      case a: And => conjuncts(a.left) ++ conjuncts(a.right)
-      case e => Seq(e)
-    }
-    val params = f.formalArgs.map(_.name).toSet
-    val rigid = f.pres.flatMap(conjuncts).collect { case SIFLowExp(v: LocalVar, _, _) if params(v.name) => v }.distinct
-    val placeholders = rigid.map(v => v.name -> LocalVar(NameTransformer.getUnusedName(v.name + "_rigid"), v.typ)(v.pos)).toMap
-    def readRigid(e: Exp): Exp = if (placeholders.isEmpty) e else {
-      def go(e: Exp): Exp = e match {
-        case _: SIFRelExp | _: SIFLowExp => e
-        case v: LocalVar if placeholders.contains(v.name) => placeholders(v.name)
-        case e => e.withChildren(e.children.map {
-          case c: Exp => go(c)
-          case cs: Seq[_] => cs.map { case c: Exp => go(c); case c => c }
-          case c => c
-        })
-      }
-      go(e)
-    }
-    def resolveRigid(e: Exp): Exp = if (placeholders.isEmpty) e else e.transform {
-      case v: LocalVar if placeholders.values.exists(_.name == v.name) =>
-        val orig = rigid.find(r => placeholders(r.name).name == v.name).get
-        CondExp(a0, orig, LocalVar(primedNames(orig.name), orig.typ)())(v.pos, v.info, v.errT)
-    }
-
-    // rigid variables: rigid parameters (including execution parameters), read through their placeholders
-    val rigidVars = placeholders.values.map(_.name).toSet
-    def assertion(e: Exp): Exp = resolveRigid(hyperAssertion(readRigid(e), a0, a1, rigidVars))
+    val rigidVars = execArgs.map(_._1.name).toSet
+    def assertion(e: Exp): Exp = hyperAssertion(e, a0, a1, rigidVars)
     // No implicit preconditions: a hyperfunc that reads an execution with `rel` (directly or through another hyperfunc)
     // must require that it is active, e.g. with `requires AllActive()` or `requires active(i)`. Otherwise, Viper's
     // well-definedness check of the hyperfunc fails at the read ("Assertion active(i) might not hold").
     val newPres = f.pres.map(assertion)
     val newPosts = f.posts.map(assertion)
     val newBody = f.body.map { b =>
-      if (b.typ == Bool) assertion(b) else resolveRigid(hyperValue(readRigid(b), a0, a1, rigidVars))
+      if (b.typ == Bool) assertion(b) else hyperValue(b, a0, a1, rigidVars)
     }
     primedNames.clear()
     primedNames ++= primedBefore
-    f.copy(formalArgs = Seq(a0d, a1d) ++ f.formalArgs ++ primedArgs, pres = newPres, posts = newPosts, body = newBody)(
+    f.copy(formalArgs = Seq(a0d, a1d) ++ execArgs.map(_._1) ++ valueArgs.map(_._1) ++ primedArgs, pres = newPres, posts = newPosts, body = newBody)(
       f.pos, VprInfo.removeHyperFunc(f.info), f.errT)
   }
 
   /**
     * Is `e` rigid, i.e., does it have one value for both executions? Conservative: an expression that reads a unary
     * variable or the heap outside `rel`, `low`, `active`, or a hyperfunc call is unary. `rigid` are the names of the
-    * rigid variables in scope (placeholders of rigid parameters and variables bound in a relational context).
+    * rigid variables in scope (execution parameters and variables bound in a relational context).
     */
   def isRigid(e: Exp, rigid: Set[String]): Boolean = e match {
     case _: SIFRelExp | _: SIFLowExp => true

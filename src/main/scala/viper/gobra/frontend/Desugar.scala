@@ -185,19 +185,29 @@ object Desugar extends LazyLogging {
                           executions: Int) {
 
     /**
-      * A parameter `i` of type `exec` of a hyperfunc is an execution identifier. It has the same value in all executions
-      * and denotes one of them, so the hyperfunc gets the implicit preconditions `low(i)` (which makes `i` a rigid
-      * parameter) and `0 <= i && i < k`.
+      * A parameter `i` of type `exec` of a hyperfunc is an execution identifier: it denotes one of the executions and
+      * has a single value for all of them. It is encoded as an integer with the implicit precondition `0 <= i && i < k`,
+      * and the hyperfunc is annotated with the positions of its execution parameters (see [[execParameterAnnotation]]),
+      * so that the product constructions pass them once instead of once per execution.
       */
     private def execParameterPres(decls: Vector[PParameter], params: Vector[in.Parameter.In], isHyper: Boolean)(src: Meta): Vector[in.Assertion] =
       if (!isHyper) Vector.empty
       else (decls zip params).collect {
-        case (d, p) if info.symbType(d.typ) == Type.ExecT => Vector(
-          in.ExprAssertion(in.Low(p)(src))(src),
+        case (d, p) if info.symbType(d.typ) == Type.ExecT =>
           in.ExprAssertion(in.And(
             in.AtMostCmp(in.IntLit(0)(src), p)(src),
-            in.LessCmp(p, in.IntLit(executions)(src))(src))(src))(src))
-      }.flatten
+            in.LessCmp(p, in.IntLit(executions)(src))(src))(src))(src)
+      }
+
+    /**
+      * The positions of the execution parameters of a hyperfunc among the parameters of the encoding Viper function,
+      * whose first parameter is the receiver for methods (`offset` 1), see [[viper.gobra.translator.util.VprInfo]].
+      */
+    private def execParameterAnnotation(decls: Vector[PParameter], isHyper: Boolean, offset: Int): Vector[BackendAnnotation] = {
+      val positions = decls.zipWithIndex.collect { case (d, i) if info.symbType(d.typ) == Type.ExecT => (i + offset).toString }
+      if (!isHyper || positions.isEmpty) Vector.empty
+      else Vector(BackendAnnotation(viper.gobra.translator.util.VprInfo.hyperFuncExecParamsAnnotationKey, positions))
+    }
 
     type Meta = Source.Parser.Info
 
@@ -817,7 +827,8 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations) ++
+        execParameterAnnotation(decl.args, decl.spec.isHyper, offset = 0)
 
       PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, decl.spec.isHyper)
     }
@@ -996,7 +1007,8 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations) ++
+        execParameterAnnotation(decl.args, decl.spec.isHyper, offset = 1)
       in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, decl.spec.isHyper)(fsrc)
     }
 
@@ -3450,7 +3462,8 @@ object Desugar extends LazyLogging {
           val posts = m.spec.posts map specificationD(specCtx, info)
           val terminationMeasures =
             sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info, true)).res
-          val annotations = desugarBackendAnnotations(m.spec.backendAnnotations)
+          val annotations = desugarBackendAnnotations(m.spec.backendAnnotations) ++
+            execParameterAnnotation(m.args, m.spec.isHyper, offset = 1)
           val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {

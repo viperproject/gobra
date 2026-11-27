@@ -41,6 +41,14 @@ hyperfunc NotSingleValued(x int) int {
 	return x + 1
 }
 
+// also with a precondition low(n): n has a value per execution, and the body must say which one it means
+requires low(n)
+decreases
+hyperfunc LowParamNotSingleValued(n int) int {
+	//:: ExpectedOutput(type_error)
+	return n + 1
+}
+
 decreases
 hyperfunc H(x int) bool {
 	return low(x)

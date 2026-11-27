@@ -83,7 +83,7 @@ ghost
 requires len(calls) > 0
 decreases
 pure func (self CntFrom) res(ghost calls seq[int]) int {
-    return self.from + len(calls) - 1
+    return int(self.from + len(calls) - 1)
 }
 
 func test2() {

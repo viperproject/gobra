@@ -22,7 +22,7 @@ pure func ok(x *int, y *cell, s []int) int {
 }
 
 //:: ExpectedOutput(type_error)
-requires acc(x, 1/2)
+requires acc(x, perm(1, 2))
 decreases
 pure func fracPre(x *int) int { return *x }
 
@@ -37,12 +37,12 @@ decreases
 pure func writePermPre(x *int) int { return *x }
 
 //:: ExpectedOutput(type_error)
-requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+requires forall i int :: { &s[i] } 0 <= i && i < len(s) ==> acc(&s[i], perm(1, 2))
 decreases
 pure func quantifiedPre(s []int) int { return len(s) }
 
 //:: ExpectedOutput(type_error)
-requires acc(mem(y), 1/2)
+requires acc(mem(y), perm(1, 2))
 decreases
 pure func predPre(y *cell) int { return 0 }
 
@@ -55,10 +55,10 @@ pure func unfoldingBody(y *cell) int {
 
 requires mem(y)
 //:: ExpectedOutput(type_error)
-decreases acc(mem(y), 1/2)
+decreases acc(mem(y), perm(1, 2))
 pure func measure(y *cell) int { return 0 }
 
-requires p > 0
+requires p > noPerm
 //:: ExpectedOutput(type_error)
 requires acc(y.memM(), p)
 decreases
@@ -68,7 +68,7 @@ type itf interface {
 	pred inv()
 
 	//:: ExpectedOutput(type_error)
-	requires acc(inv(), 1/2)
+	requires acc(inv(), perm(1, 2))
 	decreases
 	pure Get() int
 }
@@ -76,15 +76,15 @@ type itf interface {
 func closure() {
 	cl :=
 		//:: ExpectedOutput(type_error)
-		requires acc(x, 1/2)
+		requires acc(x, perm(1, 2))
 		decreases
 		pure func(x *int) int { return *x }
 	_ = cl
 }
 
 // non-pure members may still use explicit permission amounts
-requires acc(x, 1/2) && acc(mem(y), _)
-ensures  acc(x, 1/2) && acc(mem(y), _)
+requires acc(x, perm(1, 2)) && acc(mem(y), _)
+ensures  acc(x, perm(1, 2)) && acc(mem(y), _)
 func nonPure(x *int, y *cell) int {
 	return *x
 }

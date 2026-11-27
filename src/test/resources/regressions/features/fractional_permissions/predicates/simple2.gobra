@@ -9,5 +9,5 @@ pred myPred(x *int) {
 
 const dividend = 1
 
-requires acc(myPred(x), dividend/2)
+requires acc(myPred(x), perm(dividend, 2))
 func constPerm(x *int) {}

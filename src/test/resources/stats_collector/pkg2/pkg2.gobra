@@ -11,7 +11,7 @@ type Rect struct {
 }
 
 pred (r *Rect) mem() {
-  acc(r, 1/2)
+  acc(r, perm(1, 2))
 }
 
 requires acc(r)
@@ -20,8 +20,8 @@ pure func (r *Rect) Size() bool {
   return r.width > 0 && r.height > 0
 }
 
-requires acc(r, 1/2) && r.Size()
-ensures  acc(r, 1/2) && ret > 0
+requires acc(r, perm(1, 2)) && r.Size()
+ensures  acc(r, perm(1, 2)) && ret > 0
 func (r *Rect) Area() (ret int) {
   return r.width * r.height
 }
@@ -42,7 +42,7 @@ type Circle struct {
 }
 
 pred (c *Circle) mem() {
-  acc(c, 1/2)
+  acc(c, perm(1, 2))
 }
 
 requires acc(c)
@@ -51,8 +51,8 @@ pure func (c *Circle) Size() bool {
   return c.radius > 0
 }
 
-requires acc(c, 1/2) && c.Size()
-ensures acc(c, 1/2) && ret > 0
+requires acc(c, perm(1, 2)) && c.Size()
+ensures acc(c, perm(1, 2)) && ret > 0
 func (c *Circle) Area() (ret int) {
   return c.radius * c.radius * 3
 }

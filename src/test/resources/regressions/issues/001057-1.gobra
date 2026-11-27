@@ -15,6 +15,6 @@ pure
 // as it tried to infer the type of `1/2` from context. However, due to the
 // absence of `Program`, `ProgramShape` ends up being ill-typed and, thus,
 // inferring the type of `1/2` used to result in a violation.
-requires acc(ProgramShape(p, 1/2))
+requires acc(ProgramShape(p, perm(1, 2)))
 //:: ExpectedOutput(type_error)
 func memberIn(p *Program) bool

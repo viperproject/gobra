@@ -34,13 +34,13 @@ func foo2() (r *int) {
 
 // A closure literal declared inside a function may reference the outer
 // function's named output parameter in its precondition.
-ensures acc(r, 1/2) && *r == 42
+ensures acc(r, perm(1, 2)) && *r == 42
 func foo3() (r *int) {
 	share r // needed such that the closure can capture `r`
 	i@ := 42
 	r = &i
 
-	c := requires acc(&r) && acc(r, 1/2) && *r == 42
+	c := requires acc(&r) && acc(r, perm(1, 2)) && *r == 42
 	     func nested() {
 		// nothing
 	}

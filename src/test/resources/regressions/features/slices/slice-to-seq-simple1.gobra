@@ -3,7 +3,7 @@
 
 package pkg
 
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], perm(1, 2))
 func test1(s []int) {
   assert len(seq(s)) == len(s)
 }

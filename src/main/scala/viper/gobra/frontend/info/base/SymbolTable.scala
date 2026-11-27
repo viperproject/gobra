@@ -73,6 +73,7 @@ object SymbolTable extends Environments[Entity] {
     override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
     def isOpaque: Boolean = decl.spec.isOpaque
+    def isHyper: Boolean = decl.spec.isHyper
   }
 
   /**
@@ -199,6 +200,7 @@ object SymbolTable extends Environments[Entity] {
   sealed trait Method extends MethodLike with ActualTypeMember with WithResult {
     def isPure: Boolean
     def isAtomic: Boolean
+    def isHyper: Boolean
   }
 
   case class MethodImpl(decl: PMethodDecl, ghost: Boolean, context: ExternalTypeInfo) extends Method {
@@ -207,6 +209,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = decl.args
     override val result: PResult = decl.result
     override val isAtomic: Boolean = decl.spec.isAtomic
+    override def isHyper: Boolean = decl.spec.isHyper
     def isOpaque: Boolean = decl.spec.isOpaque
 
   }
@@ -217,6 +220,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
     override val isAtomic: Boolean = spec.spec.isAtomic
+    override def isHyper: Boolean = false // interfaces do not declare hyperfuncs
     // lazy, since the entity is created before typing and the context's attributes may not be evaluated yet
     lazy val itfType: Type.InterfaceT = context.interfaceSymbType(itfDef)
   }

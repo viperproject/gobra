@@ -228,6 +228,14 @@ object BuiltInMemberTag {
     override def isPure: Boolean = true
   }
 
+  /** `active(i)`: execution `i` is active at the current program point (hyper mode). */
+  case object ActiveFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "active"
+    override def name: String = "ActiveTag"
+    override def ghost: Boolean = true
+    override def isPure: Boolean = true
+  }
+
   /** Built-in FPredicate Tags */
 
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
@@ -362,6 +370,7 @@ object BuiltInMemberTag {
     // fpredicates
     PredTrueFPredTag,
     InvariantFunctionTag,
+    ActiveFunctionTag,
     // methods
     BufferSizeMethodTag,
     SendGivenPermMethodTag,

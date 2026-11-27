@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package relpredor01
+
+// ##(--hyperMode on)
+
+// A non-relational disjunct in a relational predicate is a premise for the other disjunct; it must not weaken
+// the predicate to `true`. Lowness of arrays is split into the lowness of the elements, which yields this shape.
+
+type H struct { E uint8; M [3]byte }
+
+pred (h *H) Mem() { acc(h) }
+
+pred (h *H) MemLow() { h.Mem() && unfolding h.Mem() in low(*h) }
+
+pred LowIfPos(x *int) { acc(x) && (*x <= 0 || low(*x)) }
+
+requires h.MemLow()
+func (h *H) Use() {
+	unfold h.MemLow()
+	unfold h.Mem()
+	assert low(h.E) && low(h.M[0]) && low(h.M)
+}
+
+requires h.Mem() && unfolding h.Mem() in low(h.E)
+func (h *H) FoldSecret() {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	fold h.MemLow()
+}
+
+requires acc(x) && *x > 0
+func FoldPos(x *int) {
+	//:: ExpectedOutput(assert_error:assertion_error)
+	fold LowIfPos(x)
+}
+
+requires acc(x) && *x <= 0
+ensures  LowIfPos(x)
+func FoldNonPos(x *int) {
+	fold LowIfPos(x)
+}
+
+requires LowIfPos(x)
+func UsePos(x *int) {
+	unfold LowIfPos(x)
+	assert *x <= 0 || low(*x)
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert low(*x)
+}

@@ -23,6 +23,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (AssertionT, AssertionT) => true
       case (StringT, StringT) => true
       case (PermissionT, PermissionT) => true
+      case (ExecT, ExecT) => true
       case (Float32T, Float32T) => true
       case (Float64T, Float64T) => true
 

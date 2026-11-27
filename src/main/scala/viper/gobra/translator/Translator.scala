@@ -14,6 +14,7 @@ import viper.gobra.reporting.{ConsistencyError, GeneratedViperMessage, Transform
 import viper.gobra.translator.context.DfltTranslatorConfig
 import viper.gobra.translator.encodings.programs.ProgramsImpl
 import viper.gobra.translator.transformers.hyper.SIFLowGuardTransformerImpl
+import viper.gobra.translator.transformers.hyper.extended.HyperfuncMarkerTransformer
 import viper.gobra.translator.transformers.{AssumeTransformer, TerminationDomainTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 import viper.silver.ast.{AbstractSourcePosition, SourcePosition}
@@ -38,8 +39,9 @@ object Translator {
     val task = programTranslator.translate(program)(translationConfig)
 
     // for hyper mode `EnabledExtended`, we use Viper's SIF plugin instead
+    // (hyperfuncs: low and rel in their definitions are replaced by marker functions, see HyperfuncMarkerTransformer)
     val sifTransformer =
-      if (config.hyperModeOrDefault == Hyper.EnabledExtended) Seq.empty
+      if (config.hyperModeOrDefault == Hyper.EnabledExtended) Seq(new HyperfuncMarkerTransformer(config))
       else Seq(new SIFLowGuardTransformerImpl(config))
     val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,

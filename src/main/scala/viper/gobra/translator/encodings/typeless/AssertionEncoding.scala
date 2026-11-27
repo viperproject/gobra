@@ -10,6 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{AssertByContraBodyError, AssertByError, AssertByProofBodyError, AssignSuchThatError, AssignSuchThatNoWitnessError}
 import viper.gobra.theory.Addressability
+import viper.gobra.reporting.Source
+import viper.gobra.translator.util.TypePatterns._
 import viper.gobra.translator.encodings.combinators.Encoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -78,12 +80,36 @@ class AssertionEncoding extends Encoding {
         e <- pure(ctx.expression(as.in))(ctx)
       } yield withSrc(vpr.Asserting(a, e), as)
 
-    case n@ in.Low(e) => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
+    case n@ in.Low(e) =>
+      lowByComponents(e, n.info)(ctx) match {
+        case Some(split) => ctx.expression(split)
+        case None => for {arg <- ctx.expression(e) } yield withSrc(SIFLowExp(arg), n)
+      }
     case n: in.LowContext => unit(withSrc(SIFLowEventExp(), n))
     case n@ in.Rel(e, i) => for {
       ve <- ctx.expression(e)
       vi <- ctx.expression(i)
     } yield withSrc(SIFRelExp(ve, vi.asInstanceOf[vpr.IntLit]), n)
+  }
+
+  /**
+    * `low(e)` states that `e` has the same value in all executions, i.e., that the values are equal in the sense of Go's
+    * `==`. For structs and arrays, this is component-wise equality, which does not follow from the equality of their
+    * Viper encodings (e.g., the encoding of arrays lacks extensionality). Hence, `low(e)` is split into the lowness
+    * of the fields of a struct and of the elements of an array. Returns `None` if `e` has no such type.
+    */
+  private def lowByComponents(e: in.Expr, info: Source.Parser.Info)(ctx: Context): Option[in.Expr] = {
+    def go(e: in.Expr): in.Expr = lowByComponents(e, info)(ctx).getOrElse(in.Low(e)(info))
+    underlyingType(e.typ)(ctx) match {
+      case in.StructT(fields, _, _) =>
+        Some(fields.map(f => go(in.FieldRef(e, f)(info))).reduceOption[in.Expr](in.And(_, _)(info)).getOrElse(in.BoolLit(b = true)(info)))
+      case t: in.ArrayT =>
+        val idx = in.BoundVar(ctx.freshNames.next(), in.IntT(Addressability.Exclusive))(info)
+        val elem = in.IndexedExp(e, idx, t)(info)
+        val inRange = in.And(in.AtMostCmp(in.IntLit(0)(info), idx)(info), in.LessCmp(idx, in.IntLit(t.length)(info))(info))(info)
+        Some(in.PureForall(Vector(idx), Vector(in.Trigger(Vector(elem))(info)), in.Or(in.Negation(inRange)(info), go(elem))(info))(info))
+      case _ => None
+    }
   }
 
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {

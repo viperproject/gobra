@@ -22,7 +22,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, Violation}
+import viper.gobra.util.{BackendAnnotation, Computation, Constants, DesugarWriter, GobraExecutionContext, TypeBounds, Violation}
 
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicLong
@@ -45,7 +45,7 @@ object Desugar extends LazyLogging {
       val importedDesugaringStartMs = System.currentTimeMillis()
       val typeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector)
+      val d = new Desugarer(importedPackage.positions, typeInfo, packageInitCollector, config.hyperExecutionsOrDefault)
       val res = (d, d.packageD(importedPackage, isImportedPkg  = true))
       importedDesugaringDurationMs.addAndGet(System.currentTimeMillis() - importedDesugaringStartMs)
       res
@@ -54,7 +54,7 @@ object Desugar extends LazyLogging {
     val mainPackage = {
       val mainDesugaringStartMs = System.currentTimeMillis()
       // desugar the main package, i.e. the package on which verification is performed:
-      val mainDesugarer = new Desugarer(pkg.positions, info, packageInitCollector)
+      val mainDesugarer = new Desugarer(pkg.positions, info, packageInitCollector, config.hyperExecutionsOrDefault)
       val res = (mainDesugarer, mainDesugarer.packageD(pkg, isImportedPkg = false))
       logger.trace {
         val durationS = f"${(System.currentTimeMillis() - mainDesugaringStartMs) / 1000f}%.1f"
@@ -181,7 +181,33 @@ object Desugar extends LazyLogging {
     }
   }
 
-  private class Desugarer(@unused pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector) {
+  private class Desugarer(@unused pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo, initSpecs: PackageInitSpecCollector,
+                          executions: Int) {
+
+    /**
+      * A parameter `i` of type `exec` of a hyperfunc is an execution identifier: it denotes one of the executions and
+      * has a single value for all of them. It is encoded as an integer with the implicit precondition `0 <= i && i < k`,
+      * and the hyperfunc is annotated with the positions of its execution parameters (see [[execParameterAnnotation]]),
+      * so that the product constructions pass them once instead of once per execution.
+      */
+    private def execParameterPres(decls: Vector[PParameter], params: Vector[in.Parameter.In], isHyper: Boolean)(src: Meta): Vector[in.Assertion] =
+      if (!isHyper) Vector.empty
+      else (decls zip params).collect {
+        case (d, p) if info.symbType(d.typ) == Type.ExecT =>
+          in.ExprAssertion(in.And(
+            in.AtMostCmp(in.IntLit(0)(src), p)(src),
+            in.LessCmp(p, in.IntLit(executions)(src))(src))(src))(src)
+      }
+
+    /**
+      * The positions of the execution parameters of a hyperfunc among the parameters of the encoding Viper function,
+      * whose first parameter is the receiver for methods (`offset` 1), see [[viper.gobra.translator.util.VprInfo]].
+      */
+    private def execParameterAnnotation(decls: Vector[PParameter], isHyper: Boolean, offset: Int): Vector[BackendAnnotation] = {
+      val positions = decls.zipWithIndex.collect { case (d, i) if info.symbType(d.typ) == Type.ExecT => (i + offset).toString }
+      if (!isHyper || positions.isEmpty) Vector.empty
+      else Vector(BackendAnnotation(viper.gobra.translator.util.VprInfo.hyperFuncExecParamsAnnotationKey, positions))
+    }
 
     type Meta = Source.Parser.Info
 
@@ -732,7 +758,7 @@ object Desugar extends LazyLogging {
       val funcInfo = pureFunctionMemberOrLitD(decl, fsrc, new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)), info)
 
       in.PureFunction(name, funcInfo.args, funcInfo.results, funcInfo.pres,
-        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque)(fsrc)
+        funcInfo.posts, funcInfo.terminationMeasures, funcInfo.backendAnnotations, funcInfo.body, funcInfo.isOpaque, funcInfo.isHyper)(fsrc)
     }
 
     private case class PureFunctionInfo(args: Vector[in.Parameter.In],
@@ -743,7 +769,8 @@ object Desugar extends LazyLogging {
                                         terminationMeasures: Vector[in.TerminationMeasure],
                                         backendAnnotations: Vector[BackendAnnotation],
                                         body: Option[in.Expr],
-                                        isOpaque: Boolean)
+                                        isOpaque: Boolean,
+                                        isHyper: Boolean)
 
 
     private def pureFunctionMemberOrLitD(decl: PFunctionOrClosureDecl, fsrc: Meta, outerCtx: FunctionContext, info: TypeInfo): PureFunctionInfo = {
@@ -785,7 +812,7 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions and termination measures
-      val pres = decl.spec.pres map specificationD(ctx, info)
+      val pres = execParameterPres(decl.args, args, decl.spec.isHyper)(fsrc) ++ (decl.spec.pres map specificationD(ctx, info))
       val posts = decl.spec.posts map specificationD(ctx, info)
       val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx, info, false)).res
 
@@ -801,9 +828,10 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations) ++
+        execParameterAnnotation(decl.args, decl.spec.isHyper, offset = 0)
 
-      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)
+      PureFunctionInfo(args, capturedWithAliases, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, decl.spec.isHyper)
     }
 
 
@@ -963,7 +991,7 @@ object Desugar extends LazyLogging {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map specificationD(ctx, info)
+      val pres = execParameterPres(decl.args, args, decl.spec.isHyper)(fsrc) ++ (decl.spec.pres map specificationD(ctx, info))
       val posts = decl.spec.posts map specificationD(ctx, info)
       // The desugaring of termination measures assumes that this method never has an interface receiver.
       // This should never occur, given that interface method signatures are desugared in method `registerInterface`.
@@ -980,8 +1008,9 @@ object Desugar extends LazyLogging {
           }
           implicitConversion(res.typ, returns.head.typ, res)
       }
-      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations)
-      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque)(fsrc)
+      val annotations = desugarBackendAnnotations(decl.spec.backendAnnotations) ++
+        execParameterAnnotation(decl.args, decl.spec.isHyper, offset = 1)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, annotations, bodyOpt, isOpaque, decl.spec.isHyper)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -4083,6 +4112,9 @@ object Desugar extends LazyLogging {
 
       case Type.PermissionT => in.PermissionT(addrMod)
 
+      // execution identifiers are encoded as the integers 0, …, k-1
+      case Type.ExecT => in.IntT(addrMod, TypeBounds.UnboundedInteger)
+
       case _ => Violation.violation(s"got unexpected type $t")
     }
 
@@ -4653,10 +4685,17 @@ object Desugar extends LazyLogging {
 
         case PLow(exp) => for { wExp <- go(exp) } yield in.Low(wExp)(src)
         case PLowContext() => unit(in.LowContext()(src))
-        case PRel(exp, lit) => for {
+        case PRel(exp, lit: PIntLit) => for {
           dExp <- go(exp)
-          dLit <- go(lit)
-        } yield in.Rel(dExp, dLit.asInstanceOf[in.IntLit])(src)
+        } yield in.Rel(dExp, in.IntLit(lit.lit)(src))(src)
+
+        // `rel(e, i)` with a parameter `i` of type `exec`: a case distinction over the executions
+        case PRel(exp, index) => for {
+          dExp <- go(exp)
+          dIndex <- go(index)
+        } yield (executions - 2 to 0 by -1).foldLeft[in.Expr](in.Rel(dExp, in.IntLit(executions - 1)(src))(src)) { (els, j) =>
+          in.Conditional(in.EqCmp(dIndex, in.IntLit(j)(src))(src), in.Rel(dExp, in.IntLit(j)(src))(src), els, dExp.typ)(src)
+        }
 
         case PElem(left, right) => for {
           dleft <- go(left)

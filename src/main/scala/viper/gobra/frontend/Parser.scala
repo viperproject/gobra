@@ -266,8 +266,9 @@ object Parser extends LazyLogging {
   }
 
   /** computes the key for caching a package. This takes the name and the content of each source, the package info and the `specOnly` flag into account */
-  private def getPackageCacheKey(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean): PackageCacheKey = {
-    val key = sources.map(source => source.name ++ source.content).mkString("") ++ pkgInfo.hashCode.toString ++ (if (specOnly) "1" else "0")
+  private def getPackageCacheKey(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean, executions: Int): PackageCacheKey = {
+    val key = sources.map(source => source.name ++ source.content).mkString("") ++ pkgInfo.hashCode.toString ++ (if (specOnly) "1" else "0") ++
+      s"k$executions" // execution quantifiers are unrolled during parsing
     val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
     // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
     bytes.map { "%02x".format(_) }.mkString
@@ -281,7 +282,7 @@ object Parser extends LazyLogging {
   private def parseSources(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
     def parseSourcesCached(sources: Vector[Source], pkgInfo: PackageInfo, specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
       var cacheHit: Boolean = true
-      val res = packageCache.computeIfAbsent(getPackageCacheKey(sources, pkgInfo, specOnly), _ => {
+      val res = packageCache.computeIfAbsent(getPackageCacheKey(sources, pkgInfo, specOnly, config.hyperExecutionsOrDefault), _ => {
         cacheHit = false
         parseSourcesUncached(sources, pkgInfo, specOnly)(config)
       })
@@ -304,6 +305,7 @@ object Parser extends LazyLogging {
     def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       val errors = ListBuffer.empty[ParserError]
       val parser = new SyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
+      parser.executions = config.hyperExecutionsOrDefault
       parser.parse(parser.sourceFile) match {
         case Right(ast) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
@@ -659,6 +661,9 @@ object Parser extends LazyLogging {
 
   private class SyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 
+    /** the number of executions related by relational assertions; execution quantifiers are unrolled for it */
+    var executions: Int = 2
+
 
     def this(source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean) = {
       this({
@@ -719,7 +724,7 @@ object Parser extends LazyLogging {
         case e: Throwable => errors.append(ParserError(e.getMessage, Some(SourcePosition(source.toPath, 0, 0)))); new ParserRuleContext()
       }
       if(errors.isEmpty) {
-        val translator = new ParseTreeTranslator(pom, source, specOnly)
+        val translator = new ParseTreeTranslator(pom, source, specOnly, executions)
         val parseAst : Node = try translator.translate(tree)
           catch {
             case e: TranslationFailure =>

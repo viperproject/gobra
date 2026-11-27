@@ -1,0 +1,69 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncmethod01
+
+// ##(--hyperMode on --experimentalHyperfuncs)
+
+// Hyperfunc methods: a type defines what "low" means for its values.
+type Pair struct {
+	a, b int
+}
+
+pred (p *Pair) Mem() {
+	acc(p)
+}
+
+requires p.Mem()
+decreases
+hyperfunc (p *Pair) LowContents() bool {
+	return unfolding p.Mem() in low(p.a) && low(p.b)
+}
+
+requires acc(p.Mem(), 1/2) && p.LowContents()
+ensures  acc(p.Mem(), 1/2) && low(res)
+func (p *Pair) Size() (res int) {
+	return unfolding acc(p.Mem(), 1/2) in p.a + p.b
+}
+
+func test() {
+	p := &Pair{1, 2}
+	fold p.Mem()
+	assert p.LowContents()
+	r := p.Size()
+	assert low(r)
+}
+
+// recursion over a linked list whose shape may differ between executions
+type List struct {
+	val  int
+	next *List
+}
+
+pred (l *List) Mem() {
+	acc(l) && (l.next != nil ==> l.next.Mem())
+}
+
+requires l.Mem()
+decreases l.Mem()
+hyperfunc (l *List) LowElems() bool {
+	return unfolding l.Mem() in
+		low(l.val) && low(l.next == nil) && (l.next != nil ==> l.next.LowElems())
+}
+
+requires l.Mem() && l.LowElems()
+ensures  l.Mem() && l.LowElems() && low(res)
+decreases l.Mem()
+func (l *List) Head() (res int) {
+	unfold l.Mem()
+	res = l.val
+	fold l.Mem()
+	return res
+}
+
+func testHigh(x int) {
+	p := &Pair{1, x}
+	fold p.Mem()
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert p.LowContents()
+}

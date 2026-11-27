@@ -19,6 +19,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
     case _: PPermissionType => noMessages
     case _: PIntegerGhostType => noMessages
+    case n: PExecType => execTypeMessages(n)
     case PSequenceType(elem) => isType(elem).out
     case PSetType(elem) => isType(elem).out
     case PMultisetType(elem) => isType(elem).out
@@ -40,9 +41,33 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case _: PPredType => noMessages // well definedness implied by well definedness of children
   }
 
+  /**
+    * Execution identifiers have the same value in all executions. They are only allowed as parameters of hyperfuncs
+    * (including hyperfunc members of interfaces), where they select executions in `rel(e, i)` and in calls to other
+    * hyperfuncs.
+    */
+  private def execTypeMessages(n: PExecType): Messages = {
+    def isHyperParam(p: PNode): Boolean = tree.parent(p).headOption match {
+      case Some(_: PExplicitGhostParameter) => tree.parent(p).headOption.exists(isHyperParam)
+      case Some(f: PFunctionDecl) => f.spec.isHyper && f.args.exists(_ eq p)
+      case Some(m: PMethodDecl) => m.spec.isHyper && m.args.exists(_ eq p)
+      case Some(m: PMethodSig) => m.spec.isHyper && m.args.exists(_ eq p)
+      case _ => false
+    }
+    val allowed = tree.parent(n).headOption.exists {
+      case p: PNamedParameter => isHyperParam(p)
+      case p: PUnnamedParameter => isHyperParam(p)
+      case _ => false
+    }
+    error(n, "the type 'exec' is only allowed for parameters of hyperfuncs", !allowed) ++
+      error(n, s"the type 'exec' requires hyperMode '${viper.gobra.frontend.Hyper.Enabled.name}' or '${viper.gobra.frontend.Hyper.EnabledExtended.name}'",
+        config.hyperModeOrDefault != viper.gobra.frontend.Hyper.Enabled && config.hyperModeOrDefault != viper.gobra.frontend.Hyper.EnabledExtended)
+  }
+
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
     case PPermissionType() => PermissionT
     case PIntegerGhostType() => IntT(TypeBounds.UnboundedInteger)
+    case PExecType() => ExecT
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))

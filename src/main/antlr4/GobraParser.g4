@@ -56,7 +56,8 @@ member: specMember | declaration | ghostMember;
 ghostMember: implementationProof
   | fpredicateDecl
   | mpredicateDecl
-  | explicitGhostMember;
+  | explicitGhostMember
+  | hyperMember;
 
 // Ghost statements
 
@@ -136,9 +137,13 @@ isComparable: IS_COMPARABLE L_PAREN expression R_PAREN;
 
 low: LOW L_PAREN expression R_PAREN;
 
+// an execution: a literal, a variable bound by an execution quantifier (`forall i exec :: …`), or a parameter of type
+// `exec` of a hyperfunc
+executionIndex: integer | IDENTIFIER;
+
 lowc: LOWC L_PAREN R_PAREN;
 
-hyperRelExpr: REL L_PAREN expression COMMA integer R_PAREN;
+hyperRelExpr: REL L_PAREN expression COMMA executionIndex R_PAREN;
 
 typeOf: TYPE_OF L_PAREN expression R_PAREN;
 
@@ -273,6 +278,13 @@ methodDecl[boolean trusted, boolean pure, boolean opaque]: FUNC receiver IDENTIF
 
 
 explicitGhostMember: GHOST (specMember | declaration);
+
+// Hyper functions (hyperfuncs) and hyper methods abstract over several executions. They are always ghost and pure.
+hyperMember: specification (hyperFunctionDecl[$specification.trusted] | hyperMethodDecl[$specification.trusted]);
+
+hyperFunctionDecl[boolean trusted]: HYPERFUNC IDENTIFIER (signature blockWithBodyParameterInfo?);
+
+hyperMethodDecl[boolean trusted]: HYPERFUNC receiver IDENTIFIER (signature blockWithBodyParameterInfo?);
 
 fpredicateDecl: PRED IDENTIFIER parameters predicateBody?;
 

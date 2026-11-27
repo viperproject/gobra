@@ -127,10 +127,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, body) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+        showSpec(spec) <> showFuncKeyword(spec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
           opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PMethodDecl(id, rec, args, res, spec, body) =>
-        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+        showSpec(spec) <> showFuncKeyword(spec) <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT) <> (
@@ -139,6 +139,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           )
     }
     case member: PGhostMember => member match {
+      // hyperfuncs are implicitly ghost
+      case PExplicitGhostMember(m) if isHyperMember(m) => showMember(m)
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
       case PFPredicateDecl(id, args, body) =>
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
@@ -155,6 +157,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPure: Doc = "pure" <> line
   def showOpaque: Doc = "opaque" <> line
+  /** hyper functions and hyper methods are declared with `hyperfunc` instead of `func` and are implicitly pure */
+  def showFuncKeyword(spec: PFunctionSpec): Doc = if (spec.isHyper) "hyperfunc" else "func"
+  def isHyperMember(m: PMember): Boolean = m match {
+    case f: PFunctionDecl => f.spec.isHyper
+    case m: PMethodDecl => m.spec.isHyper
+    case _ => false
+  }
   def showOpensInvs: Doc = "opensInvariants" <> line
   def showAtomic: Doc = "atomic" <> line
   def showTrusted: Doc = "trusted" <> line
@@ -178,8 +187,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit) =>
-      (if (isPure) showPure else emptyDoc) <>
+    case PFunctionSpec(clauses, measures, backendAnnotations, isPure, isTrusted, isOpaque, isAtomic, opensInvs, mayInit, isHyper) =>
+      (if (isPure && !isHyper) showPure else emptyDoc) <>
       (if (isOpaque) showOpaque else emptyDoc) <>
       (if (opensInvs) showOpensInvs else emptyDoc) <>
       (if (isTrusted) showTrusted else emptyDoc) <>
@@ -581,7 +590,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
       case PLow(exp) => "low" <> parens(showExpr(exp))
       case _: PLowContext => "low_context"
-      case PRel(exp, lit) => "rel" <> parens(showExpr(exp) <> "," <+> showExpr(lit))
+      case PRel(exp, index) => "rel" <> parens(showExpr(exp) <> "," <+> showExpr(index))
 
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))
@@ -698,6 +707,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showGhostType(typ : PGhostType) : Doc = typ match {
     case PPermissionType() => "perm"
     case PIntegerGhostType() => "integer"
+    case PExecType() => "exec"
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
@@ -813,13 +823,14 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, _) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+        showSpec(spec) <> showFuncKeyword(spec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case PMethodDecl(id, rec, args, res, spec, _) =>
-        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+        showSpec(spec) <> showFuncKeyword(spec) <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
       case ip: PImplementationProof =>
         showType(ip.subT) <+> "implements" <+> showType(ip.superT)
     }
     case member: PGhostMember => member match {
+      case PExplicitGhostMember(m) if isHyperMember(m) => showMember(m)
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
       case PFPredicateDecl(id, args, _) =>
         "pred" <+> showId(id) <> parens(showParameterList(args))

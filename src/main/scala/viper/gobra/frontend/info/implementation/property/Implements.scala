@@ -83,7 +83,7 @@ trait Implements { this: TypeInfoImpl =>
                       case _ => false
                     }
                   }) {
-                    Vector(s"For member $name, either both or neither of implementation and interface must be hyperfuncs")
+                    Vector(s"The hyperfunc $name cannot implement an interface method")
                   } else if ({
                     (implMember, itfMember) match {
                       case (implMember: Method, itfMember: Method) =>

@@ -3458,16 +3458,15 @@ object Desugar extends LazyLogging {
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = execParameterPres(m.args, args, m.spec.isHyper)(src) ++ (m.spec.pres map specificationD(specCtx, info))
+          val pres = m.spec.pres map specificationD(specCtx, info)
           val posts = m.spec.posts map specificationD(specCtx, info)
           val terminationMeasures =
             sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx, info, true)).res
-          val annotations = desugarBackendAnnotations(m.spec.backendAnnotations) ++
-            execParameterAnnotation(m.args, m.spec.isHyper, offset = 1)
+          val annotations = desugarBackendAnnotations(m.spec.backendAnnotations)
           val isOpaque = m.spec.isOpaque
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None, isOpaque, m.spec.isHyper)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None, isOpaque)(src)
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, annotations, None)(src)
           }

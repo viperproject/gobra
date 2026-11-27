@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package hyperfuncitffail01
+
+// ##(--hyperMode on --experimentalHyperfuncs)
+
+// Interfaces do not declare hyperfuncs (see jcp19/hyperfuncs#20).
+type Container interface {
+	pred Mem()
+
+	requires Mem()
+	decreases
+	//:: ExpectedOutput(parser_error)
+	hyperfunc LowContents() bool
+}

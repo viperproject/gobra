@@ -75,13 +75,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
           }
         }
 
-        val hyperMembersExperimental = t.methSpecs.flatMap { sig =>
-          error(sig, viper.gobra.frontend.Config.experimentalHyperfuncsMessage, sig.spec.isHyper && !config.enableExperimentalHyperfuncs)
-        }
         methodSet.errors(t) ++
           error(t, "Interface declaration contains methods annotated with 'mayInit'.", methodsContainMayInit) ++
           t.methSpecs.flatMap(wellDefMethodSig) ++
-          hyperMembersExperimental ++
           containsRedeclarations(t) // temporary check
       } else {
         isRecursiveInterface

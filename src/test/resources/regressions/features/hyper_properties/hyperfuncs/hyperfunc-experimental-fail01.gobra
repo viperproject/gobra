@@ -19,11 +19,6 @@ hyperfunc (t T) Low(x int) bool {
 	return low(x)
 }
 
-type I interface {
-	//:: ExpectedOutput(type_error)
-	hyperfunc LowContents() bool
-}
-
 ensures NonInterf(x, res)
 func Double(x int) (res int) {
 	return 2 * x

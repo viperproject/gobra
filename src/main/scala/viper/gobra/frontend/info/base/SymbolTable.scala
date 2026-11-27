@@ -220,7 +220,7 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
     override val isAtomic: Boolean = spec.spec.isAtomic
-    override def isHyper: Boolean = spec.spec.isHyper
+    override def isHyper: Boolean = false // interfaces do not declare hyperfuncs
     // lazy, since the entity is created before typing and the context's attributes may not be evaluated yet
     lazy val itfType: Type.InterfaceT = context.interfaceSymbType(itfDef)
   }

@@ -16,7 +16,6 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.combinators.LeafTypeEncoding
 import viper.gobra.translator.context.Context
 import viper.gobra.translator.util.FunctionGenerator
-import viper.gobra.translator.util.VprInfo
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
 import viper.silver.plugin.standard.termination
@@ -740,7 +739,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         pres = utils.receiverNotNil(recv)(pos, info, errT)(ctx) +: (vPres ++ measures),
         posts = (cases map { case (impl, implProxy) => clause(impl, implProxy) }) ++ posts,
         body = body
-      )(pos, VprInfo.attachHyperFuncExecParams(VprInfo.maybeAttachHyperFunc(info, p.isHyper), p.backendAnnotations), errT)
+      )(pos, info, errT)
     } yield func
   }
 
@@ -770,8 +769,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       terminationMeasures = Vector.empty,
       backendAnnotations = Vector.empty,
       body = Some(body),
-      isOpaque = false,
-      isHyper = itfSymb.isHyper
+      isOpaque = false
     )(p.info))(ctx)
 
     val pres = vItfFun.pres.map { pre =>
@@ -783,8 +781,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
 
     val (pos, info, errT) = p.vprMeta
-    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos,
-      VprInfo.attachHyperFuncExecParams(VprInfo.maybeAttachHyperFunc(info, itfSymb.isHyper), itfSymb.backendAnnotations), errT))
+    pureMethodDummy.map(res => res.copy(pres = pres, posts = posts)(pos, info, errT))
   }
 
   /**

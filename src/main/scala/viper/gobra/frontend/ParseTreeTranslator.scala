@@ -442,8 +442,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
-    // hyper methods (`hyperfunc` members) are always ghost
-    val ghost = has(ctx.GHOST()) || has(ctx.HYPERFUNC())
+    val ghost = has(ctx.GHOST())
     val spec = if (ctx.specification() != null)
       visitSpecification(ctx.specification())
     else
@@ -957,7 +956,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     // hyper functions and hyper methods (declared with `hyperfunc`) are always pure
     val isHyper = ctx.getParent match {
       case _: HyperMemberContext => true
-      case m: MethodSpecContext => has(m.HYPERFUNC())
       case _ => false
     }
 

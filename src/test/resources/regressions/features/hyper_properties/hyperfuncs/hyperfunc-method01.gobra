@@ -1,23 +1,11 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package hyperfuncitf01
+package hyperfuncmethod01
 
 // ##(--hyperMode on --experimentalHyperfuncs)
 
-// Data abstraction for security specs: each implementation defines what "low" means for it.
-type Container interface {
-	pred Mem()
-
-	requires Mem()
-	decreases
-	hyperfunc LowContents() bool
-
-	requires acc(Mem(), 1/2) && LowContents()
-	ensures  acc(Mem(), 1/2) && low(res)
-	Size() (res int)
-}
-
+// Hyperfunc methods: a type defines what "low" means for its values.
 type Pair struct {
 	a, b int
 }
@@ -38,13 +26,11 @@ func (p *Pair) Size() (res int) {
 	return unfolding acc(p.Mem(), 1/2) in p.a + p.b
 }
 
-// Pair implements Container
 func test() {
 	p := &Pair{1, 2}
 	fold p.Mem()
-	var c Container = p
-	assert c.LowContents()  // the dynamic type is the same in both executions here
-	r := c.Size()
+	assert p.LowContents()
+	r := p.Size()
 	assert low(r)
 }
 
@@ -78,15 +64,6 @@ func (l *List) Head() (res int) {
 func testHigh(x int) {
 	p := &Pair{1, x}
 	fold p.Mem()
-	var c Container = p
 	//:: ExpectedOutput(assert_error:assertion_error)
-	assert c.LowContents()
-}
-
-// The dynamic type of the receiver may differ between executions. Then, the result of an interface hyperfunc is
-// unspecified, and it cannot be used to prove anything about the executions.
-requires c != nil && c.Mem()
-func testDispatch(c Container) {
-	//:: ExpectedOutput(assert_error:assertion_error)
-	assert c.LowContents()
+	assert p.LowContents()
 }

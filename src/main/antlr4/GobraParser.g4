@@ -464,13 +464,8 @@ interfaceType:
 
 predicateSpec: PRED IDENTIFIER parameters;
 
-// The alternative for hyper methods must come first: during prediction, ANTLR treats the predicate of `eos` as
-// true and an assertion may be empty, so `requires Mem() hyperfunc M() bool` may also be read as a method `Mem()`
-// (with the precondition `requires <empty>`) followed by another member. ANTLR resolves this by choosing the first
-// alternative.
 methodSpec:
-  specification HYPERFUNC IDENTIFIER parameters result
-  | GHOST? specification IDENTIFIER parameters result
+  GHOST? specification IDENTIFIER parameters result
   | GHOST? specification IDENTIFIER parameters;
 
 // Added ghostTypeLiterals

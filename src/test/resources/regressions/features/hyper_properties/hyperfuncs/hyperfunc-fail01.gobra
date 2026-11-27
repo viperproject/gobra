@@ -85,16 +85,16 @@ func ghostVar(x int) {
 }
 
 type Itf interface {
+	ghost
 	decreases
-	hyperfunc M() bool
+	pure M() bool
 }
 
 type Impl struct{}
 
-// an interface hyperfunc must be implemented by a hyperfunc
-ghost
+// interfaces do not declare hyperfuncs, so a hyperfunc does not implement an interface method
 decreases
-pure func (i Impl) M() bool {
+hyperfunc (i Impl) M() bool {
 	return true
 }
 

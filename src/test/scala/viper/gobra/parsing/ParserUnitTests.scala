@@ -2798,12 +2798,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should parse a hyperfunc in an interface") {
-    frontend.parseTypeOrFail("interface { pred Mem(); requires Mem(); hyperfunc LowContents() bool; Size() int }") should matchPattern {
-      case PInterfaceType(Vector(), Vector(
-        PMethodSig(PIdnDef("LowContents"), Vector(), _, PFunctionSpec(Vector(_), Vector(), Vector(), true, false, false, false, false, false, true), true),
-        PMethodSig(PIdnDef("Size"), Vector(), _, PFunctionSpec(Vector(), Vector(), Vector(), false, false, false, false, false, false, false), false)
-      ), Vector(_)) =>
+  test("Parser: should not parse a hyperfunc in an interface") {
+    frontend.parseType("interface { pred Mem(); requires Mem(); hyperfunc LowContents() bool; Size() int }") should matchPattern {
+      case Left(_) =>
     }
   }
 

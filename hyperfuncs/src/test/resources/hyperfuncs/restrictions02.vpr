@@ -1,0 +1,7 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Triggers are unary (rejected by Viper's type checker, since relational constructs are not valid triggers).
+method triggers(s: Seq[Int])
+  //:: ExpectedOutput(typechecker.error)
+  requires forall k: Int :: { rel(s[k], 0) } 0 <= k && k < |s| ==> low(s[k])

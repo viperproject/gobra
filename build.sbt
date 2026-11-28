@@ -20,9 +20,24 @@ genParser := {
   }
 }
 
+// Hyperfunctions for Viper: a plugin on top of Viper's information-flow (SIF) plugin, which implements both of
+// Gobra's hyper modes (see docs/design/hyperfuncs-plugin.md). It depends only on Viper, not on Gobra.
+lazy val hyperfuncs = (project in file("hyperfuncs"))
+  .dependsOn(server % "compile->compile;test->test")
+  .settings(
+    name := "viper-hyperfuncs",
+    organization := "viper",
+    version := "0.1.0-SNAPSHOT",
+    scalacOptions ++= Seq("-encoding", "UTF-8", "-deprecation", "-feature", "-Werror"),
+    Test / javaOptions += "-Xss128m",
+    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
+    fork := true,
+  )
+
 // Gobra specific project settings
 lazy val gobra = (project in file("."))
-  .dependsOn(server % "compile->compile;test->test")
+  .dependsOn(server % "compile->compile;test->test", hyperfuncs)
+  .aggregate(hyperfuncs)
   .settings(
     // General settings
     name := "Gobra",
@@ -106,6 +121,9 @@ lazy val gobra = (project in file("."))
     },
 
     // Assembly settings
+    // the plugin's classes are part of gobra.jar; `hyperfuncs` is aggregated only for compiling and testing
+    assembly / aggregate := false,
+    Test / assembly / aggregate := false,
     assembly / assemblyJarName := "gobra.jar",
     assembly / mainClass := Some("viper.gobra.GobraRunner"),
     // assembly / javaOptions += "-Xss128m", // TODO: does apparently nothing

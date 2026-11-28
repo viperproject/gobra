@@ -1,0 +1,164 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// Further features of hyperfunctions: execution quantifiers and parameters, guards with `active`, the activity that
+// hyperfunctions require (also through the hyperfunctions they call), partial `rel` and total `low`, let-expressions,
+// relational predicates that call hyperfunctions, loops on secrets, and termination of hyperfunctions.
+
+field f: Int
+
+hyperfunction AllActive(): Bool
+{ forall i: Exec :: active(i) }
+
+hyperfunction Agree(x: Int, i: Exec, j: Exec): Bool
+  requires active(i) && active(j)
+{ rel(x, i) == rel(x, j) }
+
+// reads both executions only through Agree
+hyperfunction LowVia(x: Int): Bool
+  requires AllActive()
+{ Agree(x, 0, 1) }
+
+// guarded: reads execution 1 only where it is active, so it requires nothing
+hyperfunction PositiveIn1(x: Int): Bool
+{ active(1) ==> rel(x, 1) > 0 }
+
+// an existential over executions
+hyperfunction SomePositive(x: Int): Bool
+{ exists i: Exec :: active(i) && rel(x, i) > 0 }
+
+// a let-expression whose value is unary: computed in each execution
+hyperfunction LowDouble(x: Int): Bool
+{ let y == (2 * x) in low(y) }
+
+// the bound value of a let is unary: in `rel(y, 1)`, y is the value of `2 * x` in execution 1
+hyperfunction Second(x: Int): Int
+  requires active(1)
+{ let y == (2 * x) in rel(y, 1) }
+
+method lets(x: Int)
+  requires AllActive()
+{
+  assert Second(x) == 2 * rel(x, 1)
+  assert let y == (x + 1) in rel(y, 1) == rel(x, 1) + 1
+  //:: ExpectedOutput(assert.failed:assertion.false)
+  assert let y == (x + 1) in rel(y, 1) == rel(x, 0) + 1
+}
+
+method quantifiers(x: Int)
+  requires AllActive() && low(x)
+{
+  assert forall i: Exec, j: Exec :: Agree(x, i, j)
+  assert forall i: Exec :: rel(x, i) == rel(x, 0)
+  assert LowVia(x) && LowDouble(x)
+}
+
+method transitiveActivity(x: Int, s: Bool)
+  requires AllActive() && low(x)
+{
+  if (s) {
+    assert AllActive() ==> LowVia(x)
+    //:: ExpectedOutput(application.precondition:assertion.false)
+    assert LowVia(x)
+  }
+}
+
+method guards(x: Int, s: Bool)
+  requires x > 0
+{
+  if (s) {
+    // where execution 1 is inactive, the guard is false; where it is active, x > 0
+    assert PositiveIn1(x)
+    assert SomePositive(x)
+  }
+}
+
+// `low` relates the active executions: where only one execution is active, low(x) holds and !low(x) is false
+method lowIsTotal(x: Int, s: Bool)
+{
+  if (s) {
+    assert active(0) && !active(1) ==> low(x)
+    //:: ExpectedOutput(assert.failed:assertion.false)
+    assert !low(x)
+  }
+}
+
+// relational predicates may call hyperfunctions
+predicate Cell(r: Ref) { acc(r.f) && LowDouble(r.f) }
+
+method cells(r: Ref)
+  requires Cell(r)
+  ensures  Cell(r) && low(2 * old(unfolding Cell(r) in r.f))
+{
+  unfold Cell(r)
+  fold Cell(r)
+}
+
+// a loop whose condition is secret: the executions may run a different number of iterations
+method secretLoop(n: Int) returns (c: Int)
+  requires n >= 0
+  ensures  c == n
+  ensures  low(n) ==> low(c)
+{
+  c := 0
+  while (c < n)
+    invariant 0 <= c && c <= n
+  {
+    c := c + 1
+  }
+}
+
+// lowEvent: both executions reach the call
+method print(v: Int)
+  requires lowEvent && low(v)
+
+method events(x: Int, s: Bool)
+  requires lowEvent && low(x)
+{
+  print(x)
+  if (s) {
+    //:: ExpectedOutput(call.precondition:assertion.false)
+    print(x)
+  }
+}
+
+// termination of hyperfunctions is checked for each execution
+hyperfunction Loops(n: Int): Int
+  requires active(0)
+  requires low(n)
+  decreases n
+//:: ExpectedOutput(termination.failed:tuple.false)
+{ rel(n, 0) <= 0 ? 0 : Loops(n) + rel(n, 0) }
+
+// postconditions of hyperfunctions are proved from their bodies
+hyperfunction Dist(x: Int): Int
+  requires AllActive()
+  ensures result >= 0
+{ rel(x, 0) >= rel(x, 1) ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0) }
+
+hyperfunction WrongPost(x: Int): Int
+  requires AllActive()
+  //:: ExpectedOutput(postcondition.violated:assertion.false)
+  ensures result > 0
+{ rel(x, 0) - rel(x, 1) }
+
+// Activity preconditions are explicit: a hyperfunction that reads an execution with `rel` must require that it is
+// active, otherwise its definition is not well-formed.
+//:: ExpectedOutput(function.not.wellformed:assertion.false)
+hyperfunction DistNoPre(x: Int): Int
+{ rel(x, 0) >= rel(x, 1) ? rel(x, 0) - rel(x, 1) : rel(x, 1) - rel(x, 0) }
+
+// also for reads through other hyperfunctions
+hyperfunction Close(x: Int): Bool
+//:: ExpectedOutput(application.precondition:assertion.false)
+{ Dist(x) <= 1 }
+
+// a precise precondition: Agree(x, 1, 1) reads only execution 1
+method onlyOne(x: Int, s: Bool)
+{
+  if (s) {
+    assert active(1) ==> Agree(x, 1, 1)
+    //:: ExpectedOutput(application.precondition:assertion.false)
+    assert Agree(x, 0, 1)
+  }
+}

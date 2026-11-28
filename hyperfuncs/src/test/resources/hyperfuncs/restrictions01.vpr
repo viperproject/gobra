@@ -1,0 +1,128 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// The static rules of hyperfunctions, as in Gobra: where relational constructs may appear, unary arguments of low and
+// rel, execution identifiers, and rigid bodies.
+
+field f: Int
+
+hyperfunction NonInterf(input: Int, output: Int): Bool
+{ low(input) ==> low(output) }
+
+hyperfunction Agree(x: Int, i: Exec, j: Exec): Bool
+  requires active(i) && active(j)
+{ rel(x, i) == rel(x, j) }
+
+// functions do not call hyperfunctions or use relational constructs
+function callsHyper(x: Int): Bool
+//:: ExpectedOutput(consistency.error)
+{ NonInterf(x, x) }
+
+function usesLow(x: Int): Bool
+  //:: ExpectedOutput(consistency.error)
+  ensures low(result)
+{ true }
+
+function usesRel(x: Int): Int
+//:: ExpectedOutput(consistency.error)
+{ rel(x, 0) }
+
+function usesActive(): Bool
+//:: ExpectedOutput(consistency.error)
+{ active(0) }
+
+domain D {
+  function d(x: Int): Bool
+  axiom {
+    //:: ExpectedOutput(consistency.error)
+    forall x: Int :: d(x) ==> low(x)
+  }
+}
+
+method statements(x: Int, b: Bool) returns (r: Int)
+{
+  // allowed: assertions
+  assert NonInterf(x, x)
+  assume low(x) ==> low(x + 1)
+  inhale low(b)
+  exhale low(b)
+  //:: ExpectedOutput(consistency.error)
+  if (low(x)) { r := 1 }
+  //:: ExpectedOutput(consistency.error)
+  while (low(r) && r < 10)
+    invariant low(r) ==> low(r)  // allowed: loop invariants
+  { r := r + 1 }
+  var c: Bool
+  //:: ExpectedOutput(consistency.error)
+  c := NonInterf(x, r)
+  //:: ExpectedOutput(consistency.error)
+  r := rel(x, 1)
+}
+
+// the argument of low and rel is unary
+method nesting(x: Int)
+  //:: ExpectedOutput(consistency.error)
+  requires low(rel(x, 0))
+  //:: ExpectedOutput(consistency.error)
+  requires rel(low(x), 1)
+  //:: ExpectedOutput(consistency.error)
+  requires low(NonInterf(x, x))
+
+// Exec is only allowed for hyperfunction parameters and quantified variables
+//:: ExpectedOutput(consistency.error)
+method execParam(i: Exec)
+
+//:: ExpectedOutput(consistency.error)
+function execFunction(i: Exec): Bool { true }
+
+method execLocal()
+{
+  //:: ExpectedOutput(consistency.error)
+  var i: Exec
+}
+
+//:: ExpectedOutput(consistency.error)
+hyperfunction ExecResult(): Exec
+
+// executions are identified by literals and variables of type Exec
+method quantifiedExecutions(x: Int)
+  requires forall i: Exec :: active(i)
+  requires forall i: Exec, j: Exec :: Agree(x, i, j)
+  requires exists i: Exec :: rel(x, i) > 0
+
+// a hyperfunction with a non-boolean result has one value for all executions
+hyperfunction Unary(x: Int): Int
+//:: ExpectedOutput(consistency.error)
+{ x + 1 }
+
+hyperfunction UnaryCondition(x: Int, y: Int): Int
+  requires active(0) && active(1)
+//:: ExpectedOutput(consistency.error)
+{ x > 0 ? rel(y, 0) : rel(y, 1) }
+
+// also if the parameter is low: n has one value per execution, and rel(n, 0) is its value in execution 0
+hyperfunction LowParam(x: Int, n: Int): Int
+  requires active(0) && active(1)
+  requires low(n)
+//:: ExpectedOutput(consistency.error)
+{ n > 0 ? rel(x, 0) + n : rel(x, 1) }
+
+hyperfunction LowParamRel(x: Int, n: Int): Int
+  requires active(0) && active(1)
+  requires low(n)
+{ rel(n, 0) > 0 ? rel(x, 0) + rel(n, 0) : rel(x, 1) }
+
+hyperfunction HeapValue(r: Ref): Int
+  requires acc(r.f)
+//:: ExpectedOutput(consistency.error)
+{ r.f }
+
+hyperfunction HeapRel(r: Ref): Int
+  requires active(0)
+  requires acc(r.f)
+{ rel(r.f, 0) }
+
+// lowEvent is a statement-level assertion
+hyperfunction Event(): Bool
+//:: ExpectedOutput(consistency.error)
+{ lowEvent }

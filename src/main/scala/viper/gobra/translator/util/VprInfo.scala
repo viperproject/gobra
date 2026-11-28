@@ -21,13 +21,13 @@ object VprInfo {
     info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains("opaque"))
 
   /** Key of the annotation marking the Viper function that encodes `active(i)`. */
-  val activeExecutionAnnotationKey: String = "activeExecution"
+  val activeExecutionAnnotationKey: String = viper.hyperfuncs.HyperfuncsAnnotations.activeExecutionKey
 
   def isActiveExecution(info: vpr.Info): Boolean =
     info.getAllInfos[vpr.AnnotationInfo].exists(_.values.contains(activeExecutionAnnotationKey))
 
-  /** Key of the annotation marking Viper functions that encode hyper functions, see [[SIFLowGuardTransformer]]. */
-  val hyperFuncAnnotationKey: String = "hyperFunc"
+  /** Key of the annotation marking Viper functions that encode hyper functions, see [[viper.hyperfuncs.HyperfuncsAnnotations]]. */
+  val hyperFuncAnnotationKey: String = viper.hyperfuncs.HyperfuncsAnnotations.hyperfunctionKey
 
   def maybeAttachHyperFunc(info: vpr.Info, isHyper: Boolean): vpr.Info = {
     if (isHyper) {
@@ -45,7 +45,7 @@ object VprInfo {
     * of a hyperfunc, i.e., its parameters of type `exec`. An execution parameter has a single value for all executions,
     * so the product constructions pass it once instead of once per execution.
     */
-  val hyperFuncExecParamsAnnotationKey: String = "hyperFuncExecParams"
+  val hyperFuncExecParamsAnnotationKey: String = viper.hyperfuncs.HyperfuncsAnnotations.executionParametersKey
 
   /** The positions of the execution parameters of the hyperfunc with info `info`. */
   def hyperFuncExecParams(info: vpr.Info): Set[Int] =

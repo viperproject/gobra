@@ -134,8 +134,11 @@ The second rule also fixes a crash: today, a hyperfunc call in a MAJOR member ra
 
 It must exist exactly once.
 
-- **Prototype:** in Gobra, as a separate source tree with package `viper.hyperfuncs` and no Gobra dependencies. The hyperfuncs repository deletes its copy and runs its Viper tests with Gobra's jar, which contains Silicon and the plugin.
-- **Eventually:** in silver, next to the SIF plugin. The subclass overrides internal methods of `SIFExtendedTransformer`, so it should live next to that class, and those methods should become documented extension points. This needs agreement from the Viper maintainers.
+**Decision: in Gobra**, as the sbt subproject `hyperfuncs/` (package `viper.hyperfuncs`), which depends only on Viper; the build enforces that it does not depend on Gobra. The hyperfuncs repository has no copy and runs its Viper tests with Gobra's jar, which contains Silicon and the plugin.
+
+- The coupling to silver is controlled: Gobra pins silver through its `viperserver` submodule, and a silver change that breaks the plugin shows up in Gobra's tests when the submodule is updated.
+- Costs: Viper-only users need Gobra's jar, and the methods of `SIFExtendedTransformer` that the plugin overrides stay silver internals rather than documented extension points.
+- Moving the plugin to silver, next to the SIF plugin, remains possible later without changes to the code (step 4, optional).
 
 ## Components
 
@@ -172,11 +175,11 @@ Each step ends with the acceptance tests passing:
    - Move `SIFLowGuardTransformer` into the plugin as the second instance, and delete its hyperfunc translation (done).
    - Replace the `#[MAJOR]` source tag by an annotation (done); add the two MAJOR rules (open, see #1136).
    - Check that the termination behaviour of the lockstep encoding survives running after the termination plugin. This covers the lexicographic measures over k copies and methods with `decreases`.
-4. **Upstream to silver** (with the Viper maintainers).
+4. **Upstream to silver** (optional, not planned): only if Viper-only users need the plugin without Gobra, or silver's SIF plugin starts to change often. Needs agreement from the Viper maintainers.
 
 ## Risks and open questions
 
-- **Coupling to silver's internals.** Until step 4, a change to an internal method of silver's transformer can break the subclass silently. Gobra's tests catch this when the submodule is updated.
+- **Coupling to silver's internals.** A change to an internal method of silver's transformer can break the subclass. Gobra's tests catch this when the submodule is updated.
 - **Termination in lockstep.** Today the termination plugin sees the lockstep product. After step 3 it sees the unary program. Termination proofs that depend on relational preconditions would then fail.
 - **Generated Viper.** Deriving lockstep from the general definitions can change the generated programs, and with them the verification times. The comparison is the evaluation's timing data.
 - **Error reporting.** Both transformers partly rely on Gobra's source info. The plugin must preserve `info` wherever it creates nodes from Gobra's nodes.
